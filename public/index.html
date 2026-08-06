@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
-    <title>ALYZIA OPS NEXT V2.2 Gmail Sync</title>
+    <title>ALYZIA OPS NEXT V2.3 Gmail Live</title>
     <style>
 *{box-sizing:border-box}
 :root{
@@ -6866,6 +6866,40 @@ function countSpecials(data){
     if(Number.isFinite(data.specialCount))return data.specialCount;
     const s=data.specials||data.particularities||{};return Object.values(s).reduce((n,v)=>n+(Array.isArray(v)?v.length:(typeof v==='number'?v:(v?1:0))),0);
 }
+function base64ToPdfFile(base64, filename){
+    const binary=atob(String(base64||''));
+    const bytes=new Uint8Array(binary.length);
+    for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
+    return new File([bytes],filename||'altea_report.pdf',{type:'application/pdf'});
+}
+async function parseGmailPdfAttachments(attachments,flight,date){
+    let finalData=null;
+    let parsedCount=0;
+    const ignored=[];
+    const errors=[];
+    for(let i=0;i<(attachments||[]).length;i++){
+        const item=attachments[i]||{};
+        setSyncState('running',`Analyse PDF ${i+1}/${attachments.length} · ${item.filename||'document.pdf'}...`);
+        try{
+            if(!item.dataBase64){ignored.push(item.filename||`PDF ${i+1}`);continue;}
+            const file=base64ToPdfFile(item.dataBase64,item.filename||`altea_report_${i+1}.pdf`);
+            const parsed=await handleImportSQ_PDF(file);
+            if(!parsed?.flight){ignored.push(item.filename||`PDF ${i+1}`);continue;}
+            const parsedFlight=String(parsed.flight||'').replace(/\s+/g,'').toUpperCase();
+            if(parsedFlight!==flight.replace(/\s+/g,'').toUpperCase()){
+                ignored.push(`${item.filename||`PDF ${i+1}`} (${parsedFlight||'autre vol'})`);continue;
+            }
+            parsed.isoDate=parsed.isoDate||date;
+            parsed.date=parsed.date||date;
+            parsed.source='GMAIL_PDF';
+            finalData=finalData?await mergeFlightData(finalData,parsed):parsed;
+            parsedCount++;
+        }catch(error){
+            errors.push(`${item.filename||`PDF ${i+1}`}: ${error?.message||error}`);
+        }
+    }
+    return {data:finalData,parsedCount,ignored,errors};
+}
 async function syncFlightFromWorker(){
     const flight=(document.getElementById('syncFlight')?.value||'').trim().toUpperCase();const date=document.getElementById('syncDate')?.value||'';
     if(!/^[A-Z0-9]{2,3}\s?\d{1,4}[A-Z]?$/.test(flight)){setSyncState('error','Numéro de vol invalide. Exemple : SQ337.');return;}
@@ -6873,12 +6907,20 @@ async function syncFlightFromWorker(){
     const btn=document.getElementById('syncNowBtn');if(btn)btn.disabled=true;setSyncState('running',`Recherche de ${flight} du ${date} dans Gmail...`);setSyncKpis();
     try{
         const result=await workerRequest(`/api/sync?flight=${encodeURIComponent(flight)}&date=${encodeURIComponent(date)}`);
-        const data=result.flightData||result.data;
-        if(!data)throw new Error('Le Worker n’a renvoyé aucune donnée de vol.');
-        data.flight=data.flight||flight;data.isoDate=data.isoDate||date;data.date=data.date||date;data.source='GMAIL_SYNC';data.lastSync=new Date().toISOString();
+        const attachments=Array.isArray(result.attachments)?result.attachments:[];
+        if(!attachments.length)throw new Error('Le mail sélectionné ne contient aucun PDF exploitable.');
+        const parsedResult=await parseGmailPdfAttachments(attachments,flight,date);
+        const data=parsedResult.data;
+        if(!data)throw new Error(`Aucun des ${attachments.length} PDF n’a produit de données pour ${flight}.`);
+        data.flight=data.flight||flight;data.isoDate=date;data.date=date;data.source='GMAIL_SYNC_LIVE';data.lastSync=new Date().toISOString();
+        data.gmailSync={subject:result.selectedMessage?.subject||'',mailId:result.selectedMessage?.id||'',receivedPdfs:attachments.length,parsedPdfs:parsedResult.parsedCount,ignoredPdfs:parsedResult.ignored,errors:parsedResult.errors};
         finalizeImport(data,null,null);
-        const mails=result.mailCount||result.messages||0,pdfs=result.pdfCount||result.pdfs||0,specials=countSpecials(data);setSyncKpis(mails,pdfs,specials);
-        setSyncState('success',`${flight} mis à jour : ${pdfs} PDF analysé(s).`);addSyncLog(`${flight} · ${date}`,`${mails} message(s), ${pdfs} PDF, ${specials} particularité(s).`,'success');
+        const mails=Number(result.mailCount||1),pdfs=parsedResult.parsedCount,specials=countSpecials(data);setSyncKpis(mails,pdfs,specials);
+        const total=Number(data.paxPreviTotal||((data.classes?.F||0)+(data.classes?.J||0)+(data.classes?.S||0)+(data.classes?.Y||0)));
+        setSyncState('success',`${flight} mis à jour · ${pdfs}/${attachments.length} PDF utiles · ${total} passager(s).`);
+        addSyncLog(`${flight} · ${date}`,`${mails} mail · ${pdfs}/${attachments.length} PDF utiles · ${total} pax · ${specials} particularité(s).`,'success');
+        if(parsedResult.errors.length)console.warn('Erreurs PDF Gmail',parsedResult.errors);
+        if(parsedResult.ignored.length)console.info('PDF ignorés',parsedResult.ignored);
     }catch(e){const message=e.name==='AbortError'?'Le Worker ne répond pas. Vérifiez son adresse et son déploiement.':e.message;setSyncState('error',message);addSyncLog(`Échec ${flight}`,message,'error');}
     finally{if(btn)btn.disabled=false;}
 }
