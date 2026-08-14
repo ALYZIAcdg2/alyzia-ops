@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - Virtual V45</title>
+<title>ALYZIA OPS - Virtual V46 · SARIA SeatMap</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -2971,6 +2971,181 @@ body{
  .seat-v2{width:40px;height:34px}
 }
 
+
+/* =========================================================
+   V46 — INTEGRATION SARIA CABIN / SEATMAP
+   TYPE A/C -> CONFIG CABINE SARIA -> PLAN V/H COMMUN
+   ========================================================= */
+.saria-ac-wrap{display:grid;gap:5px;width:100%}
+.saria-ac-select{
+  width:100%;max-width:100%;height:34px;border:1px solid #d4dee8;border-radius:7px;
+  background:#fff;color:#17243a;font-size:11px;font-weight:950;padding:0 7px;text-align:center
+}
+.saria-cabin-mini{
+  display:flex;align-items:center;justify-content:center;gap:5px;min-height:19px;
+  margin-top:3px;font-size:8px;font-weight:950;color:#08784b;line-height:1.15;text-align:center
+}
+.saria-cabin-mini.missing{color:#a86700}
+.saria-picker{display:grid;gap:12px}
+.saria-picker-head{
+  display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px;border:1px solid #dce5ed;
+  background:#f8fafc;border-radius:10px
+}
+.saria-picker-head>div{padding:8px;border:1px solid #e1e7ee;border-radius:8px;background:#fff}
+.saria-picker-head small{display:block;font-size:8px;color:#6e8195;font-weight:900}
+.saria-picker-head b{display:block;margin-top:4px;font-size:13px}
+.saria-config-list{display:grid;gap:7px;max-height:52vh;overflow:auto;padding-right:3px}
+.saria-config-option{
+  width:100%;display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;
+  border:1px solid #d8e2eb;background:#fff;border-radius:9px;padding:10px 11px;text-align:left;cursor:pointer
+}
+.saria-config-option:hover{border-color:#80b7ee;background:#f9fcff}
+.saria-config-option.selected{border-color:#076af0;background:#eef6ff;box-shadow:0 0 0 1px #076af0 inset}
+.saria-config-main b{display:block;font-size:12px;color:#13263c}
+.saria-config-main span{display:block;margin-top:3px;font-size:9px;color:#6a7c90;font-weight:800}
+.saria-config-total{font-size:12px;font-weight:950;color:#075fd3;white-space:nowrap}
+.saria-picker-actions{display:flex;justify-content:flex-end;gap:7px;flex-wrap:wrap}
+.saria-picker-actions button{
+ border:1px solid #cfdbe6;background:#fff;border-radius:8px;padding:9px 12px;font-size:9px;font-weight:950
+}
+.saria-picker-actions .primary{background:#076af0;border-color:#076af0;color:#fff}
+.saria-state-note{
+ padding:9px 10px;border-radius:8px;border:1px solid #d9e2ea;background:#f8fafc;
+ color:#607489;font-size:9px;font-weight:850;line-height:1.4
+}
+.saria-state-note.ok{border-color:#9fd4b4;background:#eefaf3;color:#08784b}
+.saria-state-note.warn{border-color:#efc278;background:#fff8e8;color:#a76300}
+.saria-state-note.err{border-color:#ef9ca4;background:#fff1f2;color:#bf2633}
+
+/* SeatMap SARIA : seulement le plan cabine + commandes essentielles */
+.saria-seat-shell{display:grid;gap:10px}
+.saria-seat-top{
+ display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;
+ padding:10px 11px;border:1px solid #dce5ed;border-radius:10px;background:#f8fafc
+}
+.saria-seat-id{min-width:0}
+.saria-seat-id b{display:block;font-size:13px;color:#14263d}
+.saria-seat-id span{display:block;margin-top:3px;font-size:9px;color:#667a90;font-weight:850}
+.saria-orient{
+ display:flex;border:1px solid #cfd9e4;border-radius:8px;overflow:hidden;background:#fff
+}
+.saria-orient button{
+ border:0;border-right:1px solid #cfd9e4;background:#fff;color:#5c7085;padding:8px 11px;
+ font-size:9px;font-weight:950;cursor:pointer
+}
+.saria-orient button:last-child{border-right:0}
+.saria-orient button.active{background:#13243a;color:#fff}
+.saria-seat-kpis{display:flex;gap:6px;flex-wrap:wrap}
+.saria-seat-kpi{
+ border:1px solid #dce5ed;background:#fff;border-radius:8px;padding:6px 8px;
+ font-size:8px;font-weight:900;color:#53687d
+}
+.saria-seat-kpi b{color:#14283e;font-size:10px}
+.saria-seat-controls{
+ display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap
+}
+.saria-seat-search{
+ flex:1;min-width:200px;height:34px;border:1px solid #ccd8e4;border-radius:8px;padding:0 10px;
+ font-size:10px;font-weight:850
+}
+.saria-seat-filters{display:flex;gap:5px;flex-wrap:wrap}
+.saria-seat-filter{
+ border:1px solid #d5dfe8;background:#fff;color:#5a6e83;border-radius:999px;padding:6px 9px;
+ font-size:8px;font-weight:950;cursor:pointer
+}
+.saria-seat-filter.active{background:#142a43;border-color:#142a43;color:#fff}
+
+.saria-plane-stage{
+ --saria-bg:#0A0F1A;--saria-panel:#111A2B;--saria-line:#263650;--saria-muted:#7C8AA3;
+ --saria-F:#C084FC;--saria-C:#F2A93B;--saria-W:#48D3C4;--saria-Y:#5B8DEF;
+ position:relative;overflow:auto;max-height:68vh;border:1px solid #dbe4ed;border-radius:13px;
+ background:radial-gradient(ellipse at top,#111c30,#070c15 75%);padding:20px;color:#e8edf6
+}
+.saria-plane{width:max-content;min-width:100%;margin:0 auto}
+.saria-v-fuselage{width:max-content;min-width:340px;margin:0 auto}
+.saria-v-nose{
+ height:25px;border:1px solid var(--saria-line);border-bottom:0;border-radius:50% 50% 0 0/100% 100% 0 0;
+ background:linear-gradient(180deg,#1b2c49,transparent)
+}
+.saria-v-tail{
+ height:20px;border:1px solid var(--saria-line);border-top:0;border-radius:0 0 42% 42%/0 0 100% 100%;
+ background:linear-gradient(180deg,transparent,#1b2c49)
+}
+.saria-class-head{
+ display:flex;align-items:center;gap:7px;padding:10px 4px 7px;font-size:10px;font-weight:950;
+ letter-spacing:.06em;text-transform:uppercase;color:#dce5f2
+}
+.saria-class-dot{width:8px;height:8px;border-radius:2px}
+.saria-class-head span:last-child{margin-left:auto;font-size:8px;color:#8797aa}
+.saria-v-row{display:flex;align-items:center;justify-content:center;gap:4px;padding:2px 0}
+.saria-rownum{width:28px;text-align:right;padding-right:5px;font-size:8px;color:#8392a5;font-weight:850;flex:0 0 28px}
+.saria-seatblock{display:flex;gap:4px}
+.saria-aisle-v{width:17px;flex:0 0 17px;position:relative}
+.saria-aisle-v:after{content:"";position:absolute;left:50%;top:-2px;bottom:-2px;border-left:1px solid #22314a}
+.saria-divider{
+ display:flex;align-items:center;justify-content:center;gap:7px;margin:7px 0;padding:6px 8px;
+ border-top:1px dashed #33445d;border-bottom:1px dashed #33445d;color:#7f91a6;
+ font-size:8px;font-weight:900;letter-spacing:.04em
+}
+.saria-divider.exit{color:#56df80;border-color:#2d6a45}
+
+/* Horizontal : même modèle de sièges, rotation logique seulement */
+.saria-h-fuselage{display:flex;align-items:flex-start;width:max-content;margin:0 auto;padding:8px 0}
+.saria-h-class{display:flex;align-items:flex-start;position:relative;padding:32px 12px 8px}
+.saria-h-class+.saria-h-class{border-left:1px solid #30405a}
+.saria-h-label{
+ position:absolute;left:12px;top:4px;display:flex;gap:6px;align-items:center;font-size:9px;font-weight:950;
+ white-space:nowrap;color:#dce5f2
+}
+.saria-h-col{display:flex;flex-direction:column;align-items:center;gap:4px;padding:0 2px}
+.saria-h-colnum{font-size:8px;color:#8392a5;font-weight:850;min-height:11px}
+.saria-h-stack{display:flex;flex-direction:column;gap:4px}
+.saria-aisle-h{height:16px;position:relative}
+.saria-aisle-h:after{content:"";position:absolute;top:50%;left:-2px;right:-2px;border-top:1px solid #22314a}
+
+/* Siège commun aux deux orientations */
+.saria-seat{
+ position:relative;width:28px;height:25px;border-radius:6px 6px 4px 4px;border:1px solid rgba(255,255,255,.15);
+ display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:950;cursor:pointer;
+ box-shadow:inset 0 -2px 0 rgba(0,0,0,.25);transition:.1s transform,.1s opacity
+}
+.saria-seat:hover{transform:translateY(-1px);z-index:40}
+.saria-seat.free{background:#174f38;color:#adf0ca;border-color:#2e8b61}
+.saria-seat.occupied{background:#184b80;color:#d6eaff;border-color:#397dbb}
+.saria-seat.special{background:#8c5c10;color:#fff0c4;border-color:#d79b35}
+.saria-seat.staff{background:#613c89;color:#f0ddff;border-color:#9b6bc1}
+.saria-seat.inop{background:#8c2733;color:#ffe0e4;border-color:#d65e6c}
+.saria-seat.inopok{background:#3b4655;color:#dde4ed;border-color:#657486}
+.saria-seat.filtered{opacity:.10;pointer-events:none}
+.saria-seat-symbol{position:absolute;right:1px;top:0;font-size:7px}
+.saria-seat-tip{
+ display:none;position:absolute;left:50%;bottom:calc(100% + 6px);transform:translateX(-50%);
+ width:185px;padding:8px 9px;background:#fff;color:#14263d;border-radius:8px;text-align:left;
+ font-size:8px;line-height:1.4;font-weight:750;box-shadow:0 10px 28px rgba(0,0,0,.35);z-index:80;white-space:normal
+}
+.saria-seat:hover .saria-seat-tip,.saria-seat:focus .saria-seat-tip{display:block}
+.saria-seat-tip b{display:block;font-size:10px;margin-bottom:3px}
+.saria-seat-tip .status{font-weight:950;margin-bottom:3px}
+.saria-seat-tip:after{
+ content:"";position:absolute;top:100%;left:50%;transform:translateX(-50%);
+ border:5px solid transparent;border-top-color:#fff
+}
+.saria-source{
+ display:inline-flex;align-items:center;gap:5px;padding:4px 7px;border-radius:999px;
+ background:#eaf9f0;border:1px solid #9fd4b4;color:#08784b;font-size:8px;font-weight:950
+}
+.saria-source.fallback{background:#fff8e8;border-color:#efc278;color:#a76300}
+
+@media(max-width:620px){
+ .saria-picker-head{grid-template-columns:1fr 1fr}
+ .saria-plane-stage{max-height:64vh;padding:12px 8px}
+ .saria-seat{width:26px;height:24px;font-size:7.5px}
+ .saria-v-row{gap:3px}.saria-seatblock{gap:3px}.saria-aisle-v{width:14px;flex-basis:14px}
+ .saria-h-stack{gap:3px}.saria-h-col{padding:0 1px}
+ .saria-seat-controls{align-items:stretch}
+ .saria-seat-search{width:100%;flex-basis:100%}
+}
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
@@ -4468,7 +4643,7 @@ function render(){
    </div>
    <div class="headcell">
     <div class="head-label">TYPE A/C <button class="edit-link" onclick="openEdit('aircraft')">✎</button></div>
-    <select class="aircraft-select" onchange="f().aircraft=this.value;render()">${AIRCRAFT.map(a=>`<option ${a===x.aircraft?'selected':''}>${a}</option>`).join('')}</select>
+    ${sariaAircraftSelectHtml(x)}
    </div>
    <div class="headcell">
     <div class="head-label">IMMAT <button class="edit-link" onclick="openEdit('reg')">✎</button></div><div style="font-weight:900">${x.reg}</div>
@@ -4859,7 +5034,7 @@ function openClassEdit(k){
 function openEdit(key){
  editKey=key;
  if(key==='time') openEditModal('MODIFIER HORAIRES',`<label>STD<input id="editStd" value="${f().std}" inputmode="numeric"></label><label>ETD<input id="editValue" value="${f().edt||''}" placeholder="2300" inputmode="numeric"></label>`);
- else if(key==='aircraft') openEditModal('TYPE A/C',`<label>TYPE<input id="editValue" list="aircraftList" value="${f().aircraft}"><datalist id="aircraftList">${AIRCRAFT.map(a=>`<option value="${a}">`).join('')}</datalist></label>`);
+ else if(key==='aircraft'){openSariaCabinChooser();return;}
  else if(key==='reg') openEditModal('IMMAT',`<label>IMMAT<input id="editValue" value="${f().reg}"></label>`);
  else if(key==='gate') openEditModal('GATE',`<label>GATE<input id="editValue" value="${f().gate||''}" placeholder="EX. B32"></label>`);
  else if(key==='parking') openEditModal('PKG / PARKING',`<label>PKG<input id="editValue" value="${f().parking||''}" placeholder="EX. V25"></label>`);
@@ -4976,7 +5151,7 @@ function resetCurrentFlightData(index){
  x.passengers=[];x.inopSeats=[];x.notes=[];x.note='';
  x.common={WCH:0,DEAF_BLND:0,EXST_CBBG:0,PET_AV:0,INF:0,CHLD:0,UMNR:0,VIP:0,EMD:0,ETK:0,FQTV:0,STAFF:0};
  x.common_lists={WCH:[],DEAF_BLND:[],EXST_CBBG:[],PET_AV:[],INF:[],CHLD:[],UMNR:[],VIP:[],EMD:[],ETK:[],FQTV:[],STAFF:[]};
- x.inbound=[];x.outbound=[];x.prepaParticularities={};x.prepaSpecificities={};x.prepaEditing=null;
+ x.inbound=[];x.outbound=[];x.prepaParticularities={};x.prepaSpecificities={};x.prepaEditing=null;x.sariaConfigKey='';x.sariaCabinConfig='';
  if(x.lists&&typeof x.lists==='object')Object.keys(x.lists).forEach(k=>x.lists[k]=[]);
  x.flight=keepFlight;x.std=keepStd;x.duration=keepDuration;x.date=keepDate;x.activeDate=keepActive;x.airline=keepAirline;x.dep=keepDep;x.dest=keepDest;
  try{
@@ -5132,257 +5307,344 @@ function openFlightInfo(){
    </div>`);
 }
 
-const SEATMAP_LAYOUTS={
- TK:{
-  'A350-900':[
-   {id:'TK_A359_32C297Y',label:'TK A350-900 · 32C / 297Y',capacity:329,cabins:[
-    {class:'C',name:'BUSINESS',rows:[1,8],letters:['A','D','G','K'],aisles:[1,2]},
-    {class:'Y',name:'ECONOMY',rows:[9,41],letters:['A','B','C','D','E','G','H','J','K'],aisles:[2,5]}
-   ]}
-  ],
-  'B777-300ER':[
-   {id:'TK_B77W_49C300Y',label:'TK B777-300ER · 49C / 300Y',capacity:349,cabins:[
-    {class:'C',name:'BUSINESS',rows:[1,7],letters:['A','C','D','E','F','H','K'],aisles:[1,4]},
-    {class:'Y',name:'ECONOMY',rows:[8,37],letters:['A','B','C','D','E','F','G','H','J','K'],aisles:[2,6]}
-   ]}
-  ],
-  'B787-9':[
-   {id:'TK_B789_30C270Y',label:'TK B787-9 · 30C / 270Y',capacity:300,cabins:[
-    {class:'C',name:'BUSINESS',rows:[1,6],letters:['A','C','D','H','K'],aisles:[1,3]},
-    {class:'Y',name:'ECONOMY',rows:[7,36],letters:['A','B','C','D','E','G','H','J','K'],aisles:[2,5]}
-   ]}
-  ]
- }
-};
-const SEATMAP_STATE={filter:'all',query:''};
 
-function normalizeAircraftForSeatmap(v){
- const s=String(v||'').toUpperCase().replace(/\s+/g,' ').trim();
- if(/A350/.test(s))return 'A350-900';
- if(/777/.test(s))return 'B777-300ER';
- if(/787/.test(s))return 'B787-9';
- return s||'NON RENSEIGNÉ';
+const SARIA_API_URL="https://saria-seatmap.alyzia-cdg2.workers.dev";
+const SARIA_API={
+ base:SARIA_API_URL,
+ layout:`${SARIA_API_URL}/api/layout`,
+ configurations:`${SARIA_API_URL}/api/configurations`
+};
+const SARIA_FALLBACK_CATALOG=[{"cie":"3O","ac":"320","config":"Y180","classes":[["Y",180]],"total":180,"freq":28},{"cie":"3O","ac":"320","config":"Y174","classes":[["Y",174]],"total":174,"freq":28},{"cie":"A9","ac":"73W","config":"C12Y121","classes":[["C",12],["Y",121]],"total":133,"freq":20},{"cie":"A9","ac":"73W","config":"C12Y123","classes":[["C",12],["Y",123]],"total":135,"freq":20},{"cie":"A9","ac":"73H","config":"C16W12Y144","classes":[["C",16],["W",12],["Y",144]],"total":172,"freq":20},{"cie":"A9","ac":"73H","config":"C18Y150","classes":[["C",18],["Y",150]],"total":168,"freq":20},{"cie":"A9","ac":"73H","config":"C20Y150","classes":[["C",20],["Y",150]],"total":170,"freq":20},{"cie":"AH","ac":"320","config":"Y102","classes":[["Y",102]],"total":102,"freq":2},{"cie":"AH","ac":"320","config":"Y148","classes":[["Y",148]],"total":148,"freq":1},{"cie":"AH","ac":"320","config":"Y172","classes":[["Y",172]],"total":172,"freq":174},{"cie":"AH","ac":"320","config":"Y180","classes":[["Y",180]],"total":180,"freq":16},{"cie":"AH","ac":"320","config":"Y302","classes":[["Y",302]],"total":302,"freq":1},{"cie":"AH","ac":"332","config":"C18W14Y219","classes":[["C",18],["W",14],["Y",219]],"total":251,"freq":29},{"cie":"AH","ac":"332","config":"Y269","classes":[["Y",269]],"total":269,"freq":27},{"cie":"AH","ac":"332","config":"Y302","classes":[["Y",302]],"total":302,"freq":2},{"cie":"AH","ac":"736","config":"C16Y86","classes":[["C",16],["Y",86]],"total":102,"freq":57},{"cie":"AH","ac":"738","config":"Y160","classes":[["Y",160]],"total":160,"freq":8},{"cie":"AH","ac":"73H","config":"C16Y132","classes":[["C",16],["Y",132]],"total":148,"freq":327},{"cie":"AH","ac":"73H","config":"C20Y135","classes":[["C",20],["Y",135]],"total":155,"freq":52},{"cie":"AH","ac":"73H","config":"Y172","classes":[["Y",172]],"total":172,"freq":2},{"cie":"AH","ac":"73W","config":"C16Y96","classes":[["C",16],["Y",96]],"total":112,"freq":14},{"cie":"AH","ac":"7M8","config":"Y186","classes":[["Y",186]],"total":186,"freq":12},{"cie":"AI","ac":"788","config":"J18Y241","classes":[["C",18],["Y",241]],"total":259,"freq":48},{"cie":"AI","ac":"789","config":"J30W28Y238","classes":[["C",30],["W",28],["Y",238]],"total":296,"freq":0},{"cie":"AI","ac":"789","config":"J30W21Y248","classes":[["C",30],["W",21],["Y",248]],"total":299,"freq":48},{"cie":"AP","ac":"738","config":"Y189","classes":[["Y",189]],"total":189,"freq":2},{"cie":"AT","ac":"73H","config":"Y156","classes":[["Y",156]],"total":156,"freq":2},{"cie":"AT","ac":"73H","config":"J12Y147","classes":[["C",12],["Y",147]],"total":159,"freq":167},{"cie":"AT","ac":"7M8","config":"J12Y144","classes":[["C",12],["Y",144]],"total":156,"freq":48},{"cie":"AT","ac":"7M8","config":"J8Y168","classes":[["C",8],["Y",168]],"total":176,"freq":12},{"cie":"AT","ac":"7M8","config":"Y189","classes":[["Y",189]],"total":189,"freq":2},{"cie":"AT","ac":"E90","config":"J12Y84","classes":[["C",12],["Y",84]],"total":96,"freq":14},{"cie":"AV","ac":"788","config":"J20Y271","classes":[["C",20],["Y",271]],"total":291,"freq":48},{"cie":"BJ","ac":"320","config":"Y177","classes":[["Y",177]],"total":177,"freq":206},{"cie":"BJ","ac":"320","config":"Y180","classes":[["Y",180]],"total":180,"freq":206},{"cie":"BJ","ac":"32N","config":"Y186","classes":[["Y",186]],"total":186,"freq":10},{"cie":"C3","ac":"320","config":"Y180","classes":[["Y",180]],"total":180,"freq":7},{"cie":"CAT","ac":"738","config":"Y189","classes":[["Y",189]],"total":189,"freq":4},{"cie":"DE","ac":"320","config":"Y180","classes":[["Y",180]],"total":180,"freq":121},{"cie":"DE","ac":"320","config":"Y1M179","classes":[["Y",180]],"total":180,"freq":2},{"cie":"DE","ac":"32B","config":"Y220","classes":[["Y",220]],"total":220,"freq":12},{"cie":"DE","ac":"32B","config":"Y1M214","classes":[["Y",215]],"total":215,"freq":1},{"cie":"DE","ac":"32B","config":"Y212","classes":[["Y",212]],"total":212,"freq":1},{"cie":"EI","ac":"320","config":"Y172","classes":[["Y",172]],"total":172,"freq":82},{"cie":"EI","ac":"320","config":"Y174","classes":[["Y",174]],"total":174,"freq":14},{"cie":"EI","ac":"32Q","config":"J16Y168","classes":[["C",16],["Y",168]],"total":184,"freq":154},{"cie":"EI","ac":"320","config":"J4Y168","classes":[["C",4],["Y",168]],"total":172,"freq":2},{"cie":"EI","ac":"333","config":"Y184","classes":[["Y",184]],"total":184,"freq":2},{"cie":"ENT","ac":"73H","config":"Y189","classes":[["Y",189]],"total":189,"freq":41},{"cie":"ENT","ac":"7M8","config":"Y189","classes":[["Y",189]],"total":189,"freq":3},{"cie":"FB","ac":"223","config":"C8M135","classes":[["C",8],["Y",135]],"total":143,"freq":48},{"cie":"FI","ac":"32Q","config":"C22Y165","classes":[["C",22],["Y",165]],"total":187,"freq":28},{"cie":"FI","ac":"75W","config":"C22Y161","classes":[["C",22],["Y",161]],"total":183,"freq":4},{"cie":"FI","ac":"75W","config":"C20Y164","classes":[["C",20],["Y",164]],"total":184,"freq":4},{"cie":"FI","ac":"76W","config":"C25Y237","classes":[["C",25],["Y",237]],"total":262,"freq":18},{"cie":"FI","ac":"7M8","config":"C16Y144","classes":[["C",16],["Y",144]],"total":160,"freq":90},{"cie":"FI","ac":"7M9","config":"C16Y162","classes":[["C",16],["Y",162]],"total":178,"freq":90},{"cie":"HF","ac":"339","config":"F4J44W21Y173","classes":[["F",4],["C",44],["W",21],["Y",173]],"total":242,"freq":56},{"cie":"HM","ac":"333","config":"J46Y203","classes":[["C",46],["Y",203]],"total":249,"freq":20},{"cie":"HU","ac":"789","config":"J30W36Y226","classes":[["C",30],["W",36],["Y",226]],"total":292,"freq":34},{"cie":"IZ","ac":"320","config":"J12Y150","classes":[["C",12],["Y",150]],"total":162,"freq":34},{"cie":"IZ","ac":"320","config":"Y180","classes":[["Y",180]],"total":180,"freq":2},{"cie":"IZ","ac":"320","config":"Y177","classes":[["Y",177]],"total":177,"freq":5},{"cie":"IZ","ac":"32Q","config":"Y220","classes":[["Y",220]],"total":220,"freq":7},{"cie":"IZ","ac":"332","config":"J20W17Y219","classes":[["C",20],["W",17],["Y",219]],"total":256,"freq":6},{"cie":"IZ","ac":"332","config":"J19Y268","classes":[["C",19],["Y",268]],"total":287,"freq":4},{"cie":"IZ","ac":"789","config":"Y359","classes":[["Y",359]],"total":359,"freq":2},{"cie":"IZ","ac":"789","config":"W28Y327","classes":[["W",28],["Y",327]],"total":355,"freq":2},{"cie":"J2","ac":"320","config":"J12Y144","classes":[["C",12],["Y",144]],"total":156,"freq":2},{"cie":"J2","ac":"320","config":"Y174","classes":[["Y",174]],"total":174,"freq":0},{"cie":"J2","ac":"320","config":"J20Y126","classes":[["C",20],["Y",126]],"total":146,"freq":0},{"cie":"J2","ac":"32N","config":"J12Y138","classes":[["C",12],["Y",138]],"total":150,"freq":10},{"cie":"J2","ac":"32N","config":"J12Y144","classes":[["C",12],["Y",144]],"total":156,"freq":6},{"cie":"J2","ac":"32N","config":"Y186","classes":[["Y",186]],"total":186,"freq":6},{"cie":"JU","ac":"223","config":"J8Y132","classes":[["C",8],["Y",132]],"total":140,"freq":2},{"cie":"JU","ac":"319","config":"J8Y132","classes":[["C",8],["Y",132]],"total":140,"freq":92},{"cie":"JU","ac":"32A","config":"J8Y132","classes":[["C",8],["Y",132]],"total":140,"freq":2},{"cie":"KK","ac":"320","config":"Y180","classes":[["Y",180]],"total":180,"freq":4},{"cie":"KL","ac":"32Q","config":"Y227","classes":[["Y",227]],"total":227,"freq":48},{"cie":"KL","ac":"73H","config":"C20M156","classes":[["C",20],["Y",156]],"total":176,"freq":6},{"cie":"KL","ac":"73H","config":"C36M150","classes":[["C",36],["Y",150]],"total":186,"freq":40},{"cie":"KL","ac":"73H","config":"Y186","classes":[["Y",186]],"total":186,"freq":62},{"cie":"KL","ac":"73J","config":"C20M162","classes":[["C",20],["Y",162]],"total":182,"freq":10},{"cie":"KL","ac":"73J","config":"C56M132","classes":[["C",56],["Y",132]],"total":188,"freq":28},{"cie":"KL","ac":"73J","config":"Y188","classes":[["Y",188]],"total":188,"freq":48},{"cie":"KL","ac":"73W","config":"C36M106","classes":[["C",36],["Y",106]],"total":142,"freq":6},{"cie":"KRP","ac":"319","config":"Y150","classes":[["Y",150]],"total":150,"freq":4},{"cie":"KU","ac":"338","config":"J32Y203","classes":[["C",32],["Y",203]],"total":235,"freq":6},{"cie":"KU","ac":"339","config":"J32Y232","classes":[["C",32],["Y",232]],"total":264,"freq":25},{"cie":"KU","ac":"339","config":"J32W21Y225","classes":[["C",32],["W",21],["Y",225]],"total":278,"freq":4},{"cie":"KU","ac":"339","config":"J32Y246","classes":[["C",32],["Y",246]],"total":278,"freq":7},{"cie":"LA","ac":"789","config":"Y300","classes":[["Y",300]],"total":300,"freq":48},{"cie":"LO","ac":"73H","config":"Y186","classes":[["Y",186]],"total":186,"freq":14},{"cie":"LO","ac":"7M8","config":"Y186","classes":[["Y",186]],"total":186,"freq":54},{"cie":"LO","ac":"7M8","config":"Y189","classes":[["Y",189]],"total":189,"freq":70},{"cie":"LS","ac":"73C","config":"Y148","classes":[["Y",148]],"total":148,"freq":28},{"cie":"LY","ac":"738","config":"C16Y150","classes":[["C",16],["Y",150]],"total":166,"freq":48},{"cie":"LY","ac":"739","config":"C16Y159","classes":[["C",16],["Y",159]],"total":175,"freq":54},{"cie":"LY","ac":"73H","config":"C16Y150","classes":[["C",16],["Y",150]],"total":166,"freq":8},{"cie":"LY","ac":"772","config":"C28W32Y253","classes":[["C",28],["W",32],["Y",253]],"total":313,"freq":9},{"cie":"LY","ac":"777","config":"C28W32Y253","classes":[["C",28],["W",32],["Y",253]],"total":313,"freq":4},{"cie":"LY","ac":"788","config":"C20W35Y183","classes":[["C",20],["W",35],["Y",183]],"total":238,"freq":16},{"cie":"LY","ac":"789","config":"C32W35Y204","classes":[["C",32],["W",35],["Y",204]],"total":271,"freq":53},{"cie":"MH","ac":"359","config":"F4J35Y247","classes":[["F",4],["C",35],["Y",247]],"total":286,"freq":48},{"cie":"MS","ac":"32N","config":"Y142","classes":[["Y",142]],"total":142,"freq":44},{"cie":"MS","ac":"32Q","config":"Y182","classes":[["Y",182]],"total":182,"freq":4},{"cie":"MS","ac":"359","config":"J30Y310","classes":[["C",30],["Y",310]],"total":340,"freq":46},{"cie":"MS","ac":"789","config":"J30Y279","classes":[["C",30],["Y",279]],"total":309,"freq":2},{"cie":"NH","ac":"789","config":"J48W21Y146","classes":[["C",48],["W",21],["Y",146]],"total":215,"freq":48},{"cie":"NO","ac":"7M8","config":"Y186","classes":[["Y",186]],"total":186,"freq":4},{"cie":"OZ","ac":"359","config":"J28Y283","classes":[["C",28],["Y",283]],"total":311,"freq":36},{"cie":"PC","ac":"32N","config":"Y186","classes":[["Y",186]],"total":186,"freq":8},{"cie":"PC","ac":"32Q","config":"Y239","classes":[["Y",239]],"total":239,"freq":2},{"cie":"PC","ac":"738","config":"Y189","classes":[["Y",189]],"total":189,"freq":2},{"cie":"PVG","ac":"EP3","config":"Y10","classes":[["Y",10]],"total":10,"freq":2},{"cie":"RJ","ac":"32N","config":"Y147","classes":[["Y",147]],"total":147,"freq":12},{"cie":"RJ","ac":"32Q","config":"Y186","classes":[["Y",186]],"total":186,"freq":36},{"cie":"S4","ac":"32Q","config":"Y186","classes":[["Y",186]],"total":186,"freq":20},{"cie":"SB","ac":"339","config":"J26W21Y244","classes":[["C",26],["W",21],["Y",244]],"total":291,"freq":22},{"cie":"SK","ac":"320","config":"Y180","classes":[["Y",180]],"total":180,"freq":2},{"cie":"SK","ac":"32N","config":"C6M174","classes":[["C",6],["Y",174]],"total":180,"freq":12},{"cie":"SK","ac":"32N","config":"C12M168","classes":[["C",12],["Y",168]],"total":180,"freq":20},{"cie":"SK","ac":"32N","config":"C18M162","classes":[["C",18],["Y",162]],"total":180,"freq":8},{"cie":"SK","ac":"32N","config":"C24M156","classes":[["C",24],["Y",156]],"total":180,"freq":6},{"cie":"SK","ac":"32N","config":"Y180","classes":[["Y",180]],"total":180,"freq":242},{"cie":"SK","ac":"73H","config":"Y189","classes":[["Y",189]],"total":189,"freq":2},{"cie":"SK","ac":"CR9","config":"Y90","classes":[["Y",90]],"total":90,"freq":30},{"cie":"SK","ac":"E95","config":"C14M100","classes":[["C",14],["Y",100]],"total":114,"freq":4},{"cie":"SK","ac":"E95","config":"C22M100","classes":[["C",22],["Y",100]],"total":122,"freq":2},{"cie":"SK","ac":"E95","config":"Y114","classes":[["Y",114]],"total":114,"freq":8},{"cie":"SK","ac":"E95","config":"Y122","classes":[["Y",122]],"total":122,"freq":16},{"cie":"SM","ac":"320","config":"Y176","classes":[["Y",176]],"total":176,"freq":6},{"cie":"SM","ac":"32N","config":"Y176","classes":[["Y",176]],"total":176,"freq":2},{"cie":"SQ","ac":"359","config":"J42W24Y187","classes":[["C",42],["W",24],["Y",187]],"total":253,"freq":48},{"cie":"SQ","ac":"77W","config":"F4J48W28Y184","classes":[["F",4],["C",48],["W",28],["Y",184]],"total":264,"freq":48},{"cie":"TB","ac":"7S8","config":"Y189","classes":[["Y",189]],"total":189,"freq":14},{"cie":"TK","ac":"321","config":"C16Y164","classes":[["C",16],["Y",164]],"total":180,"freq":2},{"cie":"TK","ac":"32Q","config":"C16Y174","classes":[["C",16],["Y",174]],"total":190,"freq":128},{"cie":"TK","ac":"332","config":"C18Y232","classes":[["C",18],["Y",232]],"total":250,"freq":10},{"cie":"TK","ac":"332","config":"C24Y255","classes":[["C",24],["Y",255]],"total":279,"freq":4},{"cie":"TK","ac":"333","config":"C28Y261","classes":[["C",28],["Y",261]],"total":289,"freq":62},{"cie":"TK","ac":"333","config":"C40Y265","classes":[["C",40],["Y",265]],"total":305,"freq":4},{"cie":"TK","ac":"333","config":"C18Y232","classes":[["C",18],["Y",232]],"total":250,"freq":2},{"cie":"TK","ac":"359","config":"C32Y308","classes":[["C",32],["Y",308]],"total":340,"freq":4},{"cie":"TK","ac":"359","config":"C32Y297","classes":[["C",32],["Y",297]],"total":329,"freq":48},{"cie":"TK","ac":"359","config":"C28Y288","classes":[["C",28],["Y",288]],"total":316,"freq":6},{"cie":"TK","ac":"77W","config":"C49Y300","classes":[["C",49],["Y",300]],"total":349,"freq":24},{"cie":"TK","ac":"789","config":"C30Y270","classes":[["C",30],["Y",270]],"total":300,"freq":14},{"cie":"TS","ac":"32Q","config":"C12Y187","classes":[["C",12],["Y",187]],"total":199,"freq":86},{"cie":"TS","ac":"332","config":"Y332","classes":[["Y",332]],"total":332,"freq":90},{"cie":"TS","ac":"333","config":"Y332","classes":[["Y",332]],"total":332,"freq":2},{"cie":"TU","ac":"320","config":"Y162","classes":[["Y",162]],"total":162,"freq":29},{"cie":"TU","ac":"320","config":"C12Y102","classes":[["C",12],["Y",102]],"total":114,"freq":2},{"cie":"TU","ac":"320","config":"C12Y138","classes":[["C",12],["Y",138]],"total":150,"freq":12},{"cie":"TU","ac":"320","config":"Y150","classes":[["Y",150]],"total":150,"freq":1},{"cie":"TU","ac":"320","config":"Y180","classes":[["Y",180]],"total":180,"freq":6},{"cie":"TU","ac":"32A","config":"C16Y120","classes":[["C",16],["Y",120]],"total":136,"freq":16},{"cie":"TU","ac":"32N","config":"Y150","classes":[["Y",150]],"total":150,"freq":5},{"cie":"TU","ac":"32N","config":"C12Y138","classes":[["C",12],["Y",138]],"total":150,"freq":8},{"cie":"TU","ac":"332","config":"C20Y260","classes":[["C",20],["Y",260]],"total":280,"freq":4},{"cie":"TW","ac":"332","config":"C18Y228","classes":[["C",18],["Y",228]],"total":246,"freq":12},{"cie":"TW","ac":"77W","config":"C59Y235","classes":[["C",59],["Y",235]],"total":294,"freq":18},{"cie":"VF","ac":"32Q","config":"Y211","classes":[["Y",211]],"total":211,"freq":32},{"cie":"VF","ac":"32Q","config":"Y230","classes":[["Y",230]],"total":230,"freq":4},{"cie":"VF","ac":"32Q","config":"Y240","classes":[["Y",240]],"total":240,"freq":24},{"cie":"VF","ac":"73H","config":"Y189","classes":[["Y",189]],"total":189,"freq":14},{"cie":"VF","ac":"7M8","config":"Y189","classes":[["Y",189]],"total":189,"freq":26},{"cie":"WB","ac":"332","config":"Y244","classes":[["Y",244]],"total":244,"freq":64}];
+let SARIA_CATALOG=[...SARIA_FALLBACK_CATALOG];
+let SARIA_CATALOG_LOADED=false;
+const SARIA_LAYOUT_CACHE={};
+const SARIA_SEAT_STATE={orientation:'h',filter:'all',query:''};
+
+function sariaNorm(v){return String(v||'').trim().toUpperCase().replace(/\s+/g,'')}
+function sariaConfigKey(e){return e.config_key||`${sariaNorm(e.cie||e.airline)}|${sariaNorm(e.ac||e.aircraft)}|${sariaNorm(e.config||e.configuration)}`}
+function sariaEntryFromApi(c){
+ let classes=[];
+ try{classes=typeof c.classes==='string'?JSON.parse(c.classes):(c.classes||[])}catch(e){classes=[]}
+ return {
+  cie:sariaNorm(c.airline),ac:sariaNorm(c.aircraft),config:sariaNorm(c.configuration),
+  classes,total:Number(c.total)||0,freq:0,d1:true,config_key:c.config_key||`${sariaNorm(c.airline)}|${sariaNorm(c.aircraft)}|${sariaNorm(c.configuration)}`
+ };
 }
-function genericSeatmapLayout(x){
- const classes=orderedClasses(x),cabins=[];
- let row=1;
- classes.forEach(cls=>{
-   const cap=Math.max(0,Number(x.config?.[cls]||0));
-   if(!cap)return;
-   let letters;
-   const ac=normalizeAircraftForSeatmap(x.aircraft);
-   if(/A321|A320|737/.test(ac))letters=['A','B','C','D','E','F'];
-   else if(cls==='C'||cls==='J'||cls==='F')letters=cap<=40?['A','C','D','H','K']:['A','C','D','E','F','H','K'];
-   else letters=['A','B','C','D','E','G','H','J','K'];
-   const nrows=Math.ceil(cap/letters.length);
-   cabins.push({class:cls,name:cls==='F'?'FIRST':(cls==='C'||cls==='J')?'BUSINESS':(cls==='S'||cls==='W')?'PREMIUM ECONOMY':'ECONOMY',rows:[row,row+nrows-1],letters,aisles:letters.length>=9?[2,5]:letters.length>=7?[1,4]:[2],capacity:cap});
-   row+=nrows;
+async function loadSariaCatalog(force=false){
+ if(SARIA_CATALOG_LOADED&&!force)return SARIA_CATALOG;
+ try{
+  const r=await fetch(SARIA_API.configurations),j=await r.json();
+  if(r.ok&&j.ok&&Array.isArray(j.data)){
+   const api=j.data.map(sariaEntryFromApi);
+   const map=new Map(SARIA_FALLBACK_CATALOG.map(e=>[sariaConfigKey(e),{...e}]));
+   api.forEach(e=>map.set(sariaConfigKey(e),{...(map.get(sariaConfigKey(e))||{}),...e}));
+   SARIA_CATALOG=[...map.values()];
+  }
+ }catch(e){console.warn('SARIA catalogue offline',e)}
+ SARIA_CATALOG_LOADED=true;
+ return SARIA_CATALOG;
+}
+function sariaAircraftTypesForAirline(code){
+ const cie=sariaNorm(code);
+ return [...new Set(SARIA_CATALOG.filter(e=>sariaNorm(e.cie)===cie).map(e=>sariaNorm(e.ac)).filter(Boolean))]
+   .sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
+}
+function sariaConfigsFor(cie,ac){
+ const c=sariaNorm(cie),a=sariaNorm(ac);
+ return SARIA_CATALOG.filter(e=>sariaNorm(e.cie)===c&&sariaNorm(e.ac)===a)
+   .sort((x,y)=>(Number(y.freq)||0)-(Number(x.freq)||0)||String(x.config).localeCompare(String(y.config),undefined,{numeric:true}));
+}
+function sariaSelectedEntry(x=f()){
+ if(!x)return null;
+ const key=x.sariaConfigKey;
+ if(key){
+  const byKey=SARIA_CATALOG.find(e=>sariaConfigKey(e)===key);
+  if(byKey)return byKey;
+ }
+ if(x.sariaCabinConfig){
+  const byCfg=sariaConfigsFor(x.airline,x.aircraft).find(e=>sariaNorm(e.config)===sariaNorm(x.sariaCabinConfig));
+  if(byCfg)return byCfg;
+ }
+ return null;
+}
+function sariaClassObject(entry){
+ const o={};
+ (entry?.classes||[]).forEach(([c,n])=>{let k=sariaNorm(c);if(k==='M'||k==='E')k='Y';if(k==='J')k='C';o[k]=(o[k]||0)+(Number(n)||0)});
+ return o;
+}
+function sariaCabinLabel(x=f()){
+ const e=sariaSelectedEntry(x);
+ return e?`${e.config} · ${e.total||sum(sariaClassObject(e))} PAX`:'VERSION CABINE À CHOISIR';
+}
+function sariaAircraftSelectHtml(x){
+ const opts=sariaAircraftTypesForAirline(x.airline);
+ const cur=sariaNorm(x.aircraft);
+ if(cur&&!opts.includes(cur))opts.unshift(cur);
+ if(!opts.length&&cur)opts.push(cur);
+ return `<div class="saria-ac-wrap"><select class="saria-ac-select" onchange="onSariaAircraftChange(this.value)">${opts.map(a=>`<option value="${a}" ${a===cur?'selected':''}>${a}</option>`).join('')}</select><div class="saria-cabin-mini ${sariaSelectedEntry(x)?'':'missing'}">${sariaSelectedEntry(x)?'✓ ': '⚠ '}${sariaCabinLabel(x)}</div></div>`;
+}
+async function onSariaAircraftChange(value){
+ const x=f();if(!x)return;
+ x.aircraft=sariaNorm(value);x.sariaConfigKey='';x.sariaCabinConfig='';
+ render();
+ await loadSariaCatalog();
+ openSariaCabinChooser();
+}
+async function openSariaCabinChooser(){
+ const x=f();if(!x)return;
+ await loadSariaCatalog();
+ const configs=sariaConfigsFor(x.airline,x.aircraft);
+ const current=sariaSelectedEntry(x);
+ showModal('VERSION CABINE SARIA',`${x.flight} · ${x.airline} · ${x.aircraft}`,`
+  <div class="saria-picker">
+   <div class="saria-picker-head">
+    <div><small>COMPAGNIE</small><b>${x.airline}</b></div>
+    <div><small>TYPE A/C</small><b>${x.aircraft||'—'}</b></div>
+   </div>
+   ${configs.length?`<div class="saria-config-list">${configs.map(e=>`<button class="saria-config-option ${current&&sariaConfigKey(current)===sariaConfigKey(e)?'selected':''}" onclick="selectSariaCabin('${encodeURIComponent(sariaConfigKey(e))}')"><div class="saria-config-main"><b>${e.config}</b><span>${(e.classes||[]).map(c=>c[0]+' '+c[1]).join(' · ')||'CONFIGURATION SARIA'}${e.d1?' · D1':''}</span></div><div class="saria-config-total">${e.total||sum(sariaClassObject(e))} PAX</div></button>`).join('')}</div>`:`<div class="saria-state-note warn">AUCUNE VERSION CABINE SARIA TROUVÉE POUR <b>${x.airline} · ${x.aircraft}</b>.<br>Le SeatMap pourra uniquement utiliser un plan générique basé sur la CONFIG du vol.</div>`}
+   <div class="saria-picker-actions">
+    <button onclick="modalBack()">ANNULER</button>
+    ${current?`<button class="primary" onclick="closeModal();openSeatmap()">OUVRIR LE SEATMAP</button>`:''}
+   </div>
+  </div>`);
+}
+function selectSariaCabin(encodedKey){
+ const key=decodeURIComponent(encodedKey),x=f(),entry=SARIA_CATALOG.find(e=>sariaConfigKey(e)===key);
+ if(!x||!entry)return;
+ x.sariaConfigKey=sariaConfigKey(entry);
+ x.sariaCabinConfig=entry.config;
+ x.aircraft=entry.ac;
+ const cfg=sariaClassObject(entry);
+ if(Object.keys(cfg).length){
+  const previousBooked=x.booked||{},previousWeb=x.web||{},previousMeals=x.meals||{};
+  x.config={...cfg};
+  x.booked={};x.web={};x.meals={};
+  Object.keys(cfg).forEach(k=>{x.booked[k]=Number(previousBooked[k]||0);x.web[k]=Number(previousWeb[k]||0);x.meals[k]=Number(previousMeals[k]||0)});
+ }
+ try{localStorage.setItem(`alyzia_saria_config|${x.flight}|${x.activeDate||x.date||''}`,JSON.stringify({key:x.sariaConfigKey,config:x.sariaCabinConfig,ac:x.aircraft}))}catch(e){}
+ closeModal();render();
+}
+function restoreSariaFlightSelections(){
+ FLIGHTS.forEach(x=>{
+  try{
+   const s=JSON.parse(localStorage.getItem(`alyzia_saria_config|${x.flight}|${x.activeDate||x.date||''}`)||'null');
+   if(s){x.sariaConfigKey=s.key||'';x.sariaCabinConfig=s.config||'';if(s.ac)x.aircraft=s.ac}
+  }catch(e){}
  });
- return {id:'GENERIC_'+classes.join(''),label:`CONFIG VOL · ${classes.map(c=>c+' '+Number(x.config?.[c]||0)).join(' / ')}`,capacity:sum(x.config),cabins,generic:true};
 }
-function seatmapLayoutsForFlight(x){
- const ac=normalizeAircraftForSeatmap(x.aircraft);
- const specific=SEATMAP_LAYOUTS?.[x.airline]?.[ac]||[];
- return [...specific,genericSeatmapLayout(x)];
+
+function sariaPatternGroups(pattern){
+ const p=String(pattern||'').toUpperCase().trim();
+ if(!p)return [];
+ return p.split('|').map(g=>g.replace(/[^A-Z]/g,'').split('').filter(Boolean)).filter(g=>g.length);
 }
-function savedSeatmapLayoutId(x){
- return x.seatmapLayoutId||localStorage.getItem(`alyzia_seatmap_layout|${x.flight}|${x.activeDate||x.date||''}`)||'';
+function sariaClassFamily(c){
+ c=sariaNorm(c);if(c==='F')return'F';if(c==='C'||c==='J')return'C';if(c==='W'||c==='S')return'W';return'Y';
 }
-function saveSeatmapLayoutId(x,id){
- x.seatmapLayoutId=id;
- try{localStorage.setItem(`alyzia_seatmap_layout|${x.flight}|${x.activeDate||x.date||''}`,id)}catch(e){}
+function sariaClassName(c){
+ return ({F:'FIRST',C:'BUSINESS',J:'BUSINESS',W:'PREMIUM ECONOMY',S:'PREMIUM ECONOMY',Y:'ECONOMY',M:'ECONOMY'})[sariaNorm(c)]||sariaNorm(c);
 }
-function selectedSeatmapLayout(x){
- const layouts=seatmapLayoutsForFlight(x),id=savedSeatmapLayoutId(x);
- return layouts.find(l=>l.id===id)||null;
+function sariaDefaultPattern(ac,cls){
+ const a=sariaNorm(ac),c=sariaClassFamily(cls);
+ if(c==='F')return [['A'],['D','G'],['K']];
+ if(c==='C'){
+  if(/359|350|789|787/.test(a))return [['A','C'],['D','G'],['H','K']];
+  if(/77W|777|333|332|339|330/.test(a))return [['A','C'],['D','E','G'],['H','K']];
+  return [['A','C'],['D','F']];
+ }
+ if(/320|32N|32Q|321|319|318|73H|73W|738|739|736|7M8|E9|E19|223/.test(a))return [['A','B','C'],['D','E','F']];
+ if(/77W|777/.test(a))return [['A','B','C'],['D','E','F','G'],['H','J','K']];
+ return [['A','B','C'],['D','E','G'],['H','J','K']];
 }
-function seatClassFromLayout(layout,seat){
- const n=parseInt(String(seat).match(/\d+/)?.[0]||'0',10);
- for(const c of layout?.cabins||[])if(n>=c.rows[0]&&n<=c.rows[1])return c.class;
- return '';
+function sariaGenericLayout(entry,x){
+ const cfg=entry?sariaClassObject(entry):{...(x.config||{})},zones=[];
+ let row=1;
+ orderedClasses({config:cfg}).forEach(cls=>{
+  const cap=Number(cfg[cls]||0);if(!cap)return;
+  const groups=sariaDefaultPattern(x.aircraft,cls),per=groups.flat().length,rows=Math.max(1,Math.ceil(cap/per));
+  zones.push({class:cls,row_start:row,row_end:row+rows-1,pattern:groups.map(g=>g.join('')).join('|'),capacity:cap});
+  row+=rows;
+ });
+ return {configuration:{config_key:entry?sariaConfigKey(entry):'GENERIC',source:'SARIA GENERIQUE'},zones,equipment:[],generic:true};
 }
-function passengerBySeat(seat){
- const s=String(seat||'').toUpperCase().replace(/\s+/g,'');
- return (f().passengers||[]).find(p=>String(p.seat||'').toUpperCase().replace(/\s+/g,'')===s)||null;
+async function loadSariaLayout(entry,x=f()){
+ const key=entry?sariaConfigKey(entry):'';
+ if(key&&SARIA_LAYOUT_CACHE[key])return SARIA_LAYOUT_CACHE[key];
+ if(key){
+  try{
+   const r=await fetch(`${SARIA_API.layout}?key=${encodeURIComponent(key)}`),j=await r.json();
+   if(r.ok&&j.configuration&&Array.isArray(j.zones)&&j.zones.length){
+    const layout={...j,generic:false};SARIA_LAYOUT_CACHE[key]=layout;return layout;
+   }
+  }catch(e){console.warn('SARIA layout indisponible',e)}
+ }
+ const generic=sariaGenericLayout(entry,x);
+ if(key)SARIA_LAYOUT_CACHE[key]=generic;
+ return generic;
 }
-function inopBySeat(seat){
- const s=String(seat||'').toUpperCase().replace(/\s+/g,'');
- return (f().inopSeats||[]).find(r=>String(r.seat||'').toUpperCase().replace(/\s+/g,'')===s)||null;
-}
-function paxSSRText(p){
- return String(p?.ssr||p?.specific||p?.special||p?.note||'').trim();
-}
-function isStaffPax(p){
- const s=[p?.type,p?.specific,p?.ssr,p?.note].filter(Boolean).join(' ').toUpperCase();
- return /STAFF|REBATE|BOOKABLE|DUTY/.test(s);
-}
-function seatStatus(seat){
- const p=passengerBySeat(seat),io=inopBySeat(seat);
- if(io?.status==='NOK')return {key:'inop',label:'INOP NOK',p,io,symbol:'!'};
- if(io?.status==='OK')return {key:'inopok',label:'INOP OK',p,io,symbol:'✓'};
- if(p&&isStaffPax(p))return {key:'staff',label:'STAFF',p,io,symbol:'S'};
- if(p&&paxSSRText(p))return {key:'special',label:'SSR / ATTENTION',p,io,symbol:'!'};
- if(p)return {key:'occupied',label:'OCCUPÉ',p,io,symbol:''};
- return {key:'free',label:'LIBRE',p:null,io:null,symbol:''};
-}
-function seatTipHtml(seat,cls,st){
- const p=st.p,ssr=paxSSRText(p);
- return `<span class="seat-tip"><b>${seat} · ${cls||p?.class||'—'}</b><div class="tip-status">${st.label}</div>${p?`<div>${p.name||'PASSAGER'}</div><div>SSR : ${ssr||'—'}</div>`:`<div>SIÈGE DISPONIBLE</div>`}${st.io?`<div>INOP : ${st.io.status}</div>`:''}</span>`;
-}
-function seatmapConfigMatches(x,layout){
- const current=sum(x.config),diff=Math.abs(current-Number(layout?.capacity||0));
- return diff===0;
-}
-function openSeatmap(){
- const x=f(),layouts=seatmapLayoutsForFlight(x),saved=selectedSeatmapLayout(x),ac=normalizeAircraftForSeatmap(x.aircraft);
- const selectedId=saved?.id||layouts[0]?.id||'';
- const layout=layouts.find(l=>l.id===selectedId)||layouts[0];
- showModal('SEATMAP',`${x.flight} · ${ac}`,`
-   <div class="seatmap-v2-shell">
-    <div class="seatmap-v2-config">
-      <label>TYPE A/C
-       <input id="seatmapAircraftType" value="${ac}" onchange="seatmapAircraftChanged(this.value)">
-      </label>
-      <label>LAYOUT
-       <select id="seatmapLayoutSelect" onchange="updateSeatmapMatch()">${layouts.map(l=>`<option value="${l.id}" ${l.id===selectedId?'selected':''}>${l.label}</option>`).join('')}</select>
-      </label>
-      <label>CONFIG VOL
-       <div id="seatmapMatchBox" class="seatmap-match ${seatmapConfigMatches(x,layout)?'':'warn'}">${seatmapConfigMatches(x,layout)?'✓ CORRESPOND':'⚠ CONFIG DIFFÉRENTE'} · ${orderedClasses(x).map(c=>c+' '+Number(x.config?.[c]||0)).join(' / ')}</div>
-      </label>
-      <button class="seatmap-load-btn" onclick="loadSelectedSeatmap()">CHARGER LE SEATMAP</button>
-    </div>
-    <div id="seatmapRendered">${saved?seatmapRenderedHtml(x,saved):`<div class="prepa-empty">SÉLECTIONNEZ LE LAYOUT ADAPTÉ PUIS CLIQUEZ SUR <b>CHARGER LE SEATMAP</b>.</div>`}</div>
-   </div>`);
- if(saved)setTimeout(applySeatmapFilter,20);
-}
-function seatmapAircraftChanged(value){
- const x=f();x.aircraft=String(value||'').trim().toUpperCase();
- const layouts=seatmapLayoutsForFlight(x),sel=document.getElementById('seatmapLayoutSelect');
- if(sel)sel.innerHTML=layouts.map(l=>`<option value="${l.id}">${l.label}</option>`).join('');
- updateSeatmapMatch();
-}
-function updateSeatmapMatch(){
- const x=f(),sel=document.getElementById('seatmapLayoutSelect'),layouts=seatmapLayoutsForFlight(x),layout=layouts.find(l=>l.id===sel?.value)||layouts[0];
- const box=document.getElementById('seatmapMatchBox');if(!box||!layout)return;
- const ok=seatmapConfigMatches(x,layout);
- box.className='seatmap-match '+(ok?'':'warn');
- box.textContent=`${ok?'✓ CORRESPOND':'⚠ CONFIG DIFFÉRENTE'} · ${orderedClasses(x).map(c=>c+' '+Number(x.config?.[c]||0)).join(' / ')}`;
-}
-function loadSelectedSeatmap(){
- const x=f(),sel=document.getElementById('seatmapLayoutSelect'),layout=seatmapLayoutsForFlight(x).find(l=>l.id===sel?.value);
- if(!layout)return;
- saveSeatmapLayoutId(x,layout.id);
- const target=document.getElementById('seatmapRendered');if(target)target.innerHTML=seatmapRenderedHtml(x,layout);
- setTimeout(applySeatmapFilter,20);
-}
-function seatmapAllSeats(layout){
- const seats=[];
- for(const cabin of layout?.cabins||[]){
-  let produced=0,limit=Number(cabin.capacity||Infinity);
-  for(let r=cabin.rows[0];r<=cabin.rows[1];r++){
-   for(const l of cabin.letters){
-    if(produced>=limit)break;
-    seats.push({seat:String(r).padStart(2,'0')+l,class:cabin.class});produced++;
+function sariaLayoutSeats(layout,entry,x=f()){
+ const cfg=entry?sariaClassObject(entry):{...(x.config||{})},usedByClass={},out=[];
+ for(const z of layout?.zones||[]){
+  const cls=sariaClassFamily(z.class),groups=sariaPatternGroups(z.pattern).length?sariaPatternGroups(z.pattern):sariaDefaultPattern(x.aircraft,cls);
+  const cap=Number(z.capacity||cfg[cls]||Infinity);usedByClass[cls]=usedByClass[cls]||0;
+  for(let r=Number(z.row_start)||1;r<=Number(z.row_end||z.row_start)||1;r++){
+   for(const group of groups){
+    for(const letter of group){
+     if(usedByClass[cls]>=cap)continue;
+     out.push({seat:String(r).padStart(2,'0')+letter,row:r,letter,class:cls,zone:z,groups});
+     usedByClass[cls]++;
+    }
    }
   }
  }
- return seats;
+ return out;
 }
-function seatmapStats(layout){
- const all=seatmapAllSeats(layout),s={total:all.length,free:0,occupied:0,inop:0,special:0,staff:0};
- all.forEach(a=>{const st=seatStatus(a.seat);if(st.key==='free'||st.key==='inopok')s.free++;else if(st.key==='inop')s.inop++;else{s.occupied++;if(st.key==='special')s.special++;if(st.key==='staff')s.staff++;}});
+function passengerBySeat(seat){
+ const s=sariaNorm(seat);return (f().passengers||[]).find(p=>sariaNorm(p.seat)===s)||null
+}
+function inopBySeat(seat){
+ const s=sariaNorm(seat);return (f().inopSeats||[]).find(r=>sariaNorm(r.seat)===s)||null
+}
+function paxSSRText(p){return String(p?.ssr||p?.specific||p?.special||p?.note||'').trim()}
+function isStaffPax(p){return /STAFF|REBATE|BOOKABLE|DUTY/.test([p?.type,p?.specific,p?.ssr,p?.note].filter(Boolean).join(' ').toUpperCase())}
+function seatStatus(seat){
+ const p=passengerBySeat(seat),io=inopBySeat(seat);
+ if(io?.status==='NOK')return{key:'inop',label:'INOP NOK',p,io,symbol:'!'};
+ if(io?.status==='OK')return{key:'inopok',label:'INOP OK',p,io,symbol:'✓'};
+ if(p&&isStaffPax(p))return{key:'staff',label:'STAFF',p,io,symbol:'S'};
+ if(p&&paxSSRText(p))return{key:'special',label:'SSR / ATTENTION',p,io,symbol:'!'};
+ if(p)return{key:'occupied',label:'OCCUPÉ',p,io,symbol:''};
+ return{key:'free',label:'LIBRE',p:null,io:null,symbol:''};
+}
+function sariaSeatTip(seat,cls,st){
+ const p=st.p,ssr=paxSSRText(p);
+ return `<span class="saria-seat-tip"><b>${seat} · ${cls}</b><div class="status">${st.label}</div>${p?`<div>${p.name||'PASSAGER'}</div><div>SSR : ${ssr||'—'}</div><div>ETKT : ${p.etkt||'—'}</div>`:'<div>SIÈGE DISPONIBLE</div>'}${st.io?`<div>INOP : ${st.io.status}</div>`:''}</span>`;
+}
+function sariaSeatButton(seatObj){
+ const st=seatStatus(seatObj.seat),p=st.p,search=`${seatObj.seat} ${p?.name||''} ${paxSSRText(p)}`.toUpperCase();
+ return `<button class="saria-seat ${st.key}" data-saria-status="${st.key}" data-saria-search="${search.replace(/"/g,'&quot;')}" onclick="openSeatInfo('${seatObj.seat}','${seatObj.class}')">${seatObj.letter}${st.symbol?`<span class="saria-seat-symbol">${st.symbol}</span>`:''}${sariaSeatTip(seatObj.seat,seatObj.class,st)}</button>`;
+}
+function sariaEquipmentLabel(layout,row){
+ const eq=(layout?.equipment||[]).filter(e=>Number(e.row||e.row_number||e.at_row||0)===Number(row));
+ if(!eq.length)return'';
+ const labels=[...new Set(eq.map(e=>String(e.type||e.label||e.name||'').toUpperCase()).filter(Boolean))];
+ return labels.join(' · ');
+}
+function renderSariaVertical(layout,entry,x=f()){
+ const seats=sariaLayoutSeats(layout,entry,x),zones=layout.zones||[];
+ let html='<div class="saria-v-fuselage"><div class="saria-v-nose"></div>';
+ zones.forEach((z,zi)=>{
+  const cls=sariaClassFamily(z.class),groups=sariaPatternGroups(z.pattern).length?sariaPatternGroups(z.pattern):sariaDefaultPattern(x.aircraft,cls);
+  const zSeats=seats.filter(s=>s.zone===z);
+  html+=`<div class="saria-class-head"><span class="saria-class-dot" style="background:var(--saria-${cls})"></span><b>${sariaClassName(cls)} · ${cls}</b><span>${zSeats.length} SIÈGES</span></div>`;
+  for(let r=Number(z.row_start)||1;r<=Number(z.row_end||z.row_start)||1;r++){
+   const rowSeats=zSeats.filter(s=>s.row===r);
+   if(!rowSeats.length)continue;
+   html+=`<div class="saria-v-row"><span class="saria-rownum">${String(r).padStart(2,'0')}</span>`;
+   groups.forEach((g,gi)=>{
+    html+='<div class="saria-seatblock">';
+    g.forEach(l=>{const so=rowSeats.find(s=>s.letter===l);if(so)html+=sariaSeatButton(so);else html+='<span style="width:28px;height:25px"></span>'});
+    html+='</div>';
+    if(gi<groups.length-1)html+='<div class="saria-aisle-v"></div>';
+   });
+   html+='</div>';
+   const eql=sariaEquipmentLabel(layout,r);if(eql)html+=`<div class="saria-divider ${/EXIT|DOOR/.test(eql)?'exit':''}">${eql}</div>`;
+  }
+  if(zi<zones.length-1)html+='<div class="saria-divider">CABIN SEPARATION</div>';
+ });
+ return html+'<div class="saria-v-tail"></div></div>';
+}
+function renderSariaHorizontal(layout,entry,x=f()){
+ const seats=sariaLayoutSeats(layout,entry,x),zones=layout.zones||[];
+ let html='<div class="saria-h-fuselage">';
+ zones.forEach(z=>{
+  const cls=sariaClassFamily(z.class),groups=sariaPatternGroups(z.pattern).length?sariaPatternGroups(z.pattern):sariaDefaultPattern(x.aircraft,cls);
+  const zSeats=seats.filter(s=>s.zone===z);
+  html+=`<div class="saria-h-class"><div class="saria-h-label"><span class="saria-class-dot" style="background:var(--saria-${cls})"></span>${sariaClassName(cls)} · ${cls} · ${zSeats.length}</div>`;
+  for(let r=Number(z.row_start)||1;r<=Number(z.row_end||z.row_start)||1;r++){
+   const rowSeats=zSeats.filter(s=>s.row===r);if(!rowSeats.length)continue;
+   html+=`<div class="saria-h-col"><div class="saria-h-colnum">${String(r).padStart(2,'0')}</div>`;
+   [...groups].reverse().forEach((g,gi)=>{
+    html+='<div class="saria-h-stack">';
+    [...g].reverse().forEach(l=>{const so=rowSeats.find(s=>s.letter===l);if(so)html+=sariaSeatButton(so);else html+='<span style="width:28px;height:25px"></span>'});
+    html+='</div>';
+    if(gi<groups.length-1)html+='<div class="saria-aisle-h"></div>';
+   });
+   html+='</div>';
+  }
+  html+='</div>';
+ });
+ return html+'</div>';
+}
+function sariaStats(layout,entry,x=f()){
+ const seats=sariaLayoutSeats(layout,entry,x),s={total:seats.length,free:0,occupied:0,inop:0,special:0,staff:0};
+ seats.forEach(o=>{const st=seatStatus(o.seat);if(st.key==='free'||st.key==='inopok')s.free++;else if(st.key==='inop')s.inop++;else{s.occupied++;if(st.key==='special')s.special++;if(st.key==='staff')s.staff++}});
  return s;
 }
-function seatmapRenderedHtml(x,layout){
- const stats=seatmapStats(layout);
- return `<div class="seatmap-toolbar">
-   <div class="seatmap-kpis">
-    <span class="seatmap-kpi">BOOKED <b>${stats.occupied}</b></span>
-    <span class="seatmap-kpi">AVAILABLE <b>${stats.free}</b></span>
-    <span class="seatmap-kpi">INOP <b>${stats.inop}</b></span>
-    <span class="seatmap-kpi">SSR <b>${stats.special}</b></span>
-    <span class="seatmap-kpi">STAFF <b>${stats.staff}</b></span>
-   </div>
-   <div class="seatmap-search"><input id="seatmapSearch" placeholder="RECHERCHER NOM OU SIÈGE" oninput="SEATMAP_STATE.query=this.value;applySeatmapFilter()"></div>
-   <div class="seatmap-filters">
-    ${[['all','TOUS'],['free','LIBRES'],['occupied','BOOKED'],['inop','INOP'],['special','SSR'],['staff','STAFF']].map(([k,l])=>`<button class="seatmap-filter ${SEATMAP_STATE.filter===k?'active':''}" data-seat-filter="${k}" onclick="setSeatmapFilter('${k}')">${l}</button>`).join('')}
-   </div>
+function sariaSeatmapBody(layout,entry,x=f()){
+ const stats=sariaStats(layout,entry,x),src=layout.generic?'SARIA · PLAN GÉNÉRIQUE':'SARIA D1 · PLAN CABINE';
+ return `<div class="saria-seat-shell">
+  <div class="saria-seat-top">
+   <div class="saria-seat-id"><b>${x.flight} · ${x.aircraft} · ${entry?.config||x.sariaCabinConfig||'CONFIG VOL'}</b><span>${x.reg||'IMMAT —'} · ${x.dep} → ${x.dest}</span></div>
+   <span class="saria-source ${layout.generic?'fallback':''}">${layout.generic?'⚠':'✓'} ${src}</span>
+   <div class="saria-orient"><button class="${SARIA_SEAT_STATE.orientation==='v'?'active':''}" onclick="setSariaOrientation('v')">VERTICAL</button><button class="${SARIA_SEAT_STATE.orientation==='h'?'active':''}" onclick="setSariaOrientation('h')">HORIZONTAL</button></div>
   </div>
-  <div class="seat-legend">
-   <span><i class="legend-box" style="background:#e9f8ee;border-color:#91d0a8"></i>LIBRE</span>
-   <span><i class="legend-box" style="background:#e7f2ff;border-color:#91bff0"></i>OCCUPÉ</span>
-   <span><i class="legend-box" style="background:#ffe8eb;border-color:#eb8792"></i>INOP</span>
-   <span><i class="legend-box" style="background:#fff1dc;border-color:#efa94d"></i>SSR</span>
-   <span><i class="legend-box" style="background:#f2eafd;border-color:#b99ae8"></i>STAFF</span>
+  <div class="saria-seat-kpis"><span class="saria-seat-kpi">BOOKED <b>${stats.occupied}</b></span><span class="saria-seat-kpi">LIBRES <b>${stats.free}</b></span><span class="saria-seat-kpi">INOP <b>${stats.inop}</b></span><span class="saria-seat-kpi">SSR <b>${stats.special}</b></span><span class="saria-seat-kpi">STAFF <b>${stats.staff}</b></span></div>
+  <div class="saria-seat-controls">
+   <input id="sariaSeatSearch" class="saria-seat-search" placeholder="RECHERCHER NOM OU SIÈGE" value="${SARIA_SEAT_STATE.query||''}" oninput="SARIA_SEAT_STATE.query=this.value;applySariaSeatFilter()">
+   <div class="saria-seat-filters">${[['all','TOUS'],['free','LIBRES'],['occupied','BOOKED'],['inop','INOP'],['special','SSR'],['staff','STAFF']].map(([k,l])=>`<button class="saria-seat-filter ${SARIA_SEAT_STATE.filter===k?'active':''}" onclick="setSariaSeatFilter('${k}')">${l}</button>`).join('')}</div>
   </div>
-  <div class="seatmap-v2-wrap">
-   <div class="seatmap-aircraft">${layout.cabins.map((c,i)=>seatmapCabinHtml(c,i)).join('<div class="seatmap-zone-marker">GALLEY / DOORS / CABIN SEPARATION</div>')}</div>
-  </div>`;
+  <div class="saria-plane-stage"><div class="saria-plane" id="sariaPlane">${SARIA_SEAT_STATE.orientation==='v'?renderSariaVertical(layout,entry,x):renderSariaHorizontal(layout,entry,x)}</div></div>
+ </div>`;
 }
-function seatmapCabinHtml(cabin,index){
- let rows='',produced=0,limit=Number(cabin.capacity||Infinity);
- for(let r=cabin.rows[0];r<=cabin.rows[1];r++){
-  let cells='';
-  cabin.letters.forEach((l,idx)=>{
-   if(produced>=limit)return;
-   const seat=String(r).padStart(2,'0')+l,st=seatStatus(seat),p=st.p,search=`${seat} ${p?.name||''} ${paxSSRText(p)}`.toUpperCase();
-   cells+=`<button class="seat-v2 ${st.key}" data-seat-status="${st.key}" data-seat-search="${search.replace(/"/g,'&quot;')}" onclick="openSeatInfo('${seat}','${cabin.class}')">${seat}${st.symbol?`<span class="seat-symbol">${st.symbol}</span>`:''}${seatTipHtml(seat,cabin.class,st)}</button>`;
-   produced++;
-  });
-  rows+=`<div class="seatmap-row-v2" style="--seat-count:${cabin.letters.length}"><span class="seatmap-rowno">${String(r).padStart(2,'0')}</span>${cells}</div>`;
+async function openSeatmap(){
+ const x=f();if(!x)return;
+ await loadSariaCatalog();
+ const entry=sariaSelectedEntry(x);
+ if(!entry){
+  showModal('SEATMAP SARIA',x.flight,`<div class="saria-state-note warn">AUCUNE VERSION CABINE N'EST ENCORE SÉLECTIONNÉE POUR <b>${x.airline} · ${x.aircraft}</b>.<br><br>Choisis d'abord la version cabine correspondant au vol.</div><div class="saria-picker-actions" style="margin-top:12px"><button class="primary" onclick="modalBack();setTimeout(openSariaCabinChooser,30)">CHOISIR LA VERSION CABINE</button></div>`);
+  return;
  }
- const count=Math.min(Number(cabin.capacity||Infinity),(cabin.rows[1]-cabin.rows[0]+1)*cabin.letters.length);
- return `<section class="seatmap-cabin class-${cabin.class}"><div class="seatmap-cabin-head"><div><div class="seatmap-cabin-title">${cabin.name} · ${cabin.class}</div><div class="seatmap-cabin-sub">${count} SIÈGES</div></div></div>${rows}</section>`;
+ showModal('SEATMAP SARIA',`${x.flight} · ${entry.config}`,'<div class="saria-state-note">CHARGEMENT DU PLAN CABINE SARIA…</div>');
+ const layout=await loadSariaLayout(entry,x);
+ const body=document.getElementById('modalBody');if(body)body.innerHTML=sariaSeatmapBody(layout,entry,x);
+ window.__SARIA_ACTIVE_LAYOUT=layout;window.__SARIA_ACTIVE_ENTRY=entry;
+ setTimeout(applySariaSeatFilter,20);
 }
-function setSeatmapFilter(k){
- SEATMAP_STATE.filter=k;
- document.querySelectorAll('.seatmap-filter').forEach(b=>b.classList.toggle('active',b.dataset.seatFilter===k));
- applySeatmapFilter();
+function setSariaOrientation(o){
+ SARIA_SEAT_STATE.orientation=o;
+ const plane=document.getElementById('sariaPlane'),layout=window.__SARIA_ACTIVE_LAYOUT,entry=window.__SARIA_ACTIVE_ENTRY;
+ if(plane&&layout){plane.innerHTML=o==='v'?renderSariaVertical(layout,entry):renderSariaHorizontal(layout,entry);applySariaSeatFilter()}
+ document.querySelectorAll('.saria-orient button').forEach((b,i)=>b.classList.toggle('active',(o==='v'&&i===0)||(o==='h'&&i===1)));
 }
-function applySeatmapFilter(){
- const q=String(document.getElementById('seatmapSearch')?.value||SEATMAP_STATE.query||'').trim().toUpperCase(),filter=SEATMAP_STATE.filter;
- document.querySelectorAll('.seat-v2').forEach(el=>{
-  const st=el.dataset.seatStatus,txt=el.dataset.seatSearch||'';
+function setSariaSeatFilter(k){
+ SARIA_SEAT_STATE.filter=k;
+ document.querySelectorAll('.saria-seat-filter').forEach(b=>b.classList.toggle('active',b.textContent.trim()===({all:'TOUS',free:'LIBRES',occupied:'BOOKED',inop:'INOP',special:'SSR',staff:'STAFF'})[k]));
+ applySariaSeatFilter();
+}
+function applySariaSeatFilter(){
+ const q=String(document.getElementById('sariaSeatSearch')?.value||SARIA_SEAT_STATE.query||'').trim().toUpperCase(),filter=SARIA_SEAT_STATE.filter;
+ document.querySelectorAll('.saria-seat').forEach(el=>{
+  const st=el.dataset.sariaStatus,txt=el.dataset.sariaSearch||'';
   const filterOk=filter==='all'||(filter==='occupied'&&['occupied','special','staff'].includes(st))||(filter==='free'&&['free','inopok'].includes(st))||st===filter;
-  const queryOk=!q||txt.includes(q);
-  el.classList.toggle('filtered',!(filterOk&&queryOk));
+  const queryOk=!q||txt.includes(q);el.classList.toggle('filtered',!(filterOk&&queryOk));
  });
 }
 function openSeatInfo(seat,cls){
  const x=f(),st=seatStatus(seat),p=st.p,ssr=paxSSRText(p),io=st.io;
- showModal(`SIÈGE ${seat}`,`${x.flight} · CLASSE ${cls||p?.class||'—'}`,`
-  <div class="seat-detail-card">
-   <div class="seat-detail-status"><div><small>STATUT</small><div style="font-weight:950">${st.label}</div></div><strong>${seat}</strong></div>
-   <div class="seat-detail-grid">
-    <div><small>PASSAGER</small><b>${p?.name||'—'}</b></div>
-    <div><small>CLASSE</small><b>${p?.class||cls||'—'}</b></div>
-    <div><small>SSR</small><b>${ssr||'—'}</b></div>
-    <div><small>ETKT</small><b>${p?.etkt||'—'}</b></div>
-    <div><small>EMD</small><b>${p?.emd||'—'}</b></div>
-    <div><small>INOP</small><b>${io?.status||'—'}</b></div>
-   </div>
-   <div class="seat-detail-actions">
-    ${p?`<button class="primary" onclick='openPax(${JSON.stringify(p)})'>DOSSIER PASSAGER</button>`:''}
-    ${io?`<button onclick="openSeatByName('${seat}')">MODIFIER INOP</button>`:`<button class="danger" onclick="quickAddInop('${seat}','${cls||p?.class||''}')">PASSER INOP</button>`}
-   </div>
-  </div>`);
+ showModal(`SIÈGE ${seat}`,`${x.flight} · CLASSE ${cls}`,`
+ <div class="seat-detail-card">
+  <div class="seat-detail-status"><div><small>STATUT</small><div style="font-weight:950">${st.label}</div></div><strong>${seat}</strong></div>
+  <div class="seat-detail-grid"><div><small>PASSAGER</small><b>${p?.name||'—'}</b></div><div><small>CLASSE</small><b>${p?.class||cls}</b></div><div><small>SSR</small><b>${ssr||'—'}</b></div><div><small>ETKT</small><b>${p?.etkt||'—'}</b></div><div><small>EMD</small><b>${p?.emd||'—'}</b></div><div><small>INOP</small><b>${io?.status||'—'}</b></div></div>
+  <div class="seat-detail-actions">${p?`<button class="primary" onclick='openPax(${JSON.stringify(p)})'>DOSSIER PASSAGER</button>`:''}${io?`<button onclick="openSeatByName('${seat}')">MODIFIER INOP</button>`:`<button class="danger" onclick="quickAddInop('${seat}','${cls}')">PASSER INOP</button>`}</div>
+ </div>`);
 }
 function openSeatByName(seat){
- const i=(f().inopSeats||[]).findIndex(r=>String(r.seat||'').toUpperCase()===String(seat||'').toUpperCase());
- if(i>=0)openInopEditor(i);
+ const i=(f().inopSeats||[]).findIndex(r=>sariaNorm(r.seat)===sariaNorm(seat));if(i>=0)openInopEditor(i)
 }
 function quickAddInop(seat,preferredClass=''){
  const x=f(),classes=orderedClasses(x);
- showModal('AJOUTER INOP SEAT',`${x.flight} · ${seat}`,`
-  <div class="editform">
-   <label>SIÈGE<input id="inopSeat" value="${seat}" readonly></label>
-   <label>CLASSE<select id="inopClass" style="display:block;width:100%;margin-top:5px;border:1px solid #cdd9e5;border-radius:7px;padding:10px;font-weight:900">${classes.map(k=>`<option ${k===preferredClass?'selected':''}>${k}</option>`).join('')}</select></label>
-   <div class="choice-row">
-    <label class="choice-card"><input type="radio" name="inopStatus" value="OK"> OK · UTILISABLE</label>
-    <label class="choice-card"><input type="radio" name="inopStatus" value="NOK" checked> NOK · NON UTILISABLE</label>
-   </div>
-   <button class="save" onclick="saveInop(null)">AJOUTER</button>
-  </div>`);
+ showModal('AJOUTER INOP SEAT',`${x.flight} · ${seat}`,`<div class="editform"><label>SIÈGE<input id="inopSeat" value="${seat}" readonly></label><label>CLASSE<select id="inopClass" style="display:block;width:100%;margin-top:5px;border:1px solid #cdd9e5;border-radius:7px;padding:10px;font-weight:900">${classes.map(k=>`<option ${k===preferredClass?'selected':''}>${k}</option>`).join('')}</select></label><div class="choice-row"><label class="choice-card"><input type="radio" name="inopStatus" value="OK"> OK · UTILISABLE</label><label class="choice-card"><input type="radio" name="inopStatus" value="NOK" checked> NOK · NON UTILISABLE</label></div><button class="save" onclick="saveInop(null)">AJOUTER</button></div>`);
 }
 
 function openFlights(){renderHome()}
@@ -5445,7 +5707,9 @@ document.addEventListener('blur',e=>{
 },true);
 document.getElementById('modal').addEventListener('click',e=>{if(e.target.id==='modal')closeModal()});
 setInterval(updateClocks,1000);
-restoreManualMeals();renderHome();updateClocks();
+restoreManualMeals();
+restoreSariaFlightSelections();
+loadSariaCatalog().then(()=>{if(currentView==='detail')render();}).catch(()=>{});renderHome();updateClocks();
 </script>
 
 <nav class="mobile-bottom-nav" aria-label="Navigation mobile">
