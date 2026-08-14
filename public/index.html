@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - Virtual V46 · SARIA SeatMap</title>
+<title>ALYZIA OPS - Virtual V46.1 · SARIA SeatMap</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -3146,6 +3146,19 @@ body{
  .saria-seat-search{width:100%;flex-basis:100%}
 }
 
+
+/* V46.1 — SARIA : affichage immédiat + upgrade D1 non bloquant */
+.saria-upgrade-state{
+ display:flex;align-items:center;gap:7px;margin-top:7px;padding:7px 9px;
+ border:1px solid #dbe4ed;border-radius:8px;background:#f8fafc;
+ font-size:8px;font-weight:900;color:#65798e
+}
+.saria-upgrade-state.ok{border-color:#9fd4b4;background:#eefaf3;color:#08784b}
+.saria-upgrade-state.warn{border-color:#efc278;background:#fff8e8;color:#a76300}
+.saria-upgrade-dot{
+ width:7px;height:7px;border-radius:50%;background:currentColor;flex:0 0 auto
+}
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
@@ -5332,16 +5345,22 @@ function sariaEntryFromApi(c){
 }
 async function loadSariaCatalog(force=false){
  if(SARIA_CATALOG_LOADED&&!force)return SARIA_CATALOG;
+ const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),2200);
  try{
-  const r=await fetch(SARIA_API.configurations),j=await r.json();
+  const r=await fetch(SARIA_API.configurations,{signal:controller.signal,cache:'no-store'});
+  const j=await r.json();
   if(r.ok&&j.ok&&Array.isArray(j.data)){
    const api=j.data.map(sariaEntryFromApi);
    const map=new Map(SARIA_FALLBACK_CATALOG.map(e=>[sariaConfigKey(e),{...e}]));
    api.forEach(e=>map.set(sariaConfigKey(e),{...(map.get(sariaConfigKey(e))||{}),...e}));
    SARIA_CATALOG=[...map.values()];
   }
- }catch(e){console.warn('SARIA catalogue offline',e)}
- SARIA_CATALOG_LOADED=true;
+ }catch(e){
+  console.warn('SARIA catalogue : base embarquée utilisée',e?.name||e);
+ }finally{
+  clearTimeout(timer);
+  SARIA_CATALOG_LOADED=true;
+ }
  return SARIA_CATALOG;
 }
 function sariaAircraftTypesForAirline(code){
@@ -5392,7 +5411,7 @@ async function onSariaAircraftChange(value){
 }
 async function openSariaCabinChooser(){
  const x=f();if(!x)return;
- await loadSariaCatalog();
+ loadSariaCatalog().catch(()=>{});
  const configs=sariaConfigsFor(x.airline,x.aircraft);
  const current=sariaSelectedEntry(x);
  showModal('VERSION CABINE SARIA',`${x.flight} · ${x.airline} · ${x.aircraft}`,`
@@ -5467,19 +5486,35 @@ function sariaGenericLayout(entry,x){
  });
  return {configuration:{config_key:entry?sariaConfigKey(entry):'GENERIC',source:'SARIA GENERIQUE'},zones,equipment:[],generic:true};
 }
-async function loadSariaLayout(entry,x=f()){
+function immediateSariaLayout(entry,x=f()){
  const key=entry?sariaConfigKey(entry):'';
  if(key&&SARIA_LAYOUT_CACHE[key])return SARIA_LAYOUT_CACHE[key];
+ // Toujours afficher immédiatement un plan à partir du catalogue embarqué.
+ return sariaGenericLayout(entry,x);
+}
+async function loadSariaLayout(entry,x=f()){
+ const key=entry?sariaConfigKey(entry):'';
+ if(key&&SARIA_LAYOUT_CACHE[key]&&!SARIA_LAYOUT_CACHE[key].generic)return SARIA_LAYOUT_CACHE[key];
  if(key){
+  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),2500);
   try{
-   const r=await fetch(`${SARIA_API.layout}?key=${encodeURIComponent(key)}`),j=await r.json();
+   const r=await fetch(`${SARIA_API.layout}?key=${encodeURIComponent(key)}`,{
+     signal:controller.signal,cache:'no-store'
+   });
+   const j=await r.json();
    if(r.ok&&j.configuration&&Array.isArray(j.zones)&&j.zones.length){
-    const layout={...j,generic:false};SARIA_LAYOUT_CACHE[key]=layout;return layout;
+    const layout={...j,generic:false};
+    SARIA_LAYOUT_CACHE[key]=layout;
+    return layout;
    }
-  }catch(e){console.warn('SARIA layout indisponible',e)}
+  }catch(e){
+   console.warn('SARIA D1 indisponible : plan embarqué conservé',e?.name||e);
+  }finally{
+   clearTimeout(timer);
+  }
  }
  const generic=sariaGenericLayout(entry,x);
- if(key)SARIA_LAYOUT_CACHE[key]=generic;
+ if(key&&!SARIA_LAYOUT_CACHE[key])SARIA_LAYOUT_CACHE[key]=generic;
  return generic;
 }
 function sariaLayoutSeats(layout,entry,x=f()){
@@ -5586,7 +5621,7 @@ function sariaSeatmapBody(layout,entry,x=f()){
  return `<div class="saria-seat-shell">
   <div class="saria-seat-top">
    <div class="saria-seat-id"><b>${x.flight} · ${x.aircraft} · ${entry?.config||x.sariaCabinConfig||'CONFIG VOL'}</b><span>${x.reg||'IMMAT —'} · ${x.dep} → ${x.dest}</span></div>
-   <span class="saria-source ${layout.generic?'fallback':''}">${layout.generic?'⚠':'✓'} ${src}</span>
+   <div><span class="saria-source ${layout.generic?'fallback':''}">${layout.generic?'⚠':'✓'} ${src}</span>${layout.generic?`<div id="sariaUpgradeState" class="saria-upgrade-state"><span class="saria-upgrade-dot"></span>PLAN AFFICHÉ · RECHERCHE DU LAYOUT D1 EN ARRIÈRE-PLAN</div>`:''}</div>
    <div class="saria-orient"><button class="${SARIA_SEAT_STATE.orientation==='v'?'active':''}" onclick="setSariaOrientation('v')">VERTICAL</button><button class="${SARIA_SEAT_STATE.orientation==='h'?'active':''}" onclick="setSariaOrientation('h')">HORIZONTAL</button></div>
   </div>
   <div class="saria-seat-kpis"><span class="saria-seat-kpi">BOOKED <b>${stats.occupied}</b></span><span class="saria-seat-kpi">LIBRES <b>${stats.free}</b></span><span class="saria-seat-kpi">INOP <b>${stats.inop}</b></span><span class="saria-seat-kpi">SSR <b>${stats.special}</b></span><span class="saria-seat-kpi">STAFF <b>${stats.staff}</b></span></div>
@@ -5599,17 +5634,43 @@ function sariaSeatmapBody(layout,entry,x=f()){
 }
 async function openSeatmap(){
  const x=f();if(!x)return;
- await loadSariaCatalog();
- const entry=sariaSelectedEntry(x);
+
+ // Ne jamais bloquer le SeatMap sur un appel réseau.
+ // On exploite immédiatement le catalogue embarqué, puis on actualise D1 en arrière-plan.
+ loadSariaCatalog().catch(()=>{});
+
+ let entry=sariaSelectedEntry(x);
  if(!entry){
   showModal('SEATMAP SARIA',x.flight,`<div class="saria-state-note warn">AUCUNE VERSION CABINE N'EST ENCORE SÉLECTIONNÉE POUR <b>${x.airline} · ${x.aircraft}</b>.<br><br>Choisis d'abord la version cabine correspondant au vol.</div><div class="saria-picker-actions" style="margin-top:12px"><button class="primary" onclick="modalBack();setTimeout(openSariaCabinChooser,30)">CHOISIR LA VERSION CABINE</button></div>`);
   return;
  }
- showModal('SEATMAP SARIA',`${x.flight} · ${entry.config}`,'<div class="saria-state-note">CHARGEMENT DU PLAN CABINE SARIA…</div>');
- const layout=await loadSariaLayout(entry,x);
- const body=document.getElementById('modalBody');if(body)body.innerHTML=sariaSeatmapBody(layout,entry,x);
- window.__SARIA_ACTIVE_LAYOUT=layout;window.__SARIA_ACTIVE_ENTRY=entry;
+
+ const flightAtOpen=x.flight;
+ const keyAtOpen=sariaConfigKey(entry);
+
+ // 1. AFFICHAGE IMMÉDIAT : aucun spinner permanent.
+ const instant=immediateSariaLayout(entry,x);
+ showModal('SEATMAP SARIA',`${x.flight} · ${entry.config}`,sariaSeatmapBody(instant,entry,x));
+ window.__SARIA_ACTIVE_LAYOUT=instant;
+ window.__SARIA_ACTIVE_ENTRY=entry;
  setTimeout(applySariaSeatFilter,20);
+
+ // 2. UPGRADE D1 EN ARRIÈRE-PLAN.
+ loadSariaLayout(entry,x).then(layout=>{
+   // L'utilisateur a pu fermer le modal ou changer de vol entre-temps.
+   if(!document.getElementById('modal')?.classList.contains('open'))return;
+   if(f()?.flight!==flightAtOpen)return;
+   const activeEntry=window.__SARIA_ACTIVE_ENTRY;
+   if(!activeEntry||sariaConfigKey(activeEntry)!==keyAtOpen)return;
+
+   window.__SARIA_ACTIVE_LAYOUT=layout;
+   const body=document.getElementById('modalBody');
+   if(body)body.innerHTML=sariaSeatmapBody(layout,entry,x);
+   setTimeout(applySariaSeatFilter,20);
+ }).catch(()=>{
+   const st=document.getElementById('sariaUpgradeState');
+   if(st){st.className='saria-upgrade-state warn';st.innerHTML='<span class="saria-upgrade-dot"></span>PLAN EMBARQUÉ UTILISÉ · D1 NON DISPONIBLE';}
+ });
 }
 function setSariaOrientation(o){
  SARIA_SEAT_STATE.orientation=o;
