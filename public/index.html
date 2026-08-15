@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - Virtual V46.1 · SARIA SeatMap</title>
+<title>ALYZIA OPS - Virtual V46.2 · SARIA Bridge</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -3159,6 +3159,14 @@ body{
  width:7px;height:7px;border-radius:50%;background:currentColor;flex:0 0 auto
 }
 
+
+/* V46.2 BRIDGE */
+.saria-bridge-pill{
+ display:inline-flex;align-items:center;justify-content:center;gap:5px;margin-top:3px;
+ font-size:7px;font-weight:950;color:#5d7187
+}
+.saria-bridge-pill:before{content:"";width:5px;height:5px;border-radius:50%;background:#19a466}
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
@@ -5321,11 +5329,18 @@ function openFlightInfo(){
 }
 
 
-const SARIA_API_URL="https://saria-seatmap.alyzia-cdg2.workers.dev";
+const SARIA_DIRECT_URL="https://saria-seatmap.alyzia-cdg2.workers.dev";
+const SARIA_BRIDGE_BASE=(location.protocol==='http:'||location.protocol==='https:')
+  ? `${location.origin}/api/saria`
+  : SARIA_DIRECT_URL;
 const SARIA_API={
- base:SARIA_API_URL,
- layout:`${SARIA_API_URL}/api/layout`,
- configurations:`${SARIA_API_URL}/api/configurations`
+ base:SARIA_BRIDGE_BASE,
+ layout:`${SARIA_BRIDGE_BASE}/layout`,
+ configurations:`${SARIA_BRIDGE_BASE}/configurations`
+};
+const SARIA_DIRECT_API={
+ layout:`${SARIA_DIRECT_URL}/api/layout`,
+ configurations:`${SARIA_DIRECT_URL}/api/configurations`
 };
 const SARIA_FALLBACK_CATALOG=[{"cie":"3O","ac":"320","config":"Y180","classes":[["Y",180]],"total":180,"freq":28},{"cie":"3O","ac":"320","config":"Y174","classes":[["Y",174]],"total":174,"freq":28},{"cie":"A9","ac":"73W","config":"C12Y121","classes":[["C",12],["Y",121]],"total":133,"freq":20},{"cie":"A9","ac":"73W","config":"C12Y123","classes":[["C",12],["Y",123]],"total":135,"freq":20},{"cie":"A9","ac":"73H","config":"C16W12Y144","classes":[["C",16],["W",12],["Y",144]],"total":172,"freq":20},{"cie":"A9","ac":"73H","config":"C18Y150","classes":[["C",18],["Y",150]],"total":168,"freq":20},{"cie":"A9","ac":"73H","config":"C20Y150","classes":[["C",20],["Y",150]],"total":170,"freq":20},{"cie":"AH","ac":"320","config":"Y102","classes":[["Y",102]],"total":102,"freq":2},{"cie":"AH","ac":"320","config":"Y148","classes":[["Y",148]],"total":148,"freq":1},{"cie":"AH","ac":"320","config":"Y172","classes":[["Y",172]],"total":172,"freq":174},{"cie":"AH","ac":"320","config":"Y180","classes":[["Y",180]],"total":180,"freq":16},{"cie":"AH","ac":"320","config":"Y302","classes":[["Y",302]],"total":302,"freq":1},{"cie":"AH","ac":"332","config":"C18W14Y219","classes":[["C",18],["W",14],["Y",219]],"total":251,"freq":29},{"cie":"AH","ac":"332","config":"Y269","classes":[["Y",269]],"total":269,"freq":27},{"cie":"AH","ac":"332","config":"Y302","classes":[["Y",302]],"total":302,"freq":2},{"cie":"AH","ac":"736","config":"C16Y86","classes":[["C",16],["Y",86]],"total":102,"freq":57},{"cie":"AH","ac":"738","config":"Y160","classes":[["Y",160]],"total":160,"freq":8},{"cie":"AH","ac":"73H","config":"C16Y132","classes":[["C",16],["Y",132]],"total":148,"freq":327},{"cie":"AH","ac":"73H","config":"C20Y135","classes":[["C",20],["Y",135]],"total":155,"freq":52},{"cie":"AH","ac":"73H","config":"Y172","classes":[["Y",172]],"total":172,"freq":2},{"cie":"AH","ac":"73W","config":"C16Y96","classes":[["C",16],["Y",96]],"total":112,"freq":14},{"cie":"AH","ac":"7M8","config":"Y186","classes":[["Y",186]],"total":186,"freq":12},{"cie":"AI","ac":"788","config":"J18Y241","classes":[["C",18],["Y",241]],"total":259,"freq":48},{"cie":"AI","ac":"789","config":"J30W28Y238","classes":[["C",30],["W",28],["Y",238]],"total":296,"freq":0},{"cie":"AI","ac":"789","config":"J30W21Y248","classes":[["C",30],["W",21],["Y",248]],"total":299,"freq":48},{"cie":"AP","ac":"738","config":"Y189","classes":[["Y",189]],"total":189,"freq":2},{"cie":"AT","ac":"73H","config":"Y156","classes":[["Y",156]],"total":156,"freq":2},{"cie":"AT","ac":"73H","config":"J12Y147","classes":[["C",12],["Y",147]],"total":159,"freq":167},{"cie":"AT","ac":"7M8","config":"J12Y144","classes":[["C",12],["Y",144]],"total":156,"freq":48},{"cie":"AT","ac":"7M8","config":"J8Y168","classes":[["C",8],["Y",168]],"total":176,"freq":12},{"cie":"AT","ac":"7M8","config":"Y189","classes":[["Y",189]],"total":189,"freq":2},{"cie":"AT","ac":"E90","config":"J12Y84","classes":[["C",12],["Y",84]],"total":96,"freq":14},{"cie":"AV","ac":"788","config":"J20Y271","classes":[["C",20],["Y",271]],"total":291,"freq":48},{"cie":"BJ","ac":"320","config":"Y177","classes":[["Y",177]],"total":177,"freq":206},{"cie":"BJ","ac":"320","config":"Y180","classes":[["Y",180]],"total":180,"freq":206},{"cie":"BJ","ac":"32N","config":"Y186","classes":[["Y",186]],"total":186,"freq":10},{"cie":"C3","ac":"320","config":"Y180","classes":[["Y",180]],"total":180,"freq":7},{"cie":"CAT","ac":"738","config":"Y189","classes":[["Y",189]],"total":189,"freq":4},{"cie":"DE","ac":"320","config":"Y180","classes":[["Y",180]],"total":180,"freq":121},{"cie":"DE","ac":"320","config":"Y1M179","classes":[["Y",180]],"total":180,"freq":2},{"cie":"DE","ac":"32B","config":"Y220","classes":[["Y",220]],"total":220,"freq":12},{"cie":"DE","ac":"32B","config":"Y1M214","classes":[["Y",215]],"total":215,"freq":1},{"cie":"DE","ac":"32B","config":"Y212","classes":[["Y",212]],"total":212,"freq":1},{"cie":"EI","ac":"320","config":"Y172","classes":[["Y",172]],"total":172,"freq":82},{"cie":"EI","ac":"320","config":"Y174","classes":[["Y",174]],"total":174,"freq":14},{"cie":"EI","ac":"32Q","config":"J16Y168","classes":[["C",16],["Y",168]],"total":184,"freq":154},{"cie":"EI","ac":"320","config":"J4Y168","classes":[["C",4],["Y",168]],"total":172,"freq":2},{"cie":"EI","ac":"333","config":"Y184","classes":[["Y",184]],"total":184,"freq":2},{"cie":"ENT","ac":"73H","config":"Y189","classes":[["Y",189]],"total":189,"freq":41},{"cie":"ENT","ac":"7M8","config":"Y189","classes":[["Y",189]],"total":189,"freq":3},{"cie":"FB","ac":"223","config":"C8M135","classes":[["C",8],["Y",135]],"total":143,"freq":48},{"cie":"FI","ac":"32Q","config":"C22Y165","classes":[["C",22],["Y",165]],"total":187,"freq":28},{"cie":"FI","ac":"75W","config":"C22Y161","classes":[["C",22],["Y",161]],"total":183,"freq":4},{"cie":"FI","ac":"75W","config":"C20Y164","classes":[["C",20],["Y",164]],"total":184,"freq":4},{"cie":"FI","ac":"76W","config":"C25Y237","classes":[["C",25],["Y",237]],"total":262,"freq":18},{"cie":"FI","ac":"7M8","config":"C16Y144","classes":[["C",16],["Y",144]],"total":160,"freq":90},{"cie":"FI","ac":"7M9","config":"C16Y162","classes":[["C",16],["Y",162]],"total":178,"freq":90},{"cie":"HF","ac":"339","config":"F4J44W21Y173","classes":[["F",4],["C",44],["W",21],["Y",173]],"total":242,"freq":56},{"cie":"HM","ac":"333","config":"J46Y203","classes":[["C",46],["Y",203]],"total":249,"freq":20},{"cie":"HU","ac":"789","config":"J30W36Y226","classes":[["C",30],["W",36],["Y",226]],"total":292,"freq":34},{"cie":"IZ","ac":"320","config":"J12Y150","classes":[["C",12],["Y",150]],"total":162,"freq":34},{"cie":"IZ","ac":"320","config":"Y180","classes":[["Y",180]],"total":180,"freq":2},{"cie":"IZ","ac":"320","config":"Y177","classes":[["Y",177]],"total":177,"freq":5},{"cie":"IZ","ac":"32Q","config":"Y220","classes":[["Y",220]],"total":220,"freq":7},{"cie":"IZ","ac":"332","config":"J20W17Y219","classes":[["C",20],["W",17],["Y",219]],"total":256,"freq":6},{"cie":"IZ","ac":"332","config":"J19Y268","classes":[["C",19],["Y",268]],"total":287,"freq":4},{"cie":"IZ","ac":"789","config":"Y359","classes":[["Y",359]],"total":359,"freq":2},{"cie":"IZ","ac":"789","config":"W28Y327","classes":[["W",28],["Y",327]],"total":355,"freq":2},{"cie":"J2","ac":"320","config":"J12Y144","classes":[["C",12],["Y",144]],"total":156,"freq":2},{"cie":"J2","ac":"320","config":"Y174","classes":[["Y",174]],"total":174,"freq":0},{"cie":"J2","ac":"320","config":"J20Y126","classes":[["C",20],["Y",126]],"total":146,"freq":0},{"cie":"J2","ac":"32N","config":"J12Y138","classes":[["C",12],["Y",138]],"total":150,"freq":10},{"cie":"J2","ac":"32N","config":"J12Y144","classes":[["C",12],["Y",144]],"total":156,"freq":6},{"cie":"J2","ac":"32N","config":"Y186","classes":[["Y",186]],"total":186,"freq":6},{"cie":"JU","ac":"223","config":"J8Y132","classes":[["C",8],["Y",132]],"total":140,"freq":2},{"cie":"JU","ac":"319","config":"J8Y132","classes":[["C",8],["Y",132]],"total":140,"freq":92},{"cie":"JU","ac":"32A","config":"J8Y132","classes":[["C",8],["Y",132]],"total":140,"freq":2},{"cie":"KK","ac":"320","config":"Y180","classes":[["Y",180]],"total":180,"freq":4},{"cie":"KL","ac":"32Q","config":"Y227","classes":[["Y",227]],"total":227,"freq":48},{"cie":"KL","ac":"73H","config":"C20M156","classes":[["C",20],["Y",156]],"total":176,"freq":6},{"cie":"KL","ac":"73H","config":"C36M150","classes":[["C",36],["Y",150]],"total":186,"freq":40},{"cie":"KL","ac":"73H","config":"Y186","classes":[["Y",186]],"total":186,"freq":62},{"cie":"KL","ac":"73J","config":"C20M162","classes":[["C",20],["Y",162]],"total":182,"freq":10},{"cie":"KL","ac":"73J","config":"C56M132","classes":[["C",56],["Y",132]],"total":188,"freq":28},{"cie":"KL","ac":"73J","config":"Y188","classes":[["Y",188]],"total":188,"freq":48},{"cie":"KL","ac":"73W","config":"C36M106","classes":[["C",36],["Y",106]],"total":142,"freq":6},{"cie":"KRP","ac":"319","config":"Y150","classes":[["Y",150]],"total":150,"freq":4},{"cie":"KU","ac":"338","config":"J32Y203","classes":[["C",32],["Y",203]],"total":235,"freq":6},{"cie":"KU","ac":"339","config":"J32Y232","classes":[["C",32],["Y",232]],"total":264,"freq":25},{"cie":"KU","ac":"339","config":"J32W21Y225","classes":[["C",32],["W",21],["Y",225]],"total":278,"freq":4},{"cie":"KU","ac":"339","config":"J32Y246","classes":[["C",32],["Y",246]],"total":278,"freq":7},{"cie":"LA","ac":"789","config":"Y300","classes":[["Y",300]],"total":300,"freq":48},{"cie":"LO","ac":"73H","config":"Y186","classes":[["Y",186]],"total":186,"freq":14},{"cie":"LO","ac":"7M8","config":"Y186","classes":[["Y",186]],"total":186,"freq":54},{"cie":"LO","ac":"7M8","config":"Y189","classes":[["Y",189]],"total":189,"freq":70},{"cie":"LS","ac":"73C","config":"Y148","classes":[["Y",148]],"total":148,"freq":28},{"cie":"LY","ac":"738","config":"C16Y150","classes":[["C",16],["Y",150]],"total":166,"freq":48},{"cie":"LY","ac":"739","config":"C16Y159","classes":[["C",16],["Y",159]],"total":175,"freq":54},{"cie":"LY","ac":"73H","config":"C16Y150","classes":[["C",16],["Y",150]],"total":166,"freq":8},{"cie":"LY","ac":"772","config":"C28W32Y253","classes":[["C",28],["W",32],["Y",253]],"total":313,"freq":9},{"cie":"LY","ac":"777","config":"C28W32Y253","classes":[["C",28],["W",32],["Y",253]],"total":313,"freq":4},{"cie":"LY","ac":"788","config":"C20W35Y183","classes":[["C",20],["W",35],["Y",183]],"total":238,"freq":16},{"cie":"LY","ac":"789","config":"C32W35Y204","classes":[["C",32],["W",35],["Y",204]],"total":271,"freq":53},{"cie":"MH","ac":"359","config":"F4J35Y247","classes":[["F",4],["C",35],["Y",247]],"total":286,"freq":48},{"cie":"MS","ac":"32N","config":"Y142","classes":[["Y",142]],"total":142,"freq":44},{"cie":"MS","ac":"32Q","config":"Y182","classes":[["Y",182]],"total":182,"freq":4},{"cie":"MS","ac":"359","config":"J30Y310","classes":[["C",30],["Y",310]],"total":340,"freq":46},{"cie":"MS","ac":"789","config":"J30Y279","classes":[["C",30],["Y",279]],"total":309,"freq":2},{"cie":"NH","ac":"789","config":"J48W21Y146","classes":[["C",48],["W",21],["Y",146]],"total":215,"freq":48},{"cie":"NO","ac":"7M8","config":"Y186","classes":[["Y",186]],"total":186,"freq":4},{"cie":"OZ","ac":"359","config":"J28Y283","classes":[["C",28],["Y",283]],"total":311,"freq":36},{"cie":"PC","ac":"32N","config":"Y186","classes":[["Y",186]],"total":186,"freq":8},{"cie":"PC","ac":"32Q","config":"Y239","classes":[["Y",239]],"total":239,"freq":2},{"cie":"PC","ac":"738","config":"Y189","classes":[["Y",189]],"total":189,"freq":2},{"cie":"PVG","ac":"EP3","config":"Y10","classes":[["Y",10]],"total":10,"freq":2},{"cie":"RJ","ac":"32N","config":"Y147","classes":[["Y",147]],"total":147,"freq":12},{"cie":"RJ","ac":"32Q","config":"Y186","classes":[["Y",186]],"total":186,"freq":36},{"cie":"S4","ac":"32Q","config":"Y186","classes":[["Y",186]],"total":186,"freq":20},{"cie":"SB","ac":"339","config":"J26W21Y244","classes":[["C",26],["W",21],["Y",244]],"total":291,"freq":22},{"cie":"SK","ac":"320","config":"Y180","classes":[["Y",180]],"total":180,"freq":2},{"cie":"SK","ac":"32N","config":"C6M174","classes":[["C",6],["Y",174]],"total":180,"freq":12},{"cie":"SK","ac":"32N","config":"C12M168","classes":[["C",12],["Y",168]],"total":180,"freq":20},{"cie":"SK","ac":"32N","config":"C18M162","classes":[["C",18],["Y",162]],"total":180,"freq":8},{"cie":"SK","ac":"32N","config":"C24M156","classes":[["C",24],["Y",156]],"total":180,"freq":6},{"cie":"SK","ac":"32N","config":"Y180","classes":[["Y",180]],"total":180,"freq":242},{"cie":"SK","ac":"73H","config":"Y189","classes":[["Y",189]],"total":189,"freq":2},{"cie":"SK","ac":"CR9","config":"Y90","classes":[["Y",90]],"total":90,"freq":30},{"cie":"SK","ac":"E95","config":"C14M100","classes":[["C",14],["Y",100]],"total":114,"freq":4},{"cie":"SK","ac":"E95","config":"C22M100","classes":[["C",22],["Y",100]],"total":122,"freq":2},{"cie":"SK","ac":"E95","config":"Y114","classes":[["Y",114]],"total":114,"freq":8},{"cie":"SK","ac":"E95","config":"Y122","classes":[["Y",122]],"total":122,"freq":16},{"cie":"SM","ac":"320","config":"Y176","classes":[["Y",176]],"total":176,"freq":6},{"cie":"SM","ac":"32N","config":"Y176","classes":[["Y",176]],"total":176,"freq":2},{"cie":"SQ","ac":"359","config":"J42W24Y187","classes":[["C",42],["W",24],["Y",187]],"total":253,"freq":48},{"cie":"SQ","ac":"77W","config":"F4J48W28Y184","classes":[["F",4],["C",48],["W",28],["Y",184]],"total":264,"freq":48},{"cie":"TB","ac":"7S8","config":"Y189","classes":[["Y",189]],"total":189,"freq":14},{"cie":"TK","ac":"321","config":"C16Y164","classes":[["C",16],["Y",164]],"total":180,"freq":2},{"cie":"TK","ac":"32Q","config":"C16Y174","classes":[["C",16],["Y",174]],"total":190,"freq":128},{"cie":"TK","ac":"332","config":"C18Y232","classes":[["C",18],["Y",232]],"total":250,"freq":10},{"cie":"TK","ac":"332","config":"C24Y255","classes":[["C",24],["Y",255]],"total":279,"freq":4},{"cie":"TK","ac":"333","config":"C28Y261","classes":[["C",28],["Y",261]],"total":289,"freq":62},{"cie":"TK","ac":"333","config":"C40Y265","classes":[["C",40],["Y",265]],"total":305,"freq":4},{"cie":"TK","ac":"333","config":"C18Y232","classes":[["C",18],["Y",232]],"total":250,"freq":2},{"cie":"TK","ac":"359","config":"C32Y308","classes":[["C",32],["Y",308]],"total":340,"freq":4},{"cie":"TK","ac":"359","config":"C32Y297","classes":[["C",32],["Y",297]],"total":329,"freq":48},{"cie":"TK","ac":"359","config":"C28Y288","classes":[["C",28],["Y",288]],"total":316,"freq":6},{"cie":"TK","ac":"77W","config":"C49Y300","classes":[["C",49],["Y",300]],"total":349,"freq":24},{"cie":"TK","ac":"789","config":"C30Y270","classes":[["C",30],["Y",270]],"total":300,"freq":14},{"cie":"TS","ac":"32Q","config":"C12Y187","classes":[["C",12],["Y",187]],"total":199,"freq":86},{"cie":"TS","ac":"332","config":"Y332","classes":[["Y",332]],"total":332,"freq":90},{"cie":"TS","ac":"333","config":"Y332","classes":[["Y",332]],"total":332,"freq":2},{"cie":"TU","ac":"320","config":"Y162","classes":[["Y",162]],"total":162,"freq":29},{"cie":"TU","ac":"320","config":"C12Y102","classes":[["C",12],["Y",102]],"total":114,"freq":2},{"cie":"TU","ac":"320","config":"C12Y138","classes":[["C",12],["Y",138]],"total":150,"freq":12},{"cie":"TU","ac":"320","config":"Y150","classes":[["Y",150]],"total":150,"freq":1},{"cie":"TU","ac":"320","config":"Y180","classes":[["Y",180]],"total":180,"freq":6},{"cie":"TU","ac":"32A","config":"C16Y120","classes":[["C",16],["Y",120]],"total":136,"freq":16},{"cie":"TU","ac":"32N","config":"Y150","classes":[["Y",150]],"total":150,"freq":5},{"cie":"TU","ac":"32N","config":"C12Y138","classes":[["C",12],["Y",138]],"total":150,"freq":8},{"cie":"TU","ac":"332","config":"C20Y260","classes":[["C",20],["Y",260]],"total":280,"freq":4},{"cie":"TW","ac":"332","config":"C18Y228","classes":[["C",18],["Y",228]],"total":246,"freq":12},{"cie":"TW","ac":"77W","config":"C59Y235","classes":[["C",59],["Y",235]],"total":294,"freq":18},{"cie":"VF","ac":"32Q","config":"Y211","classes":[["Y",211]],"total":211,"freq":32},{"cie":"VF","ac":"32Q","config":"Y230","classes":[["Y",230]],"total":230,"freq":4},{"cie":"VF","ac":"32Q","config":"Y240","classes":[["Y",240]],"total":240,"freq":24},{"cie":"VF","ac":"73H","config":"Y189","classes":[["Y",189]],"total":189,"freq":14},{"cie":"VF","ac":"7M8","config":"Y189","classes":[["Y",189]],"total":189,"freq":26},{"cie":"WB","ac":"332","config":"Y244","classes":[["Y",244]],"total":244,"freq":64}];
 let SARIA_CATALOG=[...SARIA_FALLBACK_CATALOG];
@@ -5343,13 +5358,51 @@ function sariaEntryFromApi(c){
   classes,total:Number(c.total)||0,freq:0,d1:true,config_key:c.config_key||`${sariaNorm(c.airline)}|${sariaNorm(c.aircraft)}|${sariaNorm(c.configuration)}`
  };
 }
+
+function sariaCacheKey(key){return `alyzia_saria_layout_cache_v462|${key}`}
+function sariaReadPersistentLayout(key){
+ try{
+  const raw=sessionStorage.getItem(sariaCacheKey(key))||localStorage.getItem(sariaCacheKey(key));
+  if(!raw)return null;
+  const obj=JSON.parse(raw);
+  if(!obj?.layout)return null;
+  // 24 h max pour le cache layout navigateur
+  if(obj.at && Date.now()-obj.at>86400000)return null;
+  return obj.layout;
+ }catch(e){return null}
+}
+function sariaWritePersistentLayout(key,layout){
+ try{
+  const raw=JSON.stringify({at:Date.now(),layout});
+  sessionStorage.setItem(sariaCacheKey(key),raw);
+  localStorage.setItem(sariaCacheKey(key),raw);
+ }catch(e){}
+}
+async function sariaFetchJson(primaryUrl,directUrl,timeout=1800){
+ const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeout);
+ try{
+  const r=await fetch(primaryUrl,{signal:controller.signal,cache:'no-store'});
+  if(!r.ok)throw new Error(`HTTP ${r.status}`);
+  return await r.json();
+ }catch(e){
+  // En local ou si le bridge n'est pas encore déployé, secours direct SARIA.
+  if(primaryUrl!==directUrl){
+   const c2=new AbortController(),t2=setTimeout(()=>c2.abort(),timeout);
+   try{
+    const r2=await fetch(directUrl,{signal:c2.signal,cache:'no-store'});
+    if(!r2.ok)throw new Error(`HTTP ${r2.status}`);
+    return await r2.json();
+   }finally{clearTimeout(t2)}
+  }
+  throw e;
+ }finally{clearTimeout(timer)}
+}
+
 async function loadSariaCatalog(force=false){
  if(SARIA_CATALOG_LOADED&&!force)return SARIA_CATALOG;
- const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),2200);
  try{
-  const r=await fetch(SARIA_API.configurations,{signal:controller.signal,cache:'no-store'});
-  const j=await r.json();
-  if(r.ok&&j.ok&&Array.isArray(j.data)){
+  const j=await sariaFetchJson(SARIA_API.configurations,SARIA_DIRECT_API.configurations,1800);
+  if(j&&j.ok&&Array.isArray(j.data)){
    const api=j.data.map(sariaEntryFromApi);
    const map=new Map(SARIA_FALLBACK_CATALOG.map(e=>[sariaConfigKey(e),{...e}]));
    api.forEach(e=>map.set(sariaConfigKey(e),{...(map.get(sariaConfigKey(e))||{}),...e}));
@@ -5357,10 +5410,8 @@ async function loadSariaCatalog(force=false){
   }
  }catch(e){
   console.warn('SARIA catalogue : base embarquée utilisée',e?.name||e);
- }finally{
-  clearTimeout(timer);
-  SARIA_CATALOG_LOADED=true;
  }
+ SARIA_CATALOG_LOADED=true;
  return SARIA_CATALOG;
 }
 function sariaAircraftTypesForAirline(code){
@@ -5400,7 +5451,7 @@ function sariaAircraftSelectHtml(x){
  const cur=sariaNorm(x.aircraft);
  if(cur&&!opts.includes(cur))opts.unshift(cur);
  if(!opts.length&&cur)opts.push(cur);
- return `<div class="saria-ac-wrap"><select class="saria-ac-select" onchange="onSariaAircraftChange(this.value)">${opts.map(a=>`<option value="${a}" ${a===cur?'selected':''}>${a}</option>`).join('')}</select><div class="saria-cabin-mini ${sariaSelectedEntry(x)?'':'missing'}">${sariaSelectedEntry(x)?'✓ ': '⚠ '}${sariaCabinLabel(x)}</div></div>`;
+ return `<div class="saria-ac-wrap"><select class="saria-ac-select" onchange="onSariaAircraftChange(this.value)">${opts.map(a=>`<option value="${a}" ${a===cur?'selected':''}>${a}</option>`).join('')}</select><div class="saria-cabin-mini ${sariaSelectedEntry(x)?'':'missing'}">${sariaSelectedEntry(x)?'✓ ': '⚠ '}${sariaCabinLabel(x)}</div><div class="saria-bridge-pill">SARIA BRIDGE · PRÉCHARGEMENT ACTIF</div></div>`;
 }
 async function onSariaAircraftChange(value){
  const x=f();if(!x)return;
@@ -5441,6 +5492,8 @@ function selectSariaCabin(encodedKey){
   Object.keys(cfg).forEach(k=>{x.booked[k]=Number(previousBooked[k]||0);x.web[k]=Number(previousWeb[k]||0);x.meals[k]=Number(previousMeals[k]||0)});
  }
  try{localStorage.setItem(`alyzia_saria_config|${x.flight}|${x.activeDate||x.date||''}`,JSON.stringify({key:x.sariaConfigKey,config:x.sariaCabinConfig,ac:x.aircraft}))}catch(e){}
+ // Précharge immédiatement le layout pendant que l'utilisateur revient sur la fiche vol.
+ prefetchSariaLayout(entry,x);
  closeModal();render();
 }
 function restoreSariaFlightSelections(){
@@ -5495,27 +5548,44 @@ function immediateSariaLayout(entry,x=f()){
 async function loadSariaLayout(entry,x=f()){
  const key=entry?sariaConfigKey(entry):'';
  if(key&&SARIA_LAYOUT_CACHE[key]&&!SARIA_LAYOUT_CACHE[key].generic)return SARIA_LAYOUT_CACHE[key];
+
+ // 1. Cache navigateur : ouverture instantanée entre deux consultations.
  if(key){
-  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),2500);
+  const cached=sariaReadPersistentLayout(key);
+  if(cached){
+   SARIA_LAYOUT_CACHE[key]=cached;
+   return cached;
+  }
+ }
+
+ // 2. Bridge ALYZIA -> SARIA ; secours direct uniquement si le bridge n'est pas disponible.
+ if(key){
   try{
-   const r=await fetch(`${SARIA_API.layout}?key=${encodeURIComponent(key)}`,{
-     signal:controller.signal,cache:'no-store'
-   });
-   const j=await r.json();
-   if(r.ok&&j.configuration&&Array.isArray(j.zones)&&j.zones.length){
+   const primary=`${SARIA_API.layout}?key=${encodeURIComponent(key)}`;
+   const direct=`${SARIA_DIRECT_API.layout}?key=${encodeURIComponent(key)}`;
+   const j=await sariaFetchJson(primary,direct,1800);
+   if(j?.configuration&&Array.isArray(j.zones)&&j.zones.length){
     const layout={...j,generic:false};
     SARIA_LAYOUT_CACHE[key]=layout;
+    sariaWritePersistentLayout(key,layout);
     return layout;
    }
   }catch(e){
-   console.warn('SARIA D1 indisponible : plan embarqué conservé',e?.name||e);
-  }finally{
-   clearTimeout(timer);
+   console.warn('SARIA layout : fallback embarqué',e?.name||e);
   }
  }
+
  const generic=sariaGenericLayout(entry,x);
  if(key&&!SARIA_LAYOUT_CACHE[key])SARIA_LAYOUT_CACHE[key]=generic;
  return generic;
+}
+function prefetchSariaLayout(entry,x=f()){
+ if(!entry)return Promise.resolve(null);
+ const key=sariaConfigKey(entry);
+ if(SARIA_LAYOUT_CACHE[key]&&!SARIA_LAYOUT_CACHE[key].generic)return Promise.resolve(SARIA_LAYOUT_CACHE[key]);
+ const cached=sariaReadPersistentLayout(key);
+ if(cached){SARIA_LAYOUT_CACHE[key]=cached;return Promise.resolve(cached)}
+ return loadSariaLayout(entry,x).catch(()=>null);
 }
 function sariaLayoutSeats(layout,entry,x=f()){
  const cfg=entry?sariaClassObject(entry):{...(x.config||{})},usedByClass={},out=[];
