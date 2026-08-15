@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V47.1 · Durée corrigée</title>
+<title>ALYZIA OPS - V47.2 · Classes Prépa</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -3617,6 +3617,43 @@ body{
 .ops-cloud-status.warn{border-color:#efc278;background:#fff8e8;color:#a76300}
 .ops-cloud-help{font-size:8px;line-height:1.4;color:#62758a;font-weight:850;text-align:center}
 
+
+/* V47.2 — gestion des classes PREPA */
+.prepa-add-class-btn{
+  border:1px solid #7eb3ef;
+  background:#eef6ff;
+  color:#075fc8;
+  border-radius:7px;
+  padding:7px 10px;
+  font-size:9px;
+  font-weight:950;
+  white-space:nowrap;
+}
+.prepa-add-class-btn:hover{background:#e2f0ff}
+.prepa-class-help{
+  grid-column:1/-1;
+  padding:6px 8px;
+  background:#f7f9fc;
+  border-bottom:1px solid #dfe6ed;
+  color:#64778b;
+  font-size:7px;
+  font-weight:850;
+  line-height:1.35;
+  text-align:center;
+}
+.class-label-edit{
+  min-width:26px;
+  border:1px solid #b8c9da!important;
+  background:#fff!important;
+  color:#075fc8!important;
+  border-radius:5px!important;
+  padding:2px 5px!important;
+  font-weight:950!important;
+}
+@media(max-width:720px){
+  .prepa-add-class-btn{padding:6px 8px;font-size:8px}
+}
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
@@ -4074,6 +4111,130 @@ function airlineLogo(code,size='normal'){
 function f(){return FLIGHTS[selected]}
 function sum(obj){return Object.values(obj||{}).reduce((a,b)=>a+(Number(b)||0),0)}
 
+
+function baseClassesForFlight(x){
+ const airline=String(x?.airline||'').toUpperCase();
+ const flight=String(x?.flight||'').replace(/\s/g,'').toUpperCase();
+
+ // Configurations connues déjà utilisées dans ALYZIA OPS.
+ if(flight==='SQ335')return {F:4,J:48,S:28,Y:184};
+ if(flight==='SQ337')return {F:0,J:42,S:24,Y:187};
+
+ // Classes de base opérationnelles. Les valeurs restent éditables.
+ if(airline==='SQ')return {F:0,J:0,S:0,Y:0};
+ if(airline==='TK')return {C:0,Y:0};
+ if(airline==='SB')return {J:0,W:0,Y:0};
+ if(['MH','LY','OZ','TW','KU','AI','MS','AT','AH'].includes(airline))return {C:0,Y:0};
+
+ return {Y:0};
+}
+
+function ensureBaseClasses(x){
+ if(!x)return false;
+
+ const existing=Object.keys(x.config||{});
+ const onlyEmptyY=
+   existing.length===1 &&
+   existing[0]==='Y' &&
+   Number(x.config?.Y||0)===0 &&
+   Number(x.booked?.Y||0)===0;
+
+ if(!existing.length || onlyEmptyY){
+   const base=baseClassesForFlight(x);
+   x.config={...base};
+   x.booked={};
+   x.web={};
+   x.meals={};
+
+   Object.keys(base).forEach(k=>{
+     x.booked[k]=0;
+     x.web[k]=0;
+     x.meals[k]=0;
+   });
+   return true;
+ }
+
+ // Si une classe existe dans config mais manque dans les objets associés.
+ existing.forEach(k=>{
+   if(x.booked?.[k]===undefined)x.booked[k]=0;
+   if(x.web?.[k]===undefined)x.web[k]=0;
+   if(x.meals?.[k]===undefined)x.meals[k]=0;
+ });
+ return false;
+}
+
+function addFlightClass(flightIndex,newCls){
+ const x=FLIGHTS[flightIndex];
+ if(!x)return;
+
+ newCls=String(newCls||'').trim().toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,3);
+ if(!newCls){
+   editingFeedback('SAISIS UNE LETTRE DE CLASSE.','warn');
+   return;
+ }
+ if(x.config?.[newCls]!==undefined){
+   editingFeedback(`LA CLASSE ${newCls} EXISTE DÉJÀ.`,'warn');
+   return;
+ }
+
+ if(!x.config)x.config={};
+ if(!x.booked)x.booked={};
+ if(!x.web)x.web={};
+ if(!x.meals)x.meals={};
+
+ x.config[newCls]=0;
+ x.booked[newCls]=0;
+ x.web[newCls]=0;
+ x.meals[newCls]=0;
+
+ const date=document.getElementById('editingDepartureDate')?.value||currentFlightDate();
+ const store=loadEditingStore();
+ const key=editingKey(x,date);
+ const d=store[key]||getEditingData(x,date);
+
+ ['config','booking','meals'].forEach(k=>{
+   if(!d[k])d[k]={};
+ });
+ d.config[newCls]=0;
+ d.booking[newCls]=0;
+ d.meals[newCls]=0;
+
+ store[key]=d;
+ saveEditingStore(store);
+
+ // V47 : partage la modification sur tous les postes.
+ saveImportedFlightsPersistent(FLIGHTS).catch(()=>{});
+
+ openPrepaEditing(flightIndex,date);
+ setTimeout(()=>editingFeedback(`CLASSE ${newCls} AJOUTÉE.`,'ok'),40);
+}
+
+function openAddPrepaClass(flightIndex){
+ showModal(
+   'AJOUTER UNE CLASSE',
+   FLIGHTS[flightIndex]?.flight||'',
+   `<div class="prepa-class-editor">
+      <label>CLASSE
+        <input id="addPrepaClassValue"
+               maxlength="3"
+               placeholder="EX : F, J, C, S, W, Y"
+               autocomplete="off">
+      </label>
+    </div>
+    <div class="prepa-class-warning">
+      LA CLASSE SERA AJOUTÉE À CONFIG, BOOKING, WEB ET MEALS.
+    </div>
+    <div class="modal-actions">
+      <button onclick="modalBack()">ANNULER</button>
+      <button class="primary"
+              onclick="const v=document.getElementById('addPrepaClassValue').value;modalBack();setTimeout(()=>addFlightClass(${flightIndex},v),30)">
+        AJOUTER
+      </button>
+    </div>`
+ );
+ setTimeout(()=>document.getElementById('addPrepaClassValue')?.focus(),40);
+}
+
 function orderedClasses(x=f()){
  const keys=Object.keys(x?.config||{});
  const rank=cls=>{
@@ -4095,8 +4256,8 @@ function orderedClasses(x=f()){
  // S/W = Premium Economy
  // Y = Economy, toujours affichée en dernier.
 function remapClassObject(obj,oldCls,newCls,remove=false){if(!obj||typeof obj!=='object'||Array.isArray(obj)||!(oldCls in obj))return;const val=obj[oldCls];delete obj[oldCls];if(!remove&&newCls)obj[newCls]=val}
-function renameFlightClass(flightIndex,oldCls,newCls){const x=FLIGHTS[flightIndex];if(!x)return;oldCls=String(oldCls||'').toUpperCase();newCls=String(newCls||'').trim().toUpperCase().slice(0,3);if(!newCls||newCls===oldCls)return;if(x.config?.[newCls]!==undefined){editingFeedback(`LA CLASSE ${newCls} EXISTE DÉJÀ.`,'warn');return}['config','booked','web','meals'].forEach(k=>remapClassObject(x[k],oldCls,newCls,false));(x.passengers||[]).forEach(p=>{if(p.class===oldCls)p.class=newCls});Object.values(x.lists||{}).forEach(list=>{if(Array.isArray(list))list.forEach(p=>{if(p.class===oldCls)p.class=newCls})});const date=document.getElementById('editingDepartureDate')?.value||currentFlightDate(),store=loadEditingStore(),key=editingKey(x,date),d=store[key]||getEditingData(x,date);['config','booking','meals'].forEach(k=>remapClassObject(d[k],oldCls,newCls,false));store[key]=d;saveEditingStore(store);openPrepaEditing(flightIndex,date);setTimeout(()=>editingFeedback(`CLASSE ${oldCls} → ${newCls} APPLIQUÉE À LA FICHE VOL.`,'ok'),40)}
-function deleteFlightClass(flightIndex,cls){const x=FLIGHTS[flightIndex];if(!x)return;if(Object.keys(x.config||{}).length<=1){editingFeedback('IL FAUT CONSERVER AU MOINS UNE CLASSE.','warn');return}const date=document.getElementById('editingDepartureDate')?.value||currentFlightDate();['config','booked','web','meals'].forEach(k=>remapClassObject(x[k],cls,'',true));(x.passengers||[]).forEach(p=>{if(p.class===cls)p.class=''});const store=loadEditingStore(),key=editingKey(x,date),d=store[key]||getEditingData(x,date);['config','booking','meals'].forEach(k=>remapClassObject(d[k],cls,'',true));store[key]=d;saveEditingStore(store);openPrepaEditing(flightIndex,date);setTimeout(()=>editingFeedback(`CLASSE ${cls} SUPPRIMÉE.`,'info'),40)}
+function renameFlightClass(flightIndex,oldCls,newCls){const x=FLIGHTS[flightIndex];if(!x)return;oldCls=String(oldCls||'').toUpperCase();newCls=String(newCls||'').trim().toUpperCase().slice(0,3);if(!newCls||newCls===oldCls)return;if(x.config?.[newCls]!==undefined){editingFeedback(`LA CLASSE ${newCls} EXISTE DÉJÀ.`,'warn');return}['config','booked','web','meals'].forEach(k=>remapClassObject(x[k],oldCls,newCls,false));(x.passengers||[]).forEach(p=>{if(p.class===oldCls)p.class=newCls});Object.values(x.lists||{}).forEach(list=>{if(Array.isArray(list))list.forEach(p=>{if(p.class===oldCls)p.class=newCls})});const date=document.getElementById('editingDepartureDate')?.value||currentFlightDate(),store=loadEditingStore(),key=editingKey(x,date),d=store[key]||getEditingData(x,date);['config','booking','meals'].forEach(k=>remapClassObject(d[k],oldCls,newCls,false));store[key]=d;saveEditingStore(store);saveImportedFlightsPersistent(FLIGHTS).catch(()=>{});openPrepaEditing(flightIndex,date);setTimeout(()=>editingFeedback(`CLASSE ${oldCls} → ${newCls} APPLIQUÉE À LA FICHE VOL.`,'ok'),40)}
+function deleteFlightClass(flightIndex,cls){const x=FLIGHTS[flightIndex];if(!x)return;if(Object.keys(x.config||{}).length<=1){editingFeedback('IL FAUT CONSERVER AU MOINS UNE CLASSE.','warn');return}const date=document.getElementById('editingDepartureDate')?.value||currentFlightDate();['config','booked','web','meals'].forEach(k=>remapClassObject(x[k],cls,'',true));(x.passengers||[]).forEach(p=>{if(p.class===cls)p.class=''});const store=loadEditingStore(),key=editingKey(x,date),d=store[key]||getEditingData(x,date);['config','booking','meals'].forEach(k=>remapClassObject(d[k],cls,'',true));store[key]=d;saveEditingStore(store);saveImportedFlightsPersistent(FLIGHTS).catch(()=>{});openPrepaEditing(flightIndex,date);setTimeout(()=>editingFeedback(`CLASSE ${cls} SUPPRIMÉE.`,'info'),40)}
 function openPrepaClassEdit(flightIndex,cls){showModal(`CLASSE ${cls}`,FLIGHTS[flightIndex]?.flight||'',`<div class="prepa-class-editor"><label>NOUVELLE LETTRE<input id="newPrepaClass" maxlength="3" value="${cls}"></label></div><div class="prepa-class-warning">LA MODIFICATION SERA APPLIQUÉE À CONFIG, BOOKED, WEB, MEALS ET AUX PASSAGERS DU VOL.</div><div class="modal-actions"><button onclick="modalBack()">ANNULER</button><button class="danger" onclick="modalBack();setTimeout(()=>deleteFlightClass(${flightIndex},'${cls}'),30)">SUPPRIMER</button><button class="primary" onclick="const n=document.getElementById('newPrepaClass').value;modalBack();setTimeout(()=>renameFlightClass(${flightIndex},'${cls}',n),30)">ENREGISTRER</button></div>`)}
 
 function pad(n){return String(n).padStart(2,'0')}
@@ -5087,6 +5248,9 @@ function openSBPrepaEditing(flightIndex,departureDate){
 
 function openPrepaEditing(flightIndex,departureDate){
  const x=FLIGHTS[flightIndex];
+ if(!x)return;
+ const baseClassesRestored=ensureBaseClasses(x);
+ if(baseClassesRestored)saveImportedFlightsPersistent(FLIGHTS).catch(()=>{});
  if(x?.airline==='TW')return openTWPrepaEditing(flightIndex,departureDate);
  if(x?.airline==='OZ')return openOZPrepaEditing(flightIndex,departureDate);
  if(x?.airline==='SB')return openSBPrepaEditing(flightIndex,departureDate);
@@ -5094,13 +5258,13 @@ function openPrepaEditing(flightIndex,departureDate){
  const parts=prepaParticularities(x.airline);
  showModal(`EDITING ${x.airline}`,`${x.flight} · ${formatDateLong(departureDate)}`,`
  <input type="hidden" id="editingFlightIndex" value="${flightIndex}"><input type="hidden" id="editingDepartureDate" value="${departureDate}">
- <div class="editing-toolbar"><div class="editing-toolbar-left"><button class="editing-icon-btn primary" title="Sauvegarder" onclick="savePrepaToolbar()">💾</button><button class="editing-icon-btn" title="Annuler la dernière modification" onclick="undoLastPrepa()">↶</button><button class="editing-icon-btn danger" title="Effacer l'editing" onclick="clearPrepaEditing()">⌫</button><button class="print-icon-btn" title="Imprimer en A4" onclick="printPrepaEditing()">🖨</button></div><div class="editing-toolbar-right"><span class="live-badge">${x.airline==='SQ'?'CONFIG SQ FIGÉE':'VOL + DATE CONSERVÉS'}</span></div></div>
+ <div class="editing-toolbar"><div class="editing-toolbar-left"><button class="editing-icon-btn primary" title="Sauvegarder" onclick="savePrepaToolbar()">💾</button><button class="editing-icon-btn" title="Annuler la dernière modification" onclick="undoLastPrepa()">↶</button><button class="editing-icon-btn danger" title="Effacer l'editing" onclick="clearPrepaEditing()">⌫</button><button class="print-icon-btn" title="Imprimer en A4" onclick="printPrepaEditing()">🖨</button><button class="prepa-add-class-btn" title="Ajouter une classe" onclick="openAddPrepaClass(${flightIndex})">＋ CLASSE</button></div><div class="editing-toolbar-right"><span class="live-badge">${x.airline==='SQ'?'CONFIG SQ FIGÉE':'VOL + DATE CONSERVÉS'}</span></div></div>
  <div class="editing-sheet">
   <div class="editing-brand">${airlineLogo(x.airline)} <span>${x.airline==='TK'?'TURKISH AIRLINES':'SINGAPORE AIRLINES'}</span></div>
   <div class="editing-header"><label>FLIGHT<input id="edFlight" value="${d.flight}"></label><label>DATE<input id="edDate" type="date" value="${d.date}"></label><label>REG<input id="edReg" value="${d.reg}"></label></div>
   <div class="editing-top"><div>
     <div class="editing-row2">${classes.map(k=>`<label>CONFIG <button type="button" class="class-label-edit" onclick="openPrepaClassEdit(${flightIndex},'${k}')">${k}</button><input type="number" min="0" step="1" inputmode="numeric" data-ed-config="${k}" value="${d.config?.[k]??''}" class="${x.airline==='SQ'&&prepaSqFixedConfig(x.flight)?'editing-fixed':''}" ${x.airline==='SQ'&&prepaSqFixedConfig(x.flight)?'readonly':''}></label>`).join('')}</div>
-    <div class="editing-row2">${classes.map(k=>`<label>BOOKING <button type="button" class="class-label-edit" onclick="openPrepaClassEdit(${flightIndex},'${k}')">${k}</button><input type="number" min="0" step="1" inputmode="numeric" data-ed-booking="${k}" value="${d.booking?.[k]??''}"></label>`).join('')}</div>
+    <div class="editing-row2">${classes.map(k=>`<label>BOOKING <button type="button" class="class-label-edit" onclick="openPrepaClassEdit(${flightIndex},'${k}')">${k}</button><input type="number" min="0" step="1" inputmode="numeric" data-ed-booking="${k}" value="${d.booking?.[k]??''}"></label>`).join('')}</div><div class="prepa-class-help">＋ CLASSE POUR AJOUTER · CLIQUER SUR LA LETTRE D’UNE CLASSE POUR LA RENOMMER OU LA SUPPRIMER.</div>
     ${x.airline==='TK'?`<div class="editing-row2"><label>TYPE<input id="edType" value="${d.type||''}"></label><label></label></div>`:''}
   </div><div>
     <div class="editing-row2"><label>STD (${x.dep})<input id="edStd" value="${d.std}"></label><label>STA (${x.dest})<input id="edSta" value="${d.sta}"></label></div>
@@ -6164,9 +6328,11 @@ function normalizeFlightCode(cie,num){
 }
 function defaultFlightObject(row){
  const [aircraft,airline,flight,dest,std,reg,parking,date]=row;
+ const base=baseClassesForFlight({airline,flight});
+ const zero=()=>Object.fromEntries(Object.keys(base).map(k=>[k,0]));
  return {
   airline,flight,dep:'CDG',dest,std,duration:null,durationSource:'IMPORT_EXCEL',aircraft:aircraft||'NON RENSEIGNÉ',reg:reg||'—',gate:'—',parking:parking||'—',date,
-  config:{Y:0},booked:{Y:0},edt:'',web:{Y:0},standby:0,emd:0,etk:0,
+  config:{...base},booked:zero(),edt:'',web:zero(),meals:zero(),standby:0,emd:0,etk:0,
   common:{WCH:0,DEAF_BLND:0,EXST_CBBG:0,PET_AV:0,INF:0,CHLD:0,UMNR:0,VIP:0,EMD:0,ETK:0,FQTV:0,STAFF:0},
   passengers:[],common_lists:{WCH:[],DEAF_BLND:[],EXST_CBBG:[],PET_AV:[],INF:[],CHLD:[],UMNR:[],VIP:[],EMD:[],ETK:[],FQTV:[],STAFF:[]},
   inbound:[],outbound:[],inopSeats:[]
