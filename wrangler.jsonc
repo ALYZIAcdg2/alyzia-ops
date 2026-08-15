@@ -13,5 +13,13 @@
       "binding": "SARIA",
       "service": "saria-seatmap"
     }
+  ],
+
+  "d1_databases": [
+    {
+      "binding": "OPS_DB",
+      "database_name": "alyzia-ops-db",
+      "database_id": "2881327d-f2dd-4037-a395-f7095b32c69c"
+    }
   ]
 }
