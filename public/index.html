@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - Virtual V46.5 · SARIA SeatMap Modal XL</title>
+<title>ALYZIA OPS - Virtual V46.6 · PC Tablet Header Fix</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -3220,6 +3220,147 @@ body{
     max-height:78vh;
     min-height:360px;
   }
+}
+
+
+
+/* V46.6 — PC + TABLET HEADER / KPI BALANCING */
+@media (min-width:1301px){
+  .flight-head{
+    grid-template-columns:minmax(300px,1.55fr) 150px 150px 128px 210px 150px 150px !important;
+    min-height:190px;
+    align-items:stretch;
+  }
+  .flight-head .headcell{
+    padding:14px 14px !important;
+    min-width:0;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    align-items:center;
+    text-align:center;
+    overflow:hidden;
+  }
+  .flight-head .headcell:first-child{
+    align-items:flex-start;
+    justify-content:flex-start;
+    text-align:left;
+    padding:14px 18px !important;
+  }
+  .flight-head .head-label{font-size:14px !important; margin:0 0 10px !important; text-align:center; width:100%;}
+  .flight-head .time-big{font-size:32px !important;}
+  .flight-head .time-secondary{font-size:14px !important; margin-top:10px !important;}
+  .flight-head .local-clock{margin-top:10px !important; font-size:13px !important; justify-content:center; width:100%;}
+  .flight-head .local-clock small{font-size:10px !important;}
+  .flight-head .duration{margin-top:10px !important; font-size:18px !important;}
+  .flight-head .timer{font-size:22px !important;}
+  .flight-head .aircraft-select,
+  .flight-head .saria-ac-select{height:38px; font-size:14px !important;}
+  .flight-head .saria-ac-wrap{gap:3px; align-items:center;}
+  .flight-head .saria-cabin-mini{font-size:8px !important; min-height:auto; margin-top:0; line-height:1.15;}
+  .flight-head .saria-bridge-pill{font-size:8px !important; margin-top:0;}
+  .flight-head .gate-pkg-grid{gap:8px;}
+  .flight-head .gate-pkg-value{font-size:24px !important; font-weight:950; line-height:1.1;}
+  .flight-head .info-button{margin-top:10px !important;}
+}
+
+@media (min-width:901px) and (max-width:1300px){
+  .page{padding-left:8px !important; padding-right:8px !important;}
+  .flight-head{
+    grid-template-columns:minmax(255px,1.55fr) 108px 108px 96px 170px 110px 110px !important;
+    min-height:176px;
+    align-items:stretch;
+  }
+  .flight-head .headcell{
+    padding:10px 8px !important;
+    min-width:0;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    align-items:center;
+    text-align:center;
+    overflow:hidden;
+  }
+  .flight-head .headcell:first-child{
+    align-items:flex-start;
+    justify-content:flex-start;
+    text-align:left;
+    padding:10px 10px !important;
+  }
+  .flight-head .head-label{font-size:10px !important; margin:0 0 8px !important; text-align:center; width:100%;}
+  .flight-head .time-big{font-size:24px !important;}
+  .flight-head .time-secondary{font-size:12px !important; margin-top:8px !important;}
+  .flight-head .local-clock{margin-top:8px !important; font-size:10px !important; gap:4px; justify-content:center; width:100%;}
+  .flight-head .local-clock small{font-size:8px !important;}
+  .flight-head .duration{margin-top:8px !important; font-size:15px !important;}
+  .flight-head .timer{font-size:18px !important;}
+  .flight-head .aircraft-select,
+  .flight-head .saria-ac-select{height:34px; font-size:11px !important;}
+  .flight-head .saria-ac-wrap{gap:2px; align-items:center;}
+  .flight-head .saria-cabin-mini{font-size:7px !important; min-height:auto; margin-top:0; line-height:1.1;}
+  .flight-head .saria-bridge-pill{font-size:6.7px !important; margin-top:0;}
+  .flight-head .gate-pkg-grid{grid-template-columns:1fr !important; gap:4px !important;}
+  .flight-head .gate-pkg-value{font-size:18px !important; font-weight:950; line-height:1.05;}
+  .flight-head .info-button{margin-top:7px !important; padding:7px 4px !important; font-size:8px !important;}
+
+  .kpi-strip{grid-template-columns:1.34fr 1fr .96fr 1fr .64fr .64fr .72fr !important; min-height:142px;}
+  .kpi{padding:10px 7px !important;}
+  .kpi-main{grid-template-columns:28px minmax(0,1fr) 38px !important; gap:4px !important;}
+  .kpi-icon{font-size:18px !important;}
+  .kpi-value{font-size:24px !important;}
+  .kpi-title{font-size:10px !important; margin-bottom:9px !important;}
+  .class-mini{font-size:8px !important; line-height:1.4 !important;}
+  .class-mini div{gap:4px !important;}
+}
+
+@media (min-width:621px) and (max-width:900px){
+  .flight-head{
+    grid-template-columns:minmax(210px,1.3fr) repeat(3,minmax(0,1fr)) !important;
+    min-height:auto;
+    align-items:stretch;
+  }
+  .flight-head>.headcell:nth-child(1){min-height:214px !important;}
+  .flight-head .headcell{
+    padding:10px 8px !important;
+    min-width:0;
+    min-height:96px !important;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    align-items:center;
+    text-align:center;
+    overflow:hidden;
+  }
+  .flight-head .headcell:first-child{
+    align-items:flex-start;
+    justify-content:flex-start;
+    text-align:left;
+    padding:10px 10px !important;
+  }
+  .flight-head .head-label{font-size:9px !important; margin:0 0 6px !important; text-align:center; width:100%;}
+  .flight-head .time-big{font-size:21px !important;}
+  .flight-head .time-secondary{font-size:10px !important; margin-top:6px !important;}
+  .flight-head .local-clock{margin-top:7px !important; font-size:9px !important; gap:4px; justify-content:center; width:100%;}
+  .flight-head .local-clock small{font-size:7px !important;}
+  .flight-head .duration{margin-top:6px !important; font-size:14px !important;}
+  .flight-head .timer{font-size:17px !important;}
+  .flight-head .aircraft-select,
+  .flight-head .saria-ac-select{height:33px; font-size:10px !important;}
+  .flight-head .saria-ac-wrap{gap:2px; align-items:center;}
+  .flight-head .saria-cabin-mini{font-size:7px !important; min-height:auto; margin-top:0; line-height:1.08;}
+  .flight-head .saria-bridge-pill{font-size:6.5px !important; margin-top:0;}
+  .flight-head .gate-pkg-grid{grid-template-columns:1fr !important; gap:3px !important;}
+  .flight-head .gate-pkg-value{font-size:17px !important; font-weight:950; line-height:1.05;}
+  .flight-head .info-button{margin-top:6px !important; padding:6px 4px !important; font-size:7px !important; width:100%;}
+
+  .kpi-strip{grid-template-columns:repeat(4,minmax(0,1fr)) !important; min-height:auto;}
+  .kpi{padding:10px 7px !important;}
+  .kpi-main{grid-template-columns:24px minmax(0,1fr) 34px !important; gap:4px !important;}
+  .kpi-icon{font-size:17px !important;}
+  .kpi-value{font-size:21px !important;}
+  .kpi-title{font-size:9px !important; margin-bottom:8px !important;}
+  .class-mini{font-size:8px !important; line-height:1.35 !important;}
+  .class-mini div{gap:4px !important;}
 }
 
 </style>
