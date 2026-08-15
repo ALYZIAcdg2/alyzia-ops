@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - Virtual V46.6 · PC Tablet Header Fix</title>
+<title>ALYZIA OPS - Virtual V46.7 · Tablet Layout Fix</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -3361,6 +3361,180 @@ body{
   .kpi-title{font-size:9px !important; margin-bottom:8px !important;}
   .class-mini{font-size:8px !important; line-height:1.35 !important;}
   .class-mini div{gap:4px !important;}
+}
+
+
+
+/* V46.7 — TABLET LAYOUT FIX (iPad / landscape) */
+@media (min-width: 981px) and (max-width: 1450px){
+  .page{padding-left:10px !important; padding-right:10px !important;}
+
+  .flight-head{
+    grid-template-columns:minmax(270px,1.62fr) 110px 110px 90px 185px 115px 122px !important;
+    min-height:160px !important;
+    align-items:stretch !important;
+  }
+  .flight-head .headcell{
+    min-width:0 !important;
+    min-height:160px !important;
+    padding:10px 8px !important;
+    display:flex !important;
+    flex-direction:column !important;
+    justify-content:center !important;
+    align-items:center !important;
+    text-align:center !important;
+    overflow:hidden !important;
+  }
+  .flight-head .headcell:first-child{
+    align-items:flex-start !important;
+    justify-content:flex-start !important;
+    text-align:left !important;
+    padding:12px 12px !important;
+  }
+  .flight-head .head-label{
+    width:100% !important;
+    font-size:10px !important;
+    line-height:1.1 !important;
+    min-height:20px !important;
+    margin:0 0 8px !important;
+    justify-content:center !important;
+  }
+  .flight-head .time-big{
+    font-size:24px !important;
+    min-height:40px !important;
+  }
+  .flight-head .time-secondary{
+    font-size:12px !important;
+    margin-top:8px !important;
+  }
+  .flight-head .local-clock{
+    margin-top:8px !important;
+    min-height:30px !important;
+    font-size:10px !important;
+    gap:4px !important;
+  }
+  .flight-head .local-clock small{font-size:8px !important;}
+  .flight-head .duration{font-size:16px !important; min-height:38px !important; margin-top:8px !important;}
+  .flight-head .timer{font-size:20px !important;}
+
+  .flight-head .saria-ac-wrap,
+  .flight-head .aircraft-wrap{width:100% !important; max-width:100% !important; align-items:center !important;}
+  .flight-head .saria-ac-select,
+  .flight-head .aircraft-select{
+    width:100% !important;
+    max-width:100% !important;
+    height:36px !important;
+    font-size:12px !important;
+  }
+  .flight-head .saria-cabin-mini,
+  .flight-head .saria-bridge-pill{
+    width:100% !important;
+    text-align:center !important;
+    white-space:normal !important;
+    line-height:1.15 !important;
+    margin-top:2px !important;
+  }
+  .flight-head .saria-cabin-mini{font-size:8px !important;}
+  .flight-head .saria-bridge-pill{font-size:7px !important;}
+
+  .flight-head .gate-pkg-grid{
+    width:100% !important;
+    min-height:auto !important;
+    grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+    gap:6px !important;
+    margin-top:4px !important;
+  }
+  .flight-head .gate-pkg-item{
+    min-width:0 !important;
+    display:flex !important;
+    flex-direction:column !important;
+    align-items:center !important;
+    justify-content:flex-start !important;
+  }
+  .flight-head .gate-pkg-item .head-label{
+    font-size:9px !important;
+    min-height:16px !important;
+    margin-bottom:3px !important;
+  }
+  .flight-head .gate-pkg-value{
+    font-size:20px !important;
+    line-height:1.05 !important;
+    white-space:nowrap !important;
+  }
+  .flight-head .info-button{
+    width:100% !important;
+    margin-top:8px !important;
+    min-height:36px !important;
+    padding:8px 6px !important;
+    font-size:9px !important;
+  }
+
+  .kpi-strip{
+    grid-template-columns:repeat(4,minmax(0,1fr)) !important;
+    min-height:auto !important;
+    align-items:stretch !important;
+  }
+  .config-cap-kpi{grid-column:span 2 !important;}
+  .kpi{
+    min-width:0 !important;
+    padding:12px 10px !important;
+  }
+  .kpi-title{
+    font-size:11px !important;
+    margin-bottom:10px !important;
+  }
+  .kpi-main{
+    grid-template-columns:30px minmax(0,1fr) 72px !important;
+    gap:6px !important;
+    align-items:center !important;
+  }
+  .kpi-icon{font-size:20px !important;}
+  .kpi-value{font-size:30px !important; line-height:1 !important;}
+  .class-mini{font-size:10px !important; line-height:1.4 !important;}
+  .class-mini div{gap:6px !important;}
+
+  .web-class-column{
+    display:grid !important;
+    grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+    gap:4px 6px !important;
+    width:100% !important;
+    min-width:0 !important;
+  }
+  .web-class-row{
+    display:grid !important;
+    grid-template-columns:12px 1fr !important;
+    align-items:center !important;
+    gap:4px !important;
+    width:100% !important;
+    font-size:10px !important;
+  }
+  .web-class-row span{text-align:left !important; font-weight:950 !important;}
+  .web-class-row button{
+    min-width:0 !important;
+    min-height:22px !important;
+    padding:0 4px !important;
+    border:1px solid #eadcf7 !important;
+    background:#f7f1fc !important;
+    border-radius:5px !important;
+    font-size:10px !important;
+  }
+
+  .config-cap-wrap{
+    grid-template-columns:1.25fr .8fr !important;
+    gap:10px !important;
+    align-items:center !important;
+  }
+  .config-cap-classes{
+    grid-template-columns:repeat(2,minmax(78px,1fr)) !important;
+    gap:8px !important;
+  }
+  .config-cap-field{font-size:12px !important;}
+  .config-cap-field input{height:36px !important; font-size:16px !important;}
+  .config-cap-total small{font-size:11px !important;}
+  .config-cap-total strong{font-size:46px !important; line-height:1 !important;}
+  .config-actions{grid-template-columns:1fr 1fr !important; gap:8px !important;}
+  .inop-btn,.seatmap-btn{padding:10px 8px !important; font-size:12px !important;}
+  .inop-summary{font-size:10px !important;}
 }
 
 </style>
