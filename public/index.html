@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V47.3 · Fiche Vol Persistante</title>
+<title>ALYZIA OPS - V47.4 · Modales Responsive sans zoom</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -3750,6 +3750,229 @@ body{
   .class-mini{font-size:7px!important}
   .web-class-row{grid-template-columns:10px minmax(0,1fr)!important;font-size:7px!important}
   .web-class-row button{font-size:8px!important}
+}
+
+
+/* =========================================================
+   V47.4 — MODALES RESPONSIVE / ANTI-ZOOM IOS
+   ========================================================= */
+
+/* Base commune : les modales utilisent le viewport disponible */
+.modal{
+  position:fixed!important;
+  inset:0!important;
+  width:100vw!important;
+  height:100dvh!important;
+  max-width:none!important;
+  max-height:none!important;
+  padding:
+    max(10px, env(safe-area-inset-top))
+    max(10px, env(safe-area-inset-right))
+    max(10px, env(safe-area-inset-bottom))
+    max(10px, env(safe-area-inset-left))!important;
+  box-sizing:border-box!important;
+  overflow:hidden!important;
+  align-items:center!important;
+  justify-content:center!important;
+}
+
+.modalbox{
+  width:min(920px, calc(100vw - 32px))!important;
+  max-width:min(920px, calc(100vw - 32px))!important;
+  max-height:calc(100dvh - 32px)!important;
+  overflow:auto!important;
+  overscroll-behavior:contain!important;
+  -webkit-overflow-scrolling:touch;
+  box-sizing:border-box!important;
+  margin:0 auto!important;
+  border-radius:14px!important;
+}
+
+/* Les zones internes ne doivent jamais forcer un débordement horizontal */
+.modalbox *,
+.modalbox *::before,
+.modalbox *::after{
+  box-sizing:border-box!important;
+  min-width:0;
+}
+
+.modalbox img,
+.modalbox table,
+.modalbox pre{
+  max-width:100%!important;
+}
+
+.modalbox table{
+  width:100%!important;
+}
+
+/* Important iPhone/iPad :
+   iOS zoome automatiquement quand un champ actif est < 16px */
+@media (pointer:coarse), (max-width:1024px){
+  .modalbox input,
+  .modalbox select,
+  .modalbox textarea,
+  .modalbox [contenteditable="true"]{
+    font-size:16px!important;
+    line-height:1.2!important;
+  }
+}
+
+/* Téléphone portrait */
+@media (max-width:600px) and (orientation:portrait){
+  .modal{
+    padding:
+      max(6px, env(safe-area-inset-top))
+      max(6px, env(safe-area-inset-right))
+      max(6px, env(safe-area-inset-bottom))
+      max(6px, env(safe-area-inset-left))!important;
+    align-items:flex-start!important;
+  }
+
+  .modalbox{
+    width:100%!important;
+    max-width:100%!important;
+    max-height:calc(100dvh - 12px)!important;
+    border-radius:12px!important;
+    padding:12px!important;
+    margin:0!important;
+  }
+
+  .modal-header,
+  .modal-title{
+    position:sticky!important;
+    top:0!important;
+    z-index:5!important;
+  }
+
+  .modal-actions,
+  .web-all-actions{
+    position:sticky!important;
+    bottom:0!important;
+    z-index:5!important;
+    background:inherit!important;
+    padding-top:8px!important;
+    padding-bottom:max(4px, env(safe-area-inset-bottom))!important;
+  }
+
+  .modal-actions{
+    display:grid!important;
+    grid-template-columns:1fr 1fr!important;
+    gap:7px!important;
+  }
+
+  .modal-actions button,
+  .web-all-actions button{
+    min-height:42px!important;
+    padding:9px 8px!important;
+    font-size:11px!important;
+    white-space:normal!important;
+  }
+
+  .booked-edit-grid,
+  .particularity-grid{
+    grid-template-columns:1fr!important;
+  }
+
+  .booked-edit-field{
+    grid-template-columns:minmax(0,1fr) 84px!important;
+  }
+
+  .editing-row2,
+  .editing-grid,
+  .flight-info-grid{
+    grid-template-columns:1fr!important;
+  }
+
+  .sortbar{
+    display:grid!important;
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+    gap:6px!important;
+  }
+
+  .paxrow{
+    width:100%!important;
+    max-width:100%!important;
+    overflow:hidden!important;
+  }
+}
+
+/* Téléphone paysage */
+@media (max-height:520px) and (orientation:landscape){
+  .modal{
+    padding:
+      max(4px, env(safe-area-inset-top))
+      max(8px, env(safe-area-inset-right))
+      max(4px, env(safe-area-inset-bottom))
+      max(8px, env(safe-area-inset-left))!important;
+    align-items:flex-start!important;
+  }
+
+  .modalbox{
+    width:min(960px, calc(100vw - 16px))!important;
+    max-width:min(960px, calc(100vw - 16px))!important;
+    max-height:calc(100dvh - 8px)!important;
+    padding:10px 12px!important;
+    border-radius:10px!important;
+  }
+
+  .booked-edit-grid,
+  .particularity-grid{
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  }
+
+  .modal-actions,
+  .web-all-actions{
+    position:sticky!important;
+    bottom:0!important;
+    background:inherit!important;
+    z-index:5!important;
+  }
+
+  .modalbox input,
+  .modalbox select,
+  .modalbox textarea{
+    min-height:36px!important;
+  }
+}
+
+/* Tablette portrait */
+@media (min-width:601px) and (max-width:1024px) and (orientation:portrait){
+  .modalbox{
+    width:min(760px, calc(100vw - 28px))!important;
+    max-width:min(760px, calc(100vw - 28px))!important;
+    max-height:calc(100dvh - 28px)!important;
+    padding:16px!important;
+  }
+
+  .booked-edit-grid,
+  .particularity-grid{
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  }
+}
+
+/* Tablette paysage */
+@media (min-width:700px) and (max-width:1366px) and (orientation:landscape){
+  .modalbox{
+    width:min(1000px, calc(100vw - 40px))!important;
+    max-width:min(1000px, calc(100vw - 40px))!important;
+    max-height:calc(100dvh - 24px)!important;
+  }
+}
+
+/* PC */
+@media (min-width:1367px){
+  .modalbox{
+    width:min(980px, calc(100vw - 64px))!important;
+    max-width:min(980px, calc(100vw - 64px))!important;
+    max-height:calc(100vh - 64px)!important;
+  }
+}
+
+/* Empêche le navigateur de décaler/zoomer visuellement quand le clavier apparaît */
+html,body{
+  -webkit-text-size-adjust:100%;
+  text-size-adjust:100%;
 }
 
 </style>
