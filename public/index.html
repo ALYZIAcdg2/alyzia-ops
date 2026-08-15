@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V47 · Multi-Postes D1</title>
+<title>ALYZIA OPS - V47.1 · Durée corrigée</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -3655,6 +3655,28 @@ const OPS_CLOUD_API='/api/flights';
 let OPS_CLOUD_ONLINE=false;
 let OPS_CLOUD_LAST_SYNC=null;
 
+
+function normalizeLegacyImportedDurations(list){
+ let changed=false;
+ (Array.isArray(list)?list:[]).forEach(x=>{
+   const looksLikeImported =
+     x &&
+     x.date &&
+     String(x.dep||'').toUpperCase()==='CDG' &&
+     Array.isArray(x.passengers) &&
+     x.passengers.length===0 &&
+     Number(x.duration)===180 &&
+     !x.sta;
+
+   if(looksLikeImported){
+     x.duration=null;
+     x.durationSource='IMPORT_EXCEL';
+     changed=true;
+   }
+ });
+ return changed;
+}
+
 function setOpsCloudState(ok,label=''){
  OPS_CLOUD_ONLINE=!!ok;
  if(ok)OPS_CLOUD_LAST_SYNC=new Date();
@@ -3689,7 +3711,10 @@ async function loadFlightsFromCloud(){
  try{
    const data=await cloudRequest(OPS_CLOUD_API,{method:'GET'},5000);
    if(data?.ok && Array.isArray(data.flights)){
+     const changed=normalizeLegacyImportedDurations(data.flights);
      setOpsCloudState(true);
+     // Corrige automatiquement les anciens imports D1 comportant le faux 03:00.
+     if(changed)setTimeout(()=>syncFlightsToCloud(data.flights),50);
      return data.flights;
    }
    throw new Error('RÉPONSE CLOUD INVALIDE');
@@ -3932,6 +3957,9 @@ function mergeImportedRowIntoExisting(old,row){
  old.flight=row[2]||old.flight;
  old.dest=row[3]||old.dest;
  old.std=row[4]||old.std;
+ // Anciennes versions V46/V47 mettaient artificiellement 180 min sur chaque vol importé.
+ if(old.duration===180 && !old.sta) old.duration=null;
+ old.durationSource=old.durationSource||'IMPORT_EXCEL';
  old.reg=row[5]||old.reg;
  old.parking=row[6]||old.parking;
  old.date=row[7]||old.date;
@@ -4085,14 +4113,45 @@ function normTime(v){
  return pad(h)+':'+pad(m);
 }
 function schedule(x){
- const depOff=TZ[x.dep]??2, arrOff=TZ[x.dest]??2, std=parseHM(x.std), rawSta=std-depOff*60+x.duration+arrOff*60;
- let delay=0;if(x.edt){delay=parseHM(x.edt)-std;if(delay<-720)delay+=1440;if(delay>720)delay-=1440}
+ const depOff=TZ[x.dep]??2, arrOff=TZ[x.dest]??2, std=parseHM(x.std);
+ const duration=Number(x.duration);
+ let rawSta=null;
+
+ // Priorité à une STA réellement enregistrée.
+ if(x.sta && normTime(x.sta)){
+   rawSta=parseHM(normTime(x.sta));
+   // Positionne la STA sur J/J+1 en fonction du STD local si nécessaire.
+   const depUtc=std-depOff*60;
+   let arrUtc=rawSta-arrOff*60;
+   while(arrUtc<depUtc)arrUtc+=1440;
+   rawSta=arrUtc+arrOff*60;
+ }else if(Number.isFinite(duration) && duration>0){
+   rawSta=std-depOff*60+duration+arrOff*60;
+ }
+
+ let delay=0;
+ if(x.edt){
+   delay=parseHM(x.edt)-std;
+   if(delay<-720)delay+=1440;
+   if(delay>720)delay-=1440;
+ }
+
+ if(rawSta===null){
+   return {sta:'',staDay:0,eta:'',etaDay:0,delay};
+ }
+
  const rawEta=rawSta+delay;
- return {sta:fmt(rawSta),staDay:Math.floor(rawSta/1440),eta:fmt(rawEta),etaDay:Math.floor(rawEta/1440),delay}
+ return {
+   sta:fmt(rawSta),
+   staDay:Math.floor(rawSta/1440),
+   eta:fmt(rawEta),
+   etaDay:Math.floor(rawEta/1440),
+   delay
+ };
 }
 function daytag(n){return n>0?'J+'+n:n<0?'J'+n:''}
 function liveFor(iata){const d=new Date(),utc=d.getUTCHours()*60+d.getUTCMinutes(),off=TZ[iata]??2;return fmt(utc+off*60)}
-function durationText(m){return pad(Math.floor(m/60))+':'+pad(m%60)}
+function durationText(m){const n=Number(m);return Number.isFinite(n)&&n>0?pad(Math.floor(n/60))+':'+pad(n%60):'—'}
 
 
 
@@ -5411,8 +5470,8 @@ function render(){
    </div>
    <div class="headcell">
     <div class="head-label">STA</div>
-    <div class="time-big">${sc.sta} &nbsp;<span class="blue" style="font-size:16px">${daytag(sc.staDay)}</span></div>
-    ${x.edt?`<div class="time-secondary">ETA &nbsp;<span class="red">${sc.eta}</span> <span class="red">${daytag(sc.etaDay)}</span></div>`:''}
+    <div class="time-big">${sc.sta||'—'}${sc.sta?` &nbsp;<span class="blue" style="font-size:16px">${daytag(sc.staDay)}</span>`:''}</div>
+    ${x.edt&&sc.eta?`<div class="time-secondary">ETA &nbsp;<span class="red">${sc.eta}</span> <span class="red">${daytag(sc.etaDay)}</span></div>`:''}
     ${adbState(x)?.data?.arrival?.eta?`<span class="adb-value adb-red">ADB ETA ${adbState(x).data.arrival.eta}</span>`:''}
     ${adbState(x)?.data?.arrival?.ata?`<span class="adb-value adb-green">ATA ${adbState(x).data.arrival.ata}</span>`:''}
     <div class="local-clock">◷ <div><span id="arrClock">${liveFor(x.dest)}</span><small>${x.dest} LOCAL</small></div></div>
@@ -6071,7 +6130,7 @@ function openFlightImport(){
     <input id="flightExcelInput" type="file" accept=".xlsx,.xls,.xlsm" onchange="handleFlightExcel(this.files[0])">
     <label for="flightExcelInput">IMPORTER</label>
    </div>
-   <div id="flightImportStatus" class="import-status">SEULES LES COLONNES K / L / M / N / O / W / X / Y SERONT LUES. LES AUTRES COLONNES SONT IGNORÉES.<br><b>LES VOLS KL SONT EXCLUS AUTOMATIQUEMENT.</b></div>
+   <div id="flightImportStatus" class="import-status">SEULES LES COLONNES K / L / M / N / O / W / X / Y SERONT LUES. LES AUTRES COLONNES SONT IGNORÉES.<br><b>LES VOLS KL SONT EXCLUS AUTOMATIQUEMENT.</b><br><b>DURÉE :</b> AUCUNE DURÉE N'EST INVENTÉE SI ELLE N'EXISTE PAS DANS LA SOURCE.</div>
    <div class="import-persist-badge">● SAUVEGARDE PERSISTANTE ACTIVÉE · RECHARGEMENT PAGE CONSERVÉ</div>
   </div>`);
 }
@@ -6106,7 +6165,7 @@ function normalizeFlightCode(cie,num){
 function defaultFlightObject(row){
  const [aircraft,airline,flight,dest,std,reg,parking,date]=row;
  return {
-  airline,flight,dep:'CDG',dest,std,duration:180,aircraft:aircraft||'NON RENSEIGNÉ',reg:reg||'—',gate:'—',parking:parking||'—',date,
+  airline,flight,dep:'CDG',dest,std,duration:null,durationSource:'IMPORT_EXCEL',aircraft:aircraft||'NON RENSEIGNÉ',reg:reg||'—',gate:'—',parking:parking||'—',date,
   config:{Y:0},booked:{Y:0},edt:'',web:{Y:0},standby:0,emd:0,etk:0,
   common:{WCH:0,DEAF_BLND:0,EXST_CBBG:0,PET_AV:0,INF:0,CHLD:0,UMNR:0,VIP:0,EMD:0,ETK:0,FQTV:0,STAFF:0},
   passengers:[],common_lists:{WCH:[],DEAF_BLND:[],EXST_CBBG:[],PET_AV:[],INF:[],CHLD:[],UMNR:[],VIP:[],EMD:[],ETK:[],FQTV:[],STAFF:[]},
