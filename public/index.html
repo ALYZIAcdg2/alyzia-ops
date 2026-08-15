@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - Virtual V46.10 · Import Persistence + Logos</title>
+<title>ALYZIA OPS - Virtual V46.11 · Full Reset</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -3594,6 +3594,15 @@ body{
   background:#fff;
 }
 
+
+/* V46.11 — remise à zéro complète */
+.clear-all-flights-btn{
+  background:#fff0f0!important;
+  border-color:#e45151!important;
+  color:#b91622!important;
+  font-size:11px!important;
+}
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
@@ -3628,6 +3637,7 @@ const OPS_FLIGHT_DB='alyzia_ops_db_v468';
 const OPS_FLIGHT_STORE='state';
 const OPS_FLIGHT_KEY='importedFlights';
 let PENDING_FLIGHT_IMPORT=null;
+const OPS_ZERO_STATE_KEY='alyzia_ops_zero_state_v4611';
 
 function openOpsFlightDb(){
  return new Promise((resolve,reject)=>{
@@ -3642,6 +3652,9 @@ function openOpsFlightDb(){
  });
 }
 async function saveImportedFlightsPersistent(flights){
+ if(Array.isArray(flights)&&flights.length){
+   try{localStorage.removeItem(OPS_ZERO_STATE_KEY)}catch(e){}
+ }
  try{
   const db=await openOpsFlightDb();
   await new Promise((resolve,reject)=>{
@@ -3694,6 +3707,91 @@ async function clearImportedFlightsPersistent(){
  }catch(e){}
  try{localStorage.removeItem('alyzia_ops_imported_flights_v19')}catch(e){}
 }
+
+async function resetAlyziaOpsCompletely(){
+  // 1) Supprime le stockage des vols importés.
+  try{await clearImportedFlightsPersistent()}catch(e){}
+
+  // 2) Supprime tous les caches / prépas / notes / sélections SARIA propres à ALYZIA OPS.
+  try{
+    const keys=[];
+    for(let i=0;i<localStorage.length;i++){
+      const k=localStorage.key(i);
+      if(k && (
+        k.startsWith('alyzia_') ||
+        k.startsWith('adb_') ||
+        k.startsWith('prepa_')
+      )) keys.push(k);
+    }
+    keys.forEach(k=>localStorage.removeItem(k));
+  }catch(e){}
+
+  try{
+    const keys=[];
+    for(let i=0;i<sessionStorage.length;i++){
+      const k=sessionStorage.key(i);
+      if(k && (
+        k.startsWith('alyzia_') ||
+        k.startsWith('adb_') ||
+        k.startsWith('prepa_')
+      )) keys.push(k);
+    }
+    keys.forEach(k=>sessionStorage.removeItem(k));
+  }catch(e){}
+
+  // 3) Efface complètement la base IndexedDB ALYZIA.
+  try{
+    await new Promise(resolve=>{
+      const req=indexedDB.deleteDatabase(OPS_FLIGHT_DB);
+      req.onsuccess=()=>resolve();
+      req.onerror=()=>resolve();
+      req.onblocked=()=>resolve();
+    });
+  }catch(e){}
+
+  // 4) IMPORTANT : mémorise volontairement l'état "0 VOL".
+  // Sans ce témoin, le HTML rechargerait sa liste de démonstration / base embarquée.
+  try{localStorage.setItem(OPS_ZERO_STATE_KEY,'1')}catch(e){}
+
+  // 5) Vide également la mémoire immédiatement.
+  try{FLIGHTS.splice(0,FLIGHTS.length)}catch(e){}
+  try{
+    if(typeof PREPA_STATE==='object' && PREPA_STATE){
+      Object.keys(PREPA_STATE).forEach(k=>delete PREPA_STATE[k]);
+    }
+  }catch(e){}
+}
+
+function openFullReset(){
+ showModal(
+   'REMETTRE ALYZIA OPS À ZÉRO',
+   'SUPPRESSION TOTALE',
+   `<div class="danger-confirm">
+      <b>TOUS LES VOLS SERONT SUPPRIMÉS.</b><br><br>
+      CETTE ACTION EFFACE ÉGALEMENT :<br>
+      • LES VOLS IMPORTÉS ET CRÉÉS MANUELLEMENT<br>
+      • LES PRÉPAS ET LEURS ÉTATS<br>
+      • LES DONNÉES MANUELLES DES VOLS<br>
+      • LES NOTES PASSAGERS<br>
+      • LES SÉLECTIONS / CACHES SARIA<br>
+      • LES CACHES LOCAUX ALYZIA OPS<br><br>
+      APRÈS RECHARGEMENT, LA LISTE DES VOLS RESTERA <b>VIDE</b>.
+    </div>
+    <div class="danger-actions">
+      <button class="cancel" onclick="modalBack()">ANNULER</button>
+      <button class="danger" onclick="confirmFullReset()">TOUT EFFACER</button>
+    </div>`
+ );
+}
+
+async function confirmFullReset(){
+ const body=document.getElementById('modalBody');
+ if(body)body.innerHTML='<div class="import-status">EFFACEMENT COMPLET EN COURS…</div>';
+ await resetAlyziaOpsCompletely();
+ closeAllModals();
+ location.reload();
+}
+
 function flightImportIdentity(x){
  const date=String(x?.date||'').trim();
  const airline=String(x?.airline||'').trim().toUpperCase();
@@ -5719,15 +5817,8 @@ function openClearCurrentFlight(){
  showModal('VIDER LA FICHE VOL',x.flight,`<div class="danger-confirm">TOUTES LES DONNÉES DE <b>${x.flight}</b> SERONT EFFACÉES.<br><br>CONSERVÉS : <b>NUMÉRO DE VOL · STD · STA · DURÉE</b>.<br>TOUT LE RESTE SERA REMIS À ZÉRO OU VIDE.</div><div class="danger-actions"><button class="cancel" onclick="modalBack()">ANNULER</button><button class="danger" onclick="confirmClearCurrentFlight()">VIDER LA FICHE</button></div>`);
 }
 function confirmClearCurrentFlight(){resetCurrentFlightData(selected);closeAllModals();render()}
-function openClearAllFlights(){
- showModal('EFFACER TOUS LES VOLS CHARGÉS','ACTION IRRÉVERSIBLE',`<div class="danger-confirm">TOUS LES VOLS IMPORTÉS VIA L’OUTIL EXCEL SERONT SUPPRIMÉS.<br><br>LA LISTE DE BASE DE L’APPLICATION SERA RESTAURÉE AU RECHARGEMENT.</div><div class="danger-actions"><button class="cancel" onclick="modalBack()">ANNULER</button><button class="danger" onclick="confirmClearAllFlights()">EFFACER LES VOLS CHARGÉS</button></div>`);
-}
-async function confirmClearAllFlights(){
- await clearImportedFlightsPersistent();
- try{localStorage.removeItem('alyzia_ops_meals_manual_v21')}catch(e){}
- closeAllModals();
- location.reload();
-}
+function openClearAllFlights(){openFullReset()}
+async function confirmClearAllFlights(){await confirmFullReset()}
 
 function openTools(){
  showModal('OUTILS','ALYZIA OPS',`<div class="tools-grid">
@@ -5735,7 +5826,7 @@ function openTools(){
    <button class="tool-card" onclick="openCreateFlight()"><span class="tool-icon">＋</span><b>CRÉATION DE VOLS</b><span>AJOUTER MANUELLEMENT UN VOL ABSENT DE L'IMPORT, AVEC DATE, COMPAGNIE, NUMÉRO, ROUTE ET HORAIRES.</span></button>
    <button class="tool-card" onclick="openSeatmap()"><span class="tool-icon">▦</span><b>SEATMAP</b><span>OUVRIR LE PLAN CABINE DU VOL ACTUEL.</span></button>
    <div class="adb-usage-card"><div id="adbUsageBox"><button class="live-refresh" onclick="loadAeroUsage()">CHARGER COMPTEUR AERODATABOX</button></div></div>
-   <button class="clear-all-flights-btn" onclick="openClearAllFlights()">🗑 EFFACER TOUS LES VOLS CHARGÉS</button>
+   <button class="clear-all-flights-btn" onclick="openFullReset()">🗑 REMETTRE TOUT À ZÉRO</button>
  </div>`);
 }
 
@@ -6686,9 +6777,14 @@ document.getElementById('modal').addEventListener('click',e=>{if(e.target.id==='
 setInterval(updateClocks,1000);
 
 async function bootstrapAlyziaOps(){
- const persisted=await loadImportedFlightsPersistent();
- if(Array.isArray(persisted)&&persisted.length){
-   FLIGHTS.splice(0,FLIGHTS.length,...persisted);
+ const zeroState=(()=>{try{return localStorage.getItem(OPS_ZERO_STATE_KEY)==='1'}catch(e){return false}})();
+ if(zeroState){
+   FLIGHTS.splice(0,FLIGHTS.length);
+ }else{
+   const persisted=await loadImportedFlightsPersistent();
+   if(Array.isArray(persisted)&&persisted.length){
+     FLIGHTS.splice(0,FLIGHTS.length,...persisted);
+   }
  }
  restoreManualMeals();
  restoreSariaFlightSelections();
