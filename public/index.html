@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V47.2 · Classes Prépa</title>
+<title>ALYZIA OPS - V47.3 · Fiche Vol Persistante</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -3654,6 +3654,104 @@ body{
   .prepa-add-class-btn{padding:6px 8px;font-size:8px}
 }
 
+
+/* V47.3 — FICHE VOL PERSISTANTE / MOBILE */
+.booked-kpi-edit{cursor:pointer!important}
+.booked-kpi-edit:hover{background:#f8fff9}
+
+.gate-only-wrap{
+  width:100%;min-height:82px;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;text-align:center
+}
+
+.booked-edit-modal{display:grid;gap:14px;margin-top:12px}
+.booked-edit-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.booked-edit-field{
+  display:grid;grid-template-columns:1fr 90px;align-items:center;gap:8px;
+  border:1px solid #dfe7ef;background:#fafcff;border-radius:8px;padding:9px 10px;
+  font-size:10px;font-weight:950;color:#50677f
+}
+.booked-edit-field input{
+  width:100%;min-width:0;height:38px;border:1px solid #cbd8e5;border-radius:7px;
+  background:#fff;text-align:center;font-size:16px;font-weight:950
+}
+.booked-edit-total{
+  display:flex;justify-content:space-between;align-items:center;
+  border:1px solid #b9d9c5;background:#effaf3;color:#087a4c;
+  border-radius:8px;padding:10px 12px;font-size:11px;font-weight:950
+}
+.booked-edit-total b{font-size:20px}
+
+.particularity-actions{
+  display:grid;grid-template-columns:28px 1fr 28px;gap:4px;align-items:center;margin-top:3px
+}
+.particularity-actions .part-minus,
+.particularity-actions .part-plus{
+  width:28px;height:28px;border-radius:7px;font-size:17px;font-weight:950;line-height:1
+}
+.part-minus{border:1px solid #efb2b8;background:#fff2f3;color:#c62838}
+.part-plus{border:1px solid #9fd9b7;background:#effaf3;color:#07864f}
+.particularity-editor{display:grid;gap:12px;margin-top:12px}
+.particularity-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.particularity-grid label{font-size:9px;font-weight:900;color:#65778b}
+.particularity-grid input,.particularity-grid select{
+  display:block;width:100%;margin-top:5px;border:1px solid #cdd9e5;border-radius:7px;
+  padding:10px;background:#fff;font-weight:900
+}
+.particularity-grid .part-wide{grid-column:1/-1}
+
+/* Les cartes KPI ne peuvent plus déborder sur la voisine */
+.kpi,.kpi-main,.class-mini,.web-class-column,.web-class-row{min-width:0!important}
+.web-class-column{max-width:100%!important;overflow:hidden!important}
+.web-class-row{max-width:100%!important}
+.web-class-row button{max-width:100%!important}
+
+@media(max-width:720px){
+  .booked-edit-grid{grid-template-columns:1fr}
+  .booked-edit-field{grid-template-columns:1fr 78px}
+  .particularity-grid{grid-template-columns:1fr}
+  .particularity-grid .part-wide{grid-column:auto}
+
+  /* modal BOOKED / listes passagers adapté téléphone */
+  .modal{padding:8px!important}
+  .modalbox{width:98vw!important;max-width:98vw!important;padding:13px!important}
+  .sortbar{display:grid!important;grid-template-columns:repeat(3,1fr)!important;gap:5px!important}
+  .sortbar button{padding:7px 4px!important;font-size:9px!important}
+  .paxrow{
+    grid-template-columns:minmax(0,1fr) 54px 44px!important;
+    gap:5px!important;padding:9px 8px!important
+  }
+  .paxrow strong{font-size:11px!important;min-width:0;overflow:hidden;text-overflow:ellipsis}
+  .paxrow span{font-size:9px!important}
+  .paxrow > span:nth-of-type(3),
+  .paxrow > span:nth-of-type(4){display:none!important}
+
+  /* WEB : une colonne compacte dans sa propre carte */
+  .kpi-strip{overflow:hidden!important}
+  .web-class-column{
+    display:grid!important;
+    grid-template-columns:1fr!important;
+    gap:2px!important;width:100%!important;min-width:0!important
+  }
+  .web-class-row{
+    display:grid!important;grid-template-columns:12px minmax(0,1fr)!important;
+    width:100%!important;gap:2px!important;font-size:8px!important
+  }
+  .web-class-row button{
+    min-width:0!important;width:100%!important;min-height:19px!important;
+    padding:1px 2px!important;font-size:9px!important
+  }
+  .kpi-main{grid-template-columns:22px minmax(0,1fr) 42px!important}
+  .kpi-value{font-size:20px!important}
+}
+
+@media(max-width:420px){
+  .kpi-main{grid-template-columns:18px minmax(0,1fr) 34px!important;gap:2px!important}
+  .class-mini{font-size:7px!important}
+  .web-class-row{grid-template-columns:10px minmax(0,1fr)!important;font-size:7px!important}
+  .web-class-row button{font-size:8px!important}
+}
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
@@ -4627,6 +4725,7 @@ function saveEditingFromModal(silent=false,syncBlanks=false){
   const btn=document.getElementById('saveEditingBtn');
   if(btn){btn.textContent='✓ ENREGISTRÉ';btn.classList.add('saved')}
   if(!silent)editingFeedback(`EDITING ${x.airline} ENREGISTRÉ ET INJECTÉ DANS ${x.flight}.`,'ok');
+  persistFlightAction('PREPA / EDITING');
   return true;
  }catch(e){
   console.error('saveEditingFromModal',e);
@@ -5601,6 +5700,28 @@ function renderPrepa(){
   </section>`;
  updateClocks();
 }
+
+let __flightPersistTimer=null;
+function persistFlightAction(reason='ACTION FICHE VOL',immediate=false){
+ clearTimeout(__flightPersistTimer);
+ const run=async()=>{
+   try{
+     const x=f();
+     if(!x)return false;
+     x.lastActionAt=new Date().toISOString();
+     x.lastActionReason=reason;
+     await saveImportedFlightsPersistent(FLIGHTS);
+     return true;
+   }catch(e){
+     console.warn('PERSIST FICHE VOL',reason,e);
+     return false;
+   }
+ };
+ if(immediate)return run();
+ __flightPersistTimer=setTimeout(run,180);
+ return true;
+}
+
 function render(){
  currentView='detail';
  updateMobileNav();
@@ -5633,7 +5754,7 @@ function render(){
     <div class="local-clock">◷ <div><span id="depClock">${liveFor(x.dep)}</span><small>${x.dep} LOCAL</small></div></div>
    </div>
    <div class="headcell">
-    <div class="head-label">STA</div>
+    <div class="head-label">STA <button class="edit-link" onclick="openEdit('sta')">✎</button></div>
     <div class="time-big">${sc.sta||'—'}${sc.sta?` &nbsp;<span class="blue" style="font-size:16px">${daytag(sc.staDay)}</span>`:''}</div>
     ${x.edt&&sc.eta?`<div class="time-secondary">ETA &nbsp;<span class="red">${sc.eta}</span> <span class="red">${daytag(sc.etaDay)}</span></div>`:''}
     ${adbState(x)?.data?.arrival?.eta?`<span class="adb-value adb-red">ADB ETA ${adbState(x).data.arrival.eta}</span>`:''}
@@ -5651,15 +5772,10 @@ function render(){
     <div class="head-label">IMMAT <button class="edit-link" onclick="openEdit('reg')">✎</button></div><div style="font-weight:900">${x.reg}</div>
    </div>
    <div class="headcell">
-    <div class="gate-pkg-grid">
-      <div class="gate-pkg-item">
-        <div class="head-label">GATE <button class="gate-pkg-edit" onclick="openEdit('gate')">✎</button></div>
-        <div class="gate-pkg-value">${x.gate||'—'}</div>${adbState(x)?.data?.departure?.terminal?`<span class="adb-value adb-blue">TERMINAL ${adbState(x).data.departure.terminal}</span>`:''}
-      </div>
-      <div class="gate-pkg-item">
-        <div class="head-label">PKG <button class="gate-pkg-edit" onclick="openEdit('parking')">✎</button></div>
-        <div class="gate-pkg-value">${x.parking||'—'}</div>
-      </div>
+    <div class="gate-only-wrap">
+      <div class="head-label">GATE <button class="gate-pkg-edit" onclick="openEdit('gate')">✎</button></div>
+      <div class="gate-pkg-value">${x.gate||'—'}</div>
+      ${adbState(x)?.data?.departure?.terminal?`<span class="adb-value adb-blue">TERMINAL ${adbState(x).data.departure.terminal}</span>`:''}
     </div>
     <button class="info-button" onclick="openFlightInfo()">INFOS VOL ${passengerNotesForCurrentFlight().length?`<span class="note-bell active">🔔</span>`:""}</button>
    </div>
@@ -5667,7 +5783,7 @@ function render(){
 
  <section class="card kpi-strip">
    ${configCapacityKpi(classes,cap)}
-   ${kpi('BOOKED',icons.booked,booked,mini(x.booked),'green',pct)}
+   ${kpi('BOOKED',icons.booked,booked,mini(x.booked),'green',pct).replace('<div class="kpi"','<div class="kpi booked-kpi-edit" onclick="openBookedEdit()" title="MODIFIER BOOKED"')}
    ${kpi('WEB',icons.web,sum(web),webMiniEditable(classes),'purple').replace('<div class="kpi','<div onclick="openWebAllEdit()" style="cursor:pointer" class="kpi')}
    ${kpi('AVAILABLE',icons.available,avail,mini(available),'orange',pct,true)}
    ${simpleKpi('STANDBY',icons.standby,x.standby,'cyan',()=>openSynthetic('STANDBY',x.standby))}
@@ -5830,7 +5946,7 @@ function updateMealCount(cls,value){
    store[(x.flight||'')+'|'+(x.activeDate||selectedDate||'')]=x.meals;
    localStorage.setItem(key,JSON.stringify(store));
  }catch(e){}
- render();
+ render();persistFlightAction('MEALS');
 }
 function restoreManualMeals(){
  try{
@@ -5875,7 +5991,7 @@ function saveWebAllEdit(){
  document.querySelectorAll('[data-web-all]').forEach(el=>{
    x.web[el.dataset.webAll]=Math.max(0,parseInt(el.value||'0',10)||0);
  });
- closeModal();render();
+ closeModal();render();persistFlightAction('WEB',true);
 }
 function kpi(title,icon,value,classes,color,pct=null,neg=false){
  return `<div class="kpi"><div class="kpi-title">${title}</div><div class="kpi-main"><div class="kpi-icon ${color}">${icon}</div><div class="kpi-value ${neg&&value<0?'red':''}">${value}</div><div class="class-mini">${classes}</div></div>${pct!==null?`<div class="kpi-gauge"><div class="gauge"><span style="width:${Math.min(100,pct)}%"></span></div>${title==='BOOKED'?`<b>${pct}%</b>`:''}</div>`:''}</div>`;
@@ -5927,7 +6043,97 @@ function classCard(k){
 }
 function commonTile(key,label){
  const x=f(),n=x.common[key]||0;
- return `<div class="common-item"><div class="common-name">${label}</div><div class="common-count"><span class="ico">${icons[key]||'•'}</span>${n}</div><button class="view-list" onclick="openCommon('${key}')">VOIR LA LISTE</button></div>`;
+ return `<div class="common-item">
+   <div class="common-name">${label}</div>
+   <div class="common-count"><span class="ico">${icons[key]||'•'}</span>${n}</div>
+   <div class="particularity-actions">
+     <button class="part-minus" onclick="removeParticularity('${key}')" title="Supprimer">−</button>
+     <button class="view-list" onclick="openCommon('${key}')">VOIR LA LISTE</button>
+     <button class="part-plus" onclick="openParticularityEditor('${key}','${label}')" title="Ajouter">＋</button>
+   </div>
+ </div>`;
+}
+
+function openParticularityEditor(key,label){
+ const x=f(),classes=orderedClasses(x);
+ const staffType=key==='STAFF'
+  ? `<label>TYPE
+      <select id="partSpecific">
+        <option>COCKPIT</option>
+        <option>CABIN CREW</option>
+        <option>JUMPSEAT</option>
+        <option>AUTRES</option>
+      </select>
+     </label>`
+  : `<label>INFO / SSR<input id="partSpecific" placeholder="EX. WCHR, INF, VIP, REMARQUE"></label>`;
+
+ showModal('AJOUTER '+label,x.flight,`
+   <div class="particularity-editor">
+     <div class="particularity-grid">
+       <label>NOM / IDENTIFIANT<input id="partName" placeholder="NOM PASSAGER OU IDENTIFIANT"></label>
+       <label>SIÈGE<input id="partSeat" placeholder="EX. 12A"></label>
+       <label>CLASSE
+         <select id="partClass">
+           ${classes.map(c=>`<option>${c}</option>`).join('')}
+         </select>
+       </label>
+       <label>PNR<input id="partPnr" placeholder="OPTIONNEL"></label>
+       ${staffType}
+       <label class="part-wide">NOTE<input id="partNote" placeholder="INFORMATION COMPLÉMENTAIRE"></label>
+     </div>
+     <div class="web-all-actions">
+       <button class="secondary" onclick="modalBack()">ANNULER</button>
+       <button class="primary" onclick="saveParticularity('${key}')">AJOUTER</button>
+     </div>
+   </div>
+ `);
+}
+
+async function saveParticularity(key){
+ const x=f();
+ x.common=x.common||{};
+ x.common_lists=x.common_lists||{};
+ if(!Array.isArray(x.common_lists[key]))x.common_lists[key]=[];
+
+ const item={
+   id:`${x.flight}-${key}-${Date.now()}`,
+   name:String(document.getElementById('partName')?.value||key).trim().toUpperCase()||key,
+   seat:String(document.getElementById('partSeat')?.value||'').trim().toUpperCase(),
+   class:String(document.getElementById('partClass')?.value||'').trim().toUpperCase(),
+   pnr:String(document.getElementById('partPnr')?.value||'').trim().toUpperCase(),
+   specific:String(document.getElementById('partSpecific')?.value||'').trim().toUpperCase(),
+   note:String(document.getElementById('partNote')?.value||'').trim().toUpperCase(),
+   status:'BOOKED'
+ };
+ x.common_lists[key].push(item);
+ x.common[key]=x.common_lists[key].length;
+
+ if(key==='EMD')x.emd=x.common[key];
+ if(key==='ETK')x.etk=x.common[key];
+
+ closeModal();
+ render();
+ await persistFlightAction('AJOUT PARTICULARITÉ '+key,true);
+}
+
+async function removeParticularity(key){
+ const x=f();
+ x.common=x.common||{};
+ x.common_lists=x.common_lists||{};
+ const list=Array.isArray(x.common_lists[key])?x.common_lists[key]:[];
+
+ if(list.length){
+   list.pop();
+   x.common[key]=list.length;
+ }else{
+   x.common[key]=Math.max(0,Number(x.common[key]||0)-1);
+ }
+
+ if(key==='EMD')x.emd=x.common[key];
+ if(key==='ETK')x.etk=x.common[key];
+
+ render();
+ await persistFlightAction('SUPPRESSION PARTICULARITÉ '+key,true);
 }
 
 function allPassengerNotes(){
@@ -5968,11 +6174,31 @@ function fqTable(){
  return `<div class="card table-card"><div class="table-title"><span>FQTV</span><button onclick="openCommon('FQTV')">VOIR LA LISTE 👁</button></div><table><thead><tr><th>PROGRAMME</th><th>NOMBRE</th></tr></thead><tbody>${['FLYING RETURNS','STAR ALLIANCE','AIR INDIA SIGNATURE','AUTRES'].map((x,i)=>`<tr><td>${x}</td><td>${vals[i]}</td></tr>`).join('')}</tbody></table></div>`;
 }
 function staffTable(){
- const total=f().common.STAFF||0,a=Math.max(1,Math.round(total*.28)),b=Math.max(1,Math.round(total*.55)),c=Math.max(0,Math.round(total*.11)),d=Math.max(0,total-a-b-c);
- return `<div class="card table-card"><div class="table-title"><span>STAFF</span><button onclick="openCommon('STAFF')">VOIR LA LISTE 👁</button></div><table><thead><tr><th>TYPE</th><th>NOMBRE</th></tr></thead><tbody>${[['COCKPIT',a],['CABIN CREW',b],['JUMPSEAT',c],['AUTRES',d]].map(r=>`<tr><td><b>${r[0]}</b></td><td>${r[1]}</td></tr>`).join('')}</tbody></table></div>`;
+ const x=f(),list=Array.isArray(x.common_lists?.STAFF)?x.common_lists.STAFF:[];
+ const counts={'COCKPIT':0,'CABIN CREW':0,'JUMPSEAT':0,'AUTRES':0};
+
+ if(list.length){
+   list.forEach(p=>{
+     const t=String(p.specific||p.type||'AUTRES').toUpperCase();
+     if(t.includes('COCKPIT'))counts['COCKPIT']++;
+     else if(t.includes('CABIN'))counts['CABIN CREW']++;
+     else if(t.includes('JUMP'))counts['JUMPSEAT']++;
+     else counts['AUTRES']++;
+   });
+ }else{
+   const total=Number(x.common?.STAFF||0);
+   // Sans détail connu, aucun faux COCKPIT/CABIN CREW n'est créé.
+   counts['AUTRES']=total;
+ }
+
+ return `<div class="card table-card">
+   <div class="table-title"><span>STAFF</span><button onclick="openCommon('STAFF')">VOIR LA LISTE 👁</button></div>
+   <table><thead><tr><th>TYPE</th><th>NOMBRE</th></tr></thead>
+   <tbody>${Object.entries(counts).map(([type,n])=>`<tr><td><b>${type}</b></td><td>${n}</td></tr>`).join('')}</tbody></table>
+ </div>`;
 }
 
-function updateConfig(k,v){const x=f();x.config[k]=Math.max(0,parseInt(v||0));render()}
+function updateConfig(k,v){const x=f();x.config[k]=Math.max(0,parseInt(v||0));render();persistFlightAction('CONFIGURATION')}
 
 
 function inopForm(index=null){
@@ -6023,11 +6249,11 @@ function saveInop(index=null){
    if(existing>=0)x.inopSeats[existing]={seat,class:cls,status};
    else x.inopSeats.push({seat,class:cls,status});
  }
- render();replaceModal('INOP SEAT',f().flight,inopForm(null)+((f().inopSeats||[]).length?`<div class="inop-list">${inopList()}</div>`:''));
+ render();persistFlightAction('INOP SEAT');replaceModal('INOP SEAT',f().flight,inopForm(null)+((f().inopSeats||[]).length?`<div class="inop-list">${inopList()}</div>`:''));
 }
 function deleteInop(i){
  f().inopSeats.splice(i,1);
- render();replaceModal('INOP SEAT',f().flight,inopForm(null)+((f().inopSeats||[]).length?`<div class="inop-list">${inopList()}</div>`:''));
+ render();persistFlightAction('SUPPRESSION INOP');replaceModal('INOP SEAT',f().flight,inopForm(null)+((f().inopSeats||[]).length?`<div class="inop-list">${inopList()}</div>`:''));
 }
 
 function openClassEdit(k){
@@ -6035,7 +6261,7 @@ function openClassEdit(k){
 }
 function openEdit(key){
  editKey=key;
- if(key==='time') openEditModal('MODIFIER HORAIRES',`<label>STD<input id="editStd" value="${f().std}" inputmode="numeric"></label><label>ETD<input id="editValue" value="${f().edt||''}" placeholder="2300" inputmode="numeric"></label>`);
+ if(key==='time'||key==='sta') openEditModal('MODIFIER HORAIRES',`<label>STD<input id="editStd" value="${f().std||''}" inputmode="numeric"></label><label>STA<input id="editSta" value="${f().sta||schedule(f()).sta||''}" placeholder="EX. 0715" inputmode="numeric"></label><label>ETD<input id="editValue" value="${f().edt||''}" placeholder="OPTIONNEL" inputmode="numeric"></label>`);
  else if(key==='aircraft'){openSariaCabinChooser();return;}
  else if(key==='reg') openEditModal('IMMAT',`<label>IMMAT<input id="editValue" value="${f().reg}"></label>`);
  else if(key==='gate') openEditModal('GATE',`<label>GATE<input id="editValue" value="${f().gate||''}" placeholder="EX. B32"></label>`);
@@ -6047,17 +6273,30 @@ function openEditModal(title,fields){
 function saveEdit(){
  const x=f();
  if(editKey==='class'){x.booked[editClass]=Math.max(0,parseInt(document.getElementById('editValue').value||0))}
- else if(editKey==='time'){
-   const ns=normTime(document.getElementById('editStd').value),ne=normTime(document.getElementById('editValue').value);
+ else if(editKey==='time'||editKey==='sta'){
+   const ns=normTime(document.getElementById('editStd').value);
+   const staRaw=document.getElementById('editSta')?.value||'';
+   const nsta=staRaw?normTime(staRaw):'';
+   const edtRaw=document.getElementById('editValue')?.value||'';
+   const ne=edtRaw?normTime(edtRaw):'';
    if(!ns){alert('HEURE STD INVALIDE');return}
-   if(document.getElementById('editValue').value && !ne){alert('HEURE ETD INVALIDE');return}
-   x.std=ns;x.edt=ne;
+   if(staRaw && !nsta){alert('HEURE STA INVALIDE');return}
+   if(edtRaw && !ne){alert('HEURE ETD INVALIDE');return}
+   x.std=ns;x.sta=nsta;x.edt=ne;
+   if(nsta){
+     const depOff=TZ[x.dep]??2,arrOff=TZ[x.dest]??2;
+     const depUtc=parseHM(ns)-depOff*60;
+     let arrUtc=parseHM(nsta)-arrOff*60;
+     while(arrUtc<depUtc)arrUtc+=1440;
+     x.duration=Math.max(0,arrUtc-depUtc);
+     x.durationSource='MANUAL_STA';
+   }
  }
  else if(editKey==='aircraft'){x.aircraft=document.getElementById('editValue').value.toUpperCase()}
  else if(editKey==='reg'){x.reg=document.getElementById('editValue').value.toUpperCase()}
  else if(editKey==='gate'){x.gate=document.getElementById('editValue').value.toUpperCase()}
  else if(editKey==='parking'){x.parking=document.getElementById('editValue').value.toUpperCase()}
- closeModal();render();
+ closeModal();render();persistFlightAction('MODIFICATION FICHE VOL',true);
 }
 
 function samplePaxForClass(cls,count){
@@ -6065,6 +6304,47 @@ function samplePaxForClass(cls,count){
  const out=[];for(let i=0;i<count;i++){let p={...arr[i%arr.length]};p.id=p.id+'X'+i;out.push(p)}return out
 }
 function openClass(k){showPax('CLASSE '+k,samplePaxForClass(k,f().booked[k]||0),f().booked[k]||0)}
+
+function openBookedEdit(){
+ const x=f(),classes=orderedClasses(x);
+ showModal('MODIFIER BOOKED',x.flight,`
+   <div class="booked-edit-modal">
+     <div class="booked-edit-grid">
+       ${classes.map(k=>`
+         <label class="booked-edit-field">
+           <span>CLASSE ${k}</span>
+           <input data-booked-edit="${k}" type="number" min="0" step="1"
+                  inputmode="numeric" value="${Number(x.booked?.[k]||0)}"
+                  oninput="updateBookedEditTotal()">
+         </label>`).join('')}
+     </div>
+     <div class="booked-edit-total">BOOKED TOTAL <b id="bookedEditTotal">${sum(x.booked)}</b></div>
+     <div class="web-all-actions">
+       <button class="secondary" onclick="modalBack()">ANNULER</button>
+       <button class="primary" onclick="saveBookedEdit()">ENREGISTRER</button>
+     </div>
+   </div>
+ `);
+ setTimeout(updateBookedEditTotal,20);
+}
+function updateBookedEditTotal(){
+ let total=0;
+ document.querySelectorAll('[data-booked-edit]').forEach(el=>{
+   total+=Math.max(0,parseInt(el.value||'0',10)||0);
+ });
+ const t=document.getElementById('bookedEditTotal');
+ if(t)t.textContent=total;
+}
+async function saveBookedEdit(){
+ const x=f();
+ document.querySelectorAll('[data-booked-edit]').forEach(el=>{
+   x.booked[el.dataset.bookedEdit]=Math.max(0,parseInt(el.value||'0',10)||0);
+ });
+ closeModal();
+ render();
+ await persistFlightAction('BOOKED',true);
+}
+
 function openBooked(sort='name'){
  let items=[];orderedClasses(f()).forEach(k=>items.push(...samplePaxForClass(k,f().booked[k]||0)));
  if(sort==='class')items.sort((a,b)=>a.class.localeCompare(b.class)||a.seat.localeCompare(b.seat));
@@ -6098,9 +6378,12 @@ function passengerNoteKey(p){
  return [f().flight, f().activeDate||selectedDate||'', p.pnr||'', p.etkt||'', p.name||''].join('|');
 }
 function getPassengerNote(p){
+ const key=passengerNoteKey(p);
+ const shared=f()?.passengerNotes?.[key];
+ if(shared!==undefined)return shared||'';
  try{
   const store=JSON.parse(localStorage.getItem('alyzia_ops_passenger_notes_v18')||'{}');
-  return store[passengerNoteKey(p)]||p.userNote||'';
+  return store[key]||p.userNote||'';
  }catch(e){return p.userNote||''}
 }
 function savePassengerNote(p){
@@ -6111,6 +6394,10 @@ function savePassengerNote(p){
   localStorage.setItem('alyzia_ops_passenger_notes_v18',JSON.stringify(store));
  }catch(e){}
  p.userNote=value;
+ const x=f();
+ x.passengerNotes=x.passengerNotes||{};
+ x.passengerNotes[passengerNoteKey(p)]=value;
+ persistFlightAction('NOTE PASSAGER');
  if(currentView==='detail')render();
  const btn=document.querySelector('.note-save');
  if(btn){
@@ -6220,7 +6507,7 @@ function openCreateFlight(){
    <label>TYPE A/C<input id="createFlightAircraft" placeholder="359"></label>
    <label>IMMAT<input id="createFlightReg" placeholder="9V-SWM"></label>
    <label>GATE<input id="createFlightGate" placeholder="K41"></label>
-   <label>PKG / PARKING<input id="createFlightParking" placeholder="G"></label>
+
   </div>
   <div id="createFlightStatus" class="import-status">LE VOL SERA SAUVEGARDÉ ET RESTERA PRÉSENT APRÈS RECHARGEMENT DE LA PAGE.</div>
   <div class="flight-create-actions">
@@ -6240,7 +6527,7 @@ async function saveCreatedFlight(){
  const aircraft=String(document.getElementById('createFlightAircraft')?.value||'').trim().toUpperCase();
  const reg=String(document.getElementById('createFlightReg')?.value||'').trim().toUpperCase();
  const gate=String(document.getElementById('createFlightGate')?.value||'').trim().toUpperCase();
- const parking=String(document.getElementById('createFlightParking')?.value||'').trim().toUpperCase();
+ const parking='';
 
  if(!date||!airline||!flight||!dest||!std){
   if(status){status.className='import-status err';status.textContent='DATE, COMPAGNIE, NUMÉRO DE VOL, DESTINATION ET STD SONT OBLIGATOIRES.'}
@@ -6541,7 +6828,7 @@ function openFlightInfo(){
     <div class="flight-info-item"><small>STA / ETA</small><b>${sc.sta} ${daytag(sc.staDay)}${x.edt?` / ${sc.eta} ${daytag(sc.etaDay)}`:''}</b></div>
     <div class="flight-info-item"><small>DURÉE</small><b>${durationText(x.duration)}</b></div>
     <div class="flight-info-item"><small>GATE</small><b>${x.gate||'—'}</b></div>
-    <div class="flight-info-item"><small>PKG / PARKING</small><b>${x.parking||'—'}</b></div>
+
     <div class="flight-info-item"><small>TYPE APPAREIL</small><b>${x.aircraft}</b></div>
     <div class="flight-info-item"><small>IMMATRICULATION</small><b>${x.reg}</b></div>
     <div class="flight-info-item"><small>CONFIGURATION</small><b>${Object.entries(x.config).map(([k,v])=>k+' '+v).join(' · ')}</b></div>
