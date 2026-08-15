@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - Virtual V46.3 · SARIA SeatMap Fix</title>
+<title>ALYZIA OPS - Virtual V46.4 · SARIA SeatMap Loop Fix</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -5336,6 +5336,7 @@ function openFlightInfo(){
 }
 
 
+console.info('ALYZIA OPS V46.4 · SARIA SEATMAP LOOP FIX');
 const SARIA_DIRECT_URL="https://saria-seatmap.alyzia-cdg2.workers.dev";
 const SARIA_BRIDGE_BASE=(location.protocol==='http:'||location.protocol==='https:')
   ? `${location.origin}/api/saria`
@@ -5604,7 +5605,9 @@ function sariaLayoutSeats(layout,entry,x=f()){
  for(const z of layout?.zones||[]){
   const cls=sariaClassFamily(z.class),groups=sariaPatternGroups(z.pattern).length?sariaPatternGroups(z.pattern):sariaDefaultPattern(x.aircraft,cls);
   const cap=Number(z.capacity||cfg[cls]||Infinity);usedByClass[cls]=usedByClass[cls]||0;
-  for(let r=Number(z.row_start)||1;r<=Number(z.row_end||z.row_start)||1;r++){
+  const startRow=Number(z.row_start)||1;
+  const endRow=Math.min(Number(z.row_end||z.row_start)||startRow,startRow+150);
+  for(let r=startRow;r<=endRow;r++){
    for(const group of groups){
     for(const letter of group){
      if(usedByClass[cls]>=cap)continue;
@@ -5664,7 +5667,9 @@ function renderSariaVertical(layout,entry,x=f()){
   const cls=sariaClassFamily(z.class),groups=sariaPatternGroups(z.pattern).length?sariaPatternGroups(z.pattern):sariaDefaultPattern(x.aircraft,cls);
   const zSeats=seats.filter(s=>s.zone===z);
   html+=`<div class="saria-class-head"><span class="saria-class-dot" style="background:var(--saria-${cls})"></span><b>${sariaClassName(cls)} · ${cls}</b><span>${zSeats.length} SIÈGES</span></div>`;
-  for(let r=Number(z.row_start)||1;r<=Number(z.row_end||z.row_start)||1;r++){
+  const startRow=Number(z.row_start)||1;
+  const endRow=Math.min(Number(z.row_end||z.row_start)||startRow,startRow+150);
+  for(let r=startRow;r<=endRow;r++){
    const rowSeats=zSeats.filter(s=>s.row===r);
    if(!rowSeats.length)continue;
    html+=`<div class="saria-v-row"><span class="saria-rownum">${String(r).padStart(2,'0')}</span>`;
@@ -5688,7 +5693,9 @@ function renderSariaHorizontal(layout,entry,x=f()){
   const cls=sariaClassFamily(z.class),groups=sariaPatternGroups(z.pattern).length?sariaPatternGroups(z.pattern):sariaDefaultPattern(x.aircraft,cls);
   const zSeats=seats.filter(s=>s.zone===z);
   html+=`<div class="saria-h-class"><div class="saria-h-label"><span class="saria-class-dot" style="background:var(--saria-${cls})"></span>${sariaClassName(cls)} · ${cls} · ${zSeats.length}</div>`;
-  for(let r=Number(z.row_start)||1;r<=Number(z.row_end||z.row_start)||1;r++){
+  const startRow=Number(z.row_start)||1;
+  const endRow=Math.min(Number(z.row_end||z.row_start)||startRow,startRow+150);
+  for(let r=startRow;r<=endRow;r++){
    const rowSeats=zSeats.filter(s=>s.row===r);if(!rowSeats.length)continue;
    html+=`<div class="saria-h-col"><div class="saria-h-colnum">${String(r).padStart(2,'0')}</div>`;
    [...groups].reverse().forEach((g,gi)=>{
