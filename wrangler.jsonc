@@ -1,7 +1,17 @@
 {
   "name": "alyzia-ops",
+  "main": "./src/index.js",
   "compatibility_date": "2026-08-06",
+
   "assets": {
-    "directory": "./public"
-  }
+    "directory": "./public",
+    "binding": "ASSETS"
+  },
+
+  "services": [
+    {
+      "binding": "SARIA",
+      "service": "saria-seatmap"
+    }
+  ]
 }
