@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - Virtual V46.2 · SARIA Bridge</title>
+<title>ALYZIA OPS - Virtual V46.3 · SARIA SeatMap Fix</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -3167,6 +3167,13 @@ body{
 }
 .saria-bridge-pill:before{content:"";width:5px;height:5px;border-radius:50%;background:#19a466}
 
+
+/* V46.3 — ouverture SeatMap non bloquante */
+#sariaSeatmapBoot{
+  min-height:74px;display:flex;align-items:center;justify-content:center;
+  text-align:center;font-size:10px;font-weight:950;letter-spacing:.04em
+}
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
@@ -5492,9 +5499,9 @@ function selectSariaCabin(encodedKey){
   Object.keys(cfg).forEach(k=>{x.booked[k]=Number(previousBooked[k]||0);x.web[k]=Number(previousWeb[k]||0);x.meals[k]=Number(previousMeals[k]||0)});
  }
  try{localStorage.setItem(`alyzia_saria_config|${x.flight}|${x.activeDate||x.date||''}`,JSON.stringify({key:x.sariaConfigKey,config:x.sariaCabinConfig,ac:x.aircraft}))}catch(e){}
- // Précharge immédiatement le layout pendant que l'utilisateur revient sur la fiche vol.
- prefetchSariaLayout(entry,x);
+ // Retour immédiat à la fiche vol; préchargement SARIA après le rendu.
  closeModal();render();
+ setTimeout(()=>prefetchSariaLayout(entry,x).catch(()=>{}),50);
 }
 function restoreSariaFlightSelections(){
  FLIGHTS.forEach(x=>{
@@ -5565,7 +5572,12 @@ async function loadSariaLayout(entry,x=f()){
    const direct=`${SARIA_DIRECT_API.layout}?key=${encodeURIComponent(key)}`;
    const j=await sariaFetchJson(primary,direct,1800);
    if(j?.configuration&&Array.isArray(j.zones)&&j.zones.length){
-    const layout={...j,generic:false};
+    const layout={
+      ...j,
+      equipment:Array.isArray(j.equipment)?j.equipment:(Array.isArray(j.equipments)?j.equipments:[]),
+      equipments:Array.isArray(j.equipments)?j.equipments:(Array.isArray(j.equipment)?j.equipment:[]),
+      generic:false
+    };
     SARIA_LAYOUT_CACHE[key]=layout;
     sariaWritePersistentLayout(key,layout);
     return layout;
@@ -5626,11 +5638,21 @@ function sariaSeatTip(seat,cls,st){
  return `<span class="saria-seat-tip"><b>${seat} · ${cls}</b><div class="status">${st.label}</div>${p?`<div>${p.name||'PASSAGER'}</div><div>SSR : ${ssr||'—'}</div><div>ETKT : ${p.etkt||'—'}</div>`:'<div>SIÈGE DISPONIBLE</div>'}${st.io?`<div>INOP : ${st.io.status}</div>`:''}</span>`;
 }
 function sariaSeatButton(seatObj){
- const st=seatStatus(seatObj.seat),p=st.p,search=`${seatObj.seat} ${p?.name||''} ${paxSSRText(p)}`.toUpperCase();
- return `<button class="saria-seat ${st.key}" data-saria-status="${st.key}" data-saria-search="${search.replace(/"/g,'&quot;')}" onclick="openSeatInfo('${seatObj.seat}','${seatObj.class}')">${seatObj.letter}${st.symbol?`<span class="saria-seat-symbol">${st.symbol}</span>`:''}${sariaSeatTip(seatObj.seat,seatObj.class,st)}</button>`;
+ const st=seatStatus(seatObj.seat),p=st.p;
+ const ssr=paxSSRText(p);
+ const search=`${seatObj.seat} ${p?.name||''} ${ssr}`.toUpperCase();
+ const title=[
+   `${seatObj.seat} · ${seatObj.class}`,
+   st.label,
+   p?.name||'',
+   ssr?`SSR ${ssr}`:'',
+   st.io?`INOP ${st.io.status}`:''
+ ].filter(Boolean).join(' · ');
+ return `<button class="saria-seat ${st.key}" data-saria-status="${st.key}" data-saria-search="${search.replace(/"/g,'&quot;')}" title="${title.replace(/"/g,'&quot;')}" onclick="openSeatInfo('${seatObj.seat}','${seatObj.class}')">${seatObj.letter}${st.symbol?`<span class="saria-seat-symbol">${st.symbol}</span>`:''}</button>`;
 }
 function sariaEquipmentLabel(layout,row){
- const eq=(layout?.equipment||[]).filter(e=>Number(e.row||e.row_number||e.at_row||0)===Number(row));
+ const all=Array.isArray(layout?.equipment)?layout.equipment:(Array.isArray(layout?.equipments)?layout.equipments:[]);
+ const eq=all.filter(e=>Number(e.row||e.row_number||e.at_row||e.row_reference||0)===Number(row));
  if(!eq.length)return'';
  const labels=[...new Set(eq.map(e=>String(e.type||e.label||e.name||'').toUpperCase()).filter(Boolean))];
  return labels.join(' · ');
@@ -5703,44 +5725,114 @@ function sariaSeatmapBody(layout,entry,x=f()){
  </div>`;
 }
 async function openSeatmap(){
- const x=f();if(!x)return;
+ const x=f();
+ if(!x)return;
 
- // Ne jamais bloquer le SeatMap sur un appel réseau.
- // On exploite immédiatement le catalogue embarqué, puis on actualise D1 en arrière-plan.
- loadSariaCatalog().catch(()=>{});
+ // Ouvre TOUJOURS le modal immédiatement : aucune génération de plan
+ // ni aucun appel réseau ne peut empêcher l'ouverture visuelle.
+ showModal(
+   'SEATMAP SARIA',
+   x.flight,
+   `<div id="sariaSeatmapBoot" class="saria-state-note">
+      OUVERTURE DU PLAN CABINE…
+    </div>`
+ );
 
- let entry=sariaSelectedEntry(x);
- if(!entry){
-  showModal('SEATMAP SARIA',x.flight,`<div class="saria-state-note warn">AUCUNE VERSION CABINE N'EST ENCORE SÉLECTIONNÉE POUR <b>${x.airline} · ${x.aircraft}</b>.<br><br>Choisis d'abord la version cabine correspondant au vol.</div><div class="saria-picker-actions" style="margin-top:12px"><button class="primary" onclick="modalBack();setTimeout(openSariaCabinChooser,30)">CHOISIR LA VERSION CABINE</button></div>`);
-  return;
- }
-
- const flightAtOpen=x.flight;
- const keyAtOpen=sariaConfigKey(entry);
-
- // 1. AFFICHAGE IMMÉDIAT : aucun spinner permanent.
- const instant=immediateSariaLayout(entry,x);
- showModal('SEATMAP SARIA',`${x.flight} · ${entry.config}`,sariaSeatmapBody(instant,entry,x));
- window.__SARIA_ACTIVE_LAYOUT=instant;
- window.__SARIA_ACTIVE_ENTRY=entry;
- setTimeout(applySariaSeatFilter,20);
-
- // 2. UPGRADE D1 EN ARRIÈRE-PLAN.
- loadSariaLayout(entry,x).then(layout=>{
-   // L'utilisateur a pu fermer le modal ou changer de vol entre-temps.
-   if(!document.getElementById('modal')?.classList.contains('open'))return;
-   if(f()?.flight!==flightAtOpen)return;
-   const activeEntry=window.__SARIA_ACTIVE_ENTRY;
-   if(!activeEntry||sariaConfigKey(activeEntry)!==keyAtOpen)return;
-
-   window.__SARIA_ACTIVE_LAYOUT=layout;
-   const body=document.getElementById('modalBody');
-   if(body)body.innerHTML=sariaSeatmapBody(layout,entry,x);
-   setTimeout(applySariaSeatFilter,20);
- }).catch(()=>{
-   const st=document.getElementById('sariaUpgradeState');
-   if(st){st.className='saria-upgrade-state warn';st.innerHTML='<span class="saria-upgrade-dot"></span>PLAN EMBARQUÉ UTILISÉ · D1 NON DISPONIBLE';}
+ // Laisse d'abord le navigateur peindre le modal.
+ await new Promise(resolve=>{
+   if(typeof requestAnimationFrame==='function'){
+     requestAnimationFrame(()=>requestAnimationFrame(resolve));
+   }else{
+     setTimeout(resolve,0);
+   }
  });
+
+ try{
+   // Le catalogue embarqué est disponible immédiatement.
+   // L'actualisation D1 reste non bloquante.
+   loadSariaCatalog().catch(()=>{});
+
+   let entry=sariaSelectedEntry(x);
+
+   if(!entry){
+     const body=document.getElementById('modalBody');
+     if(body) body.innerHTML=
+       `<div class="saria-state-note warn">
+          AUCUNE VERSION CABINE N'EST ENCORE SÉLECTIONNÉE POUR
+          <b>${x.airline} · ${x.aircraft||'TYPE A/C —'}</b>.<br><br>
+          Choisis d'abord la version cabine correspondant au vol.
+        </div>
+        <div class="saria-picker-actions" style="margin-top:12px">
+          <button class="primary"
+            onclick="modalBack();setTimeout(openSariaCabinChooser,30)">
+            CHOISIR LA VERSION CABINE
+          </button>
+        </div>`;
+     return;
+   }
+
+   const flightAtOpen=x.flight;
+   const keyAtOpen=sariaConfigKey(entry);
+
+   // Plan générique/embarqué construit APRÈS ouverture du modal.
+   const instant=immediateSariaLayout(entry,x);
+   const body=document.getElementById('modalBody');
+   if(!body)return;
+
+   body.innerHTML=sariaSeatmapBody(instant,entry,x);
+   document.getElementById('modalSub').textContent=`${x.flight} · ${entry.config}`;
+
+   window.__SARIA_ACTIVE_LAYOUT=instant;
+   window.__SARIA_ACTIVE_ENTRY=entry;
+   setTimeout(applySariaSeatFilter,10);
+
+   // Upgrade vers le vrai layout D1, sans fermer ni bloquer le SeatMap.
+   prefetchSariaLayout(entry,x).then(layout=>{
+     if(!layout || layout.generic)return;
+     if(!document.getElementById('modal')?.classList.contains('open'))return;
+     if(f()?.flight!==flightAtOpen)return;
+     const activeEntry=window.__SARIA_ACTIVE_ENTRY;
+     if(!activeEntry || sariaConfigKey(activeEntry)!==keyAtOpen)return;
+
+     window.__SARIA_ACTIVE_LAYOUT=layout;
+     const plane=document.getElementById('sariaPlane');
+     if(plane){
+       plane.innerHTML=SARIA_SEAT_STATE.orientation==='v'
+         ? renderSariaVertical(layout,entry,x)
+         : renderSariaHorizontal(layout,entry,x);
+     }
+
+     const source=document.querySelector('.saria-source');
+     if(source){
+       source.classList.remove('fallback');
+       source.innerHTML='✓ SARIA D1 · PLAN CABINE';
+     }
+     const upgrade=document.getElementById('sariaUpgradeState');
+     if(upgrade){
+       upgrade.className='saria-upgrade-state ok';
+       upgrade.innerHTML='<span class="saria-upgrade-dot"></span>LAYOUT D1 CHARGÉ';
+     }
+     setTimeout(applySariaSeatFilter,10);
+   }).catch(err=>{
+     console.warn('SeatMap D1 upgrade',err);
+   });
+
+ }catch(err){
+   console.error('SEATMAP SARIA ERROR',err);
+   const body=document.getElementById('modalBody');
+   if(body){
+     body.innerHTML=
+       `<div class="saria-state-note err">
+          LE SEATMAP N'A PAS PU ÊTRE CONSTRUIT.<br><br>
+          <b>${String(err?.message||err||'ERREUR INCONNUE')}</b><br><br>
+          Le pont SARIA peut rester actif : cette erreur concerne
+          l'affichage du plan dans ALYZIA OPS.
+        </div>
+        <div class="saria-picker-actions" style="margin-top:12px">
+          <button class="primary" onclick="openSeatmap()">RÉESSAYER</button>
+        </div>`;
+   }
+ }
 }
 function setSariaOrientation(o){
  SARIA_SEAT_STATE.orientation=o;
