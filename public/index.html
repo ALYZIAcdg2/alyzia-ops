@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - Virtual V46.4 · SARIA SeatMap Loop Fix</title>
+<title>ALYZIA OPS - Virtual V46.5 · SARIA SeatMap Modal XL</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -3172,6 +3172,54 @@ body{
 #sariaSeatmapBoot{
   min-height:74px;display:flex;align-items:center;justify-content:center;
   text-align:center;font-size:10px;font-weight:950;letter-spacing:.04em
+}
+
+
+/* V46.5 — Modal SeatMap XL pour réduire le scroll */
+.modal:has(#sariaSeatmapBoot) .modalbox,
+.modal:has(.saria-seat-shell) .modalbox{
+  width:min(1480px,98vw);
+  max-width:98vw;
+  max-height:96vh;
+  padding:16px;
+  border-radius:14px;
+}
+.modal:has(.saria-seat-shell){
+  padding:10px;
+}
+.modal:has(.saria-seat-shell) .modalhead{
+  margin-bottom:8px;
+}
+.modal:has(.saria-seat-shell) .modalhead h3{
+  font-size:24px;
+}
+.modal:has(.saria-seat-shell) #modalBody{
+  overflow:visible;
+}
+.modal:has(.saria-seat-shell) .saria-plane-stage{
+  max-height:76vh;
+  min-height:420px;
+}
+.modal:has(.saria-seat-shell) .saria-seat-top{
+  position:sticky;
+  top:0;
+  z-index:5;
+}
+@media(max-width:900px){
+  .modal:has(#sariaSeatmapBoot) .modalbox,
+  .modal:has(.saria-seat-shell) .modalbox{
+    width:99vw;
+    max-width:99vw;
+    max-height:97vh;
+    padding:12px;
+  }
+  .modal:has(.saria-seat-shell){
+    padding:5px;
+  }
+  .modal:has(.saria-seat-shell) .saria-plane-stage{
+    max-height:78vh;
+    min-height:360px;
+  }
 }
 
 </style>
