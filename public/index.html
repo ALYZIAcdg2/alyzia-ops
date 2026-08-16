@@ -6,7 +6,7 @@
   <meta http-equiv="Expires" content="0">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V49.13 · Import / Pax / Modal / PREPA Fix</title>
+<title>ALYZIA OPS - V49.14 · TK Import Parser Fix</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -4797,12 +4797,12 @@ html,body{
 }
 
 
-/* V49.13 — synchro silencieuse */
+/* V49.14 — synchro silencieuse */
 .ops-cloud-status.ok::before{content:'●';margin-right:5px;color:#0aa56b}
 
 
 /* =========================================================
-   V49.13 — full sync / refresh / upgrade / numeric / WEB gauge
+   V49.14 — full sync / refresh / upgrade / numeric / WEB gauge
    ========================================================= */
 .top-sync-btn{
  width:31px;height:31px;min-width:31px;border:1px solid #d5e0ea;border-radius:9px;
@@ -4854,14 +4854,14 @@ html,body{
 }
 
 
-/* V49.13 — UPGRADE calculation */
+/* V49.14 — UPGRADE calculation */
 .upgrade-formula-note{
  padding:7px 9px;border:1px solid #dce7f1;border-radius:7px;background:#f8fbfe;
  font-size:7px;font-weight:900;color:#60768c;text-align:center
 }
 
 
-/* V49.13 — D1 live consistency + tablet digits keypad */
+/* V49.14 — D1 live consistency + tablet digits keypad */
 .tablet-numeric-pad{
  display:none;
  position:fixed;
@@ -4898,7 +4898,7 @@ html,body{
 }
 
 
-/* V49.13 */
+/* V49.14 */
 .config-cap-input{
  width:100%;
  font-variant-numeric:tabular-nums;
@@ -4914,7 +4914,7 @@ html,body{
 }
 
 
-/* V49.13 — Import PREPA actions */
+/* V49.14 — Import PREPA actions */
 .import-action-grid{
  display:grid;
  grid-template-columns:repeat(2,minmax(0,1fr));
@@ -4958,7 +4958,7 @@ html,body{
 }
 
 
-/* V49.13 — PREPA class alignment / BOOKED filters */
+/* V49.14 — PREPA class alignment / BOOKED filters */
 .editing-class-row{
  display:grid!important;
  grid-template-columns:repeat(var(--editing-class-count),minmax(0,1fr))!important;
@@ -5189,7 +5189,7 @@ async function patchFlightToCloud(identity,patch){
    }
    throw new Error(data?.error||'PATCH REFUSÉ');
  }catch(e){
-   console.warn('V49.13 CLOUD PATCH',e);
+   console.warn('V49.14 CLOUD PATCH',e);
    return null;
  }
 }
@@ -7521,6 +7521,151 @@ function applySqManifestToFlight(manifest){
  persistFlightAction('IMPORT PREPA SQ MERGE');
 }
 
+
+function tkNormalizeName(s){
+ return String(s||'').replace(/!/g,'').replace(/\s+/g,' ').trim().toUpperCase();
+}
+function tkSection(rawOriginal,titlePattern){
+ const raw=String(rawOriginal||'').replace(/\r/g,'');
+ const re=new RegExp(`TK\\s*\\d{3,4}\\s+\\d{1,2}[A-Z]{3}\\s+CDG\\s+${titlePattern}[\\s\\S]*?(?:END NAMES|(?=\\nTK\\s*\\d{3,4}\\s+\\d{1,2}[A-Z]{3}\\s+CDG)|$)`,'i');
+ const m=raw.match(re);
+ return m?m[0]:'';
+}
+function parseTkPassengerRows(section,{ticketMode=false,emdMode=false,connectionMode=false}={}){
+ const lines=String(section||'').replace(/\r/g,'').split('\n');
+ const out=[]; let last=null;
+ for(const rawLine of lines){
+   const line=rawLine.trimEnd();
+   if(last && !/^\s*\d{1,3}\./.test(line)){
+     const inf=(line.match(/ET\s+INF\s+TICKET:\s*(\d{13})/i)||[])[1];
+     if(inf){last.infEtkt=inf;continue}
+     if(emdMode){
+       const e2=(line.match(/\b(\d{13})C\d+\b/)||[])[1];
+       if(e2){last.emdNumbers=last.emdNumbers||[];last.emdNumbers.push(e2);continue}
+     }
+     if(connectionMode){
+       const c2=line.match(/\b([A-Z0-9]{2}\d{3,4})\s+([A-Z]{3})-([A-Z]{3})\s+([A-Z])\s+OK\b/i);
+       if(c2){last.connections=last.connections||[];last.connections.push({flight:c2[1].toUpperCase(),from:c2[2].toUpperCase(),to:c2[3].toUpperCase(),class:c2[4].toUpperCase()});continue}
+     }
+     continue;
+   }
+   const m=line.match(/^\s*(\d{1,3})\.\s*(.+?)\s+IST\s+([FCY])\s+(.*)$/i);
+   if(!m)continue;
+   const idx=Number(m[1]), name=tkNormalizeName(m[2]), cls=m[3].toUpperCase(), rest=m[4];
+   const seatMatch=rest.match(/\b(\d{2}[A-K])(?:-[A-Z])?\b/i)||rest.match(/\b(\d{3})\b/);
+   const p={id:`TK-${idx}-${name.replace(/[^A-Z0-9]/g,'')}`,name,seat:seatMatch?seatMatch[1].toUpperCase():'',class:cls,pnr:'',etkt:'',emd:'',status:'BOOKED',specific:'',note:'',ssr:[],connections:[]};
+   if(ticketMode){
+     const t=(rest.match(/\b(\d{13})C\d+\b/)||[])[1]||''; p.etkt=t; if(t)p.specific=`ETKT ${t}`;
+   }
+   if(emdMode){
+     const e=(rest.match(/\b(\d{13})C\d+\b/)||[])[1]||''; p.emd=e; p.emdNumbers=e?[e]:[];
+     const reason=(rest.match(/\*([A-Z0-9]{3,8})\*/)||[])[1]||''; p.emdReason=reason; p.specific=`EMD${e?` ${e}`:''}${reason?` · ${reason}`:''}`;
+   }
+   if(connectionMode){
+     const c=rest.match(/\b([A-Z0-9]{2}\d{3,4})\s+([A-Z]{3})-([A-Z]{3})\s+([A-Z])\s+OK\b/i);
+     if(c)p.connections.push({flight:c[1].toUpperCase(),from:c[2].toUpperCase(),to:c[3].toUpperCase(),class:c[4].toUpperCase()});
+   }
+   out.push(p); last=p;
+ }
+ return out;
+}
+function parseTkCommentedPax(rawOriginal){
+ const raw=String(rawOriginal||'').replace(/\r/g,'');
+ const re=/TK\s*\d{3,4}\s+\d{1,2}[A-Z]{3}\s+CDG\s+COMMENTED PAX[\s\S]*?END NAMES/gi;
+ const out=[]; let block;
+ while((block=re.exec(raw))){
+   const rows=parseTkPassengerRows(block[0]);
+   rows.forEach(p=>{
+     const idx=block[0].indexOf(p.name.split(' ')[0]);
+     const txt=(idx>=0?block[0].slice(idx,idx+260):block[0]).toUpperCase();
+     const wch=(txt.match(/!(WCHR|WCHS|WCHC)!/)||[])[1]||'';
+     if(wch){p.specific=wch;p.ssr=[wch];out.push({kind:'WCH',pax:p})}
+     if(/\bPETC\b/.test(txt)){const q={...p,specific:'PETC',ssr:['PETC']};out.push({kind:'PETC',pax:q})}
+   });
+ }
+ return out;
+}
+function parseTkHeaderValues(rawOriginal){
+ const raw=String(rawOriginal||'').toUpperCase().replace(/\r/g,'');
+ const values={}; const put=(s,v)=>{if(v!==undefined&&v!==null&&String(v).trim()!=='')values[s]=String(v).trim()};
+ const head=raw.match(/\b(TK\d{3,4})\s+(\d{1,2}[A-Z]{3})\s+CDG\s+CHECK IN INFORMATION\s+([0-2]\d[0-5]\d)\b/i);
+ if(head){put('#edFlight',head[1]);put('#edStd',head[3].slice(0,2)+':'+head[3].slice(2))}
+ const cfg=raw.match(/\bCFG:\s*(\d{1,3})F\/(\d{1,3})C\/(\d{1,3})Y\b/i)||raw.match(/\bCFG\s+(\d{1,3})F\s+(\d{1,3})C\s+(\d{1,3})Y\b/i);
+ if(cfg){put('[data-ed-config="C"]',Number(cfg[2]));put('[data-ed-config="Y"]',Number(cfg[3]))}
+ const type=raw.match(/\bTYPE\s+([A-Z0-9]{3})\b/i); if(type)put('#edType',type[1]);
+ const reg=raw.match(/\bREGN\s+([A-Z0-9-]{4,10})\b/i); if(reg)put('#edReg',reg[1]);
+ const booked=raw.match(/\bIST\s+(\d{1,3})\/\s*(\d{1,3})\/\s*(\d{1,3})\s+\d{1,3}\/\s*\d{1,3}\/\s*\d{1,3}/i);
+ if(booked){put('[data-ed-booking="C"]',Number(booked[2]));put('[data-ed-booking="Y"]',Number(booked[3]))}
+ const sta=raw.match(/\n\s*([0-2]\d[0-5]\d)\s+IST\s+\d{1,3}\//i); if(sta)put('#edSta',sta[1].slice(0,2)+':'+sta[1].slice(2));
+ const web=raw.match(/CHKD COMML \(WEB\)\s+(\d+)\s+F\s+(\d+)\s+C\s+(\d+)\s+Y/i);
+ return {values,web:web?{F:Number(web[1]),C:Number(web[2]),Y:Number(web[3])}:null};
+}
+function prepareTkImportManifest(rawOriginal){
+ const hv=parseTkHeaderValues(rawOriginal);
+ const inf=parseTkPassengerRows(tkSection(rawOriginal,'PASSENGERS WITH INFANTS'));
+ const toys=parseTkPassengerRows(tkSection(rawOriginal,"TOY'S R US"));
+ const rebate=parseTkPassengerRows(tkSection(rawOriginal,'REBATE PAX'));
+ const etk=parseTkPassengerRows(tkSection(rawOriginal,'E-TKT FULL PAX LIST'),{ticketMode:true});
+ const emd=parseTkPassengerRows(tkSection(rawOriginal,'EMD FULL PAX LIST'),{emdMode:true});
+ const onward=parseTkPassengerRows(tkSection(rawOriginal,'ONCARRIAGE PAX'),{connectionMode:true});
+ const commented=parseTkCommentedPax(rawOriginal);
+ const commonLists={
+   INF:inf.map(p=>({...p,specific:'INF'})),
+   CHLD:toys.map(p=>({...p,specific:"CHLD / TOY'S"})),
+   WCH:commented.filter(x=>x.kind==='WCH').map(x=>x.pax),
+   PET_AV:commented.filter(x=>x.kind==='PETC').map(x=>x.pax),
+   STAFF:rebate.map(p=>({...p,specific:'REBATE STAFF'})),
+   ETK:etk.filter(p=>p.etkt),
+   EMD:emd,
+   FQTV:[]
+ };
+ const rawUpper=String(rawOriginal||'').toUpperCase();
+ const petHeader=(rawUpper.match(/!\s*(\d+)\s*PETC\b/)||[])[1];
+ const petcCount=petHeader?Number(petHeader):commonLists.PET_AV.length;
+ const byName=new Map(etk.map(p=>[p.name,p]));
+ emd.forEach(e=>{const p=byName.get(e.name);if(p){p.emd=e.emd||'';p.emdNumbers=e.emdNumbers||[];p.emdReason=e.emdReason||''}});
+ onward.forEach(o=>{const p=byName.get(o.name);if(p)p.connections=o.connections||[]});
+ const outbound=[];
+ onward.forEach(p=>(p.connections||[]).forEach(c=>outbound.push({passenger:p.name,seat:p.seat||'',class:p.class||'',flight:c.flight,date:'',from:c.from,to:c.to,time:'',connectionMinutes:null})));
+ return {
+   airline:'TK',values:hv.values,passengers:[...byName.values()],commonLists,outbound,web:hv.web,
+   counts:{
+     INF:commonLists.INF.length,CHLD_TOYS:commonLists.CHLD.length,
+     WCHR:commonLists.WCH.filter(p=>p.specific==='WCHR').length,
+     WCHS:commonLists.WCH.filter(p=>p.specific==='WCHS').length,
+     WCHC:commonLists.WCH.filter(p=>p.specific==='WCHC').length,
+     PETC:petcCount,REBATE:rebate.length,ETK:commonLists.ETK.length,EMD:commonLists.EMD.length,OUTBOUND:outbound.length
+   },
+   hasMainManifest:etk.length>0||emd.length>0||inf.length>0||onward.length>0
+ };
+}
+function applyTkManifestToFlight(manifest){
+ const idx=Number(document.getElementById('editingFlightIndex')?.value),x=FLIGHTS[idx];
+ if(!x||!manifest)return;
+ x.common=x.common||{};x.common_lists=x.common_lists||{};x.passengers=manifest.passengers||x.passengers||[];
+ const setList=(k,l)=>{x.common_lists[k]=Array.isArray(l)?l:[];x.common[k]=x.common_lists[k].length};
+ setList('INF',manifest.commonLists?.INF||[]);setList('CHLD',manifest.commonLists?.CHLD||[]);
+ setList('WCH',manifest.commonLists?.WCH||[]);setList('PET_AV',manifest.commonLists?.PET_AV||[]);
+ setList('ETK',manifest.commonLists?.ETK||[]);setList('EMD',manifest.commonLists?.EMD||[]);
+ setList('STAFF',manifest.commonLists?.STAFF||[]);
+ x.etk=Number(manifest.counts?.ETK||0);x.emd=Number(manifest.counts?.EMD||0);x.outbound=manifest.outbound||[];
+ if(manifest.web){x.web=x.web||{};if(Number.isFinite(manifest.web.C))x.web.C=manifest.web.C;if(Number.isFinite(manifest.web.Y))x.web.Y=manifest.web.Y}
+ const dep=document.getElementById('editingDepartureDate')?.value||x.date,d=getEditingData(x,dep);
+ d.particularities=d.particularities||{};
+ Object.assign(d.particularities,{
+   'INFANT(S)':Number(manifest.counts?.INF||0),
+   'CHLD':Number(manifest.counts?.CHLD_TOYS||0),
+   "TOY'S":Number(manifest.counts?.CHLD_TOYS||0),
+   'WCHR':Number(manifest.counts?.WCHR||0),'WCHS':Number(manifest.counts?.WCHS||0),'WCHC':Number(manifest.counts?.WCHC||0),
+   'PETC':Number(manifest.counts?.PETC||0),'REBATE STAFF':Number(manifest.counts?.REBATE||0),
+   'ETKT':Number(manifest.counts?.ETK||0),'EMD':Number(manifest.counts?.EMD||0),'OUTBOUNDS':Number(manifest.counts?.OUTBOUND||0)
+ });
+ x.prepaSpecificities=x.prepaSpecificities||{};Object.assign(x.prepaSpecificities,d.particularities);
+ saveAutofilledEditingData(x,d,dep);
+ markPrepaFields(x,['booked','std'],'TK REPORT');
+ persistFlightAction('IMPORT PREPA TK MERGE');
+}
+
 function collectSqGenericReport(rawOriginal){
  const raw=String(rawOriginal||'').toUpperCase().replace(/\u00A0/g,' ').replace(/[ \t]+/g,' ');
  const values={};
@@ -7554,6 +7699,8 @@ function collectSqGenericReport(rawOriginal){
 function collectPrepaImport(rawOriginal,airline){
  const raw=String(rawOriginal||'').toUpperCase().replace(/\u00A0/g,' ');
  const values={};
+ const detectedAirline=String(airline||'').toUpperCase();
+ if(detectedAirline==='TK'||/\bTK\s*\d{3,4}\b/.test(raw))Object.assign(values,prepareTkImportManifest(rawOriginal).values||{});
  if(String(airline||'').toUpperCase()==='SQ' || /\bSQ\s*\d{2,4}\b/.test(raw)){
    Object.assign(values,collectSqGenericReport(rawOriginal));
  }
@@ -7750,7 +7897,8 @@ function finalizePrepaAutomaticImport(result){
 
 
  if(PREPA_PENDING_MANIFEST){
-   applySqManifestToFlight(PREPA_PENDING_MANIFEST);
+   if(PREPA_PENDING_MANIFEST.airline==='TK')applyTkManifestToFlight(PREPA_PENDING_MANIFEST);
+   else applySqManifestToFlight(PREPA_PENDING_MANIFEST);
    PREPA_PENDING_MANIFEST=null;
  }
 
@@ -8040,8 +8188,11 @@ function injectPrepaRawText(airline){
   if(!rawOriginal.trim()){injectCurrentEditingWithoutSource();return}
   pushPrepaUndoSnapshot();
   const values=collectPrepaImport(rawOriginal,airline);
-  PREPA_PENDING_MANIFEST=(String(airline||'').toUpperCase()==='SQ'||/\bSQ\s*\d{2,4}\b/i.test(rawOriginal))
-    ?prepareSqImportManifest(rawOriginal):null;
+  const importAirline=String(airline||'').toUpperCase();
+  PREPA_PENDING_MANIFEST=(importAirline==='SQ'||/\bSQ\s*\d{2,4}\b/i.test(rawOriginal))
+    ?prepareSqImportManifest(rawOriginal)
+    :(importAirline==='TK'||/\bTK\s*\d{3,4}\b/i.test(rawOriginal))
+      ?prepareTkImportManifest(rawOriginal):null;
   const entries=Object.entries(values);
   if(!entries.length && !PREPA_PENDING_MANIFEST?.hasMainManifest && !PREPA_PENDING_MANIFEST?.hasFqtv){
     editingFeedback('AUCUNE INFORMATION RECONNUE DANS LE FICHIER OU LE TEXTE.','warn');return;
@@ -8487,7 +8638,7 @@ function companyConfigSystemRecord(){
 function syncCompanyConfigFromFlights(records){
  let latest=null;
 
- // V49.13 preferred source: one dedicated D1 system record.
+ // V49.14 preferred source: one dedicated D1 system record.
  const sys=(records||[]).find(isCompanyConfigSystemRecord);
  if(sys?._companyConfigBundle){
    latest={
@@ -10802,7 +10953,7 @@ async function confirmClearAllFlights(){await confirmFullReset()}
 
 
 /* =========================================================
-   V49.13 — SYNCHRONISATION SILENCIEUSE MULTI-POSTES
+   V49.14 — SYNCHRONISATION SILENCIEUSE MULTI-POSTES
    ========================================================= */
 const OPS_REALTIME_INTERVAL_VISIBLE=2500;
 const OPS_REALTIME_INTERVAL_HIDDEN=8000;
@@ -11053,7 +11204,7 @@ function openTools(){
    <button class="tool-card" onclick="openSariaApp()"><span class="tool-icon">✈</span><b>SARIA</b><span>OUVRIR DIRECTEMENT L’OUTIL SARIA CABIN / SEATMAP.</span></button>
    <div class="ops-cloud-card">
      <div id="opsCloudStatusBox" class="ops-cloud-status ${OPS_CLOUD_ONLINE?'ok':'warn'}">${OPS_CLOUD_ONLINE?'☁ SYNC MULTI-POSTES ACTIVE':'☁ SYNC MULTI-POSTES'}</div>
-     <div class="ops-cloud-help">D1 PARTAGÉ · FICHE OUVERTE ~0,8 S · SYNCHRO GLOBALE ~2,5 S · PC, TABLETTE ET TÉLÉPHONE.<br><b style="color:#087749">V49.13 · IMPORT FIX ACTIF</b></div>
+     <div class="ops-cloud-help">D1 PARTAGÉ · FICHE OUVERTE ~0,8 S · SYNCHRO GLOBALE ~2,5 S · PC, TABLETTE ET TÉLÉPHONE.<br><b style="color:#087749">V49.14 · IMPORT FIX ACTIF</b></div>
      <button class="live-refresh" onclick="manualCloudRefresh()">↻ SYNCHRONISER MAINTENANT</button>
    </div>
    <div class="adb-usage-card"><div id="adbUsageBox"><button class="live-refresh" onclick="loadAeroUsage()">CHARGER COMPTEUR AERODATABOX</button></div></div>
