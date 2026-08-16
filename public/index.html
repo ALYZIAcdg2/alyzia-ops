@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V48.16 · SQ PREPA Button Fix</title>
+<title>ALYZIA OPS - V48.17 · SQ PREPA Undefined Meals Fix</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -5244,6 +5244,11 @@ function baseClassesForFlight(x){
 function ensureBaseClasses(x){
  if(!x)return false;
 
+ x.config=(x.config&&typeof x.config==='object')?x.config:{};
+ x.booked=(x.booked&&typeof x.booked==='object')?x.booked:{};
+ x.web=(x.web&&typeof x.web==='object')?x.web:{};
+ x.meals=(x.meals&&typeof x.meals==='object')?x.meals:{};
+
  const existing=Object.keys(x.config||{});
  const onlyEmptyY=
    existing.length===1 &&
@@ -5278,6 +5283,11 @@ function ensureBaseClasses(x){
 function addFlightClass(flightIndex,newCls){
  const x=FLIGHTS[flightIndex];
  if(!x)return;
+
+ x.config=(x.config&&typeof x.config==='object')?x.config:{};
+ x.booked=(x.booked&&typeof x.booked==='object')?x.booked:{};
+ x.web=(x.web&&typeof x.web==='object')?x.web:{};
+ x.meals=(x.meals&&typeof x.meals==='object')?x.meals:{};
 
  newCls=String(newCls||'').trim().toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,3);
  if(!newCls){
@@ -7327,6 +7337,11 @@ function normalizeSqOperationalClasses(x){
  if(!x || String(x.airline||'').toUpperCase()!=='SQ')return false;
  let changed=false;
 
+ x.config=(x.config&&typeof x.config==='object')?x.config:{};
+ x.booked=(x.booked&&typeof x.booked==='object')?x.booked:{};
+ x.web=(x.web&&typeof x.web==='object')?x.web:{};
+ x.meals=(x.meals&&typeof x.meals==='object')?x.meals:{};
+
  const normalizeObj=(obj={})=>{
    const out={};
    Object.entries(obj||{}).forEach(([k,v])=>{
@@ -7538,6 +7553,16 @@ function openSqPrepaForDate(flight,departureDate){
    if(idx<0){
      alert(`IMPOSSIBLE DE CRÉER LA PRÉPA ${flight}.`);
      return;
+   }
+
+   const x=FLIGHTS[idx];
+   if(x){
+     x.config=(x.config&&typeof x.config==='object')?x.config:{};
+     x.booked=(x.booked&&typeof x.booked==='object')?x.booked:{};
+     x.web=(x.web&&typeof x.web==='object')?x.web:{};
+     x.meals=(x.meals&&typeof x.meals==='object')?x.meals:{};
+     ensureBaseClasses(x);
+     normalizeSqOperationalClasses(x);
    }
 
    // Open synchronously from the user's tap (important on iOS/Safari).
@@ -7868,6 +7893,9 @@ async function saveConfigEditor(){
  });
  if(!Object.keys(next).length)return;
  x.config=next;
+ x.booked=(x.booked&&typeof x.booked==='object')?x.booked:{};
+ x.web=(x.web&&typeof x.web==='object')?x.web:{};
+ x.meals=(x.meals&&typeof x.meals==='object')?x.meals:{};
  Object.keys(next).forEach(k=>{
    if(x.booked[k]===undefined)x.booked[k]=0;
    if(x.web[k]===undefined)x.web[k]=0;
