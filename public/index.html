@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V48.0 · Flight Enrichment Engine</title>
+<title>ALYZIA OPS - V48.1 · Import PDF SQ automatique</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -4036,6 +4036,22 @@ html,body{
  .flight-enrichment-inline{grid-template-columns:1fr;gap:3px}
 }
 
+
+/* V48.1 — Import PREPA automatique */
+.prepa-import-zone::before{
+ content:"AUTO";
+ display:inline-flex;
+ margin-bottom:6px;
+ padding:3px 7px;
+ border-radius:999px;
+ background:#edf8f2;
+ border:1px solid #a8d9bc;
+ color:#087a4c;
+ font-size:7px;
+ font-weight:1000;
+ letter-spacing:.4px;
+}
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
@@ -5564,7 +5580,7 @@ function prepaToolbarHtml(x){
  return `<div class="editing-toolbar"><div class="editing-toolbar-left"><button class="editing-icon-btn primary" title="Sauvegarder" onclick="savePrepaToolbar()">💾</button><button class="editing-icon-btn" title="Annuler la dernière modification" onclick="undoLastPrepa()">↶</button><button class="editing-icon-btn danger" title="Effacer" onclick="clearPrepaEditing()">⌫</button><button class="print-icon-btn" title="Imprimer en A4" onclick="printPrepaEditing()">🖨</button></div><div class="editing-toolbar-right"><span class="brief-toolbar-note">VOL + DATE CONSERVÉS</span></div></div>`;
 }
 function prepaImportHtml(airline){
- return `<div class="prepa-import-zone"><h4>IMPORT MANUEL COMPLÉMENTAIRE</h4><div>PDF · TXT · EML · XLSX · TEXTE BRUT</div><input id="prepaManualFile" type="file" accept=".pdf,.txt,.eml,.xlsx,.xls,.xlsm,text/plain,application/pdf" onchange="readPrepaManualFile(this.files[0])"><label class="prepa-import-label" for="prepaManualFile">IMPORTER UN FICHIER</label><textarea id="prepaRawText" class="prepa-raw" placeholder="OU COLLER ICI DU TEXTE BRUT À INJECTER..."></textarea><div id="editingFeedback" class="editing-feedback"></div><div class="prepa-import-actions"><button id="injectEditingBtn" onclick="injectPrepaRawText('${airline}')">INJECTER</button><button class="secondary" onclick="document.getElementById('prepaRawText').value='';editingFeedback('ZONE D’IMPORT EFFACÉE.','info')">EFFACER</button><button id="saveEditingBtn" onclick="saveEditingFromModal()">ENREGISTRER EDITING</button></div></div>`;
+ return `<div class="prepa-import-zone"><h4>IMPORT PREPA AUTOMATIQUE</h4><div>PDF · TXT · EML · XLSX · TEXTE BRUT · ANALYSE DÈS SÉLECTION</div><input id="prepaManualFile" type="file" accept=".pdf,.txt,.eml,.xlsx,.xls,.xlsm,text/plain,application/pdf" onchange="readPrepaManualFile(this.files[0])"><label class="prepa-import-label" for="prepaManualFile">IMPORTER UN FICHIER</label><textarea id="prepaRawText" class="prepa-raw" placeholder="OU COLLER ICI DU TEXTE BRUT À INJECTER..."></textarea><div id="editingFeedback" class="editing-feedback"></div><div class="prepa-import-actions"><button id="injectEditingBtn" onclick="injectPrepaRawText('${airline}')">INJECTER</button><button class="secondary" onclick="document.getElementById('prepaRawText').value='';editingFeedback('ZONE D’IMPORT EFFACÉE.','info')">EFFACER</button><button id="saveEditingBtn" onclick="saveEditingFromModal()">ENREGISTRER EDITING</button></div></div>`;
 }
 function hiddenStandardFields(flightIndex,departureDate,d){
  return `<input type="hidden" id="editingFlightIndex" value="${flightIndex}"><input type="hidden" id="editingDepartureDate" value="${departureDate}">
@@ -5826,7 +5842,17 @@ async function readPrepaManualFile(file){
   else if(/\.(xlsx|xls|xlsm)$/.test(name)){const buf=await file.arrayBuffer(),wb=XLSX.read(buf,{type:'array'}),ws=wb.Sheets[wb.SheetNames[0]];out.value=XLSX.utils.sheet_to_csv(ws);}
   else if(name.endsWith('.pdf')){if(!window.pdfjsLib)throw new Error('PDF.JS indisponible');pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';const pdf=await pdfjsLib.getDocument({data:await file.arrayBuffer()}).promise;let txt='';for(let i=1;i<=pdf.numPages;i++){const p=await pdf.getPage(i),c=await p.getTextContent();txt+=c.items.map(z=>z.str).join(' ')+'\n';}out.value=txt;}
   else out.value=await file.text();
-  editingFeedback(`FICHIER ${file.name.toUpperCase()} LU. CLIQUE SUR « INJECTER LES INFOS » POUR REMPLIR LES CHAMPS.`,'info');
+  editingFeedback(`FICHIER ${file.name.toUpperCase()} LU · ANALYSE AUTOMATIQUE…`,'info');
+  setTimeout(()=>{
+    try{
+      const idx=Number(document.getElementById('editingFlightIndex')?.value);
+      const airline=String(FLIGHTS[idx]?.airline||'');
+      injectPrepaRawText(airline);
+    }catch(err){
+      console.error('AUTO PREPA IMPORT',err);
+      editingFeedback('FICHIER LU, MAIS ANALYSE AUTOMATIQUE IMPOSSIBLE : '+String(err.message||err),'warn');
+    }
+  },50);
  }catch(e){out.value='ERREUR DE LECTURE : '+String(e.message||e);editingFeedback('IMPOSSIBLE DE LIRE LE FICHIER : '+String(e.message||e),'error')}
 }
 function cleanImportedTime(t){
@@ -5837,9 +5863,43 @@ function cleanImportedTime(t){
  return s;
 }
 let PREPA_PENDING_INJECTION=null;
+
+function collectSqGenericReport(rawOriginal){
+ const raw=String(rawOriginal||'').toUpperCase().replace(/\u00A0/g,' ').replace(/[ \t]+/g,' ');
+ const values={};
+ const put=(selector,value)=>{
+   if(value==null||String(value).trim()==='')return;
+   values[selector]=String(value).trim();
+ };
+
+ const head=raw.match(/\b(SQ\s*\d{2,4})\s+(\d{1,2}[A-Z]{3})\s+CDG\s+STD\s*([0-2]\d[0-5]\d)(?:\s+BOARD\s*([0-2]\d[0-5]\d))?/i);
+ if(head){
+   put('#edFlight',head[1].replace(/\s/g,''));
+   put('#edStd',head[3].slice(0,2)+':'+head[3].slice(2));
+ }
+
+ const list=raw.match(/LIST\s+OF\s*:\s*PDF-VBCPLIST\s+([^\n\r]{1,140}?)(?:\s+TOTAL\s+(\d+))/i);
+ if(list){
+   const counts={F:0,J:0,S:0,Y:0};
+   String(list[1]||'').replace(/\b([FJSY])\s*(\d{1,3})\b/g,(_,c,n)=>{
+     counts[c]=Number(n)||0; return _;
+   });
+   Object.entries(counts).forEach(([c,n])=>{
+     if(document.querySelector(`[data-ed-booking="${c}"]`)){
+       put(`[data-ed-booking="${c}"]`,n);
+     }
+   });
+ }
+
+ return values;
+}
+
 function collectPrepaImport(rawOriginal,airline){
  const raw=String(rawOriginal||'').toUpperCase().replace(/\u00A0/g,' ');
  const values={};
+ if(String(airline||'').toUpperCase()==='SQ' || /\bSQ\s*\d{2,4}\b/.test(raw)){
+   Object.assign(values,collectSqGenericReport(rawOriginal));
+ }
  const put=(selector,value,transform=null)=>{
   if(value==null||String(value).trim()==='')return;
   values[selector]=transform?transform(String(value).trim()):String(value).trim();
@@ -5848,7 +5908,10 @@ function collectPrepaImport(rawOriginal,airline){
   for(const re of patterns){const m=raw.match(re);if(m)return m[1]}
   return null;
  };
- put('#edFlight',first([/\bFLIGHT\s*[:#=-]?\s*([A-Z]{2}\s*\d{2,4})/]));
+ put('#edFlight',first([
+   /\bFLIGHT\s*[:#=-]?\s*([A-Z]{2}\s*\d{2,4})/,
+   /\b(SQ\s*\d{2,4})\s+\d{1,2}[A-Z]{3}\s+CDG\b/
+ ]));
  put('#edReg',first([/\bREG(?:ISTRATION)?\s*[:#=-]?\s*((?:TC|9V)-?[A-Z0-9]+)/,/\bIMMATRICULATION\s*[:#=-]?\s*([A-Z0-9-]+)/]));
  put('#edGate',first([/\bGATE\s*[:#=-]?\s*([A-Z]?\d{1,3}[A-Z]?)/]));
  put('#edParking',first([/\b(?:PARKING|PKG)\s*[:#=-]?\s*([A-Z]?\d{1,4}[A-Z]?)/]));
@@ -5863,7 +5926,8 @@ function collectPrepaImport(rawOriginal,airline){
    return m?m[1]:null;
   };
   put(`[data-ed-config="${k}"]`,findClass('CONFIG(?:URATION)?'));
-  put(`[data-ed-booking="${k}"]`,findClass('BOOKING|BOOKED'));
+  const compactBooking=raw.match(new RegExp(`(?:PDF-VBCPLIST|LIST\\s+OF)[^\\n\\r]{0,180}?\\b${esc}\\s*(\\d{1,3})\\b`,'i'));
+  put(`[data-ed-booking="${k}"]`,compactBooking?compactBooking[1]:findClass('BOOKING|BOOKED'));
   put(`[data-ed-meal="${k}"]`,findClass('MEALS?'));
  });
 
@@ -5934,6 +5998,14 @@ function applyPrepaImport(strategy){
    PREPA_PENDING_INJECTION=null;
    if(applied||kept){
      const saved=saveEditingFromModal(true,true);
+     const idx=Number(document.getElementById('editingFlightIndex')?.value);
+     const fx=FLIGHTS[idx];
+     if(fx && typeof markPrepaFields==='function'){
+       if(sum(fx.booked)>0)markPrepaFields(fx,'booked','Import PREPA');
+       if(fx.std)markPrepaFields(fx,'std','Import PREPA');
+       if(fx.sta)markPrepaFields(fx,'sta','Import PREPA');
+     }
+     if(fx)saveImportedFlightsPersistent(FLIGHTS).catch(()=>{});
      editingFeedback(`${applied} INFO${applied>1?'S':''} INJECTÉE${applied>1?'S':''} ET ENREGISTRÉE${applied>1?'S':''}${kept?` · ${kept} VALEUR${kept>1?'S':''} CONSERVÉE${kept>1?'S':''}`:''}.`,'ok');
      if(saved)render();
    }
