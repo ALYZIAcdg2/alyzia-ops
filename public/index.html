@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V49.2 · Config Particularités / TK Editing</title>
+<title>ALYZIA OPS - V49.3 · Real-Time Silent Sync</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -4792,6 +4792,10 @@ html,body{
 @media(max-width:720px){
  .company-particularity-config{grid-template-columns:1fr}
 }
+
+
+/* V49.3 — synchro silencieuse */
+.ops-cloud-status.ok::before{content:'●';margin-right:5px;color:#0aa56b}
 
 </style>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -9874,25 +9878,131 @@ function confirmClearCurrentFlight(){resetCurrentFlightData(selected);closeAllMo
 function openClearAllFlights(){openFullReset()}
 async function confirmClearAllFlights(){await confirmFullReset()}
 
+
+/* =========================================================
+   V49.3 — SYNCHRONISATION SILENCIEUSE MULTI-POSTES
+   ========================================================= */
+const OPS_REALTIME_INTERVAL_VISIBLE=3000;
+const OPS_REALTIME_INTERVAL_HIDDEN=10000;
+let OPS_REALTIME_TIMER=null;
+let OPS_REALTIME_RUNNING=false;
+let OPS_REALTIME_LAST_HASH='';
+let OPS_REALTIME_LAST_PULL=0;
+
+function currentSelectedIdentity(){
+ const x=FLIGHTS[selected];
+ return x?flightImportIdentity(x):'';
+}
+
+function stableCloudHash(list){
+ try{
+   return JSON.stringify((Array.isArray(list)?list:[]).map(x=>[
+     flightImportIdentity(x),
+     x.updated_at||x.updatedAt||x.lastActionAt||'',
+     x.booked,x.config,x.web,x.meals,x.common,x.common_lists,x.inbound,x.outbound,
+     x.prepaEditing,x.prepaParticularities,x.prepaSpecificities,x.prepaComments,
+     x.note,x.gate,x.reg,x.std,x.sta,x.aircraft,x.positioningCrew,x.inopSeats
+   ]));
+ }catch(e){return String(Date.now())}
+}
+
+function remapSelectedAfterCloud(identity){
+ if(!identity)return;
+ const idx=FLIGHTS.findIndex(x=>flightImportIdentity(x)===identity);
+ if(idx>=0)selected=idx;
+}
+
+function modalIsOpen(){
+ const m=document.getElementById('modal');
+ return !!(m && m.classList.contains('show'));
+}
+
+function renderCurrentViewPreserved(){
+ if(currentView==='detail'){
+   if(FLIGHTS[selected])render();
+   else renderHome();
+   return;
+ }
+ if(currentView==='prepa'){renderPrepa();return}
+ if(currentView==='home'){renderHome();return}
+ // Outils/recherche/admin : ne pas fermer ni reconstruire leur modal.
+}
+
+async function cacheCloudFlightsLocally(list){
+ try{
+   const db=await openOpsFlightDb();
+   await new Promise((resolve,reject)=>{
+     const tx=db.transaction(OPS_FLIGHT_STORE,'readwrite');
+     tx.objectStore(OPS_FLIGHT_STORE).put(list,OPS_FLIGHT_KEY);
+     tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);
+   });
+   db.close();
+ }catch(e){}
+ try{localStorage.setItem('alyzia_ops_imported_flights_v19',JSON.stringify(list))}catch(e){}
+}
+
+async function silentCloudRefresh({forceRender=false}={}){
+ if(OPS_REALTIME_RUNNING || !navigator.onLine)return false;
+ OPS_REALTIME_RUNNING=true;
+ const selectedIdentity=currentSelectedIdentity();
+ try{
+   const data=await cloudRequest(OPS_CLOUD_API,{method:'GET'},4500);
+   if(!(data?.ok&&Array.isArray(data.flights)))return false;
+   const filtered=data.flights.filter(x=>String(x.airline||'').toUpperCase()!=='KL');
+   normalizeLegacyImportedDurations(filtered);
+   const nextHash=stableCloudHash(filtered);
+   const changed=nextHash!==OPS_REALTIME_LAST_HASH;
+   OPS_REALTIME_LAST_HASH=nextHash;
+   OPS_REALTIME_LAST_PULL=Date.now();
+   setOpsCloudState(true);
+
+   if(changed){
+     FLIGHTS.splice(0,FLIGHTS.length,...filtered);
+     remapSelectedAfterCloud(selectedIdentity);
+     cacheCloudFlightsLocally(filtered);
+
+     // Ne jamais fermer un formulaire/modal en cours de saisie.
+     // La mémoire est déjà à jour ; le rendu se rafraîchit dès fermeture du modal.
+     if(!modalIsOpen() || forceRender)renderCurrentViewPreserved();
+   }else if(forceRender && !modalIsOpen()){
+     renderCurrentViewPreserved();
+   }
+   return changed;
+ }catch(e){
+   console.warn('SILENT CLOUD REFRESH',e);
+   setOpsCloudState(false,'SYNC TEMPORAIREMENT INDISPONIBLE');
+   return false;
+ }finally{
+   OPS_REALTIME_RUNNING=false;
+ }
+}
+
+function scheduleRealtimeSync(){
+ clearTimeout(OPS_REALTIME_TIMER);
+ const delay=document.hidden?OPS_REALTIME_INTERVAL_HIDDEN:OPS_REALTIME_INTERVAL_VISIBLE;
+ OPS_REALTIME_TIMER=setTimeout(async()=>{
+   await silentCloudRefresh();
+   scheduleRealtimeSync();
+ },delay);
+}
+
+function startRealtimeSync(){
+ OPS_REALTIME_LAST_HASH=stableCloudHash(FLIGHTS);
+ scheduleRealtimeSync();
+}
+
+function wakeRealtimeSync(){
+ clearTimeout(OPS_REALTIME_TIMER);
+ silentCloudRefresh().finally(scheduleRealtimeSync);
+}
+
 async function manualCloudRefresh(){
  const el=document.getElementById('opsCloudStatusBox');
  if(el){el.className='ops-cloud-status';el.textContent='☁ SYNCHRONISATION…'}
- const cloud=await loadFlightsFromCloud();
- if(Array.isArray(cloud)){
-   const filtered=cloud.filter(x=>String(x.airline||'').toUpperCase()!=='KL');
-   FLIGHTS.splice(0,FLIGHTS.length,...filtered);
-   try{
-     const db=await openOpsFlightDb();
-     await new Promise((resolve,reject)=>{
-       const tx=db.transaction(OPS_FLIGHT_STORE,'readwrite');
-       tx.objectStore(OPS_FLIGHT_STORE).put(filtered,OPS_FLIGHT_KEY);
-       tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);
-     });
-     db.close();
-   }catch(e){}
-   try{localStorage.setItem('alyzia_ops_imported_flights_v19',JSON.stringify(filtered))}catch(e){}
-   closeAllModals();
-   renderHome();
+ const changed=await silentCloudRefresh({forceRender:true});
+ if(el){
+   el.className='ops-cloud-status ok';
+   el.textContent=`☁ SYNCHRONISÉ${changed?' · NOUVELLES DONNÉES':''}`;
  }
 }
 
@@ -9904,7 +10014,7 @@ function openTools(){
    <button class="tool-card" onclick="openSeatmap()"><span class="tool-icon">▦</span><b>SEATMAP</b><span>OUVRIR LE PLAN CABINE DU VOL ACTUEL.</span></button>
    <div class="ops-cloud-card">
      <div id="opsCloudStatusBox" class="ops-cloud-status ${OPS_CLOUD_ONLINE?'ok':'warn'}">${OPS_CLOUD_ONLINE?'☁ SYNC MULTI-POSTES ACTIVE':'☁ SYNC MULTI-POSTES'}</div>
-     <div class="ops-cloud-help">D1 PARTAGÉ · MÊME LISTE DE VOLS SUR PC, TABLETTE ET TÉLÉPHONE.</div>
+     <div class="ops-cloud-help">D1 PARTAGÉ · SYNCHRO SILENCIEUSE AUTO ~3 S · PC, TABLETTE ET TÉLÉPHONE.</div>
      <button class="live-refresh" onclick="manualCloudRefresh()">↻ SYNCHRONISER MAINTENANT</button>
    </div>
    <div class="adb-usage-card"><div id="adbUsageBox"><button class="live-refresh" onclick="loadAeroUsage()">CHARGER COMPTEUR AERODATABOX</button></div></div>
@@ -10951,11 +11061,15 @@ async function bootstrapAlyziaOps(){
  restoreSariaFlightSelections();
  renderHome();
  updateClocks();
+ OPS_REALTIME_LAST_HASH=stableCloudHash(FLIGHTS);
+ startRealtimeSync();
  loadSariaCatalog().then(()=>{if(currentView==='detail')render();}).catch(()=>{});
 }
 bootstrapAlyziaOps();
-window.addEventListener('online',()=>{setTimeout(()=>manualCloudRefresh(),500)});
+window.addEventListener('online',()=>{setTimeout(()=>wakeRealtimeSync(),300)});
 window.addEventListener('offline',()=>setOpsCloudState(false,'HORS-LIGNE'));
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)wakeRealtimeSync();else scheduleRealtimeSync()});
+window.addEventListener('focus',()=>wakeRealtimeSync());
 
 </script>
 
