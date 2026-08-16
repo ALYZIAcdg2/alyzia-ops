@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V48.8 · FQTV + MAAS</title>
+<title>ALYZIA OPS - V48.9 · Merge Import + FQTV</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -4263,6 +4263,26 @@ html,body{
  font-size:7px;font-weight:950;background:#f6f9fc
 }
 
+
+/* V48.9 — safe merge import */
+.conflict-select-row{
+ display:grid!important;
+ grid-template-columns:28px minmax(0,1fr)!important;
+ align-items:center!important;
+ cursor:pointer;
+}
+.conflict-select-row>input{
+ width:20px!important;height:20px!important;margin:0!important;
+}
+.conflict-select-row>div{display:grid;gap:3px;min-width:0}
+.prepa-import-help{
+ margin-top:7px;padding:7px 8px;border:1px solid #dce7f1;border-radius:7px;
+ background:#f7fafc;color:#61768b;font-size:7px;line-height:1.45
+}
+@media(max-width:720px){
+ .prepa-import-help{font-size:8px}
+}
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
@@ -5820,7 +5840,9 @@ function prepaToolbarHtml(x){
  return `<div class="editing-toolbar"><div class="editing-toolbar-left"><button class="editing-flight-direct" title="Ouvrir la fiche vol" onclick="openFlightFromPrepa(${flightIndex})">✈ FICHE VOL</button><button class="editing-icon-btn primary" title="Sauvegarder" onclick="savePrepaToolbar()">💾</button><button class="editing-icon-btn" title="Annuler la dernière modification" onclick="undoLastPrepa()">↶</button><button class="editing-icon-btn danger" title="Effacer" onclick="clearPrepaEditing()">⌫</button><button class="print-icon-btn" title="Imprimer en A4" onclick="printPrepaEditing()">🖨</button></div><div class="editing-toolbar-right"><span class="brief-toolbar-note">VOL + DATE CONSERVÉS</span></div></div>`;
 }
 function prepaImportHtml(airline){
- return `<div class="prepa-import-zone"><h4>IMPORT PREPA AUTOMATIQUE</h4><div>PDF · TXT · EML · XLSX · MULTI-FICHIERS · ANALYSE AUTOMATIQUE</div><input id="prepaManualFile" type="file" multiple accept=".pdf,.txt,.eml,.xlsx,.xls,.xlsm,text/plain,application/pdf" onchange="readPrepaManualFiles(this.files)"><label class="prepa-import-label" for="prepaManualFile">IMPORTER DES FICHIERS</label><textarea id="prepaRawText" class="prepa-raw" placeholder="OU COLLER ICI DU TEXTE BRUT À INJECTER..."></textarea><div id="editingFeedback" class="editing-feedback"></div><div class="prepa-import-actions"><button id="injectEditingBtn" onclick="injectPrepaRawText('${airline}')">INJECTER</button><button class="secondary" onclick="document.getElementById('prepaRawText').value='';editingFeedback('ZONE D’IMPORT EFFACÉE.','info')">EFFACER</button><button id="saveEditingBtn" onclick="saveEditingFromModal()">ENREGISTRER EDITING</button></div></div>`;
+ return `<div class="prepa-import-zone"><h4>IMPORT PREPA AUTOMATIQUE</h4><div>PDF · TXT · EML · XLSX · MULTI-FICHIERS · ANALYSE AUTOMATIQUE</div><input id="prepaManualFile" type="file" multiple accept=".pdf,.txt,.eml,.xlsx,.xls,.xlsm,text/plain,application/pdf" onchange="readPrepaManualFiles(this.files)"><label class="prepa-import-label" for="prepaManualFile">IMPORTER DES FICHIERS</label><textarea id="prepaRawText" class="prepa-raw" placeholder="OU COLLER ICI DU TEXTE BRUT À INJECTER..."></textarea>
+<div class="prepa-import-help"><b>FICHIERS :</b> injection automatique et fusion. <b>TEXTE COLLÉ :</b> utiliser « INJECTER LE TEXTE ». <b>ENREGISTRER :</b> sauvegarde les modifications manuelles de la fiche PREPA.</div>
+<div id="editingFeedback" class="editing-feedback"></div><div class="prepa-import-actions"><button id="injectEditingBtn" onclick="injectPrepaRawText('${airline}')">INJECTER LE TEXTE</button><button class="secondary" onclick="document.getElementById('prepaRawText').value='';editingFeedback('ZONE D’IMPORT EFFACÉE.','info')">EFFACER</button><button id="saveEditingBtn" onclick="saveEditingFromModal()">ENREGISTRER LES MODIFICATIONS</button></div></div>`;
 }
 function hiddenStandardFields(flightIndex,departureDate,d){
  return `<input type="hidden" id="editingFlightIndex" value="${flightIndex}"><input type="hidden" id="editingDepartureDate" value="${departureDate}">
@@ -6050,7 +6072,8 @@ function openSBPrepaEditing(flightIndex,departureDate){
 function openFlightFromPrepa(flightIndex){
  const idx=Number(flightIndex);
  if(!Number.isFinite(idx)||!FLIGHTS[idx])return;
- currentFlight=idx;
+ selected=idx;
+ selectedDate=FLIGHTS[idx].date||selectedDate;
  HOME_DATE=FLIGHTS[idx].date||HOME_DATE;
  closeModal();
  setTimeout(()=>render(),20);
@@ -6096,7 +6119,9 @@ function openPrepaEditing(flightIndex,departureDate){
   </div></div>
   <div class="editing-sections"><div class="editing-particulars"><div class="editing-section-title">PARTICULARITIES · QTY</div>${parts.map(p=>prepaPartRowHtml(x.airline,d,p)).join('')}</div><div class="editing-comments"><div class="editing-section-title">COMMENTS</div><div class="class-title">${x.airline==='SQ'?'FIRST / BUSINESS':'BUSINESS CLASS'}</div><textarea id="edBusiness">${d.comments?.business||''}</textarea>${x.airline==='SQ'?`<div class="class-title">PREMIUM CLASS</div><textarea id="edPremium">${d.comments?.premium||''}</textarea>`:''}<div class="class-title">ECONOMY CLASS</div><textarea id="edEconomy">${d.comments?.economy||''}</textarea>${x.airline==='TK'?`<div class="class-title">QUICK RAMP</div><textarea id="edQuickRamp">${d.comments?.quickRamp||''}</textarea>`:''}</div></div>
  </div>
- <div class="prepa-import-zone"><h4>IMPORT MANUEL COMPLÉMENTAIRE</h4><div>PDF · TXT · EML · XLSX · MULTI-FICHIERS</div><input id="prepaManualFile" type="file" multiple accept=".pdf,.txt,.eml,.xlsx,.xls,.xlsm,text/plain,application/pdf" onchange="readPrepaManualFiles(this.files)"><label class="prepa-import-label" for="prepaManualFile">IMPORTER DES FICHIERS</label><textarea id="prepaRawText" class="prepa-raw" placeholder="OU COLLER ICI DU TEXTE BRUT À INJECTER..."></textarea><div id="editingFeedback" class="editing-feedback"></div><div class="prepa-import-actions"><button id="injectEditingBtn" onclick="injectPrepaRawText('${x.airline}')">INJECTER</button><button class="secondary" onclick="document.getElementById('prepaRawText').value='';editingFeedback('ZONE D’IMPORT EFFACÉE.','info')">EFFACER</button><button id="saveEditingBtn" onclick="saveEditingFromModal()">ENREGISTRER EDITING</button></div></div>`);
+ <div class="prepa-import-zone"><h4>IMPORT MANUEL COMPLÉMENTAIRE</h4><div>PDF · TXT · EML · XLSX · MULTI-FICHIERS</div><input id="prepaManualFile" type="file" multiple accept=".pdf,.txt,.eml,.xlsx,.xls,.xlsm,text/plain,application/pdf" onchange="readPrepaManualFiles(this.files)"><label class="prepa-import-label" for="prepaManualFile">IMPORTER DES FICHIERS</label><textarea id="prepaRawText" class="prepa-raw" placeholder="OU COLLER ICI DU TEXTE BRUT À INJECTER..."></textarea>
+<div class="prepa-import-help"><b>FICHIERS :</b> injection automatique et fusion. <b>TEXTE COLLÉ :</b> utiliser « INJECTER LE TEXTE ». <b>ENREGISTRER :</b> sauvegarde les modifications manuelles de la fiche PREPA.</div>
+<div id="editingFeedback" class="editing-feedback"></div><div class="prepa-import-actions"><button id="injectEditingBtn" onclick="injectPrepaRawText('${x.airline}')">INJECTER LE TEXTE</button><button class="secondary" onclick="document.getElementById('prepaRawText').value='';editingFeedback('ZONE D’IMPORT EFFACÉE.','info')">EFFACER</button><button id="saveEditingBtn" onclick="saveEditingFromModal()">ENREGISTRER LES MODIFICATIONS</button></div></div>`);
 }
 async function extractPrepaFileText(file){
  if(!file)return '';
@@ -6225,77 +6250,61 @@ function detectSqFqtvProgram(lines,allText){
 
 
 function parseSqFqtvReports(rawOriginal){
- const raw=String(rawOriginal||'').replace(/\r/g,'\n');
- const upper=raw.toUpperCase();
+ const upper=String(rawOriginal||'').toUpperCase().replace(/\r/g,' ').replace(/\n/g,' ');
  const entries=[];
 
- // Split by report headers so multiple selected PDF reports can be merged safely.
- const reportStarts=[...upper.matchAll(/LIST\s+OF\s*:\s*(FQT-KFEG|FQT-KFES|PDF-IPPS)\b/g)];
- if(!reportStarts.length)return entries;
+ const reportRe=/LIST\s+OF\s*:\s*(FQT-KFEG|FQT-KFES|PDF-IPPS)\b/g;
+ const starts=[...upper.matchAll(reportRe)];
+ if(!starts.length)return entries;
 
- for(let r=0;r<reportStarts.length;r++){
-   const start=reportStarts[r].index;
-   const end=r+1<reportStarts.length?reportStarts[r+1].index:upper.length;
-   const report=upper.slice(start,end);
-   const reportCode=reportStarts[r][1];
+ for(let r=0;r<starts.length;r++){
+   const reportCode=starts[r][1];
+   const reportStart=starts[r].index;
+   const reportEnd=r+1<starts.length?starts[r+1].index:upper.length;
+   const report=upper.slice(reportStart,reportEnd);
 
-   // Passenger record starts with "1.NAME ... CDG SIN ... STATUS"
-   const starts=[...report.matchAll(/(?:^|\n)\s*(\d{1,3})\.([^\n]+)/g)];
-   for(let i=0;i<starts.length;i++){
-     const recStart=starts[i].index;
-     const recEnd=i+1<starts.length?starts[i+1].index:report.length;
+   // PDF.js flattens a page into one line, so do NOT depend on line breaks.
+   const paxStarts=[...report.matchAll(/\b(\d{1,3})\.([A-Z][A-Z0-9 '/.-]+?)\s+(?:MR|MRS|MS|MISS|MSTR|MDM|DR|F|M|C)\s+CDG\s+SIN\b/g)];
+   for(let i=0;i<paxStarts.length;i++){
+     const recStart=paxStarts[i].index;
+     const recEnd=i+1<paxStarts.length?paxStarts[i+1].index:report.length;
      const block=report.slice(recStart,recEnd).trim();
-     const first=(block.split('\n')[0]||'').trim();
-     const routePos=first.indexOf(' CDG SIN ');
-     if(routePos<0)continue;
 
-     const prefix=first.replace(/^\d{1,3}\./,'').slice(0,routePos).trim();
-     const after=first.slice(routePos+' CDG SIN '.length).trim();
+     const header=block.match(/^\s*(\d{1,3})\.([A-Z][A-Z0-9 '/.-]+?)\s+(?:(MR|MRS|MS|MISS|MSTR|MDM|DR)\s+)?([MFCI])?\s*CDG\s+SIN\s+([A-Z0-9]{1,3})(?:\s+(\d{2,3}[A-K]))?\s+([\s\S]*?)(?=\bSQ\d{8,12}\b|$)/);
+     if(!header)continue;
 
-     // Name before title/gender markers.
-     let name=prefix
-       .replace(/\s+(MR|MRS|MS|MISS|MSTR|MDM|DR)\b.*$/,'')
-       .replace(/\s+[MFCI]\s*$/,'')
-       .trim();
-     if(!name)name=prefix;
-
-     const classCode=(after.split(/\s+/)[0]||'Y').charAt(0);
-     let cls=classCode==='C'?'J':classCode==='W'?'S':classCode;
+     let name=String(header[2]||'').trim().replace(/\//g,' ').replace(/\s+/g,' ');
+     let cls=String(header[5]||'Y').charAt(0);
+     if(cls==='C')cls='J';
+     if(cls==='W')cls='S';
      if(!['F','J','S','Y'].includes(cls))cls='Y';
 
-     const seat=(after.match(/\b(\d{2,3}[A-K])\b/)||[])[1]||'';
-     const number=(block.match(/\bSQ(\d{8,12})\b/)||[])[1]||'';
+     const seat=header[6]||'';
+     const tail=String(header[7]||'').trim();
+     const member=(block.match(/\bSQ(\d{8,12})\b/)||[])[1]||'';
 
      let category='',status='';
      if(reportCode==='FQT-KFEG'){
-       category='KFEG';
-       status='ELITE GOLD';
+       category='KFEG'; status='ELITE GOLD';
      }else if(reportCode==='FQT-KFES'){
-       category='KFES';
-       status='ELITE SILVER';
+       category='KFES'; status='ELITE SILVER';
+     }else if(/SOLITAIRE/.test(tail)){
+       category='SOLITAIRE';
+       status=(tail.match(/\b(BASIC\/SOLITAIRE|SILVER\/SOLITAIRE|SOLITAIRE)\b/)||[])[1]||'SOLITAIRE';
      }else{
-       const firstUpper=first.toUpperCase();
-       if(/SOLITAIRE/.test(firstUpper)){
-         category='SOLITAIRE';
-         status=(firstUpper.match(/\b(BASIC\/SOLITAIRE|SILVER\/SOLITAIRE|SOLITAIRE)\b/)||[])[1]||'SOLITAIRE';
-       }else{
-         category='PPS';
-         status='QUALIFIED';
-       }
+       category='PPS'; status='QUALIFIED';
      }
 
      entries.push({
        id:`FQTV-${reportCode}-${r}-${i}`,
-       name:name.replace(/\//g,' ').replace(/\s+/g,' ').trim(),
-       seat,class:cls,pnr:'',etkt:'',emd:'',status:'BOOKED',
+       name,seat,class:cls,pnr:'',etkt:'',emd:'',status:'BOOKED',
        type:'FQTV',
-       specific:`${category} · ${status}${number?` · SQ${number}`:''}`,
-       fqtv:{code:category,status,number:number?`SQ${number}`:''}
+       specific:`${category} · ${status}${member?` · SQ${member}`:''}`,
+       fqtv:{code:category,status,number:member?`SQ${member}`:''}
      });
    }
  }
 
- // De-duplicate identical passenger/category/member number records.
  const seen=new Set();
  return entries.filter(p=>{
    const k=[p.name,p.fqtv?.code,p.fqtv?.number].join('|');
@@ -6304,12 +6313,38 @@ function parseSqFqtvReports(rawOriginal){
  });
 }
 
-function mergeSqFqtvIntoManifest(manifest,rawOriginal){
- if(!manifest)return manifest;
+function extractSqVbcplistSource(rawOriginal){
+ const raw=String(rawOriginal||'');
+ const blocks=raw.split(/(?======\s*FICHIER\s*:)/i);
+ const vbc=blocks.filter(b=>/PDF-VBCPLIST/i.test(b));
+ if(vbc.length)return vbc.join('\n');
+
+ // Single pasted/report source
+ if(/PDF-VBCPLIST/i.test(raw)){
+   const p=raw.search(/PDF-VBCPLIST/i);
+   let end=raw.length;
+   const next=raw.slice(p+1).search(/LIST\s+OF\s*:\s*(?:FQT-KFEG|FQT-KFES|PDF-IPPS)/i);
+   if(next>=0)end=p+1+next;
+   return raw.slice(0,end);
+ }
+ return '';
+}
+
+function prepareSqImportManifest(rawOriginal){
+ const vbcRaw=extractSqVbcplistSource(rawOriginal);
  const fq=parseSqFqtvReports(rawOriginal);
+ const manifest=vbcRaw?parseSqPassengerManifest(vbcRaw):{
+   passengers:[],commonLists:{},mealLists:{},outbound:[]
+ };
+ manifest.hasMainManifest=!!vbcRaw;
  manifest.commonLists=manifest.commonLists||{};
  manifest.commonLists.FQTV=fq;
+ manifest.hasFqtv=fq.length>0;
  return manifest;
+}
+
+function mergeSqFqtvIntoManifest(manifest,rawOriginal){
+ return prepareSqImportManifest(rawOriginal);
 }
 
 function parseSqPassengerManifest(rawOriginal){
@@ -6424,47 +6459,75 @@ function parseSqPassengerManifest(rawOriginal){
 
 function autofillSqPrepaFromManifest(x,manifest){
  if(!x||!manifest)return;
- const d=getEditingData(x);
+ const departureDate=document.getElementById('editingDepartureDate')?.value||x.date;
+ const d=getEditingData(x,departureDate);
  d.particularities=d.particularities||{};
+ d.config=d.config||{};
+ d.booking=d.booking||{};
+ d.meals=d.meals||{};
 
  const count=(key)=>Number(manifest.commonLists?.[key]?.length||0);
 
- d.particularities['INFANT(S)']=count('INF');
- d.particularities['INF']=count('INF');
- d.particularities['CHLD']=count('CHLD');
- d.particularities['KID']=0;
+ // Only the main VBC passenger report updates passenger-related quantities.
+ if(manifest.hasMainManifest){
+   d.particularities['INFANT(S)']=count('INF');
+   d.particularities['INF']=count('INF');
+   d.particularities['CHLD']=count('CHLD');
+   d.particularities['KID']=0;
 
- // WCH grouped + detail
- const wch=manifest.commonLists?.WCH||[];
- d.particularities['WCHR']=wch.filter(p=>/WCHR/.test(String(p.specific||''))).length;
- d.particularities['WCHS']=wch.filter(p=>/WCHS/.test(String(p.specific||''))).length;
- d.particularities['WCHC']=wch.filter(p=>/WCHC/.test(String(p.specific||''))).length;
+   const wch=manifest.commonLists?.WCH||[];
+   d.particularities['WCHR']=wch.filter(p=>/\bWCHR\b/.test(String(p.specific||''))).length;
+   d.particularities['WCHS']=wch.filter(p=>/\bWCHS\b/.test(String(p.specific||''))).length;
+   d.particularities['WCHC']=wch.filter(p=>/\bWCHC\b/.test(String(p.specific||''))).length;
 
- d.particularities['UMNR']=count('UMNR');
- d.particularities['MAAS']=count('MAAS');
- d.particularities['CHLD']=count('CHLD');
- d.particularities['KID']=0;
+   d.particularities['UMNR']=count('UMNR');
+   d.particularities['MAAS']=count('MAAS');
 
- const vip=manifest.commonLists?.VIP||[];
- d.particularities['IMPT']=vip.filter(p=>/IMPT/.test(String(p.specific||''))).length;
- d.particularities['HCIP']=vip.filter(p=>/HCIP/.test(String(p.specific||''))).length;
- d.particularities['VIP']=vip.filter(p=>/^VIP$/.test(String(p.specific||''))).length;
- d.particularities['VVIP']=vip.filter(p=>/VVIP/.test(String(p.specific||''))).length;
+   const vip=manifest.commonLists?.VIP||[];
+   d.particularities['IMPT']=vip.filter(p=>/\bIMPT\b/.test(String(p.specific||''))).length;
+   d.particularities['HCIP']=vip.filter(p=>/\bHCIP\b/.test(String(p.specific||''))).length;
+   d.particularities['VIP']=vip.filter(p=>/\bVIP\b/.test(String(p.specific||''))&&!/\bVVIP\b/.test(String(p.specific||''))).length;
+   d.particularities['VVIP']=vip.filter(p=>/\bVVIP\b/.test(String(p.specific||''))).length;
 
- const fq=manifest.commonLists?.FQTV||[];
- d.particularities['KFEG']=fq.filter(p=>fqtvCategoryForPassenger(p)==='KFEG').length;
- d.particularities['KFES']=fq.filter(p=>fqtvCategoryForPassenger(p)==='KFES').length;
- d.particularities['QPPS']=fq.filter(p=>fqtvCategoryForPassenger(p)==='PPS').length;
- d.particularities['LPPS']=0;
- d.particularities['TPPS']=0;
+   d.particularities['INBOUND(S)']=(x.inbound||[]).length;
+   d.particularities['OUTBOUND(S)']=(manifest.outbound||[]).length;
+ }
 
- d.particularities['BOOKABLE STAFF']=Number(d.particularities['BOOKABLE STAFF']||0);
- d.particularities['REBATE STAFF']=Number(d.particularities['REBATE STAFF']||0);
+ // FQTV reports only enrich FQTV fields, never booking/config/passenger counts.
+ const allFq=mergeUniquePassengers(
+   x.common_lists?.FQTV||[],
+   manifest.commonLists?.FQTV||[],
+   p=>[p.name,p.fqtv?.code,p.fqtv?.number].join('|')
+ );
+ d.particularities['KFEG']=allFq.filter(p=>fqtvCategoryForPassenger(p)==='KFEG').length;
+ d.particularities['KFES']=allFq.filter(p=>fqtvCategoryForPassenger(p)==='KFES').length;
 
- d.particularities['INBOUND(S)']=(x.inbound||[]).length;
- d.particularities['OUTBOUND(S)']=(manifest.outbound||[]).length;
+ // Existing PREPA uses LPPS / QPPS / TPPS fields. Put generic PPS into QPPS bucket
+ // and keep SOLITAIRE explicitly in extra metadata without inventing IPPS.
+ d.particularities['QPPS']=allFq.filter(p=>fqtvCategoryForPassenger(p)==='PPS').length;
+ d.extra=d.extra||{};
+ d.extra.fqtvSolitaire=allFq.filter(p=>fqtvCategoryForPassenger(p)==='SOLITAIRE').length;
 
- x.editingData=d;
+ saveAutofilledEditingData(x,d,departureDate);
+}
+
+function mergeUniquePassengers(existing,incoming,keyFn){
+ const out=[],seen=new Set();
+ [...(existing||[]),...(incoming||[])].forEach(p=>{
+   const k=keyFn(p);
+   if(!k||seen.has(k))return;
+   seen.add(k);out.push(p);
+ });
+ return out;
+}
+
+function saveAutofilledEditingData(x,d,departureDate){
+ const date=departureDate||document.getElementById('editingDepartureDate')?.value||x.date;
+ const store=loadEditingStore();
+ store[editingKey(x,date)]=d;
+ saveEditingStore(store);
+ x.prepaEditing=JSON.parse(JSON.stringify(d));
+ x.prepaParticularities={...(d.particularities||{})};
 }
 
 function applySqManifestToFlight(manifest){
@@ -6473,43 +6536,53 @@ function applySqManifestToFlight(manifest){
  if(!x||!manifest)return;
 
  normalizeSqOperationalClasses(x);
-
- x.passengers=manifest.passengers||[];
  x.common=x.common||{};
  x.common_lists=x.common_lists||{};
 
- ['WCH','UMNR','MAAS','INF','CHLD','BSCT','VIP','EMD'].forEach(key=>{
-   x.common_lists[key]=manifest.commonLists?.[key]||[];
-   x.common[key]=x.common_lists[key].length;
- });
- x.emd=x.common.EMD||0;
+ // Main passenger manifest may update passenger/SSR/meal/connections.
+ // A KFEG/KFES/PPS-only PDF MUST NOT clear existing passenger data.
+ if(manifest.hasMainManifest){
+   x.passengers=manifest.passengers||[];
 
- x.meal_lists=manifest.mealLists||{};
- x.common_lists.MEAL=manifest.commonLists?.MEAL||[];
- x.common.MEAL=x.common_lists.MEAL.length;
+   ['WCH','UMNR','MAAS','INF','CHLD','BSCT','VIP','EMD'].forEach(key=>{
+     if(manifest.commonLists?.[key]){
+       x.common_lists[key]=manifest.commonLists[key];
+       x.common[key]=x.common_lists[key].length;
+     }
+   });
+   x.emd=x.common.EMD||x.emd||0;
 
- x.common_lists.FQTV=manifest.commonLists?.FQTV||[];
- x.common.FQTV=x.common_lists.FQTV.length;
+   if(manifest.mealLists){
+     x.meal_lists=manifest.mealLists;
+     x.common_lists.MEAL=manifest.commonLists?.MEAL||[];
+     x.common.MEAL=x.common_lists.MEAL.length;
+   }
 
- // ETK = passengers carrying a 13-digit ticket in the report.
- x.common_lists.ETK=(x.passengers||[]).filter(p=>p.etkt);
- x.common.ETK=x.common_lists.ETK.length;
- x.etk=x.common.ETK;
+   x.common_lists.ETK=(x.passengers||[]).filter(p=>p.etkt);
+   x.common.ETK=x.common_lists.ETK.length;
+   x.etk=x.common.ETK;
 
- // Outbound connections from the manifest.
- x.outbound=manifest.outbound||[];
+   if(Array.isArray(manifest.outbound))x.outbound=manifest.outbound;
+ }
 
- // V48.5 : l'import pré-remplit aussi la fiche PREPA.
+ // FQTV is additive across KFEG, KFES and PPS/SOLITAIRE reports.
+ if(manifest.hasFqtv || manifest.commonLists?.FQTV?.length){
+   x.common_lists.FQTV=mergeUniquePassengers(
+     x.common_lists.FQTV||[],
+     manifest.commonLists?.FQTV||[],
+     p=>[p.name,p.fqtv?.code,p.fqtv?.number].join('|')
+   );
+   x.common.FQTV=x.common_lists.FQTV.length;
+ }
+
  autofillSqPrepaFromManifest(x,manifest);
 
- // Explicitly ignore non-operational codes requested by the user.
  ['NOEX','ACIS','SNWA','EUGD','FMLY','XPBK','OTHS'].forEach(k=>{
-   delete x.common[k];
-   delete x.common_lists[k];
+   delete x.common[k];delete x.common_lists[k];
  });
 
  markPrepaFields(x,['booked','std'],'PDF SQ');
- persistFlightAction('IMPORT PREPA SQ SSR / MEAL');
+ persistFlightAction('IMPORT PREPA SQ MERGE');
 }
 
 function collectSqGenericReport(rawOriginal){
@@ -6574,7 +6647,7 @@ function collectPrepaImport(rawOriginal,airline){
    return m?m[1]:null;
   };
   put(`[data-ed-config="${k}"]`,findClass('CONFIG(?:URATION)?'));
-  const compactBooking=raw.match(new RegExp(`(?:PDF-VBCPLIST|LIST\\s+OF)[^\\n\\r]{0,180}?\\b${esc}\\s*(\\d{1,3})\\b`,'i'));
+  const compactBooking=raw.match(new RegExp(`PDF-VBCPLIST[^\\n\\r]{0,180}?\\b${esc}\\s*(\\d{1,3})\\b`,'i'));
   put(`[data-ed-booking="${k}"]`,compactBooking?compactBooking[1]:findClass('BOOKING|BOOKED'));
   put(`[data-ed-meal="${k}"]`,findClass('MEALS?'));
  });
@@ -6637,39 +6710,77 @@ function prepaSelectorLabel(selector){
  const map={edFlight:'FLIGHT',edReg:'REG',edGate:'GATE',edParking:'PARKING',edStd:'STD',edSta:'STA',edBusiness:'COMMENTS BUSINESS',edPremium:'COMMENTS PREMIUM',edEconomy:'COMMENTS ECONOMY',edQuickRamp:'QUICK RAMP'};
  return map[el.id]||el.id;
 }
+function applyPrepaValues(values,overwriteSelectors=null){
+ let applied=0,kept=0;
+ Object.entries(values||{}).forEach(([selector,value])=>{
+   const el=document.querySelector(selector);if(!el)return;
+   const current=String(el.value||'').trim();
+   const conflict=current!=='' && current!==String(value).trim();
+
+   if(conflict && overwriteSelectors && !overwriteSelectors.has(selector)){
+     kept++;return;
+   }
+
+   el.value=value;
+   flashInjected(el);
+   applied++;
+ });
+ return {applied,kept};
+}
+
+function finalizePrepaAutomaticImport(result){
+ const {applied,kept}=result;
+ const saved=saveEditingFromModal(true,false); // NEVER wipe blank fields during automatic import.
+ const idx=Number(document.getElementById('editingFlightIndex')?.value);
+ const fx=FLIGHTS[idx];
+
+ if(PREPA_PENDING_MANIFEST){
+   applySqManifestToFlight(PREPA_PENDING_MANIFEST);
+   PREPA_PENDING_MANIFEST=null;
+ }
+
+ if(fx && typeof markPrepaFields==='function'){
+   if(sum(fx.booked)>0)markPrepaFields(fx,'booked','Import PREPA');
+   if(fx.std)markPrepaFields(fx,'std','Import PREPA');
+   if(fx.sta)markPrepaFields(fx,'sta','Import PREPA');
+ }
+
+ PREPA_PENDING_INJECTION=null;
+ if(fx)saveImportedFlightsPersistent(FLIGHTS).catch(()=>{});
+
+ // Re-open PREPA so quantities filled by manifest/FQTV are visible immediately.
+ if(Number.isFinite(idx))setTimeout(()=>openPrepaEditing(idx,document.getElementById('editingDepartureDate')?.value||fx?.date),50);
+
+ setTimeout(()=>editingFeedback(
+   `${applied} INFO${applied>1?'S':''} IMPORTÉE${applied>1?'S':''}${kept?` · ${kept} CONSERVÉE${kept>1?'S':''}`:''}.`,
+   'ok'
+ ),100);
+
+ if(saved)render();
+}
+
 function applyPrepaImport(strategy){
  const pending=PREPA_PENDING_INJECTION;
  if(!pending)return;
- if(document.getElementById('modalTitle')?.textContent==='DONNÉES DÉJÀ PRÉSENTES')modalBack();
+
+ if(strategy==='selected'){
+   const overwrite=new Set(
+     [...document.querySelectorAll('[data-conflict-overwrite]:checked')].map(el=>el.dataset.conflictOverwrite)
+   );
+   closeModal();
+   setTimeout(()=>finalizePrepaAutomaticImport(applyPrepaValues(pending.values,overwrite)),30);
+   return;
+ }
+
+ if(document.getElementById('modalTitle')?.textContent==='DONNÉES DÉJÀ PRÉSENTES')closeModal();
+
  setTimeout(()=>{
-   let applied=0,kept=0;
-   Object.entries(pending.values).forEach(([selector,value])=>{
-     const el=document.querySelector(selector);if(!el)return;
-     const current=String(el.value||'').trim();
-     const conflict=current!=='' && current!==String(value).trim();
-     if(conflict && strategy==='keep'){kept++;return}
-     el.value=value;flashInjected(el);applied++;
-   });
-   PREPA_PENDING_INJECTION=null;
-   if(applied||kept){
-     const saved=saveEditingFromModal(true,true);
-     const idx=Number(document.getElementById('editingFlightIndex')?.value);
-     const fx=FLIGHTS[idx];
-     if(fx && typeof markPrepaFields==='function'){
-       if(sum(fx.booked)>0)markPrepaFields(fx,'booked','Import PREPA');
-       if(fx.std)markPrepaFields(fx,'std','Import PREPA');
-       if(fx.sta)markPrepaFields(fx,'sta','Import PREPA');
-     }
-     if(PREPA_PENDING_MANIFEST){
-       applySqManifestToFlight(PREPA_PENDING_MANIFEST);
-       PREPA_PENDING_MANIFEST=null;
-     }
-     if(fx)saveImportedFlightsPersistent(FLIGHTS).catch(()=>{});
-     editingFeedback(`${applied} INFO${applied>1?'S':''} INJECTÉE${applied>1?'S':''} ET ENREGISTRÉE${applied>1?'S':''}${kept?` · ${kept} VALEUR${kept>1?'S':''} CONSERVÉE${kept>1?'S':''}`:''}.`,'ok');
-     if(saved)render();
-   }
+   let overwrite=null;
+   if(strategy==='keep')overwrite=new Set();
+   finalizePrepaAutomaticImport(applyPrepaValues(pending.values,overwrite));
  },30);
 }
+
 function cancelPrepaImport(){
  PREPA_PENDING_INJECTION=null;
  PREPA_PENDING_MANIFEST=null;
@@ -6677,18 +6788,33 @@ function cancelPrepaImport(){
  setTimeout(()=>editingFeedback('INJECTION ANNULÉE. AUCUNE DONNÉE MODIFIÉE.','warn'),30);
 }
 function showPrepaConflictPopup(values,conflicts){
- PREPA_PENDING_INJECTION={values};
- showModal('DONNÉES DÉJÀ PRÉSENTES','CHOISIS LE COMPORTEMENT DE L’IMPORT',`
+ PREPA_PENDING_INJECTION={values,conflicts};
+ showModal('DONNÉES DÉJÀ PRÉSENTES','CHOISIS CHAMP PAR CHAMP CE QUE TU VEUX ÉCRASER',`
   <div class="conflict-box">
-   <div class="conflict-summary">${conflicts.length} INFORMATION${conflicts.length>1?'S':''} EXISTE${conflicts.length>1?'NT':''} DÉJÀ DANS CET EDITING.</div>
-   <div class="conflict-list">${conflicts.map(c=>`<div class="conflict-row"><b>${c.label}</b><span class="old">ACTUEL : ${c.current}</span><span class="new">IMPORT : ${c.next}</span></div>`).join('')}</div>
+   <div class="conflict-summary">
+     ${conflicts.length} INFORMATION${conflicts.length>1?'S':''} DIFFÉRENTE${conflicts.length>1?'S':''}.
+     <br><small>CASE COCHÉE = ÉCRASER · CASE VIDE = CONSERVER</small>
+   </div>
+   <div class="conflict-list">
+    ${conflicts.map(c=>`
+      <label class="conflict-row conflict-select-row">
+       <input type="checkbox" data-conflict-overwrite="${c.selector}">
+       <div>
+        <b>${c.label}</b>
+        <span class="old">CONSERVER : ${c.current}</span>
+        <span class="new">IMPORTER : ${c.next}</span>
+       </div>
+      </label>`).join('')}
+   </div>
    <div class="conflict-actions">
-    <button class="keep" onclick="applyPrepaImport('keep')">CONSERVER</button>
-    <button class="overwrite" onclick="applyPrepaImport('overwrite')">ÉCRASER</button>
+    <button class="keep" onclick="applyPrepaImport('keep')">TOUT CONSERVER</button>
+    <button class="overwrite" onclick="document.querySelectorAll('[data-conflict-overwrite]').forEach(x=>x.checked=true)">TOUT COCHER</button>
+    <button class="primary" onclick="applyPrepaImport('selected')">APPLIQUER LE CHOIX</button>
     <button class="cancel" onclick="cancelPrepaImport()">ANNULER</button>
    </div>
   </div>`);
 }
+
 function injectPrepaRawText(airline){
  try{
   const rawOriginal=document.getElementById('prepaRawText')?.value||'';
@@ -6696,9 +6822,16 @@ function injectPrepaRawText(airline){
   pushPrepaUndoSnapshot();
   const values=collectPrepaImport(rawOriginal,airline);
   PREPA_PENDING_MANIFEST=(String(airline||'').toUpperCase()==='SQ'||/\bSQ\s*\d{2,4}\b/i.test(rawOriginal))
-    ?mergeSqFqtvIntoManifest(parseSqPassengerManifest(rawOriginal),rawOriginal):null;
+    ?prepareSqImportManifest(rawOriginal):null;
   const entries=Object.entries(values);
-  if(!entries.length){editingFeedback('AUCUNE INFORMATION RECONNUE DANS LE FICHIER OU LE TEXTE.','warn');return}
+  if(!entries.length && !PREPA_PENDING_MANIFEST?.hasMainManifest && !PREPA_PENDING_MANIFEST?.hasFqtv){
+    editingFeedback('AUCUNE INFORMATION RECONNUE DANS LE FICHIER OU LE TEXTE.','warn');return;
+  }
+  if(!entries.length && PREPA_PENDING_MANIFEST){
+    PREPA_PENDING_INJECTION={values:{}};
+    finalizePrepaAutomaticImport({applied:0,kept:0});
+    return;
+  }
 
   const conflicts=[];
   entries.forEach(([selector,next])=>{
@@ -7403,6 +7536,19 @@ function openFqtvPassengerList(cat){
 
 function commonTile(key,label){
  const x=f(),n=x.common[key]||0;
+
+ if(key==='FQTV'){
+   return `<div class="common-item">
+     <div class="common-name">${label}</div>
+     <div class="common-count"><span class="ico">${icons[key]||'▤'}</span>${n}</div>
+     <div class="particularity-actions">
+       <button class="part-minus" onclick="removeParticularity('FQTV')" title="Supprimer">−</button>
+       <button class="view-list" onclick="openFqtvCategories()">VOIR LA LISTE</button>
+       <button class="part-plus" onclick="openParticularityEditor('FQTV','FQTV')" title="Ajouter">＋</button>
+     </div>
+   </div>`;
+ }
+
  return `<div class="common-item">
    <div class="common-name">${label}</div>
    <div class="common-count"><span class="ico">${icons[key]||'•'}</span>${n}</div>
