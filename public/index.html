@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V48.4 · Connections Staff Positioning</title>
+<title>ALYZIA OPS - V48.5 · Prepa Autofill Compact Connections</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -4146,6 +4146,59 @@ html,body{
  .connection-class-counts{font-size:8px}
 }
 
+
+/* V48.5 — compact connections / editable prepa classes */
+.compact-connections{padding-bottom:10px}
+.connection-preview-list{display:grid;gap:6px;margin-top:8px}
+.connection-preview-row{
+ width:100%;display:grid;grid-template-columns:72px 1fr 54px 54px;gap:7px;align-items:center;
+ border:1px solid #dfe7ef;background:#fafcff;border-radius:8px;padding:7px 8px;text-align:left
+}
+.connection-preview-row.critical{border-color:#efb4bb;background:#fff4f5}
+.connection-preview-row.critical b,.connection-preview-row.critical strong{color:#d62828}
+.connection-preview-row b{font-size:10px}
+.connection-preview-row span{font-size:8px;color:#657a90}
+.connection-preview-row strong{font-size:9px;text-align:right}
+.connection-more{text-align:center;font-size:8px;font-weight:900;color:#718398;padding-top:7px}
+
+.connection-modal-head{
+ display:flex;justify-content:space-between;gap:8px;align-items:center;
+ border:1px solid #dfe7ef;background:#f7fafc;border-radius:8px;padding:8px 10px;margin-top:8px
+}
+.connection-modal-head b{font-size:10px}
+.connection-modal-head small{font-size:8px;color:#b02a37;font-weight:950}
+.connection-modal-list{display:grid;gap:6px;margin-top:8px}
+.connection-modal-row{
+ display:grid;grid-template-columns:78px 70px 1fr 58px 58px 42px;gap:6px;align-items:center;
+ border:1px solid #e1e8ef;border-radius:8px;padding:7px;background:#fff
+}
+.connection-modal-row.critical{border-color:#efb4bb;background:#fff4f5}
+.connection-modal-row.critical b,.connection-modal-row.critical strong{color:#d62828}
+.connection-modal-row>*{font-size:8px}
+.connection-modal-row b{font-size:9px}
+.connection-modal-row strong{font-size:9px}
+
+.editing-class-title-row{display:flex;align-items:center;justify-content:space-between;gap:6px}
+.editing-class-title-row .editing-class-title{flex:1}
+.editing-class-delete{
+ width:28px;height:28px;border:1px solid #efb4bb;border-radius:7px;background:#fff3f4;
+ color:#c52e3d;font-size:18px;font-weight:1000;line-height:1
+}
+
+@media(max-width:720px){
+ .connection-preview-row{grid-template-columns:58px 1fr 48px 46px}
+ .connection-modal-row{grid-template-columns:64px 1fr 50px 50px}
+ .connection-modal-row span:nth-of-type(1){display:none}
+ .connection-modal-row small{grid-column:1/-1}
+}
+
+
+.prepa-class-inline-actions{display:inline-flex;align-items:center;gap:4px}
+.class-label-delete{
+ width:22px;height:22px;border:1px solid #efb7bd;border-radius:6px;background:#fff3f4;
+ color:#c52839;font-size:15px;font-weight:1000;line-height:1;padding:0
+}
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
@@ -5293,7 +5346,7 @@ function saveEditingFromModal(silent=false,syncBlanks=false){
 function v(id){return document.getElementById(id)?.value||''}
 function prepaParticularities(airline){
  if(airline==='TK')return ['INFANT(S)','CHLD / TOY\'S','WCHR / WCHS / WCHC','WCMP / WCLB / WCBD','BLND / DEAF','UMNR','MAAS','VIP','UPGR TK WAIVE','REBATE STAFF','DUTY STAFF','INBOUNDS','OUTBOUNDS','GROUP','PETC','AVIH','EMD','ETKT','INAD / DEPU','DEPA / ESCORT','EXST / CBBG'];
- return ['INFANT(S)','WCHR / WCHS / WCHC','WCMP / WCBD / WCLB','BLND / DEAF','UMNR','UM DECLINED','MAAS','LPPS / QPPS / TPPS','KFEG / KFES','HCIP / IMPT / VIP','BOOKABLE STAFF','REBATE STAFF','INBOUND(S)','GROUP','PETC / AVIH'];
+ return ['INFANT(S)','CHLD / KID','WCHR / WCHS / WCHC','WCMP / WCBD / WCLB','BLND / DEAF','UMNR','UM DECLINED','MAAS','LPPS / QPPS / TPPS','KFEG / KFES','IMPT / HCIP / VIP / VVIP','BOOKABLE STAFF','REBATE STAFF','INBOUND(S)','GROUP','PETC / AVIH'];
 }
 function prepaPartGroups(airline){
  if(airline==='TK')return {
@@ -5306,18 +5359,20 @@ function prepaPartGroups(airline){
    "EXST / CBBG":["EXST","CBBG"]
  };
  return {
+   "CHLD / KID":["CHLD","KID"],
    "WCHR / WCHS / WCHC":["WCHR","WCHS","WCHC"],
    "WCMP / WCBD / WCLB":["WCMP","WCBD","WCLB"],
    "BLND / DEAF":["BLND","DEAF"],
    "LPPS / QPPS / TPPS":["LPPS","QPPS","TPPS"],
    "KFEG / KFES":["KFEG","KFES"],
-   "HCIP / IMPT / VIP":["HCIP","IMPT","VIP"],
+   "IMPT / HCIP / VIP / VVIP":["IMPT","HCIP","VIP","VVIP"],
    "PETC / AVIH":["PETC","AVIH"]
  };
 }
 function prepaPartInputValue(d,group,code,index){
  const p=d?.particularities||{};
  if(p[code]!==undefined&&p[code]!==null)return p[code];
+ if(['UMNR','MAAS','CHLD','KID','IMPT','HCIP','VIP','VVIP'].includes(code))return 0;
  // Compatibilité anciennes prépas où le groupe avait une quantité unique.
  if(index===0&&p[group]!==undefined&&p[group]!==null)return p[group];
  return '';
@@ -5920,8 +5975,20 @@ function openPrepaEditing(flightIndex,departureDate){
   <div class="editing-brand">${airlineLogo(x.airline)} <span>${x.airline==='TK'?'TURKISH AIRLINES':'SINGAPORE AIRLINES'}</span></div>
   <div class="editing-header"><label>FLIGHT<input id="edFlight" value="${d.flight}"></label><label>DATE<input id="edDate" type="date" value="${d.date}"></label><label>REG<input id="edReg" value="${d.reg}"></label></div>
   <div class="editing-top"><div>
-    <div class="editing-row2">${classes.map(k=>`<label>CONFIG <button type="button" class="class-label-edit" onclick="openPrepaClassEdit(${flightIndex},'${k}')">${k}</button><input type="number" min="0" step="1" inputmode="numeric" data-ed-config="${k}" value="${d.config?.[k]??''}"></label>`).join('')}</div>
-    <div class="editing-row2">${classes.map(k=>`<label>BOOKING <button type="button" class="class-label-edit" onclick="openPrepaClassEdit(${flightIndex},'${k}')">${k}</button><input type="number" min="0" step="1" inputmode="numeric" data-ed-booking="${k}" value="${d.booking?.[k]??''}"></label>`).join('')}</div><div class="prepa-class-help">＋ CLASSE POUR AJOUTER · CLIQUER SUR LA LETTRE D’UNE CLASSE POUR LA RENOMMER OU LA SUPPRIMER.</div>
+    <div class="editing-row2">${classes.map(k=>`<label>CONFIG
+  <span class="prepa-class-inline-actions">
+    <button type="button" class="class-label-edit" onclick="openPrepaClassEdit(${flightIndex},'${k}')">${k}</button>
+    <button type="button" class="class-label-delete" onclick="deleteFlightClass(${flightIndex},'${k}')" title="Supprimer ${k}">×</button>
+  </span>
+  <input type="number" min="0" step="1" inputmode="numeric" data-ed-config="${k}" value="${d.config?.[k]??''}">
+</label>`).join('')}</div>
+    <div class="editing-row2">${classes.map(k=>`<label>BOOKING
+  <span class="prepa-class-inline-actions">
+    <button type="button" class="class-label-edit" onclick="openPrepaClassEdit(${flightIndex},'${k}')">${k}</button>
+    <button type="button" class="class-label-delete" onclick="deleteFlightClass(${flightIndex},'${k}')" title="Supprimer ${k}">×</button>
+  </span>
+  <input type="number" min="0" step="1" inputmode="numeric" data-ed-booking="${k}" value="${d.booking?.[k]??''}">
+</label>`).join('')}</div><div class="prepa-class-help">＋ CLASSE POUR AJOUTER · CLIQUER SUR LA LETTRE D’UNE CLASSE POUR LA RENOMMER OU LA SUPPRIMER.</div>
     ${x.airline==='TK'?`<div class="editing-row2"><label>TYPE<input id="edType" value="${d.type||''}"></label><label></label></div>`:''}
   </div><div>
     <div class="editing-row2"><label>STD (${x.dep})<input id="edStd" value="${d.std}"></label><label>STA (${x.dest})<input id="edSta" value="${d.sta}"></label></div>
@@ -5969,7 +6036,10 @@ const SQ_SSR_MAP={
  WCHR:'WCH',WCHS:'WCH',WCHC:'WCH',
  UMNR:'UMNR',
  INFT:'INF',
- BSCT:'BSCT'
+ MAAS:'MAAS',
+ BSCT:'BSCT',
+ CHLD:'CHLD',
+ KID:'CHLD'
 };
 const SQ_MEAL_CODES=['CHML','BBML','AVML','MOML','LFML','FPML','NLML','SPML'];
 
@@ -5991,7 +6061,7 @@ function parseSqPassengerManifest(rawOriginal){
  const upper=raw.toUpperCase();
  const blocks=upper.split(/(?=\n?\s*\d{1,3}\.)/g).filter(b=>/^\s*\d{1,3}\./.test(b.trim()));
  const passengers=[];
- const commonLists={WCH:[],UMNR:[],INF:[],BSCT:[],VIP:[],EMD:[],MEAL:[],FQTV:[]};
+ const commonLists={WCH:[],UMNR:[],MAAS:[],INF:[],CHLD:[],BSCT:[],VIP:[],EMD:[],MEAL:[],FQTV:[]};
  const mealLists={};
  SQ_MEAL_CODES.forEach(k=>mealLists[k]=[]);
  const outbound=[];
@@ -6026,6 +6096,7 @@ function parseSqPassengerManifest(rawOriginal){
    const conn=right.match(/\bO-([A-Z0-9]{2}\d{2,4}|[A-Z]{2}\d{2,4})\s+([A-Z]{3})\s+(\d{4})\b/);
 
    const allText=lines.join(' ');
+   const passengerType=(left.match(/\s([MFCI])\s*$/)||[])[1]||'';
    const codes=new Set();
    [...allText.matchAll(/\b([A-Z]{4})\b/g)].forEach(mm=>codes.add(mm[1]));
 
@@ -6043,6 +6114,11 @@ function parseSqPassengerManifest(rawOriginal){
      outbound.push({passenger:p.name,seat, class:cls, flight:conn[1],date:'',from:'SIN',to:conn[2],time:conn[3].slice(0,2)+':'+conn[3].slice(2)});
    }
 
+   // Passenger type C = child even when no explicit CHLD/KID SSR is printed.
+   if(passengerType==='C'){
+     commonLists.CHLD.push({...p,specific:'CHLD'});
+   }
+
    // Relevant operational SSR only.
    codes.forEach(code=>{
      if(SQ_IGNORED_CODES.has(code))return;
@@ -6050,12 +6126,14 @@ function parseSqPassengerManifest(rawOriginal){
        p.ssr.push(code);
        const key=SQ_SSR_MAP[code];
        const detail=(allText.match(new RegExp(`\\b${code}-([^]*?)(?=\\s+[A-Z]{4}-|\\s+\\d{13}\\s+AS|$)`))||[])[1]||'';
-       commonLists[key].push({...p,specific:code+(detail?` · ${detail.trim().slice(0,120)}`:'')});
+       if(!(key==='CHLD' && commonLists.CHLD.some(q=>q.id===p.id))){
+         commonLists[key].push({...p,specific:code+(detail?` · ${detail.trim().slice(0,120)}`:'')});
+       }
      }
    });
 
-   if(codes.has('VIP')||codes.has('HCIP')||codes.has('IMPT')){
-     const vipCode=codes.has('HCIP')?'HCIP':codes.has('IMPT')?'IMPT':'VIP';
+   if(codes.has('VIP')||codes.has('HCIP')||codes.has('IMPT')||codes.has('VVIP')){
+     const vipCode=codes.has('VVIP')?'VVIP':codes.has('HCIP')?'HCIP':codes.has('IMPT')?'IMPT':'VIP';
      commonLists.VIP.push({...p,specific:vipCode});
    }
    if(emd){
@@ -6087,6 +6165,45 @@ function parseSqPassengerManifest(rawOriginal){
  return {passengers,commonLists,mealLists,outbound};
 }
 
+
+function autofillSqPrepaFromManifest(x,manifest){
+ if(!x||!manifest)return;
+ const d=getEditingData(x);
+ d.particularities=d.particularities||{};
+
+ const count=(key)=>Number(manifest.commonLists?.[key]?.length||0);
+
+ d.particularities['INFANT(S)']=count('INF');
+ d.particularities['INF']=count('INF');
+ d.particularities['CHLD']=count('CHLD');
+ d.particularities['KID']=0;
+
+ // WCH grouped + detail
+ const wch=manifest.commonLists?.WCH||[];
+ d.particularities['WCHR']=wch.filter(p=>/WCHR/.test(String(p.specific||''))).length;
+ d.particularities['WCHS']=wch.filter(p=>/WCHS/.test(String(p.specific||''))).length;
+ d.particularities['WCHC']=wch.filter(p=>/WCHC/.test(String(p.specific||''))).length;
+
+ d.particularities['UMNR']=count('UMNR');
+ d.particularities['MAAS']=count('MAAS');
+ d.particularities['CHLD']=count('CHLD');
+ d.particularities['KID']=0;
+
+ const vip=manifest.commonLists?.VIP||[];
+ d.particularities['IMPT']=vip.filter(p=>/IMPT/.test(String(p.specific||''))).length;
+ d.particularities['HCIP']=vip.filter(p=>/HCIP/.test(String(p.specific||''))).length;
+ d.particularities['VIP']=vip.filter(p=>/^VIP$/.test(String(p.specific||''))).length;
+ d.particularities['VVIP']=vip.filter(p=>/VVIP/.test(String(p.specific||''))).length;
+
+ d.particularities['BOOKABLE STAFF']=Number(d.particularities['BOOKABLE STAFF']||0);
+ d.particularities['REBATE STAFF']=Number(d.particularities['REBATE STAFF']||0);
+
+ d.particularities['INBOUND(S)']=(x.inbound||[]).length;
+ d.particularities['OUTBOUND(S)']=(manifest.outbound||[]).length;
+
+ x.editingData=d;
+}
+
 function applySqManifestToFlight(manifest){
  const idx=Number(document.getElementById('editingFlightIndex')?.value);
  const x=FLIGHTS[idx];
@@ -6098,7 +6215,7 @@ function applySqManifestToFlight(manifest){
  x.common=x.common||{};
  x.common_lists=x.common_lists||{};
 
- ['WCH','UMNR','INF','BSCT','VIP','EMD'].forEach(key=>{
+ ['WCH','UMNR','MAAS','INF','CHLD','BSCT','VIP','EMD'].forEach(key=>{
    x.common_lists[key]=manifest.commonLists?.[key]||[];
    x.common[key]=x.common_lists[key].length;
  });
@@ -6118,6 +6235,9 @@ function applySqManifestToFlight(manifest){
 
  // Outbound connections from the manifest.
  x.outbound=manifest.outbound||[];
+
+ // V48.5 : l'import pré-remplit aussi la fiche PREPA.
+ autofillSqPrepaFromManifest(x,manifest);
 
  // Explicitly ignore non-operational codes requested by the user.
  ['NOEX','ACIS','SNWA','EUGD','FMLY','XPBK','OTHS'].forEach(k=>{
@@ -6663,7 +6783,7 @@ function render(){
   ${commonTile('CHLD','CHLD')}
   ${commonTile('UMNR','UMNR')}
   ${mealSummaryTile()}
-  ${commonTile('VIP','VIP')}
+  ${commonTile('VIP','IMPT/HCIP/VIP/VVIP')}
   ${commonTile('EMD','EMD')}
   ${commonTile('ETK','ETK')}
   ${commonTile('FQTV','FQTV')}
@@ -6935,6 +7055,86 @@ function classCard(k){
    </div>
  </div>`;
 }
+
+
+function openGroupedParticularity(key,label){
+ const x=f(),arr=Array.isArray(x.common_lists?.[key])?x.common_lists[key]:[];
+ let cats=[];
+
+ if(key==='WCH')cats=['WCHR','WCHS','WCHC'];
+ else if(key==='VIP')cats=['IMPT','HCIP','VIP','VVIP'];
+ else { showPax(label,arr,arr.length); return; }
+
+ const groups=cats.map(code=>[
+   code,
+   arr.filter(p=>new RegExp(`\\b${code}\\b`,'i').test(String(p.specific||p.ssr||'')))
+ ]).filter(([,list])=>list.length);
+
+ showModal(label,x.flight,`
+   <div class="meal-category-list">
+     ${groups.length?groups.map(([code,list])=>`
+       <button class="meal-category-row" onclick="openGroupedParticularityList('${key}','${code}')">
+         <span>${code}</span><b>${list.length}</b><small>VOIR LES PASSAGERS</small>
+       </button>`).join(''):'<div class="prepa-empty">AUCUN PASSAGER</div>'}
+   </div>
+ `);
+}
+
+function openGroupedParticularityList(key,code){
+ const x=f(),arr=Array.isArray(x.common_lists?.[key])?x.common_lists[key]:[];
+ const list=arr.filter(p=>new RegExp(`\\b${code}\\b`,'i').test(String(p.specific||p.ssr||'')));
+ PAX_MODAL_ITEMS=list;
+ showModal(`${key} · ${code}`,x.flight,paxRows(list,list.length));
+}
+
+function openFqtvCategories(){
+ const x=f(),arr=Array.isArray(x.common_lists?.FQTV)?x.common_lists.FQTV:[];
+ const groups={};
+ arr.forEach(p=>{
+   const code=String(p.fqtv?.code||p.fqtv?.program||p.specific||'AUTRES').toUpperCase();
+   let cat='AUTRES';
+   if(/KFEG|ELITE GOLD/.test(code))cat='KRISFLYER ELITE GOLD';
+   else if(/KFES|ELITE SILVER/.test(code))cat='KRISFLYER ELITE SILVER';
+   else if(/LPPS/.test(code))cat='LIFE PPS';
+   else if(/QPPS|TPPS|PPS|IPPS|QUALIFIED/.test(code))cat='PPS CLUB';
+   else if(/SOLITAIRE/.test(code))cat='SOLITAIRE PPS';
+   groups[cat]=groups[cat]||[];
+   groups[cat].push(p);
+ });
+
+ showModal('FQTV',x.flight,`
+   <div class="meal-category-list">
+     ${Object.entries(groups).length?Object.entries(groups).map(([cat,list])=>`
+       <button class="meal-category-row" onclick="openFqtvPassengerList('${cat.replace(/'/g,"\\'")}')">
+         <span>${cat}</span><b>${list.length}</b><small>VOIR LES PASSAGERS</small>
+       </button>`).join(''):'<div class="prepa-empty">AUCUN FQTV IMPORTÉ</div>'}
+   </div>
+ `);
+}
+
+let FQTV_MODAL_GROUPS={};
+function openFqtvPassengerList(cat){
+ const x=f(),arr=Array.isArray(x.common_lists?.FQTV)?x.common_lists.FQTV:[];
+ const match=arr.filter(p=>{
+   const code=String(p.fqtv?.code||p.fqtv?.program||p.specific||'AUTRES').toUpperCase();
+   if(cat==='KRISFLYER ELITE GOLD')return /KFEG|ELITE GOLD/.test(code);
+   if(cat==='KRISFLYER ELITE SILVER')return /KFES|ELITE SILVER/.test(code);
+   if(cat==='LIFE PPS')return /LPPS/.test(code);
+   if(cat==='SOLITAIRE PPS')return /SOLITAIRE/.test(code);
+   if(cat==='PPS CLUB')return /QPPS|TPPS|PPS|IPPS|QUALIFIED/.test(code);
+   return true;
+ });
+ PAX_MODAL_ITEMS=match;
+ showModal(`FQTV · ${cat}`,x.flight,`
+   <div class="meal-passenger-list">
+     ${match.length?match.map((p,i)=>`
+       <button class="meal-passenger-row" onclick="openPaxFromModal(${i})">
+         <div><strong>${p.name||'PASSAGER'}</strong><span>${p.seat||'—'} · CL ${p.class||'—'}</span></div>
+         <small>${p.specific||p.fqtv?.program||'FQTV'}</small>
+       </button>`).join(''):'<div class="prepa-empty">AUCUN PASSAGER</div>'}
+   </div>`);
+}
+
 function commonTile(key,label){
  const x=f(),n=x.common[key]||0;
  return `<div class="common-item">
@@ -6942,7 +7142,7 @@ function commonTile(key,label){
    <div class="common-count"><span class="ico">${icons[key]||'•'}</span>${n}</div>
    <div class="particularity-actions">
      <button class="part-minus" onclick="removeParticularity('${key}')" title="Supprimer">−</button>
-     <button class="view-list" onclick="openCommon('${key}')">VOIR LA LISTE</button>
+     <button class="view-list" onclick="${key==='WCH'||key==='VIP'?`openGroupedParticularity('${key}','${label}')`:`openCommon('${key}')`}">VOIR LA LISTE</button>
      <button class="part-plus" onclick="openParticularityEditor('${key}','${label}')" title="Ajouter">＋</button>
    </div>
  </div>`;
@@ -7098,27 +7298,69 @@ function formatConnectionMinutes(m){
 function flightTable(title,rows,inbound){
  rows=Array.isArray(rows)?rows:[];
  const clsLine=connectionClassCounts(rows);
- return `<div class="card table-card connection-card">
+
+ const detailed=rows.map(r=>{
+   const conx=connectionMinutesForRow(r,inbound);
+   return {...r,_conx:conx,_critical:conx!=null && conx < (inbound?60:90)};
+ }).sort((a,b)=>{
+   if(a._conx==null&&b._conx==null)return 0;
+   if(a._conx==null)return 1;
+   if(b._conx==null)return -1;
+   return a._conx-b._conx;
+ });
+
+ const urgent=detailed.filter(r=>r._critical).slice(0,4);
+ const preview=urgent.length?urgent:detailed.slice(0,3);
+
+ return `<div class="card table-card connection-card compact-connections">
    <div class="table-title connection-title">
      <div>
-       <span>${title}</span>
+       <span>${title} · ${rows.length}</span>
        <small class="connection-class-counts">${clsLine||'AUCUNE CLASSE'}</small>
      </div>
-     <button onclick="openSynthetic('${title}',${rows.length})">VOIR LA LISTE 👁</button>
+     <button onclick="openConnectionModal('${title}',${inbound?'true':'false'})">VOIR TOUT 👁</button>
    </div>
-   <table><thead><tr><th>VOL</th><th>DATE</th><th>DE</th><th>À</th><th>${inbound?'STA':'STD'}</th><th>CONX</th></tr></thead>
-   <tbody>${rows.map(r=>{
-     const conx=connectionMinutesForRow(r,inbound);
-     const critical=conx!=null && conx < (inbound?60:90);
-     return `<tr>
-       <td><b class="${critical?'connection-critical':''}">${r.flight||'—'}</b></td>
-       <td>${r.date||'—'}</td><td>${r.from||'—'}</td><td>${r.to||'—'}</td>
-       <td>${r.time||'—'}</td>
-       <td class="${critical?'connection-critical':''}">${formatConnectionMinutes(conx)||'—'}</td>
-     </tr>`;
-   }).join('')}</tbody>
- </table>
+
+   ${preview.length?`
+     <div class="connection-preview-list">
+       ${preview.map(r=>`
+         <button class="connection-preview-row ${r._critical?'critical':''}" onclick="openConnectionModal('${title}',${inbound?'true':'false'})">
+           <b>${r.flight||'—'}</b>
+           <span>${r.from||'—'} → ${r.to||'—'}</span>
+           <span>${r.time||'—'}</span>
+           <strong>${formatConnectionMinutes(r._conx)||'—'}</strong>
+         </button>`).join('')}
+     </div>
+   `:'<div class="prepa-empty">AUCUNE CORRESPONDANCE</div>'}
+
+   ${rows.length>preview.length?`<div class="connection-more">+ ${rows.length-preview.length} AUTRE${rows.length-preview.length>1?'S':''}</div>`:''}
  </div>`;
+}
+
+function openConnectionModal(title,inbound){
+ const rows=title==='INBOUND'?(f().inbound||[]): (f().outbound||[]);
+ const detailed=rows.map(r=>{
+   const conx=connectionMinutesForRow(r,inbound);
+   return {...r,_conx:conx,_critical:conx!=null && conx < (inbound?60:90)};
+ }).sort((a,b)=>(a._conx??99999)-(b._conx??99999));
+
+ showModal(`${title} · ${rows.length}`,f().flight,`
+   <div class="connection-modal-head">
+     <b>${connectionClassCounts(rows)||'AUCUNE CLASSE'}</b>
+     <small>${inbound?'ALERTE < 1H00':'ALERTE < 1H30'}</small>
+   </div>
+   <div class="connection-modal-list">
+     ${detailed.length?detailed.map(r=>`
+       <div class="connection-modal-row ${r._critical?'critical':''}">
+         <b>${r.flight||'—'}</b>
+         <span>${r.date||'—'}</span>
+         <span>${r.from||'—'} → ${r.to||'—'}</span>
+         <span>${r.time||'—'}</span>
+         <strong>${formatConnectionMinutes(r._conx)||'—'}</strong>
+         <small>CL ${r.class||'—'}</small>
+       </div>`).join(''):'<div class="prepa-empty">AUCUNE CORRESPONDANCE</div>'}
+   </div>
+ `);
 }
 function fqTable(){
  const total=f().common.FQTV||0,vals=[Math.round(total*.55),Math.round(total*.29),Math.round(total*.16),Math.max(0,total-Math.round(total*.55)-Math.round(total*.29)-Math.round(total*.16))];
