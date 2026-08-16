@@ -1,4 +1,4 @@
-// ALYZIA OPS V49.8 · Worker complet
+// ALYZIA OPS V49.9 · Worker complet
 // - Assets statiques public/
 // - API vols partagée D1
 // - Bridge interne vers SARIA
@@ -181,6 +181,13 @@ async function handleFlights(request,env,url){
   if(request.method==="OPTIONS")return json({ok:true});
 
   if(url.pathname==="/api/flights" && request.method==="GET"){
+    const identity=String(url.searchParams.get("identity")||"").trim();
+    if(identity){
+      const flight=await getFlightByIdentity(env,identity);
+      if(!flight)return json({ok:false,error:"VOL INTROUVABLE"},404);
+      return json({ok:true,flight});
+    }
+
     const flights=await getFlights(env);
     return json({ok:true,count:flights.length,flights});
   }
@@ -289,7 +296,7 @@ export default {
       return env.ASSETS.fetch(request);
 
     }catch(err){
-      console.error("ALYZIA OPS V49.8",err);
+      console.error("ALYZIA OPS V49.9",err);
       return json({
         ok:false,
         error:err?.message||String(err)
