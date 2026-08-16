@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V48.12 · NOTE Bell</title>
+<title>ALYZIA OPS - V48.13 · UI PREPA FQTV GROUP NOTES</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -4323,6 +4323,146 @@ html,body{
  font-size:14px;
 }
 
+
+/* =========================================================
+   V48.13 — RESPONSIVE / CLASSES / FQTV / NOTES / PREPA
+   ========================================================= */
+
+/* PREPA: no endless blank scroll, preserve bottom navigation space */
+.prepa-page{
+  padding-bottom:calc(88px + env(safe-area-inset-bottom,0px)) !important;
+  min-height:0 !important;
+}
+.prepa-list{
+  margin-bottom:0 !important;
+  padding-bottom:0 !important;
+}
+@media(max-width:850px){
+  .prepa-row{width:100%;max-width:100%;overflow:hidden}
+  .prepa-action-group{min-width:0;display:flex;gap:4px;justify-content:flex-end;flex-wrap:wrap}
+  .prepa-open-flight,.prepa-open-sheet,.prepa-validate{min-width:0;max-width:100%}
+}
+
+/* Stronger class identities */
+.class-column{
+  border:2px solid #cbd8e6;
+  border-radius:12px;
+  overflow:hidden;
+  background:#fff;
+  min-width:0;
+}
+.class-column.f{border-color:#b878ef;background:#fbf5ff}
+.class-column.j,.class-column.c{border-color:#438de8;background:#f1f7ff}
+.class-column.s,.class-column.w{border-color:#36b77f;background:#f0fbf6}
+.class-column.y{border-color:#e8ad2d;background:#fffaf0}
+
+.class-column.f .c-head{color:#7a31b8}
+.class-column.j .c-head,.class-column.c .c-head{color:#075fc8}
+.class-column.s .c-head,.class-column.w .c-head{color:#078555}
+.class-column.y .c-head{color:#9b6200}
+
+.class-columns-grid{
+  display:grid;
+  grid-template-columns:repeat(var(--class-count,3),minmax(0,1fr));
+  gap:10px;
+  align-items:stretch;
+}
+.class-booked-panel{
+  min-height:180px;
+  padding:12px 10px 10px;
+  display:grid;
+  grid-template-rows:auto auto auto 1fr;
+  align-items:center;
+  text-align:center;
+}
+.class-booked-panel .c-head{font-size:13px;font-weight:1000}
+.class-booked-panel .num{
+  border:0;background:transparent;font-size:34px;font-weight:1000;color:#14263c;
+  padding:9px 0;width:100%;
+}
+.class-booked-panel .eye{
+  border:0;background:transparent;color:#0869d3;font-size:8px;font-weight:950;
+  align-self:end;
+}
+.class-meal-panel{
+  border-top:1px solid rgba(120,145,170,.28);
+  padding:10px;
+  background:rgba(255,255,255,.72);
+  min-height:136px;
+}
+.meal-inline-title{display:flex;justify-content:space-between;align-items:center;gap:6px}
+.meal-inline-title span{font-size:10px;font-weight:1000}
+.meal-inline-title small{font-size:7px;color:#6b7e91;font-weight:900}
+.class-meal-panel .meal-input{
+  width:100%;height:42px;margin-top:8px;font-size:20px!important;font-weight:1000;text-align:center;
+}
+.meal-inline-stats{
+  display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:7px
+}
+.meal-inline-stats span{
+  background:#fff;border-radius:6px;padding:5px 3px;font-size:7px;font-weight:850;color:#6d7e91
+}
+.meal-inline-stats b{display:block;font-size:12px;color:#17243a;margin-top:2px}
+
+/* FQTV category colors based on SQ tiers */
+.fqtv-cat,.fqtv-pax-row,.pax-fqtv-banner{border-width:2px!important}
+.fqtv-cat.kfes,.fqtv-pax-row.kfes,.pax-fqtv-banner.kfes{
+  background:linear-gradient(135deg,#f2f3f4,#c4c7cb)!important;
+  border-color:#8f9499!important;color:#4d5359!important;
+}
+.fqtv-cat.kfeg,.fqtv-pax-row.kfeg,.pax-fqtv-banner.kfeg{
+  background:linear-gradient(135deg,#fff7df,#c6a15c)!important;
+  border-color:#9c762d!important;color:#6f4c0b!important;
+}
+.fqtv-cat.pps,.fqtv-pax-row.pps,.pax-fqtv-banner.pps{
+  background:linear-gradient(135deg,#eeeeee,#6b6e72)!important;
+  border-color:#45484c!important;color:#1f2327!important;
+}
+.fqtv-cat.solitaire,.fqtv-pax-row.solitaire,.pax-fqtv-banner.solitaire{
+  background:linear-gradient(135deg,#e8f1ff,#174a82)!important;
+  border-color:#123b68!important;color:#0e3158!important;
+}
+.pax-fqtv-banner{
+  border-radius:10px;padding:10px 12px;margin:8px 0 12px;
+  display:flex;justify-content:space-between;align-items:center;gap:8px
+}
+.pax-fqtv-banner b{font-size:12px}
+.pax-fqtv-banner span{font-size:9px;font-weight:850}
+
+/* One NOTES card */
+.combined-notes-card{padding:14px;margin-top:10px}
+.combined-notes-card.active{border-color:#e3bd63;background:#fffdf7}
+.combined-note-preview{display:grid;gap:5px;margin-top:7px}
+.combined-note-preview>div{
+  display:grid;grid-template-columns:120px 1fr;gap:8px;
+  padding:7px 8px;border:1px solid #e5ebf1;border-radius:7px;background:#fff
+}
+.combined-note-preview b{font-size:8px}
+.combined-note-preview span{font-size:8px;overflow-wrap:anywhere}
+.notes-modal-section{display:grid;gap:7px;margin-top:9px}
+.notes-modal-heading{font-size:10px;font-weight:1000;color:#52677e}
+
+/* Import choice */
+.conflict-select-row.same{opacity:.82}
+.conflict-select-row.different{border-color:#efc16a!important;background:#fffaf0!important}
+
+/* Phone/tablet */
+@media(max-width:1100px){
+  .class-columns-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:680px){
+  .booked-classes-layout.unified-booked-layout{grid-template-columns:1fr!important}
+  .class-columns-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+  .class-booked-panel{min-height:155px;padding:9px 6px}
+  .class-booked-panel .num{font-size:29px}
+  .class-meal-panel{min-height:126px;padding:8px 6px}
+  .meal-inline-stats{grid-template-columns:1fr 1fr}
+  .combined-note-preview>div{grid-template-columns:1fr}
+}
+@media(max-width:430px){
+  .class-columns-grid{grid-template-columns:1fr}
+}
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
@@ -5060,6 +5200,13 @@ function openAddPrepaClass(flightIndex){
  setTimeout(()=>document.getElementById('addPrepaClassValue')?.focus(),40);
 }
 
+function classesByValue(obj,x=f()){
+ return orderedClasses(x).sort((a,b)=>{
+   const d=Number(obj?.[b]||0)-Number(obj?.[a]||0);
+   return d!==0?d:orderedClasses(x).indexOf(a)-orderedClasses(x).indexOf(b);
+ });
+}
+
 function orderedClasses(x=f()){
  const keys=Object.keys(x?.config||{});
  const rank=cls=>{
@@ -5459,6 +5606,7 @@ function saveEditingFromModal(silent=false,syncBlanks=false){
   const wch=sumKeys(['WCHR','WCHS','WCHC']); if(wch||syncBlanks)x.common.WCH=wch;
   const db=sumKeys(['BLND','DEAF']); if(db||syncBlanks)x.common.DEAF_BLND=db;
   const pet=sumKeys(['PETC','AVIH']); if(pet||syncBlanks)x.common.PET_AV=pet;
+  const group=num('GROUP'); if(group!==null)x.common.GROUP=group;
   const staff=x.airline==='SQ'
     ?sumKeys(['BOOKABLE STAFF','REBATE STAFF'])
     :sumKeys(['BOOKABLE STAFF','REBATE STAFF','DUTY STAFF']);
@@ -6919,28 +7067,46 @@ function cancelPrepaImport(){
  modalBack();
  setTimeout(()=>editingFeedback('INJECTION ANNULÉE. AUCUNE DONNÉE MODIFIÉE.','warn'),30);
 }
-function showPrepaConflictPopup(values,conflicts){
- PREPA_PENDING_INJECTION={values,conflicts};
- showModal('DONNÉES DÉJÀ PRÉSENTES','CHOISIS CHAMP PAR CHAMP CE QUE TU VEUX ÉCRASER',`
+function showPrepaConflictPopup(values,conflicts=[]){
+ const rows=Object.entries(values||{}).map(([selector,next])=>{
+   const el=document.querySelector(selector);
+   const current=String(el?.value||'').trim();
+   const isDifferent=current!=='' && current!==String(next).trim();
+   const isDefaultZero=(el?.dataset?.edBooking && current==='0');
+   return {
+     selector,
+     label:prepaSelectorLabel(selector),
+     current:current||'VIDE',
+     next,
+     isDifferent,
+     checked: current==='' || isDefaultZero || !isDifferent
+   };
+ });
+
+ PREPA_PENDING_INJECTION={values,conflicts:rows};
+
+ showModal('IMPORT PREPA · CHOIX','CONSERVER OU ÉCRASER CHAMP PAR CHAMP',`
   <div class="conflict-box">
    <div class="conflict-summary">
-     ${conflicts.length} INFORMATION${conflicts.length>1?'S':''} DIFFÉRENTE${conflicts.length>1?'S':''}.
-     <br><small>CASE COCHÉE = ÉCRASER · CASE VIDE = CONSERVER</small>
+     ${rows.length} INFORMATION${rows.length>1?'S':''} DÉTECTÉE${rows.length>1?'S':''}.
+     <br><small>✓ = IMPORTER / ÉCRASER · VIDE = CONSERVER LA VALEUR ACTUELLE</small>
    </div>
+
    <div class="conflict-list">
-    ${conflicts.map(c=>`
-      <label class="conflict-row conflict-select-row">
-       <input type="checkbox" data-conflict-overwrite="${c.selector}">
+    ${rows.map(c=>`
+      <label class="conflict-row conflict-select-row ${c.isDifferent?'different':'same'}">
+       <input type="checkbox" data-conflict-overwrite="${c.selector}" ${c.checked?'checked':''}>
        <div>
         <b>${c.label}</b>
-        <span class="old">CONSERVER : ${c.current}</span>
-        <span class="new">IMPORTER : ${c.next}</span>
+        <span class="old">ACTUEL : ${c.current}</span>
+        <span class="new">IMPORT : ${c.next}</span>
        </div>
       </label>`).join('')}
    </div>
+
    <div class="conflict-actions">
     <button class="keep" onclick="applyPrepaImport('keep')">TOUT CONSERVER</button>
-    <button class="overwrite" onclick="document.querySelectorAll('[data-conflict-overwrite]').forEach(x=>x.checked=true)">TOUT COCHER</button>
+    <button class="overwrite" onclick="document.querySelectorAll('[data-conflict-overwrite]').forEach(x=>x.checked=true)">TOUT ÉCRASER</button>
     <button class="primary" onclick="applyPrepaImport('selected')">APPLIQUER LE CHOIX</button>
     <button class="cancel" onclick="cancelPrepaImport()">ANNULER</button>
    </div>
@@ -6978,7 +7144,11 @@ function injectPrepaRawText(airline){
     }
   });
 
-  if(conflicts.length){showPrepaConflictPopup(values,conflicts);return}
+  // V48.13 : toujours afficher le choix avant d'écrire des champs importés.
+  if(entries.length){
+    showPrepaConflictPopup(values,conflicts);
+    return;
+  }
   PREPA_PENDING_INJECTION={values};
   applyPrepaImport('overwrite');
  }catch(e){
@@ -7141,18 +7311,22 @@ function renderPrepa(){
    const lead=PREPA_RULES[x.airline];
    if(!lead)return;
 
-   const departureDate=addDaysISO(selectedDate,lead);
+   const normalDeparture=addDaysISO(selectedDate,lead);
+   const departureDates=(x.airline==='SQ')
+     ? [...new Set([normalDeparture,selectedDate])]
+     : [normalDeparture];
 
-   // Si le vol provient d'un import daté, il n'apparait que sur la bonne prépa.
-   // Cela supprime les répétitions du même vol provenant de plusieurs jours d'import.
-   if(x.date && String(x.date)!==String(departureDate))return;
+   departureDates.forEach(departureDate=>{
+     if(x.date && String(x.date)!==String(departureDate))return;
 
-   const uniqueKey=[x.airline,x.flight,departureDate].join('|');
-   if(seen.has(uniqueKey))return;
-   seen.add(uniqueKey);
+     const effectiveLead=departureDate===selectedDate?0:lead;
+     const uniqueKey=[x.airline,x.flight,departureDate].join('|');
+     if(seen.has(uniqueKey))return;
+     seen.add(uniqueKey);
 
-   const key=prepaKey(x.flight,departureDate),state=PREPA_STATE[key]||null;
-   items.push({x,i,lead,departureDate,key,state});
+     const key=prepaKey(x.flight,departureDate),state=PREPA_STATE[key]||null;
+     items.push({x,i,lead:effectiveLead,departureDate,key,state});
+   });
  });
 
  items.sort((a,b)=>parseHM(a.x.std)-parseHM(b.x.std)||a.x.flight.localeCompare(b.x.flight));
@@ -7173,7 +7347,7 @@ function renderPrepa(){
     ${items.map(r=>`
      <div class="prepa-row">
       <div>${airlineLogo(r.x.airline)}</div>
-      <div><div class="home-flight">${r.x.flight}</div><div class="prepa-rule">PRÉPA J+${r.lead}</div></div>
+      <div><div class="home-flight">${r.x.flight}</div><div class="prepa-rule">${r.lead===0?'VOL DU JOUR':`PRÉPA J+${r.lead}`}</div></div>
       <div><div class="home-route">${r.x.dep} → ${r.x.dest}</div><div class="home-sub">${r.x.aircraft}</div></div>
       <div><div class="prepa-date">${formatDateShort(selectedDate)}</div><div class="prepa-rule">DATE PRÉPA</div></div>
       <div><div class="prepa-departure">${formatDateShort(r.departureDate)}</div><div class="prepa-rule">DÉPART</div></div>
@@ -7280,7 +7454,6 @@ function render(){
    ${simpleKpi('ETK',icons.etk,x.etk,'blue',()=>openCommon('ETK'))}
  </section>
 
- ${mealsSection()}
 
  <section class="middle">
    <div class="card booked-classes-card">
@@ -7288,10 +7461,12 @@ function render(){
       <span>BOOKED / CLASSES ⓘ</span>
       <button class="view-list" onclick="openBooked('name')">VOIR LA LISTE 👁</button>
     </div>
-    <div class="booked-classes-layout">
+    <div class="booked-classes-layout unified-booked-layout">
       <div>
-        <div class="classes-grid">${classes.map(k=>classCard(k)).join('')}</div>
-        <div class="class-help">CLIQUEZ SUR LE NOMBRE POUR MODIFIER<br><b>CLIQUEZ SUR L'ŒIL POUR VOIR LA LISTE DES PASSAGERS</b></div>
+        <div class="class-columns-grid" style="--class-count:${Math.min(classes.length,4)}">
+          ${classes.map(k=>classBookedMealColumn(k)).join('')}
+        </div>
+        <div class="class-help">BOOKED EN HAUT · MEALS EN DESSOUS · CLIQUEZ SUR LE NOMBRE BOOKED POUR MODIFIER</div>
       </div>
       <div class="booked-summary">
         <div class="booked-summary-head">
@@ -7321,6 +7496,7 @@ function render(){
   ${commonTile('UMNR','UMNR')}
   ${commonTile('MAAS','MAAS')}
   ${mealSummaryTile()}
+  ${commonTile('GROUP','GROUP')}
   ${commonTile('VIP','IMPT/HCIP/VIP/VVIP')}
   ${commonTile('EMD','EMD')}
   ${commonTile('ETK','ETK')}
@@ -7333,8 +7509,7 @@ function render(){
  <section class="bottom">
    ${flightTable('INBOUND',x.inbound,true)}
    ${flightTable('OUTBOUND',x.outbound,false)}
-   ${prepaNoteSection()}
-   ${notesTable()}
+   ${combinedNotesSection()}
  </section>`;
  updateClocks();
 }
@@ -7581,6 +7756,34 @@ function openOverbookAlert(){
   </div>`);
 }
 
+function classBookedMealColumn(k){
+ const x=f();
+ const n=Number(x.booked?.[k]||0);
+ const av=classAvailableValue(k);
+ const loaded=Number(x.meals?.[k]||0);
+ const remaining=loaded-n;
+ const cls=String(k).toLowerCase();
+
+ return `<div class="class-column ${cls}">
+   <div class="class-booked-panel">
+     <div class="c-head">CLASSE ${k}</div>
+     <button class="num" onclick="openClassEdit('${k}')">${n}</button>
+     <div class="class-availability ${classAvailableState(av)}"><span class="mini-dot"></span>DISPO ${av>=0?'+':''}${av}</div>
+     <button class="eye" onclick="openClass('${k}')">VOIR LES PAX 👁</button>
+   </div>
+   ${(x.airline==='TK'||x.airline==='SQ')?`
+   <div class="class-meal-panel">
+     <div class="meal-inline-title"><span>🍽️ MEAL</span><small>CHARGÉ</small></div>
+     <input class="meal-input" type="number" min="0" inputmode="numeric"
+       value="${loaded}" onchange="updateMealCount('${k}',this.value)">
+     <div class="meal-inline-stats">
+       <span>BOOKED <b>${n}</b></span>
+       <span>RESTE <b class="${mealRemainingClassName(remaining)}">${remaining>=0?'+':''}${remaining}</b></span>
+     </div>
+   </div>`:''}
+ </div>`;
+}
+
 function classCard(k){
  const n=f().booked[k]||0, cls=k.toLowerCase(),av=classAvailableValue(k);
  return `<div class="class-card ${cls}">
@@ -7647,7 +7850,7 @@ function openFqtvCategories(){
  showModal(`FQTV · ${arr.length}`,x.flight,`
    <div class="meal-category-list">
      ${order.filter(cat=>groups[cat]?.length).map(cat=>`
-       <button class="meal-category-row" onclick="openFqtvPassengerList('${cat}')">
+       <button class="meal-category-row fqtv-cat ${cat.toLowerCase()}" onclick="openFqtvPassengerList('${cat}')">
          <span>${cat}</span><b>${groups[cat].length}</b><small>VOIR LES PASSAGERS</small>
        </button>`).join('')||'<div class="prepa-empty">AUCUN FQTV IMPORTÉ</div>'}
    </div>
@@ -7662,7 +7865,7 @@ function openFqtvPassengerList(cat){
  showModal(`FQTV · ${cat}`,x.flight,`
    <div class="meal-passenger-list">
      ${match.length?match.map((p,i)=>`
-       <button class="meal-passenger-row" onclick="openPaxFromModal(${i})">
+       <button class="meal-passenger-row fqtv-pax-row ${cat.toLowerCase()}" onclick="openPaxFromModal(${i})">
          <div>
            <strong>${p.name||'PASSAGER'}</strong>
            <span>${p.seat||'—'} · CL ${p.class||'—'}</span>
@@ -8061,31 +8264,65 @@ function openMealPassengerList(code){
 }
 
 
-function prepaNoteSection(){
+function combinedNotesSection(){
  const x=f(),c=x.prepaComments||x.prepaEditing?.comments||{};
- const rows=[
+ const prepRows=[
    ['FIRST / BUSINESS',c.business],
    ['PREMIUM',c.premium],
    ['ECONOMY',c.economy],
    ['QUICK RAMP',c.quickRamp]
  ].filter(([,v])=>String(v||'').trim());
 
- const active=rows.length>0;
- return `<div class="card prepa-note-card ${active?'active':''}">
-   <div class="prepa-note-title">
-     <span>NOTE ${active?`<span class="note-bell active" title="NOTE PREPA ACTIVE">🔔</span>`:''}</span>
-     <small>${active?`${rows.length} NOTE${rows.length>1?'S':''} ACTIVE${rows.length>1?'S':''}`:'COMMENTS PREPA'}</small>
+ const paxNotes=passengerNotesForCurrentFlight();
+ const total=prepRows.length+paxNotes.length;
+ const active=total>0;
+
+ return `<div class="card combined-notes-card ${active?'active':''}">
+   <div class="table-title combined-notes-title">
+     <span>NOTES ${active?'<span class="note-bell active">🔔</span>':''}</span>
+     <button onclick="openCombinedNotes()">VOIR LES NOTES 👁</button>
    </div>
-   ${rows.length?`
-     <div class="prepa-note-list">
-       ${rows.map(([label,value])=>`
-         <div class="prepa-note-row">
-           <b>${label}</b>
-           <span>${String(value).replace(/</g,'&lt;').replace(/>/g,'&gt;')}</span>
-         </div>`).join('')}
-     </div>
-   `:'<div class="prepa-empty">AUCUN COMMENTAIRE PREPA</div>'}
+   ${prepRows.length?`
+     <div class="combined-note-preview">
+       ${prepRows.slice(0,2).map(([label,value])=>`
+         <div><b>${label}</b><span>${String(value).replace(/</g,'&lt;').replace(/>/g,'&gt;')}</span></div>
+       `).join('')}
+     </div>`:''}
+   ${paxNotes.length?`
+     <div class="combined-note-preview passenger">
+       ${paxNotes.slice(0,2).map(n=>`<div><b>${n.name||n.pnr||'PASSAGER'}</b><span>${n.note}</span></div>`).join('')}
+     </div>`:''}
+   ${!active?'<div class="note-empty">AUCUNE NOTE</div>':''}
  </div>`;
+}
+
+function openCombinedNotes(){
+ const x=f(),c=x.prepaComments||x.prepaEditing?.comments||{};
+ const prepRows=[
+   ['FIRST / BUSINESS',c.business],
+   ['PREMIUM',c.premium],
+   ['ECONOMY',c.economy],
+   ['QUICK RAMP',c.quickRamp]
+ ].filter(([,v])=>String(v||'').trim());
+ const paxNotes=passengerNotesForCurrentFlight();
+
+ showModal('NOTES',x.flight,`
+   ${prepRows.length?`
+     <div class="notes-modal-section">
+       <div class="notes-modal-heading">COMMENTS PREPA</div>
+       ${prepRows.map(([label,value])=>`
+         <div class="prepa-note-row"><b>${label}</b><span>${String(value).replace(/</g,'&lt;').replace(/>/g,'&gt;')}</span></div>
+       `).join('')}
+     </div>`:''}
+   ${paxNotes.length?`
+     <div class="notes-modal-section">
+       <div class="notes-modal-heading">NOTES PASSAGERS</div>
+       <div class="notes-preview">
+         ${paxNotes.map(n=>`<div class="note-preview-row" onclick="openNoteFromList('${encodeURIComponent(n.key)}')"><b>${n.name||n.pnr||'PASSAGER'} · ${n.pnr||'—'}</b><span>${n.note}</span></div>`).join('')}
+       </div>
+     </div>`:''}
+   ${!prepRows.length&&!paxNotes.length?'<div class="note-empty">AUCUNE NOTE</div>':''}
+ `);
 }
 
 function staffTable(){
@@ -8334,7 +8571,7 @@ function samplePaxForClass(cls,count){
 function openClass(k){showPax('CLASSE '+k,samplePaxForClass(k,f().booked[k]||0),f().booked[k]||0)}
 
 function openBookedEdit(){
- const x=f(),classes=orderedClasses(x);
+ const x=f(),classes=classesByValue(x.booked,x);
  showModal('MODIFIER BOOKED',x.flight,`
    <div class="booked-edit-modal">
      <div class="booked-edit-grid">
@@ -8377,7 +8614,7 @@ async function saveBookedEdit(){
 function openBooked(sort='name'){
  let items=(f().passengers||[]).slice();
  if(!items.length)orderedClasses(f()).forEach(k=>items.push(...samplePaxForClass(k,f().booked[k]||0)));
- if(sort==='class')items.sort((a,b)=>a.class.localeCompare(b.class)||a.seat.localeCompare(b.seat));
+ if(sort==='class')items.sort((a,b)=>(Number(f().booked?.[b.class]||0)-Number(f().booked?.[a.class]||0))||a.class.localeCompare(b.class)||a.seat.localeCompare(b.seat));
  else if(sort==='seat')items.sort((a,b)=>a.seat.localeCompare(b.seat,undefined,{numeric:true}));
  else items.sort((a,b)=>a.name.localeCompare(b.name));
  const bar=`<div class="sortbar"><button class="${sort==='class'?'active':''}" onclick="openBooked('class')">CLASSE</button><button class="${sort==='seat'?'active':''}" onclick="openBooked('seat')">SIÈGE</button><button class="${sort==='name'?'active':''}" onclick="openBooked('name')">NOM</button></div>`;
@@ -8448,7 +8685,12 @@ function savePassengerNote(p){
 
 function openPax(p){
  const savedNote=getPassengerNote(p);
+ const fqCat=fqtvCategoryForPassenger(p);
+ const fqHtml=(p.fqtv&&fqCat!=='AUTRES')
+   ?`<div class="pax-fqtv-banner ${fqCat.toLowerCase()}"><b>${fqCat}</b><span>${p.fqtv.status||''}${p.fqtv.number?` · ${p.fqtv.number}`:''}</span></div>`
+   :'';
  showModal(p.name,f().flight,`
+  ${fqHtml}
   <div class="profile">
    <div><small>SIÈGE</small><b>${p.seat||'—'}</b></div>
    <div><small>CLASSE</small><b>${p.class||'—'}</b></div>
