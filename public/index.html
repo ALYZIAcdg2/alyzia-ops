@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V49.9 · Fast Sync + Keypad + STD/STA</title>
+<title>ALYZIA OPS - V49.10 · Correctif Import PREPA</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -4794,12 +4794,12 @@ html,body{
 }
 
 
-/* V49.9 — synchro silencieuse */
+/* V49.10 — synchro silencieuse */
 .ops-cloud-status.ok::before{content:'●';margin-right:5px;color:#0aa56b}
 
 
 /* =========================================================
-   V49.9 — full sync / refresh / upgrade / numeric / WEB gauge
+   V49.10 — full sync / refresh / upgrade / numeric / WEB gauge
    ========================================================= */
 .top-sync-btn{
  width:31px;height:31px;min-width:31px;border:1px solid #d5e0ea;border-radius:9px;
@@ -4851,14 +4851,14 @@ html,body{
 }
 
 
-/* V49.9 — UPGRADE calculation */
+/* V49.10 — UPGRADE calculation */
 .upgrade-formula-note{
  padding:7px 9px;border:1px solid #dce7f1;border-radius:7px;background:#f8fbfe;
  font-size:7px;font-weight:900;color:#60768c;text-align:center
 }
 
 
-/* V49.9 — D1 live consistency + tablet digits keypad */
+/* V49.10 — D1 live consistency + tablet digits keypad */
 .tablet-numeric-pad{
  display:none;
  position:fixed;
@@ -4895,7 +4895,7 @@ html,body{
 }
 
 
-/* V49.9 */
+/* V49.10 */
 .config-cap-input{
  width:100%;
  font-variant-numeric:tabular-nums;
@@ -5089,7 +5089,7 @@ async function patchFlightToCloud(identity,patch){
    }
    throw new Error(data?.error||'PATCH REFUSÉ');
  }catch(e){
-   console.warn('V49.9 CLOUD PATCH',e);
+   console.warn('V49.10 CLOUD PATCH',e);
    return null;
  }
 }
@@ -6045,10 +6045,10 @@ function saveEditingFromModal(silent=false,syncBlanks=false){
    extra:{},
    savedAt:new Date().toISOString()
   };
-  document.querySelectorAll('[inputmode="numeric" pattern="[0-9]*" data-ed-config]').forEach(el=>data.config[el.dataset.edConfig]=el.value);
-  document.querySelectorAll('[inputmode="numeric" pattern="[0-9]*" data-ed-booking]').forEach(el=>data.booking[el.dataset.edBooking]=el.value);
-  document.querySelectorAll('[inputmode="numeric" pattern="[0-9]*" data-ed-meal]').forEach(el=>data.meals[el.dataset.edMeal]=el.value);
-  document.querySelectorAll('[inputmode="numeric" pattern="[0-9]*" data-ed-part]').forEach(el=>data.particularities[el.dataset.edPart]=el.value);
+  document.querySelectorAll('[data-ed-config]').forEach(el=>data.config[el.dataset.edConfig]=el.value);
+  document.querySelectorAll('[data-ed-booking]').forEach(el=>data.booking[el.dataset.edBooking]=el.value);
+  document.querySelectorAll('[data-ed-meal]').forEach(el=>data.meals[el.dataset.edMeal]=el.value);
+  document.querySelectorAll('[data-ed-part]').forEach(el=>data.particularities[el.dataset.edPart]=el.value);
   document.querySelectorAll('[data-ed-extra]').forEach(el=>data.extra[el.dataset.edExtra]=el.value);
 
   const store=loadEditingStore();
@@ -6257,7 +6257,7 @@ function prepaPartPrintQty(airline,data,p){
 }
 
 function escHtml(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
-function editingSnapshot(){const idx=Number(document.getElementById('editingFlightIndex')?.value),x=FLIGHTS[idx];if(!x)return null;const data={flight:v('edFlight'),date:v('edDate'),reg:v('edReg'),std:v('edStd'),sta:v('edSta'),parking:v('edParking'),gate:v('edGate'),type:v('edType'),config:{},booking:{},meals:{},particularities:{},comments:{business:v('edBusiness'),premium:v('edPremium'),economy:v('edEconomy'),quickRamp:v('edQuickRamp')}};document.querySelectorAll('[inputmode="numeric" pattern="[0-9]*" data-ed-config]').forEach(el=>data.config[el.dataset.edConfig]=el.value);document.querySelectorAll('[inputmode="numeric" pattern="[0-9]*" data-ed-booking]').forEach(el=>data.booking[el.dataset.edBooking]=el.value);document.querySelectorAll('[inputmode="numeric" pattern="[0-9]*" data-ed-meal]').forEach(el=>data.meals[el.dataset.edMeal]=el.value);document.querySelectorAll('[inputmode="numeric" pattern="[0-9]*" data-ed-part]').forEach(el=>data.particularities[el.dataset.edPart]=el.value);data.extra={};document.querySelectorAll('[data-ed-extra]').forEach(el=>data.extra[el.dataset.edExtra]=el.value);return{x,data,classes:orderedClasses(x)}}
+function editingSnapshot(){const idx=Number(document.getElementById('editingFlightIndex')?.value),x=FLIGHTS[idx];if(!x)return null;const data={flight:v('edFlight'),date:v('edDate'),reg:v('edReg'),std:v('edStd'),sta:v('edSta'),parking:v('edParking'),gate:v('edGate'),type:v('edType'),config:{},booking:{},meals:{},particularities:{},comments:{business:v('edBusiness'),premium:v('edPremium'),economy:v('edEconomy'),quickRamp:v('edQuickRamp')}};document.querySelectorAll('[data-ed-config]').forEach(el=>data.config[el.dataset.edConfig]=el.value);document.querySelectorAll('[data-ed-booking]').forEach(el=>data.booking[el.dataset.edBooking]=el.value);document.querySelectorAll('[data-ed-meal]').forEach(el=>data.meals[el.dataset.edMeal]=el.value);document.querySelectorAll('[data-ed-part]').forEach(el=>data.particularities[el.dataset.edPart]=el.value);data.extra={};document.querySelectorAll('[data-ed-extra]').forEach(el=>data.extra[el.dataset.edExtra]=el.value);return{x,data,classes:orderedClasses(x)}}
 
 function twPrintHtml(s){
  const {x,data}=s,e=data.extra||{};
@@ -7412,8 +7412,8 @@ function collectSqGenericReport(rawOriginal){
      counts[c]=Number(n)||0; return _;
    });
    Object.entries(counts).forEach(([c,n])=>{
-     if(document.querySelector(`[inputmode="numeric" pattern="[0-9]*" data-ed-booking="${c}"]`)){
-       put(`[inputmode="numeric" pattern="[0-9]*" data-ed-booking="${c}"]`,n);
+     if(document.querySelector(`[data-ed-booking="${c}"]`)){
+       put(`[data-ed-booking="${c}"]`,n);
      }
    });
  }
@@ -7445,17 +7445,17 @@ function collectPrepaImport(rawOriginal,airline){
  put('#edStd',first([/\bSTD(?:\s*\([A-Z]{3}\))?\s*[:#=-]?\s*([0-2]?\d(?:[:H.]?\d{2}))/]),cleanImportedTime);
  put('#edSta',first([/\bSTA(?:\s*\([A-Z]{3}\))?\s*[:#=-]?\s*([0-2]?\d(?:[:H.]?\d{2}))/]),cleanImportedTime);
 
- const classes=[...document.querySelectorAll('[inputmode="numeric" pattern="[0-9]*" data-ed-config]')].map(el=>el.dataset.edConfig);
+ const classes=[...document.querySelectorAll('[data-ed-config]')].map(el=>el.dataset.edConfig);
  classes.forEach(k=>{
   const esc=k.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
   const findClass=(section)=>{
    const m=raw.match(new RegExp(`${section}[\\s\\S]{0,140}?\\b${esc}\\b\\s*[/=: -]?\\s*(\\d{1,3})`,'i'));
    return m?m[1]:null;
   };
-  put(`[inputmode="numeric" pattern="[0-9]*" data-ed-config="${k}"]`,findClass('CONFIG(?:URATION)?'));
+  put(`[data-ed-config="${k}"]`,findClass('CONFIG(?:URATION)?'));
   const compactBooking=raw.match(new RegExp(`PDF-VBCPLIST[^\\n\\r]{0,180}?\\b${esc}\\s*(\\d{1,3})\\b`,'i'));
-  put(`[inputmode="numeric" pattern="[0-9]*" data-ed-booking="${k}"]`,compactBooking?compactBooking[1]:findClass('BOOKING|BOOKED'));
-  put(`[inputmode="numeric" pattern="[0-9]*" data-ed-meal="${k}"]`,findClass('MEALS?'));
+  put(`[data-ed-booking="${k}"]`,compactBooking?compactBooking[1]:findClass('BOOKING|BOOKED'));
+  put(`[data-ed-meal="${k}"]`,findClass('MEALS?'));
  });
 
  document.querySelectorAll('[data-ed-extra]').forEach(el=>{
@@ -7466,7 +7466,7 @@ function collectPrepaImport(rawOriginal,airline){
    if(m && m[1] && !/^(START|END)$/i.test(m[1].trim()))put(`[data-ed-extra="${el.dataset.edExtra}"]`,m[1].trim());
  });
 
- document.querySelectorAll('[inputmode="numeric" pattern="[0-9]*" data-ed-part]').forEach(el=>{
+ document.querySelectorAll('[data-ed-part]').forEach(el=>{
   const label=el.dataset.edPart;
 
   // SQ: these quantities must be counts of passengers, never ages/details
@@ -7487,7 +7487,7 @@ function collectPrepaImport(rawOriginal,airline){
     });
     if(found)m=[null,String(sum)];
   }
-  if(m)put(`[inputmode="numeric" pattern="[0-9]*" data-ed-part="${label}"]`,m[1]);
+  if(m)put(`[data-ed-part="${label}"]`,m[1]);
  });
 
  const commentBlock=(label,next)=>{
@@ -7534,25 +7534,25 @@ function applyAcceptedImportToEditingModel(accepted){
  Object.entries(accepted||{}).forEach(([selector,value])=>{
    let m;
 
-   if((m=selector.match(/^\[inputmode="numeric" pattern="[0-9]*" data-ed-config="([^"]+)"\]$/))){
+   if((m=selector.match(/^\[data-ed-config="([^"]+)"\]$/))){
      d.config[m[1]]=String(value);
      const n=Number(value);
      if(Number.isFinite(n))x.config[m[1]]=n;
      return;
    }
-   if((m=selector.match(/^\[inputmode="numeric" pattern="[0-9]*" data-ed-booking="([^"]+)"\]$/))){
+   if((m=selector.match(/^\[data-ed-booking="([^"]+)"\]$/))){
      d.booking[m[1]]=String(value);
      const n=Number(value);
      if(Number.isFinite(n))x.booked[m[1]]=n;
      return;
    }
-   if((m=selector.match(/^\[inputmode="numeric" pattern="[0-9]*" data-ed-meal="([^"]+)"\]$/))){
+   if((m=selector.match(/^\[data-ed-meal="([^"]+)"\]$/))){
      d.meals[m[1]]=String(value);
      const n=Number(value);
      if(Number.isFinite(n))x.meals[m[1]]=n;
      return;
    }
-   if((m=selector.match(/^\[inputmode="numeric" pattern="[0-9]*" data-ed-part="([^"]+)"\]$/))){
+   if((m=selector.match(/^\[data-ed-part="([^"]+)"\]$/))){
      d.particularities[m[1]]=String(value);
      return;
    }
@@ -7897,7 +7897,7 @@ function clearPrepaEditing(){
  document.getElementById('edDate').value=keepDate;
  const fixed=prepaSqFixedConfig(x.flight);
  if(x.airline==='SQ'&&fixed){
-   Object.entries(fixed).forEach(([k,val])=>{const el=document.querySelector(`[inputmode="numeric" pattern="[0-9]*" data-ed-config="${k}"]`);if(el)el.value=val});
+   Object.entries(fixed).forEach(([k,val])=>{const el=document.querySelector(`[data-ed-config="${k}"]`);if(el)el.value=val});
  }
  editingFeedback('EDITING EFFACÉ. VOL ET DATE CONSERVÉS'+(x.airline==='SQ'?' · CONFIG SQ CONSERVÉE.':''),'info');
 }
@@ -8172,7 +8172,7 @@ function companyConfigSystemRecord(){
 function syncCompanyConfigFromFlights(records){
  let latest=null;
 
- // V49.9 preferred source: one dedicated D1 system record.
+ // V49.10 preferred source: one dedicated D1 system record.
  const sys=(records||[]).find(isCompanyConfigSystemRecord);
  if(sys?._companyConfigBundle){
    latest={
@@ -8996,12 +8996,12 @@ function openWebAllEdit(){
 }
 function updateWebAllTotal(){
  let total=0;
- document.querySelectorAll('[inputmode="numeric" pattern="[0-9]*" data-web-all]').forEach(el=>total+=Math.max(0,parseInt(el.value||'0',10)||0));
+ document.querySelectorAll('[data-web-all]').forEach(el=>total+=Math.max(0,parseInt(el.value||'0',10)||0));
  const t=document.getElementById('webAllTotal');if(t)t.textContent=total;
 }
 function saveWebAllEdit(){
  const x=f();if(!x.web)x.web={};
- document.querySelectorAll('[inputmode="numeric" pattern="[0-9]*" data-web-all]').forEach(el=>{
+ document.querySelectorAll('[data-web-all]').forEach(el=>{
    x.web[el.dataset.webAll]=Math.max(0,parseInt(el.value||'0',10)||0);
  });
  closeModal();render();persistFlightAction('WEB',true);
@@ -10260,7 +10260,7 @@ function openBookedEdit(){
 }
 function updateBookedEditTotal(){
  let total=0;
- document.querySelectorAll('[inputmode="numeric" pattern="[0-9]*" data-booked-edit]').forEach(el=>{
+ document.querySelectorAll('[data-booked-edit]').forEach(el=>{
    total+=Math.max(0,parseInt(el.value||'0',10)||0);
  });
  const t=document.getElementById('bookedEditTotal');
@@ -10268,7 +10268,7 @@ function updateBookedEditTotal(){
 }
 async function saveBookedEdit(){
  const x=f();
- document.querySelectorAll('[inputmode="numeric" pattern="[0-9]*" data-booked-edit]').forEach(el=>{
+ document.querySelectorAll('[data-booked-edit]').forEach(el=>{
    x.booked[el.dataset.bookedEdit]=Math.max(0,parseInt(el.value||'0',10)||0);
  });
  markManualFields(x,'booked','Booked modifié');
@@ -10410,7 +10410,7 @@ async function confirmClearAllFlights(){await confirmFullReset()}
 
 
 /* =========================================================
-   V49.9 — SYNCHRONISATION SILENCIEUSE MULTI-POSTES
+   V49.10 — SYNCHRONISATION SILENCIEUSE MULTI-POSTES
    ========================================================= */
 const OPS_REALTIME_INTERVAL_VISIBLE=2500;
 const OPS_REALTIME_INTERVAL_HIDDEN=8000;
@@ -11653,12 +11653,30 @@ function updateClocks(){
  const dc=document.getElementById('depClock'),ac=document.getElementById('arrClock');if(dc)dc.textContent=liveFor(f().dep);if(ac)ac.textContent=liveFor(f().dest)
 }
 
+
+function repairNumericPrepaInputs(root=document){
+ try{
+   root.querySelectorAll(
+     '[data-booked-edit],[data-web-all],[data-ed-config],[data-ed-booking],[data-ed-meal],[data-ed-part],.meal-input,.compact-meal-input,.config-cap-input,#upgradeManualInput'
+   ).forEach(el=>{
+     if(el.tagName!=='INPUT')return;
+     el.type='number';
+     el.setAttribute('inputmode','numeric');
+     el.setAttribute('pattern','[0-9]*');
+     el.setAttribute('min','0');
+     el.setAttribute('step','1');
+   });
+ }catch(e){
+   console.warn('REPAIR NUMERIC PREPA INPUTS',e);
+ }
+}
+
 function enforceOperationalKeyboards(root=document){
  try{
    // Champs qui ne doivent contenir QUE des nombres :
    // clavier numérique sur mobile/tablette.
    root.querySelectorAll(
-     'input[inputmode="numeric" pattern="[0-9]*" data-booked-edit],input[inputmode="numeric" pattern="[0-9]*" data-web-all],input[inputmode="numeric" pattern="[0-9]*" data-ed-config],input[inputmode="numeric" pattern="[0-9]*" data-ed-booking],input[inputmode="numeric" pattern="[0-9]*" data-ed-meal],input[inputmode="numeric" pattern="[0-9]*" data-ed-part],.meal-input,.compact-meal-input,#upgradeManualInput'
+     'input[data-booked-edit],input[data-web-all],input[data-ed-config],input[data-ed-booking],input[data-ed-meal],input[data-ed-part],.meal-input,.compact-meal-input,#upgradeManualInput'
    ).forEach(el=>{
      el.type='number';
      el.setAttribute('inputmode','numeric');
@@ -11668,7 +11686,7 @@ function enforceOperationalKeyboards(root=document){
    });
 
    // Les autres champs restent en clavier standard lettres + chiffres.
-   root.querySelectorAll('input:not([inputmode="numeric" pattern="[0-9]*" data-booked-edit]):not([inputmode="numeric" pattern="[0-9]*" data-web-all]):not([inputmode="numeric" pattern="[0-9]*" data-ed-config]):not([inputmode="numeric" pattern="[0-9]*" data-ed-booking]):not([inputmode="numeric" pattern="[0-9]*" data-ed-meal]):not([inputmode="numeric" pattern="[0-9]*" data-ed-part]):not(.meal-input):not(.compact-meal-input):not(.config-cap-input):not(#upgradeManualInput)').forEach(el=>{
+   root.querySelectorAll('input:not([data-booked-edit]):not([data-web-all]):not([data-ed-config]):not([data-ed-booking]):not([data-ed-meal]):not([data-ed-part]):not(.meal-input):not(.compact-meal-input):not(.config-cap-input):not(#upgradeManualInput)').forEach(el=>{
      if(el.dataset.forceNumeric==='1')return;
      if(el.type==='number')el.type='text';
      if(el.getAttribute('inputmode')==='numeric')el.setAttribute('inputmode','text');
@@ -11678,11 +11696,11 @@ function enforceOperationalKeyboards(root=document){
 }
 const operationalKeyboardObserver=new MutationObserver(muts=>{
  muts.forEach(m=>m.addedNodes.forEach(n=>{
-   if(n.nodeType===1)enforceOperationalKeyboards(n);
+   if(n.nodeType===1){enforceOperationalKeyboards(n);repairNumericPrepaInputs(n);}
  }));
 });
 operationalKeyboardObserver.observe(document.documentElement,{childList:true,subtree:true});
-setTimeout(()=>enforceOperationalKeyboards(document),50);
+setTimeout(()=>{enforceOperationalKeyboards(document);repairNumericPrepaInputs(document)},50);
 
 
 function isTouchTablet(){
