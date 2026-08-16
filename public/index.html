@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V49.3 · Real-Time Silent Sync</title>
+<title>ALYZIA OPS - V49.4 · Full Sync / Upgrade / SARIA</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -4794,8 +4794,61 @@ html,body{
 }
 
 
-/* V49.3 — synchro silencieuse */
+/* V49.4 — synchro silencieuse */
 .ops-cloud-status.ok::before{content:'●';margin-right:5px;color:#0aa56b}
+
+
+/* =========================================================
+   V49.4 — full sync / refresh / upgrade / numeric / WEB gauge
+   ========================================================= */
+.top-sync-btn{
+ width:31px;height:31px;min-width:31px;border:1px solid #d5e0ea;border-radius:9px;
+ background:#fff;color:#075fc8;font-size:18px;font-weight:1000;line-height:1;
+ display:inline-flex;align-items:center;justify-content:center;cursor:pointer
+}
+.top-sync-btn.syncing{animation:syncSpin .7s linear infinite}
+@keyframes syncSpin{to{transform:rotate(360deg)}}
+
+.upgrade-kpi .kpi-title{display:flex;justify-content:space-between;gap:5px}
+.upgrade-kpi .kpi-title small{
+ font-size:6px;padding:2px 5px;border-radius:999px;background:#eef6ff;color:#075fc8
+}
+.upgrade-kpi-note{
+ font-size:6px;font-weight:850;color:#6f8194;text-align:center;padding:3px 6px 7px
+}
+.upgrade-modal{display:grid;gap:10px;margin-top:8px}
+.upgrade-auto-head{
+ display:flex;justify-content:space-between;align-items:center;gap:8px;
+ padding:10px;border:1px solid #cfe0f0;border-radius:9px;background:#f5faff
+}
+.upgrade-auto-head>div{display:grid;gap:2px}
+.upgrade-auto-head small{font-size:7px;color:#6d8297;font-weight:900}
+.upgrade-auto-head b{font-size:28px;color:#075fc8}
+.upgrade-auto-head span{font-size:8px;font-weight:900;color:#60768c}
+.upgrade-lines{display:grid;gap:6px}
+.upgrade-line{
+ display:grid;grid-template-columns:70px repeat(3,1fr) 40px;gap:5px;align-items:center;
+ border:1px solid #e0e8ef;border-radius:8px;padding:7px;background:#fff
+}
+.upgrade-line>*{font-size:7px}
+.upgrade-line b{font-size:9px}
+.upgrade-line strong{font-size:13px;text-align:right;color:#075fc8}
+.upgrade-manual-label{display:grid;gap:5px;font-size:8px;font-weight:900;color:#60758a}
+.upgrade-manual-label input{height:42px;border:1px solid #cbd8e5;border-radius:8px;padding:0 10px;font-size:18px!important;font-weight:1000}
+
+.company-part-card .particularity-actions{
+ display:grid!important;
+ grid-template-columns:34px minmax(0,1fr) 34px!important;
+ gap:4px!important
+}
+.company-part-card .part-minus,.company-part-card .part-plus{display:block!important}
+
+.kpi.web-kpi .kpi-gauge{display:block}
+
+@media(max-width:720px){
+ .top-sync-btn{width:29px;height:29px;min-width:29px;font-size:16px}
+ .upgrade-line{grid-template-columns:55px 1fr 1fr 1fr 32px}
+}
 
 </style>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -4809,7 +4862,7 @@ html,body{
    <button class="home-nav" onclick="renderHome()" title="Accueil vols">⌂</button>
    <button onclick="renderHome()">VOLS</button><button onclick="openFlightSearch()">RECHERCHE</button><button onclick="renderPrepa()">PRÉPA</button><button onclick="openTools()">OUTILS</button><button>ADMIN</button>
  </nav>
- <div class="top-right"><span class="clock">◷ <span id="topClock">--:--:--</span></span><span>🔔</span><span class="avatar">●</span><span>OPS CDG⌄</span></div>
+ <div class="top-right"><span class="clock">◷ <span id="topClock">--:--:--</span></span><button id="topSyncBtn" class="top-sync-btn" onclick="manualCloudRefreshTop()" title="Actualiser sans changer de page">↻</button><span>🔔</span><span class="avatar">●</span><span>OPS CDG⌄</span></div>
 </header>
 
 <main class="page" id="app"></main>
@@ -7973,6 +8026,55 @@ function renderPrepa(){
 }
 
 let __flightPersistTimer=null;
+
+async function cacheFlightsLocallyOnly(flights){
+ try{
+   const db=await openOpsFlightDb();
+   await new Promise((resolve,reject)=>{
+     const tx=db.transaction(OPS_FLIGHT_STORE,'readwrite');
+     tx.objectStore(OPS_FLIGHT_STORE).put(flights,OPS_FLIGHT_KEY);
+     tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);
+   });
+   db.close();
+ }catch(e){}
+ try{localStorage.setItem('alyzia_ops_imported_flights_v19',JSON.stringify(flights))}catch(e){}
+}
+
+function syncCompanyConfigFromFlights(flights){
+ let latest=null;
+ (flights||[]).forEach(x=>{
+   const ts=Date.parse(x?._companyConfigUpdatedAt||'')||0;
+   if(x?._companyConfigBundle && (!latest || ts>latest.ts)){
+     latest={ts,bundle:x._companyConfigBundle};
+   }
+ });
+ if(!latest?.bundle)return false;
+ try{
+   const incoming=latest.bundle;
+   ['TK','SQ'].forEach(a=>{
+     if(incoming[a]){
+       COMPANY_CONFIG[a]=JSON.parse(JSON.stringify(incoming[a]));
+     }
+   });
+   localStorage.setItem(COMPANY_CONFIG_KEY,JSON.stringify(COMPANY_CONFIG));
+   return true;
+ }catch(e){return false}
+}
+
+async function publishCompanyConfigToCloud(){
+ const stamp=new Date().toISOString();
+ const bundle=JSON.parse(JSON.stringify(COMPANY_CONFIG));
+ const targets=(FLIGHTS||[]).filter(x=>['TK','SQ'].includes(String(x.airline||'').toUpperCase()));
+ targets.forEach(x=>{
+   x._companyConfigBundle=bundle;
+   x._companyConfigUpdatedAt=stamp;
+ });
+ await cacheFlightsLocallyOnly(FLIGHTS);
+ if(!targets.length)return false;
+ const results=await Promise.allSettled(targets.map(x=>upsertFlightToCloud(x)));
+ return results.some(r=>r.status==='fulfilled'&&r.value===true);
+}
+
 function persistFlightAction(reason='ACTION FICHE VOL',immediate=false){
  clearTimeout(__flightPersistTimer);
  const run=async()=>{
@@ -7981,15 +8083,24 @@ function persistFlightAction(reason='ACTION FICHE VOL',immediate=false){
      if(!x)return false;
      x.lastActionAt=new Date().toISOString();
      x.lastActionReason=reason;
-     await saveImportedFlightsPersistent(FLIGHTS);
-     return true;
+
+     // Cache local immediately, but only UPSERT the current flight to D1.
+     // This prevents another workstation's newer changes on other flights
+     // from being overwritten by a stale full-list sync.
+     await cacheFlightsLocallyOnly(FLIGHTS);
+     const cloudSaved=await upsertFlightToCloud(x);
+     if(cloudSaved){
+       OPS_REALTIME_LAST_HASH=stableCloudHash(FLIGHTS);
+       setOpsCloudState(true);
+     }
+     return cloudSaved;
    }catch(e){
      console.warn('PERSIST FICHE VOL',reason,e);
      return false;
    }
  };
  if(immediate)return run();
- __flightPersistTimer=setTimeout(run,180);
+ __flightPersistTimer=setTimeout(run,120);
  return true;
 }
 
@@ -8061,7 +8172,7 @@ const COMPANY_CONFIG_DEFAULT={
      {id:'tk_all',pattern:'TK*',classes:['C','Y']}
    ],
    modules:{
-     header:true,config:true,booked:true,web:true,available:true,standby:true,
+     header:true,config:true,booked:true,upgrade:true,web:true,available:true,standby:true,
      meals:true,particularities:true,inbound:true,outbound:true,notes:true
    },
    particularities:defaultParticularityVisibility('TK')
@@ -8074,7 +8185,7 @@ const COMPANY_CONFIG_DEFAULT={
      {id:'sq_all',pattern:'SQ*',classes:['J','S','Y']}
    ],
    modules:{
-     header:true,config:true,booked:true,web:true,available:true,standby:true,
+     header:true,config:true,booked:true,upgrade:true,web:true,available:true,standby:true,
      meals:true,particularities:true,inbound:true,outbound:true,notes:true
    },
    particularities:defaultParticularityVisibility('SQ')
@@ -8252,6 +8363,7 @@ function moduleLabel(key){
    header:'EN-TÊTE VOL / HORAIRES',
    config:'CONFIGURATION / CAPACITY',
    booked:'BOOKED / CLASSES',
+   upgrade:'UPGRADE',
    web:'WEB',
    available:'AVAILABLE',
    standby:'STANDBY',
@@ -8373,6 +8485,7 @@ async function saveAirlineConfig(airline){
  COMPANY_CONFIG[airline]=cfg;
  saveCompanyConfig();
  const count=applyCompanyConfigToKnownFlights(airline);
+ publishCompanyConfigToCloud().catch(e=>console.warn('CONFIG COMPAGNIE CLOUD',e));
 
  closeModal();
  setTimeout(()=>{
@@ -8406,6 +8519,7 @@ function render(){
  x.capacity=cap;x.bookedTotal=booked;x.available=avail;x.etk=sum(x.booked);x.common.ETK=x.etk;
  const mini=o=>classes.map(k=>`<div><span>${k}</span><b>${o[k]??0}</b></div>`).join('');
  const web=x.web||{};
+ const webTotal=sum(web), webPct=booked?Math.round(webTotal/booked*100):0;
 
  document.getElementById('app').innerHTML=`
  ${companyModuleVisible(x,'header')?`<section class="card flight-head">
@@ -8457,7 +8571,8 @@ function render(){
  <section class="card kpi-strip">
    ${companyModuleVisible(x,'config')?configCapacityKpi(classes,cap):''}
    ${companyModuleVisible(x,'booked')?kpi('BOOKED',icons.booked,booked,mini(x.booked),'green',pct).replace('<div class="kpi"','<div class="kpi booked-kpi-edit" onclick="openBookedEdit()" title="MODIFIER BOOKED"'):''}
-   ${companyModuleVisible(x,'web')?kpi('WEB',icons.web,sum(web),webMiniEditable(classes),'purple').replace('<div class="kpi','<div onclick="openWebAllEdit()" style="cursor:pointer" class="kpi'):''}
+   ${companyModuleVisible(x,'upgrade')?upgradeKpi():''}
+   ${companyModuleVisible(x,'web')?kpi('WEB',icons.web,webTotal,webMiniEditable(classes),'purple',webPct).replace('<div class="kpi','<div onclick="openWebAllEdit()" style="cursor:pointer" class="kpi web-kpi'):''}
    ${companyModuleVisible(x,'available')?kpi('AVAILABLE',icons.available,avail,mini(available),'orange',pct,true):''}
    ${companyModuleVisible(x,'standby')?simpleKpi('STANDBY',icons.standby,x.standby,'cyan',()=>openSynthetic('STANDBY',x.standby)):''}
 
@@ -8724,8 +8839,93 @@ function saveWebAllEdit(){
  });
  closeModal();render();persistFlightAction('WEB',true);
 }
+
+function upgradeAutoDetails(x=f()){
+ const classes=companyClassesForFlight(x);
+ const result=[];
+ let total=0;
+ if(!classes.length)return {total:0,result,reason:'AUCUNE CLASSE'};
+
+ const anyMeal=classes.some(c=>Number(x.meals?.[c]||0)>0);
+ if(!anyMeal)return {total:0,result,reason:'REPAS NON RENSEIGNÉS'};
+
+ for(let i=0;i<classes.length-1;i++){
+   const high=classes[i],low=classes[i+1];
+   const highAvail=Math.max(0,Number(x.config?.[high]||0)-Number(x.booked?.[high]||0));
+   const lowOver=Math.max(0,Number(x.booked?.[low]||0)-Number(x.config?.[low]||0));
+   const mealSurplus=Math.max(0,Number(x.meals?.[high]||0)-Number(x.booked?.[high]||0));
+   const n=Math.max(0,Math.min(highAvail,lowOver,mealSurplus));
+   result.push({from:low,to:high,highAvail,lowOver,mealSurplus,n});
+   total+=n;
+ }
+ return {total,result,reason:''};
+}
+
+function upgradeValue(x=f()){
+ if(Number.isFinite(Number(x.upgradeManual)) && x.upgradeManual!==null && x.upgradeManual!==''){
+   return Math.max(0,Number(x.upgradeManual));
+ }
+ return upgradeAutoDetails(x).total;
+}
+
+function openUpgradeModal(){
+ const x=f(),auto=upgradeAutoDetails(x);
+ const manual=(x.upgradeManual===null||x.upgradeManual===undefined||x.upgradeManual==='')?'':Number(x.upgradeManual);
+ showModal('UPGRADE',x.flight,`
+   <div class="upgrade-modal">
+     <div class="upgrade-auto-head">
+       <div><small>CALCUL AUTO</small><b>${auto.total}</b></div>
+       <span>${auto.reason||'CONFIG + BOOKING + REPAS'}</span>
+     </div>
+     <div class="upgrade-lines">
+       ${auto.result.map(r=>`
+         <div class="upgrade-line">
+           <b>${r.from} → ${r.to}</b>
+           <span>SIÈGES ${r.highAvail}</span>
+           <span>SURBOOK ${r.lowOver}</span>
+           <span>REPAS ${r.mealSurplus}</span>
+           <strong>${r.n}</strong>
+         </div>`).join('')||'<div class="prepa-empty">AUCUN UPGRADE AUTOMATIQUE</div>'}
+     </div>
+     <label class="upgrade-manual-label">VALEUR MANUELLE
+       <input id="upgradeManualInput" type="number" inputmode="numeric" min="0" step="1" value="${manual}" placeholder="VIDE = AUTO">
+     </label>
+     <div class="web-all-actions">
+       <button class="secondary" onclick="resetUpgradeAuto()">REPASSER EN AUTO</button>
+       <button class="primary" onclick="saveUpgradeManual()">ENREGISTRER</button>
+     </div>
+   </div>`);
+}
+
+async function saveUpgradeManual(){
+ const x=f();
+ const raw=document.getElementById('upgradeManualInput')?.value;
+ x.upgradeManual=raw===''?null:Math.max(0,parseInt(raw||'0',10)||0);
+ closeModal();render();
+ await persistFlightAction('UPGRADE MANUEL',true);
+}
+async function resetUpgradeAuto(){
+ const x=f();x.upgradeManual=null;
+ closeModal();render();
+ await persistFlightAction('UPGRADE AUTO',true);
+}
+
+function upgradeKpi(){
+ const x=f(),auto=upgradeAutoDetails(x),val=upgradeValue(x);
+ const manual=x.upgradeManual!==null&&x.upgradeManual!==undefined&&x.upgradeManual!=='';
+ return `<div class="kpi upgrade-kpi" onclick="openUpgradeModal()" style="cursor:pointer">
+   <div class="kpi-title">UPGRADE ${manual?'<small>MANUEL</small>':'<small>AUTO</small>'}</div>
+   <div class="kpi-main">
+     <div class="kpi-icon blue">⇧</div>
+     <div class="kpi-value">${val}</div>
+     <div class="class-mini"><div><span>BASE</span><b>${auto.total}</b></div></div>
+   </div>
+   <div class="upgrade-kpi-note">${auto.reason||'CONFIG · BOOKING · REPAS'}</div>
+ </div>`;
+}
+
 function kpi(title,icon,value,classes,color,pct=null,neg=false){
- return `<div class="kpi"><div class="kpi-title">${title}</div><div class="kpi-main"><div class="kpi-icon ${color}">${icon}</div><div class="kpi-value ${neg&&value<0?'red':''}">${value}</div><div class="class-mini">${classes}</div></div>${pct!==null?`<div class="kpi-gauge"><div class="gauge"><span style="width:${Math.min(100,pct)}%"></span></div>${title==='BOOKED'?`<b>${pct}%</b>`:''}</div>`:''}</div>`;
+ return `<div class="kpi"><div class="kpi-title">${title}</div><div class="kpi-main"><div class="kpi-icon ${color}">${icon}</div><div class="kpi-value ${neg&&value<0?'red':''}">${value}</div><div class="class-mini">${classes}</div></div>${pct!==null?`<div class="kpi-gauge"><div class="gauge"><span style="width:${Math.min(100,pct)}%"></span></div>${['BOOKED','WEB'].includes(title)?`<b>${pct}%</b>`:''}</div>`:''}</div>`;
 }
 function simpleKpi(title,icon,value,color,fn){
  const id='k'+Math.random().toString(36).slice(2); setTimeout(()=>{const el=document.getElementById(id);if(el)el.onclick=fn},0);
@@ -8963,6 +9163,114 @@ function openPrepaSpecificityCard(defId){
  window.__partPax=availableLists;
 }
 
+
+function primaryCommonKeyForDef(def){
+ const map={
+   INF:'INF',CHLD_TOY:'CHLD',CHLD:'CHLD',WCH:'WCH',WCMOB:'WCH',
+   DEAF_BLND:'DEAF_BLND',UMNR:'UMNR',MAAS:'MAAS',VIP:'VIP',
+   FQTV:'FQTV',GROUP:'GROUP',PETC:'PET_AV',AVIH:'PET_AV',PET_AV:'PET_AV',
+   EMD:'EMD',ETK:'ETK',EXST_CBBG:'EXST_CBBG',
+   REBATE_STAFF:'STAFF',BOOKABLE_STAFF:'STAFF',DUTY_STAFF:'STAFF',
+   INAD_DEPU:'INAD_DEPU',DEPA_ESCORT:'DEPA_ESCORT',UPGR:'UPGR'
+ };
+ return map[def?.id]||def?.id||'OTHER';
+}
+
+function openCompanyParticularityAdd(defId){
+ const x=f(),def=companyParticularityDefs(x.airline).find(d=>d.id===defId);
+ if(!def)return;
+ if(def.special==='positioning'){openAddPositioning();return}
+ if(def.special==='meal'){openMealCategories();return}
+
+ const key=primaryCommonKeyForDef(def);
+ const classes=orderedClasses(x);
+ const codeSelect=(def.codes||[]).length>1
+   ?`<label>TYPE / CODE<select id="companyPartCode">${def.codes.map(c=>`<option>${c}</option>`).join('')}</select></label>`
+   :`<input id="companyPartCode" type="hidden" value="${def.codes?.[0]||def.label}">`;
+
+ showModal('AJOUTER · '+def.label,x.flight,`
+   <div class="particularity-editor">
+    <div class="particularity-grid">
+      ${codeSelect}
+      <label>NOM / IDENTIFIANT<input id="companyPartName" placeholder="PASSAGER / IDENTIFIANT"></label>
+      <label>SIÈGE<input id="companyPartSeat" placeholder="EX. 12A"></label>
+      <label>CLASSE<select id="companyPartClass">${classes.map(c=>`<option>${c}</option>`).join('')}</select></label>
+      <label>PNR<input id="companyPartPnr" placeholder="OPTIONNEL"></label>
+      <label class="part-wide">NOTE<input id="companyPartNote" placeholder="INFORMATION COMPLÉMENTAIRE"></label>
+    </div>
+    <div class="web-all-actions">
+      <button class="secondary" onclick="modalBack()">ANNULER</button>
+      <button class="primary" onclick="saveCompanyParticularityManual('${defId}')">AJOUTER</button>
+    </div>
+   </div>`);
+}
+
+async function saveCompanyParticularityManual(defId){
+ const x=f(),def=companyParticularityDefs(x.airline).find(d=>d.id===defId);
+ if(!def)return;
+ const key=primaryCommonKeyForDef(def);
+ const code=String(document.getElementById('companyPartCode')?.value||def.label).toUpperCase();
+
+ x.common=x.common||{};
+ x.common_lists=x.common_lists||{};
+ x.prepaSpecificities=x.prepaSpecificities||{};
+ if(!Array.isArray(x.common_lists[key]))x.common_lists[key]=[];
+
+ const item={
+   id:`${x.flight}-${defId}-${Date.now()}`,
+   name:String(document.getElementById('companyPartName')?.value||code).trim().toUpperCase()||code,
+   seat:String(document.getElementById('companyPartSeat')?.value||'').trim().toUpperCase(),
+   class:String(document.getElementById('companyPartClass')?.value||'').trim().toUpperCase(),
+   pnr:String(document.getElementById('companyPartPnr')?.value||'').trim().toUpperCase(),
+   specific:code,
+   note:String(document.getElementById('companyPartNote')?.value||'').trim().toUpperCase(),
+   status:'BOOKED'
+ };
+ x.common_lists[key].push(item);
+ x.prepaSpecificities[code]=Number(x.prepaSpecificities[code]||0)+1;
+ x.common[key]=Math.max(Number(x.common[key]||0)+1,x.common_lists[key].length);
+
+ if(defId==='FQTV'){
+   item.fqtv={code,status:code};
+   x.common.FQTV=(x.common_lists.FQTV||[]).length;
+ }
+ if(key==='EMD')x.emd=x.common[key];
+ if(key==='ETK')x.etk=x.common[key];
+
+ closeModal();render();
+ await persistFlightAction('AJOUT MANUEL '+def.label,true);
+}
+
+async function removeCompanyParticularityManual(defId){
+ const x=f(),def=companyParticularityDefs(x.airline).find(d=>d.id===defId);
+ if(!def)return;
+ if(def.special==='positioning'){await removeLastPositioning();return}
+ if(def.special==='meal')return;
+
+ const key=primaryCommonKeyForDef(def);
+ x.common=x.common||{};
+ x.common_lists=x.common_lists||{};
+ x.prepaSpecificities=x.prepaSpecificities||{};
+ const list=Array.isArray(x.common_lists[key])?x.common_lists[key]:[];
+
+ let code='';
+ if(list.length){
+   const item=list.pop();
+   code=String(item?.specific||'').split(' ')[0].toUpperCase();
+ }
+ if(!code)code=def.codes?.[0]||'';
+ if(code && Number(x.prepaSpecificities[code]||0)>0){
+   x.prepaSpecificities[code]=Math.max(0,Number(x.prepaSpecificities[code])-1);
+ }
+ x.common[key]=Math.max(0,Number(x.common[key]||0)-1);
+ if(defId==='FQTV')x.common.FQTV=(x.common_lists.FQTV||[]).length;
+ if(key==='EMD')x.emd=x.common[key];
+ if(key==='ETK')x.etk=x.common[key];
+
+ render();
+ await persistFlightAction('SUPPRESSION MANUELLE '+def.label,true);
+}
+
 function companyParticularityCard(def){
  const x=f();
  const n=particularityCountByDef(x,def);
@@ -8974,7 +9282,9 @@ function companyParticularityCard(def){
    <div class="common-name">${def.label}</div>
    <div class="common-count"><span class="ico">${def.icon||'•'}</span>${n}</div>
    <div class="particularity-actions">
+     <button class="part-minus" onclick="removeCompanyParticularityManual('${def.id}')">−</button>
      <button class="view-list" onclick="openPrepaSpecificityCard('${def.id}')">VOIR LA LISTE</button>
+     <button class="part-plus" onclick="openCompanyParticularityAdd('${def.id}')">＋</button>
    </div>
  </div>`;
 }
@@ -9880,9 +10190,9 @@ async function confirmClearAllFlights(){await confirmFullReset()}
 
 
 /* =========================================================
-   V49.3 — SYNCHRONISATION SILENCIEUSE MULTI-POSTES
+   V49.4 — SYNCHRONISATION SILENCIEUSE MULTI-POSTES
    ========================================================= */
-const OPS_REALTIME_INTERVAL_VISIBLE=3000;
+const OPS_REALTIME_INTERVAL_VISIBLE=2000;
 const OPS_REALTIME_INTERVAL_HIDDEN=10000;
 let OPS_REALTIME_TIMER=null;
 let OPS_REALTIME_RUNNING=false;
@@ -9957,6 +10267,7 @@ async function silentCloudRefresh({forceRender=false}={}){
    setOpsCloudState(true);
 
    if(changed){
+     syncCompanyConfigFromFlights(filtered);
      FLIGHTS.splice(0,FLIGHTS.length,...filtered);
      remapSelectedAfterCloud(selectedIdentity);
      cacheCloudFlightsLocally(filtered);
@@ -9996,6 +10307,22 @@ function wakeRealtimeSync(){
  silentCloudRefresh().finally(scheduleRealtimeSync);
 }
 
+
+async function manualCloudRefreshTop(){
+ const btn=document.getElementById('topSyncBtn');
+ if(btn){btn.classList.add('syncing');btn.textContent='⟳';btn.disabled=true}
+ try{
+   await silentCloudRefresh({forceRender:true});
+ }finally{
+   if(btn){
+     btn.classList.remove('syncing');
+     btn.textContent=OPS_CLOUD_ONLINE?'✓':'↻';
+     btn.disabled=false;
+     setTimeout(()=>{if(btn)btn.textContent='↻'},900);
+   }
+ }
+}
+
 async function manualCloudRefresh(){
  const el=document.getElementById('opsCloudStatusBox');
  if(el){el.className='ops-cloud-status';el.textContent='☁ SYNCHRONISATION…'}
@@ -10012,6 +10339,7 @@ function openTools(){
    <button class="tool-card" onclick="openCreateFlight()"><span class="tool-icon">＋</span><b>CRÉATION DE VOLS</b><span>AJOUTER MANUELLEMENT UN VOL ABSENT DE L'IMPORT, AVEC DATE, COMPAGNIE, NUMÉRO, ROUTE ET HORAIRES.</span></button>
    <button class="tool-card company-config-tool" onclick="openCompanyConfig()"><span class="tool-icon">⚙</span><b>CONFIG COMPAGNIE</b><span>CONFIGURER LES CLASSES PAR NUMÉRO DE VOL ET LES BLOCS VISIBLES SUR LA FICHE. TK / SQ.</span></button>
    <button class="tool-card" onclick="openSeatmap()"><span class="tool-icon">▦</span><b>SEATMAP</b><span>OUVRIR LE PLAN CABINE DU VOL ACTUEL.</span></button>
+   <button class="tool-card" onclick="openSariaApp()"><span class="tool-icon">✈</span><b>SARIA</b><span>OUVRIR DIRECTEMENT L’OUTIL SARIA CABIN / SEATMAP.</span></button>
    <div class="ops-cloud-card">
      <div id="opsCloudStatusBox" class="ops-cloud-status ${OPS_CLOUD_ONLINE?'ok':'warn'}">${OPS_CLOUD_ONLINE?'☁ SYNC MULTI-POSTES ACTIVE':'☁ SYNC MULTI-POSTES'}</div>
      <div class="ops-cloud-help">D1 PARTAGÉ · SYNCHRO SILENCIEUSE AUTO ~3 S · PC, TABLETTE ET TÉLÉPHONE.</div>
@@ -10020,6 +10348,18 @@ function openTools(){
    <div class="adb-usage-card"><div id="adbUsageBox"><button class="live-refresh" onclick="loadAeroUsage()">CHARGER COMPTEUR AERODATABOX</button></div></div>
    <button class="clear-all-flights-btn" onclick="openFullReset()">🗑 REMETTRE TOUT À ZÉRO</button>
  </div>`);
+}
+
+
+function openSariaApp(){
+ const w=window.open('https://saria-seatmap.alyzia-cdg2.workers.dev/','_blank','noopener,noreferrer');
+ if(!w){
+   showModal('SARIA','OUVERTURE',`
+     <div class="saria-state-note warn">LE NAVIGATEUR A BLOQUÉ L’OUVERTURE AUTOMATIQUE.</div>
+     <div class="saria-picker-actions" style="margin-top:10px">
+       <button class="primary" onclick="location.href='https://saria-seatmap.alyzia-cdg2.workers.dev/'">OUVRIR SARIA</button>
+     </div>`);
+ }
 }
 
 function openCreateFlight(){
@@ -10993,6 +11333,23 @@ function updateClocks(){
  const d=new Date();document.getElementById('topClock').textContent=d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
  const dc=document.getElementById('depClock'),ac=document.getElementById('arrClock');if(dc)dc.textContent=liveFor(f().dep);if(ac)ac.textContent=liveFor(f().dest)
 }
+
+function enforceNumericKeyboards(root=document){
+ try{
+   root.querySelectorAll('input[type="number"],input[inputmode="numeric"],input[data-booked-edit],input[data-web-all],input[data-ed-config],input[data-ed-booking],input[data-ed-meal],input[data-ed-part]').forEach(el=>{
+     el.setAttribute('inputmode','numeric');
+     if(el.type==='number')el.setAttribute('pattern','[0-9]*');
+   });
+ }catch(e){}
+}
+const numericKeyboardObserver=new MutationObserver(muts=>{
+ muts.forEach(m=>m.addedNodes.forEach(n=>{
+   if(n.nodeType===1)enforceNumericKeyboards(n);
+ }));
+});
+numericKeyboardObserver.observe(document.documentElement,{childList:true,subtree:true});
+setTimeout(()=>enforceNumericKeyboards(document),50);
+
 document.addEventListener('input',e=>{
  if(e.target.tagName==='INPUT' && e.target.type!=='number'){
    if(!(editKey==='time' && (e.target.id==='editStd'||e.target.id==='editValue'))) e.target.value=e.target.value.toUpperCase();
@@ -11014,6 +11371,7 @@ async function bootstrapAlyziaOps(){
    const filteredCloud=cloudFlights.filter(x=>String(x.airline||'').toUpperCase()!=='KL');
 
    if(filteredCloud.length){
+     syncCompanyConfigFromFlights(filteredCloud);
      FLIGHTS.splice(0,FLIGHTS.length,...filteredCloud);
 
      // Met à jour le cache local silencieusement sans refaire un POST.
