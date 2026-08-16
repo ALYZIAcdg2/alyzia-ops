@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V48.13 · UI PREPA FQTV GROUP NOTES</title>
+<title>ALYZIA OPS - V48.14 · Compact Classes + SQ J+3 Fix</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -4463,6 +4463,148 @@ html,body{
   .class-columns-grid{grid-template-columns:1fr}
 }
 
+
+/* =========================================================
+   V48.14 — BOOKED / MEALS compacts et alignés
+   ========================================================= */
+.aligned-class-layout{
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr)!important;
+  gap:12px!important;
+}
+.aligned-class-block{min-width:0}
+.aligned-section-label{
+  font-size:12px;
+  font-weight:1000;
+  color:#1b2e45;
+  margin:4px 0 7px;
+}
+.aligned-section-label.meal-label{margin-top:13px}
+
+.aligned-class-grid{
+  display:grid;
+  grid-template-columns:repeat(var(--class-count),minmax(0,1fr));
+  gap:8px;
+  align-items:stretch;
+}
+
+.compact-class-card,
+.compact-meal-card{
+  min-width:0;
+  border:2px solid #cbd8e6;
+  border-radius:10px;
+  background:#fff;
+  padding:9px 7px;
+  text-align:center;
+}
+
+.compact-class-card.f,.compact-meal-card.f{border-color:#9d58dc;background:#f8efff}
+.compact-class-card.j,.compact-class-card.c,
+.compact-meal-card.j,.compact-meal-card.c{border-color:#2f80df;background:#edf5ff}
+.compact-class-card.s,.compact-class-card.w,
+.compact-meal-card.s,.compact-meal-card.w{border-color:#1ea86f;background:#edf9f3}
+.compact-class-card.y,.compact-meal-card.y{border-color:#e2a21b;background:#fff8e9}
+
+.compact-class-head,.compact-meal-head{
+  font-size:9px;
+  font-weight:1000;
+  letter-spacing:.15px;
+}
+.compact-class-card.f .compact-class-head,.compact-meal-card.f .compact-meal-head{color:#7931b1}
+.compact-class-card.j .compact-class-head,.compact-class-card.c .compact-class-head,
+.compact-meal-card.j .compact-meal-head,.compact-meal-card.c .compact-meal-head{color:#075fc8}
+.compact-class-card.s .compact-class-head,.compact-class-card.w .compact-class-head,
+.compact-meal-card.s .compact-meal-head,.compact-meal-card.w .compact-meal-head{color:#087c52}
+.compact-class-card.y .compact-class-head,.compact-meal-card.y .compact-meal-head{color:#986000}
+
+.compact-class-value{
+  width:100%;
+  border:0;
+  background:transparent;
+  padding:6px 0 3px;
+  font-size:26px;
+  line-height:1;
+  font-weight:1000;
+  color:#17283e;
+}
+.compact-class-availability{
+  font-size:7px;
+  font-weight:900;
+  margin-top:4px;
+}
+.compact-class-eye{
+  margin-top:5px;
+  border:0;
+  background:transparent;
+  font-size:13px;
+  line-height:1;
+}
+.compact-meal-input{
+  width:100%;
+  height:36px;
+  margin-top:7px;
+  border:1px solid #cdd9e6;
+  border-radius:7px;
+  background:#fff;
+  text-align:center;
+  font-size:18px!important;
+  font-weight:1000;
+}
+.compact-meal-meta{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:4px;
+  margin-top:6px;
+}
+.compact-meal-meta span{
+  padding:4px 2px;
+  border-radius:5px;
+  background:rgba(255,255,255,.72);
+  font-size:6px;
+  font-weight:850;
+  color:#718297;
+}
+.compact-meal-meta b{
+  display:block;
+  margin-top:2px;
+  font-size:10px;
+  color:#17283e;
+}
+.aligned-class-block .class-help{
+  margin-top:8px!important;
+  font-size:7px!important;
+  line-height:1.35!important;
+}
+
+/* Toujours garder les classes sur la même ligne sur téléphone/tablette.
+   Si 4 classes, elles restent compactes au lieu de passer en colonne. */
+@media(max-width:1100px){
+  .aligned-class-grid{
+    grid-template-columns:repeat(var(--class-count),minmax(0,1fr))!important;
+    gap:6px;
+  }
+}
+@media(max-width:680px){
+  .aligned-class-grid{gap:5px}
+  .compact-class-card,.compact-meal-card{padding:7px 4px;border-radius:8px}
+  .compact-class-head,.compact-meal-head{font-size:7px}
+  .compact-class-value{font-size:22px;padding-top:5px}
+  .compact-class-availability{font-size:6px}
+  .compact-meal-input{height:34px;font-size:16px!important}
+  .compact-meal-meta span{font-size:5px}
+  .compact-meal-meta b{font-size:9px}
+}
+
+/* PREPA: une seule carte par vol, J+3 strict pour SQ, scroll naturel. */
+.prepa-page{
+  min-height:auto!important;
+  padding-bottom:calc(76px + env(safe-area-inset-bottom,0px))!important;
+}
+.prepa-list{
+  padding-bottom:0!important;
+  margin-bottom:0!important;
+}
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
@@ -7311,22 +7453,18 @@ function renderPrepa(){
    const lead=PREPA_RULES[x.airline];
    if(!lead)return;
 
-   const normalDeparture=addDaysISO(selectedDate,lead);
-   const departureDates=(x.airline==='SQ')
-     ? [...new Set([normalDeparture,selectedDate])]
-     : [normalDeparture];
+   const departureDate=addDaysISO(selectedDate,lead);
 
-   departureDates.forEach(departureDate=>{
-     if(x.date && String(x.date)!==String(departureDate))return;
+   // Une seule occurrence par vol/date de départ.
+   // SQ conserve strictement sa logique J+3.
+   if(x.date && String(x.date)!==String(departureDate))return;
 
-     const effectiveLead=departureDate===selectedDate?0:lead;
-     const uniqueKey=[x.airline,x.flight,departureDate].join('|');
-     if(seen.has(uniqueKey))return;
-     seen.add(uniqueKey);
+   const uniqueKey=[x.airline,x.flight,departureDate].join('|');
+   if(seen.has(uniqueKey))return;
+   seen.add(uniqueKey);
 
-     const key=prepaKey(x.flight,departureDate),state=PREPA_STATE[key]||null;
-     items.push({x,i,lead:effectiveLead,departureDate,key,state});
-   });
+   const key=prepaKey(x.flight,departureDate),state=PREPA_STATE[key]||null;
+   items.push({x,i,lead,departureDate,key,state});
  });
 
  items.sort((a,b)=>parseHM(a.x.std)-parseHM(b.x.std)||a.x.flight.localeCompare(b.x.flight));
@@ -7347,7 +7485,7 @@ function renderPrepa(){
     ${items.map(r=>`
      <div class="prepa-row">
       <div>${airlineLogo(r.x.airline)}</div>
-      <div><div class="home-flight">${r.x.flight}</div><div class="prepa-rule">${r.lead===0?'VOL DU JOUR':`PRÉPA J+${r.lead}`}</div></div>
+      <div><div class="home-flight">${r.x.flight}</div><div class="prepa-rule">PRÉPA J+${r.lead}</div></div>
       <div><div class="home-route">${r.x.dep} → ${r.x.dest}</div><div class="home-sub">${r.x.aircraft}</div></div>
       <div><div class="prepa-date">${formatDateShort(selectedDate)}</div><div class="prepa-rule">DATE PRÉPA</div></div>
       <div><div class="prepa-departure">${formatDateShort(r.departureDate)}</div><div class="prepa-rule">DÉPART</div></div>
@@ -7461,12 +7599,20 @@ function render(){
       <span>BOOKED / CLASSES ⓘ</span>
       <button class="view-list" onclick="openBooked('name')">VOIR LA LISTE 👁</button>
     </div>
-    <div class="booked-classes-layout unified-booked-layout">
-      <div>
-        <div class="class-columns-grid" style="--class-count:${Math.min(classes.length,4)}">
-          ${classes.map(k=>classBookedMealColumn(k)).join('')}
+    <div class="booked-classes-layout aligned-class-layout">
+      <div class="aligned-class-block">
+        <div class="aligned-section-label">BOOKED / CLASSES</div>
+        <div class="aligned-class-grid" style="--class-count:${Math.max(1,classes.length)}">
+          ${classes.map(k=>compactBookedClassCard(k)).join('')}
         </div>
-        <div class="class-help">BOOKED EN HAUT · MEALS EN DESSOUS · CLIQUEZ SUR LE NOMBRE BOOKED POUR MODIFIER</div>
+
+        ${(x.airline==='TK'||x.airline==='SQ')?`
+        <div class="aligned-section-label meal-label">MEALS ON BOARD</div>
+        <div class="aligned-class-grid meal-grid" style="--class-count:${Math.max(1,classes.length)}">
+          ${classes.map(k=>compactMealClassCard(k)).join('')}
+        </div>`:''}
+
+        <div class="class-help">CLIQUEZ SUR LE NOMBRE BOOKED POUR MODIFIER · 👁 POUR VOIR LES PASSAGERS</div>
       </div>
       <div class="booked-summary">
         <div class="booked-summary-head">
@@ -7754,6 +7900,38 @@ function openOverbookAlert(){
     ${Object.entries(byClass).map(([cls,n])=>`<div class="overbook-line"><span>CLASSE ${cls}</span><b>+${n}</b></div>`).join('')}
    </div>
   </div>`);
+}
+
+function compactBookedClassCard(k){
+ const x=f();
+ const n=Number(x.booked?.[k]||0);
+ const av=classAvailableValue(k);
+ const cls=String(k).toLowerCase();
+
+ return `<div class="compact-class-card ${cls}">
+   <div class="compact-class-head">CLASSE ${k}</div>
+   <button class="compact-class-value" onclick="openClassEdit('${k}')">${n}</button>
+   <div class="compact-class-availability ${classAvailableState(av)}"><span class="mini-dot"></span>DISPO ${av>=0?'+':''}${av}</div>
+   <button class="compact-class-eye" onclick="openClass('${k}')">👁</button>
+ </div>`;
+}
+
+function compactMealClassCard(k){
+ const x=f();
+ const booked=Number(x.booked?.[k]||0);
+ const loaded=Number(x.meals?.[k]||0);
+ const remaining=loaded-booked;
+ const cls=String(k).toLowerCase();
+
+ return `<div class="compact-meal-card ${cls}">
+   <div class="compact-meal-head">CLASSE ${k}</div>
+   <input class="compact-meal-input" type="number" min="0" inputmode="numeric"
+     value="${loaded}" onchange="updateMealCount('${k}',this.value)">
+   <div class="compact-meal-meta">
+     <span>BOOKED <b>${booked}</b></span>
+     <span>RESTE <b class="${mealRemainingClassName(remaining)}">${remaining>=0?'+':''}${remaining}</b></span>
+   </div>
+ </div>`;
 }
 
 function classBookedMealColumn(k){
