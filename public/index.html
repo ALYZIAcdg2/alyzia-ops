@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V49.1 · TK FQTV / Favoris / ZIP / Urgent</title>
+<title>ALYZIA OPS - V49.2 · Config Particularités / TK Editing</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -4746,6 +4746,53 @@ html,body{
  .home-pin{width:29px;height:29px;min-height:29px;font-size:17px}
 }
 
+
+/* V49.2 — Config particularités + TK fiche identique à l'Editing */
+.company-particularity-config{
+ display:grid;
+ grid-template-columns:repeat(2,minmax(0,1fr));
+ gap:7px
+}
+.company-particularity-toggle{
+ display:flex;align-items:flex-start;gap:8px;padding:9px;
+ border:1px solid #dfe7ef;border-radius:8px;background:#fff
+}
+.company-particularity-toggle input{width:18px;height:18px;flex:0 0 auto;margin-top:1px}
+.company-particularity-toggle>div{display:grid;gap:2px;min-width:0}
+.company-particularity-toggle b{font-size:8px;color:#263e56}
+.company-particularity-toggle small{font-size:7px;color:#718398;overflow-wrap:anywhere}
+
+.company-particularity-strip .company-part-card .common-name{
+ font-size:9px;
+ line-height:1.15;
+ min-height:22px;
+ display:flex;
+ align-items:center;
+ justify-content:center;
+ text-align:center
+}
+.company-particularity-strip .company-part-card .view-list{
+ width:auto;
+ padding:0 4px
+}
+.part-detail-summary{
+ display:grid;
+ grid-template-columns:repeat(auto-fit,minmax(90px,1fr));
+ gap:7px;
+ margin-top:8px
+}
+.part-detail-code{
+ border:1px solid #dfe7ef;border-radius:8px;background:#f8fafc;
+ padding:9px;text-align:center;display:grid;gap:4px
+}
+.part-detail-code span{font-size:8px;font-weight:900;color:#65798e}
+.part-detail-code b{font-size:20px;color:#15283f}
+.part-detail-list{display:grid;gap:6px;margin-top:10px}
+
+@media(max-width:720px){
+ .company-particularity-config{grid-template-columns:1fr}
+}
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
@@ -5930,6 +5977,25 @@ function saveEditingFromModal(silent=false,syncBlanks=false){
   const group=num('GROUP'); if(group!==null)x.common.GROUP=group;
 
   if(x.airline==='TK'){
+    // Exact TK PREPA cards are stored individually so the flight sheet
+    // mirrors EDITING TK rather than collapsing everything into generic SQ cards.
+    x.tkParticularities={
+      INFANT: num('INFANT(S)')||0,
+      CHLD: num('CHLD')||0,
+      TOY: num("TOY'S")||0,
+      WCHR:num('WCHR')||0,WCHS:num('WCHS')||0,WCHC:num('WCHC')||0,
+      WCMP:num('WCMP')||0,WCLB:num('WCLB')||0,WCBD:num('WCBD')||0,
+      BLND:num('BLND')||0,DEAF:num('DEAF')||0,
+      UMNR:num('UMNR')||0,MAAS:num('MAAS')||0,VIP:num('VIP')||0,
+      UPGR:num('UPGR TK WAIVE')||0,
+      REBATE_STAFF:num('REBATE STAFF')||0,DUTY_STAFF:num('DUTY STAFF')||0,
+      GROUP:num('GROUP')||0,PETC:num('PETC')||0,AVIH:num('AVIH')||0,
+      EMD:num('EMD')||0,ETKT:num('ETKT')||0,
+      INAD:num('INAD')||0,DEPU:num('DEPU')||0,
+      DEPA:num('DEPA')||0,ESCORT:num('ESCORT')||0,
+      EXST:num('EXST')||0,CBBG:num('CBBG')||0
+    };
+
     const fqCounts={ELPL:num('ELPL')||0,ELIT:num('ELIT')||0,CLPL:num('CLPL')||0};
     const fqTotal=fqCounts.ELPL+fqCounts.ELIT+fqCounts.CLPL;
     if(fqTotal||syncBlanks){
@@ -7929,6 +7995,61 @@ function persistFlightAction(reason='ACTION FICHE VOL',immediate=false){
    ========================================================= */
 const COMPANY_CONFIG_KEY='alyzia_ops_company_config_v490';
 
+
+const COMPANY_PARTICULARITY_DEFS={
+ TK:[
+   {id:'INF',label:'INFANT(S)',codes:['INFANT(S)'],icon:'☺'},
+   {id:'CHLD_TOY',label:"CHLD / TOY'S",codes:['CHLD',"TOY'S"],icon:'⚑'},
+   {id:'WCH',label:'WCHR / WCHS / WCHC',codes:['WCHR','WCHS','WCHC'],icon:'♿'},
+   {id:'WCMOB',label:'WCMP / WCLB / WCBD',codes:['WCMP','WCLB','WCBD'],icon:'♿'},
+   {id:'DEAF_BLND',label:'BLND / DEAF',codes:['BLND','DEAF'],icon:'◔'},
+   {id:'UMNR',label:'UMNR',codes:['UMNR'],icon:'♟'},
+   {id:'MAAS',label:'MAAS',codes:['MAAS'],icon:'•'},
+   {id:'VIP',label:'VIP',codes:['VIP'],icon:'☆'},
+   {id:'FQTV',label:'FQTV',codes:['ELPL','ELIT','CLPL'],icon:'▤',special:'fqtv'},
+   {id:'UPGR',label:'UPGR TK WAIVE',codes:['UPGR TK WAIVE'],icon:'⇧'},
+   {id:'REBATE_STAFF',label:'REBATE STAFF',codes:['REBATE STAFF'],icon:'♧'},
+   {id:'DUTY_STAFF',label:'DUTY STAFF',codes:['DUTY STAFF'],icon:'♧'},
+   {id:'GROUP',label:'GROUP',codes:['GROUP'],icon:'◉'},
+   {id:'PETC',label:'PETC',codes:['PETC'],icon:'♣'},
+   {id:'AVIH',label:'AVIH',codes:['AVIH'],icon:'♣'},
+   {id:'EMD',label:'EMD',codes:['EMD'],icon:'•'},
+   {id:'ETK',label:'ETKT',codes:['ETKT'],icon:'■'},
+   {id:'INAD_DEPU',label:'INAD / DEPU',codes:['INAD','DEPU'],icon:'!'},
+   {id:'DEPA_ESCORT',label:'DEPA / ESCORT',codes:['DEPA','ESCORT'],icon:'↗'},
+   {id:'EXST_CBBG',label:'EXST / CBBG',codes:['EXST','CBBG'],icon:'∪'},
+   {id:'MEAL',label:'MEAL',codes:[],icon:'🍽',special:'meal'},
+   {id:'POSITIONING',label:'POSITIONING',codes:[],icon:'👨‍✈️',special:'positioning'}
+ ],
+ SQ:[
+   {id:'WCH',label:'WCHR / WCHS / WCHC',codes:['WCHR','WCHS','WCHC'],icon:'♿'},
+   {id:'WCMOB',label:'WCMP / WCBD / WCLB',codes:['WCMP','WCBD','WCLB'],icon:'♿'},
+   {id:'DEAF_BLND',label:'BLND / DEAF',codes:['BLND','DEAF'],icon:'◔'},
+   {id:'INF',label:'INFANT(S)',codes:['INFANT(S)'],icon:'☺'},
+   {id:'CHLD',label:'CHLD / KID',codes:['CHLD','KID'],icon:'⚑'},
+   {id:'UMNR',label:'UMNR',codes:['UMNR'],icon:'♟'},
+   {id:'MAAS',label:'MAAS',codes:['MAAS'],icon:'•'},
+   {id:'MEAL',label:'MEAL',codes:[],icon:'🍽',special:'meal'},
+   {id:'VIP',label:'IMPT / HCIP / VIP / VVIP',codes:['IMPT','HCIP','VIP','VVIP'],icon:'☆'},
+   {id:'EMD',label:'EMD',codes:['EMD'],icon:'•'},
+   {id:'ETK',label:'ETKT',codes:['ETKT'],icon:'■'},
+   {id:'FQTV',label:'FQTV',codes:['KFEG','KFES','QPPS','LPPS','TPPS'],icon:'▤',special:'fqtv'},
+   {id:'BOOKABLE_STAFF',label:'BOOKABLE STAFF',codes:['BOOKABLE STAFF'],icon:'♧'},
+   {id:'REBATE_STAFF',label:'REBATE STAFF',codes:['REBATE STAFF'],icon:'♧'},
+   {id:'GROUP',label:'GROUP',codes:['GROUP'],icon:'◉'},
+   {id:'PET_AV',label:'PETC / AVIH',codes:['PETC','AVIH'],icon:'♣'},
+   {id:'POSITIONING',label:'POSITIONING',codes:[],icon:'👨‍✈️',special:'positioning'}
+ ]
+};
+
+function companyParticularityDefs(airline){
+ return COMPANY_PARTICULARITY_DEFS[String(airline||'').toUpperCase()]||[];
+}
+
+function defaultParticularityVisibility(airline){
+ return Object.fromEntries(companyParticularityDefs(airline).map(d=>[d.id,true]));
+}
+
 const COMPANY_CONFIG_DEFAULT={
  TK:{
    airline:'TK',
@@ -7938,7 +8059,8 @@ const COMPANY_CONFIG_DEFAULT={
    modules:{
      header:true,config:true,booked:true,web:true,available:true,standby:true,
      meals:true,particularities:true,inbound:true,outbound:true,notes:true
-   }
+   },
+   particularities:defaultParticularityVisibility('TK')
  },
  SQ:{
    airline:'SQ',
@@ -7950,7 +8072,8 @@ const COMPANY_CONFIG_DEFAULT={
    modules:{
      header:true,config:true,booked:true,web:true,available:true,standby:true,
      meals:true,particularities:true,inbound:true,outbound:true,notes:true
-   }
+   },
+   particularities:defaultParticularityVisibility('SQ')
  }
 };
 
@@ -7967,6 +8090,7 @@ function loadCompanyConfig(){
        if(raw[a]){
          if(Array.isArray(raw[a].rules)&&raw[a].rules.length)cfg[a].rules=raw[a].rules;
          if(raw[a].modules)cfg[a].modules={...cfg[a].modules,...raw[a].modules};
+         if(raw[a].particularities)cfg[a].particularities={...cfg[a].particularities,...raw[a].particularities};
        }
      });
    }
@@ -8007,6 +8131,49 @@ function companyModuleVisible(x,key){
  const cfg=COMPANY_CONFIG[a];
  if(!cfg)return true;
  return cfg.modules?.[key]!==false;
+}
+
+function companyParticularityVisible(x,id){
+ const a=String(x?.airline||'').toUpperCase();
+ const cfg=COMPANY_CONFIG[a];
+ if(!cfg)return true;
+ return cfg.particularities?.[id]!==false;
+}
+
+function prepaSpecificValue(x,code){
+ const p=x?.prepaSpecificities||x?.prepaParticularities||x?.prepaEditing?.particularities||{};
+ let v=p?.[code];
+ if((v===undefined||v===null||v==='')&&x?.airline==='TK'&&x?.tkParticularities){
+   const alias={
+     'INFANT(S)':'INFANT',"TOY'S":'TOY','UPGR TK WAIVE':'UPGR',
+     'REBATE STAFF':'REBATE_STAFF','DUTY STAFF':'DUTY_STAFF'
+   };
+   v=x.tkParticularities[alias[code]||code];
+ }
+ const n=Number(v);
+ return Number.isFinite(n)?n:0;
+}
+
+function particularityCountByDef(x,def){
+ if(!def)return 0;
+ if(def.special==='meal')return Number(x?.common?.MEAL||0);
+ if(def.special==='positioning')return positioningCount(x);
+ if(def.special==='fqtv')return Number(x?.common?.FQTV||0);
+
+ const explicit=def.codes.reduce((s,c)=>s+prepaSpecificValue(x,c),0);
+ if(explicit>0)return explicit;
+
+ const fallback={
+   INF:'INF',CHLD_TOY:'CHLD',CHLD:'CHLD',WCH:'WCH',DEAF_BLND:'DEAF_BLND',
+   UMNR:'UMNR',MAAS:'MAAS',VIP:'VIP',GROUP:'GROUP',EMD:'EMD',ETK:'ETK',
+   EXST_CBBG:'EXST_CBBG',PET_AV:'PET_AV',REBATE_STAFF:'STAFF',
+   BOOKABLE_STAFF:'STAFF',DUTY_STAFF:'STAFF'
+ };
+ return Number(x?.common?.[fallback[def.id]]||0);
+}
+
+function detailCodesForDef(x,def){
+ return (def.codes||[]).map(code=>({code,count:prepaSpecificValue(x,code)}));
 }
 
 function normalizeClassListText(v){
@@ -8130,6 +8297,25 @@ function openAirlineConfig(airline){
        </div>
      </div>
 
+     <div class="airline-config-section">
+       <div class="airline-config-section-title">
+         <div>
+           <b>PARTICULARITÉS · CARTES FICHE VOL</b>
+           <small>MÊMES RUBRIQUES QUE L'EDITING ${airline} · ACTIVER / MASQUER CHAQUE CARTE</small>
+         </div>
+       </div>
+       <div class="company-particularity-config">
+         ${companyParticularityDefs(airline).map(def=>`
+           <label class="company-particularity-toggle">
+             <input type="checkbox" data-company-particularity="${def.id}" ${cfg.particularities?.[def.id]!==false?'checked':''}>
+             <div>
+               <b>${def.label}</b>
+               <small>${def.codes?.length?def.codes.join(' · '):(def.special==='meal'?'SPECIAL MEALS':def.special==='positioning'?'EXTRA CREWS':'')}</small>
+             </div>
+           </label>`).join('')}
+       </div>
+     </div>
+
      <div class="airline-config-actions">
        <button class="secondary" onclick="openCompanyConfig()">ANNULER</button>
        <button class="primary" onclick="saveAirlineConfig('${airline}')">ENREGISTRER</button>
@@ -8174,6 +8360,10 @@ async function saveAirlineConfig(airline){
  cfg.rules=newRules;
  document.querySelectorAll('[data-company-module]').forEach(el=>{
    cfg.modules[el.dataset.companyModule]=!!el.checked;
+ });
+ cfg.particularities=cfg.particularities||defaultParticularityVisibility(airline);
+ document.querySelectorAll('[data-company-particularity]').forEach(el=>{
+   cfg.particularities[el.dataset.companyParticularity]=!!el.checked;
  });
 
  COMPANY_CONFIG[airline]=cfg;
@@ -8309,23 +8499,8 @@ function render(){
    </div>
  </section>`:''}
 
- ${companyModuleVisible(x,'particularities')?`<section class="card common-strip">
-  ${commonTile('WCH','WCH')}
-  ${commonTile('DEAF_BLND','DEAF/BLND')}
-  ${commonTile('EXST_CBBG','EXST/CBBG')}
-  ${commonTile('PET_AV','PETC/AVIH/ESAN/SVAN')}
-  ${commonTile('INF','INF')}
-  ${commonTile('CHLD','CHLD')}
-  ${commonTile('UMNR','UMNR')}
-  ${commonTile('MAAS','MAAS')}
-  ${mealSummaryTile()}
-  ${commonTile('GROUP','GROUP')}
-  ${commonTile('VIP',x.airline==='TK'?'VIP':'IMPT/HCIP/VIP/VVIP')}
-  ${commonTile('EMD','EMD')}
-  ${commonTile('ETK','ETK')}
-  ${commonTile('FQTV','FQTV')}
-  ${commonTile('STAFF','STAFF')}
-  ${positioningTile()}
+ ${companyModuleVisible(x,'particularities')?`<section class="card common-strip company-particularity-strip">
+  ${renderCompanyParticularities(x)}
  </section>`:''}
 
 
@@ -8739,6 +8914,93 @@ function openFqtvPassengerList(cat){
        </button>`).join(''):'<div class="prepa-empty">AUCUN PASSAGER</div>'}
    </div>
  `);
+}
+
+
+function openPrepaSpecificityCard(defId){
+ const x=f();
+ const def=companyParticularityDefs(x.airline).find(d=>d.id===defId);
+ if(!def)return;
+
+ if(def.special==='fqtv'){openFqtvCategories();return}
+ if(def.special==='meal'){openMealCategories();return}
+ if(def.special==='positioning'){openPositioningModal();return}
+
+ const details=detailCodesForDef(x,def);
+ const availableLists=(def.codes||[]).flatMap(code=>{
+   const aliases={
+     WCHR:'WCH',WCHS:'WCH',WCHC:'WCH',
+     BLND:'DEAF_BLND',DEAF:'DEAF_BLND',
+     EXST:'EXST_CBBG',CBBG:'EXST_CBBG',
+     PETC:'PET_AV',AVIH:'PET_AV',
+     ETKT:'ETK'
+   };
+   const listKey=aliases[code]||code;
+   const arr=Array.isArray(x.common_lists?.[listKey])?x.common_lists[listKey]:[];
+   return arr.filter(p=>{
+     const txt=String(p.specific||p.ssr||'').toUpperCase();
+     return arr.length===1 || txt.includes(code);
+   });
+ });
+
+ showModal(def.label,x.flight,`
+   <div class="part-detail-summary">
+     ${details.map(d=>`<div class="part-detail-code"><span>${d.code}</span><b>${d.count}</b></div>`).join('')}
+   </div>
+   ${availableLists.length?`
+     <div class="part-detail-list">
+       ${availableLists.map((p,i)=>`
+         <button class="meal-passenger-row" onclick="PAX_MODAL_ITEMS=window.__partPax||[];openPaxFromModal(${i})">
+           <div><strong>${p.name||'PASSAGER'}</strong><span>${p.seat||'—'} · CL ${p.class||'—'}</span></div>
+           <small>${p.specific||def.label}</small>
+         </button>`).join('')}
+     </div>`:'<div class="prepa-empty">AUCUN PASSAGER DÉTAILLÉ · QUANTITÉS ISSUES DE LA PRÉPA</div>'}
+ `);
+ window.__partPax=availableLists;
+}
+
+function companyParticularityCard(def){
+ const x=f();
+ const n=particularityCountByDef(x,def);
+
+ if(def.special==='meal')return mealSummaryTile();
+ if(def.special==='positioning')return positioningTile();
+
+ return `<div class="common-item company-part-card ${String(def.id).toLowerCase()}">
+   <div class="common-name">${def.label}</div>
+   <div class="common-count"><span class="ico">${def.icon||'•'}</span>${n}</div>
+   <div class="particularity-actions">
+     <button class="view-list" onclick="openPrepaSpecificityCard('${def.id}')">VOIR LA LISTE</button>
+   </div>
+ </div>`;
+}
+
+function renderCompanyParticularities(x){
+ const defs=companyParticularityDefs(x.airline);
+ if(!defs.length){
+   return `
+     ${commonTile('WCH','WCH')}
+     ${commonTile('DEAF_BLND','DEAF/BLND')}
+     ${commonTile('EXST_CBBG','EXST/CBBG')}
+     ${commonTile('PET_AV','PETC/AVIH/ESAN/SVAN')}
+     ${commonTile('INF','INF')}
+     ${commonTile('CHLD','CHLD')}
+     ${commonTile('UMNR','UMNR')}
+     ${commonTile('MAAS','MAAS')}
+     ${mealSummaryTile()}
+     ${commonTile('GROUP','GROUP')}
+     ${commonTile('VIP','VIP')}
+     ${commonTile('EMD','EMD')}
+     ${commonTile('ETK','ETK')}
+     ${commonTile('FQTV','FQTV')}
+     ${commonTile('STAFF','STAFF')}
+     ${positioningTile()}
+   `;
+ }
+ return defs
+   .filter(def=>companyParticularityVisible(x,def.id))
+   .map(def=>companyParticularityCard(def))
+   .join('');
 }
 
 function commonTile(key,label){
