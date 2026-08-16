@@ -6,7 +6,7 @@
   <meta http-equiv="Expires" content="0">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V49.11 · Import PREPA selector fix + no cache</title>
+<title>ALYZIA OPS - V49.12 · Import PREPA Actions</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -4797,12 +4797,12 @@ html,body{
 }
 
 
-/* V49.11 — synchro silencieuse */
+/* V49.12 — synchro silencieuse */
 .ops-cloud-status.ok::before{content:'●';margin-right:5px;color:#0aa56b}
 
 
 /* =========================================================
-   V49.11 — full sync / refresh / upgrade / numeric / WEB gauge
+   V49.12 — full sync / refresh / upgrade / numeric / WEB gauge
    ========================================================= */
 .top-sync-btn{
  width:31px;height:31px;min-width:31px;border:1px solid #d5e0ea;border-radius:9px;
@@ -4854,14 +4854,14 @@ html,body{
 }
 
 
-/* V49.11 — UPGRADE calculation */
+/* V49.12 — UPGRADE calculation */
 .upgrade-formula-note{
  padding:7px 9px;border:1px solid #dce7f1;border-radius:7px;background:#f8fbfe;
  font-size:7px;font-weight:900;color:#60768c;text-align:center
 }
 
 
-/* V49.11 — D1 live consistency + tablet digits keypad */
+/* V49.12 — D1 live consistency + tablet digits keypad */
 .tablet-numeric-pad{
  display:none;
  position:fixed;
@@ -4898,7 +4898,7 @@ html,body{
 }
 
 
-/* V49.11 */
+/* V49.12 */
 .config-cap-input{
  width:100%;
  font-variant-numeric:tabular-nums;
@@ -4911,6 +4911,50 @@ html,body{
 }
 @media(max-width:600px){
  .time-edit-line{grid-template-columns:minmax(0,1fr) 72px}
+}
+
+
+/* V49.12 — Import PREPA actions */
+.import-action-grid{
+ display:grid;
+ grid-template-columns:repeat(2,minmax(0,1fr));
+ gap:9px;
+ margin-top:10px
+}
+.import-action{
+ min-height:92px;
+ border:1px solid #d8e2ec;
+ border-radius:11px;
+ background:#fff;
+ padding:11px;
+ text-align:left;
+ display:grid;
+ align-content:center;
+ gap:4px;
+ cursor:pointer
+}
+.import-action b{font-size:13px}
+.import-action span{font-size:7px;line-height:1.35;font-weight:850;color:#687c91}
+.import-action.overwrite{border-color:#efaa71;background:#fff6ed;color:#b45d00}
+.import-action.update{border-color:#84b9ef;background:#f0f7ff;color:#075fc8}
+.import-action.delete{border-color:#ed9ea8;background:#fff2f4;color:#be2638}
+.import-action.keep{border-color:#91d3ad;background:#f2fbf5;color:#087749}
+.import-action-details{
+ margin-top:10px;
+ border:1px solid #dfe7ef;
+ border-radius:9px;
+ background:#fafcff;
+ padding:8px
+}
+.import-action-details summary{
+ cursor:pointer;
+ font-size:8px;
+ font-weight:950;
+ color:#526b83
+}
+@media(max-width:600px){
+ .import-action-grid{grid-template-columns:1fr}
+ .import-action{min-height:76px}
 }
 
 </style>
@@ -5092,7 +5136,7 @@ async function patchFlightToCloud(identity,patch){
    }
    throw new Error(data?.error||'PATCH REFUSÉ');
  }catch(e){
-   console.warn('V49.11 CLOUD PATCH',e);
+   console.warn('V49.12 CLOUD PATCH',e);
    return null;
  }
 }
@@ -7648,76 +7692,258 @@ function finalizePrepaAutomaticImport(result){
  if(saved)render();
 }
 
+function clearCurrentPrepaEditorFields(){
+ const ids=[
+   'edReg','edStd','edSta','edParking','edGate','edType',
+   'edBusiness','edPremium','edEconomy','edQuickRamp'
+ ];
+ ids.forEach(id=>{
+   const el=document.getElementById(id);
+   if(el)el.value='';
+ });
+
+ document.querySelectorAll(
+   '[data-ed-config],[data-ed-booking],[data-ed-meal],[data-ed-part],[data-ed-extra]'
+ ).forEach(el=>{
+   el.value='';
+ });
+
+ // Keep flight/date identifiers intact.
+}
+
+function currentPrepaFieldState(){
+ const state={};
+ [
+   '[data-ed-config]','[data-ed-booking]','[data-ed-meal]',
+   '[data-ed-part]','[data-ed-extra]'
+ ].forEach(sel=>{
+   document.querySelectorAll(sel).forEach(el=>{
+     const key=el.dataset.edConfig||el.dataset.edBooking||el.dataset.edMeal||
+               el.dataset.edPart||el.dataset.edExtra||'';
+     if(key)state[`${sel}:${key}`]=String(el.value||'');
+   });
+ });
+ ['edReg','edStd','edSta','edParking','edGate','edType',
+  'edBusiness','edPremium','edEconomy','edQuickRamp'].forEach(id=>{
+   const el=document.getElementById(id);
+   if(el)state[`#${id}`]=String(el.value||'');
+ });
+ return state;
+}
+
+function applyPrepaValuesKeepExisting(values){
+ let applied=0,kept=0;
+ const accepted={};
+
+ Object.entries(values||{}).forEach(([selector,value])=>{
+   const el=document.querySelector(selector);
+   if(!el){return}
+
+   const current=String(el.value||'').trim();
+   const isDefaultZero=(
+     (el.dataset.edBooking || el.dataset.edConfig || el.dataset.edMeal || el.dataset.edPart) &&
+     current==='0'
+   );
+
+   if(current!=='' && !isDefaultZero){
+     kept++;
+     return;
+   }
+
+   el.value=value;
+   accepted[selector]=value;
+   flashInjected(el);
+   applied++;
+ });
+
+ return {applied,kept,accepted};
+}
+
+function applyPrepaValuesUpdate(values){
+ // Update = imported fields replace the same existing fields,
+ // but anything absent from the new import remains untouched.
+ return applyPrepaValues(values,null);
+}
+
+function applyPrepaValuesOverwrite(values){
+ // Overwrite = start from a blank PREPA then apply only the new import.
+ clearCurrentPrepaEditorFields();
+ return applyPrepaValues(values,null);
+}
+
+async function deleteCurrentPrepaImport(){
+ const idx=Number(document.getElementById('editingFlightIndex')?.value);
+ const departureDate=document.getElementById('editingDepartureDate')?.value;
+ const x=FLIGHTS[idx];
+ if(!x)return false;
+
+ clearCurrentPrepaEditorFields();
+
+ // Save blanks through the PREPA editor mapping.
+ saveEditingFromModal(true,true);
+
+ // Fully clear PREPA-derived operational values.
+ x.booked=x.booked||{};
+ Object.keys(x.booked).forEach(k=>x.booked[k]=0);
+
+ x.meals=x.meals||{};
+ Object.keys(x.meals).forEach(k=>x.meals[k]=0);
+
+ x.web=x.web||{};
+
+ x.prepaEditing=null;
+ x.prepaParticularities={};
+ x.prepaSpecificities={};
+ x.prepaComments={};
+ x.tkParticularities={};
+ x.tkFqtvCounts={};
+
+ x.common=x.common||{};
+ [
+   'WCH','DEAF_BLND','EXST_CBBG','PET_AV','INF','CHLD','UMNR','MAAS',
+   'BSCT','MEAL','GROUP','VIP','EMD','ETK','FQTV','STAFF'
+ ].forEach(k=>x.common[k]=0);
+
+ x.emd=0;
+ x.etk=0;
+
+ // Remove imported detailed lists, while leaving the object structure valid.
+ x.common_lists=x.common_lists||{};
+ [
+   'WCH','DEAF_BLND','EXST_CBBG','PET_AV','INF','CHLD','UMNR','MAAS',
+   'BSCT','MEAL','GROUP','VIP','EMD','ETK','FQTV','STAFF'
+ ].forEach(k=>x.common_lists[k]=[]);
+
+ x.meal_lists={CHML:[],BBML:[],AVML:[],MOML:[],LFML:[],FPML:[],NLML:[],SPML:[]};
+
+ const key=prepaKey(x.flight,departureDate||x.date);
+ if(PREPA_STATE[key]){
+   delete PREPA_STATE[key];
+   savePrepaState();
+ }
+
+ PREPA_PENDING_INJECTION=null;
+ PREPA_PENDING_MANIFEST=null;
+
+ await persistFlightAction('SUPPRESSION PREPA IMPORT',true);
+ await saveImportedFlightsPersistent(FLIGHTS).catch(()=>false);
+
+ closeModal();
+ setTimeout(()=>{
+   openPrepaEditing(idx,departureDate||x.date);
+   setTimeout(()=>editingFeedback('PRÉPA SUPPRIMÉE.','warn'),80);
+ },30);
+ return true;
+}
+
 function applyPrepaImport(strategy){
  const pending=PREPA_PENDING_INJECTION;
- if(!pending)return;
+ if(!pending && strategy!=='delete')return;
 
- if(strategy==='selected'){
-   const overwrite=new Set(
-     [...document.querySelectorAll('[data-conflict-overwrite]:checked')].map(el=>el.dataset.conflictOverwrite)
-   );
-   closeModal();
-   setTimeout(()=>finalizePrepaAutomaticImport(applyPrepaValues(pending.values,overwrite)),30);
+ if(strategy==='delete'){
+   deleteCurrentPrepaImport();
    return;
  }
 
- if(document.getElementById('modalTitle')?.textContent==='DONNÉES DÉJÀ PRÉSENTES')closeModal();
+ if(strategy==='keep'){
+   // CONSERVER = current PREPA remains authoritative.
+   // Only empty/default-zero fields receive imported information.
+   closeModal();
+   setTimeout(()=>{
+     finalizePrepaAutomaticImport(applyPrepaValuesKeepExisting(pending.values));
+   },30);
+   return;
+ }
 
- setTimeout(()=>{
-   let overwrite=null;
-   if(strategy==='keep')overwrite=new Set();
-   finalizePrepaAutomaticImport(applyPrepaValues(pending.values,overwrite));
- },30);
+ if(strategy==='update'){
+   // METTRE A JOUR = imported values replace matching fields,
+   // all other existing PREPA data is preserved.
+   closeModal();
+   setTimeout(()=>{
+     finalizePrepaAutomaticImport(applyPrepaValuesUpdate(pending.values));
+   },30);
+   return;
+ }
+
+ if(strategy==='overwrite'){
+   // ECRASER = blank the current PREPA first, then inject new import.
+   closeModal();
+   setTimeout(()=>{
+     const result=applyPrepaValuesOverwrite(pending.values);
+     // Persist cleared fields too.
+     saveEditingFromModal(true,true);
+     finalizePrepaAutomaticImport(result);
+   },30);
+   return;
+ }
 }
 
 function cancelPrepaImport(){
  PREPA_PENDING_INJECTION=null;
  PREPA_PENDING_MANIFEST=null;
  modalBack();
- setTimeout(()=>editingFeedback('INJECTION ANNULÉE. AUCUNE DONNÉE MODIFIÉE.','warn'),30);
+ setTimeout(()=>editingFeedback('IMPORT ANNULÉ. AUCUNE DONNÉE MODIFIÉE.','warn'),30);
 }
+
 function showPrepaConflictPopup(values,conflicts=[]){
  const rows=Object.entries(values||{}).map(([selector,next])=>{
    const el=document.querySelector(selector);
    const current=String(el?.value||'').trim();
-   const isDifferent=current!=='' && current!==String(next).trim();
-   const isDefaultZero=(el?.dataset?.edBooking && current==='0');
    return {
      selector,
      label:prepaSelectorLabel(selector),
      current:current||'VIDE',
-     next,
-     isDifferent,
-     checked: current==='' || isDefaultZero || !isDifferent
+     next:String(next??'')
    };
  });
 
  PREPA_PENDING_INJECTION={values,conflicts:rows};
 
- showModal('IMPORT PREPA · CHOIX','CONSERVER OU ÉCRASER CHAMP PAR CHAMP',`
-  <div class="conflict-box">
+ showModal('IMPORT PREPA · ACTION','CHOISIR LE TRAITEMENT À APPLIQUER',`
+  <div class="conflict-box import-action-modal">
    <div class="conflict-summary">
      ${rows.length} INFORMATION${rows.length>1?'S':''} DÉTECTÉE${rows.length>1?'S':''}.
-     <br><small>✓ = IMPORTER / ÉCRASER · VIDE = CONSERVER LA VALEUR ACTUELLE</small>
+     <br><small>LE CHOIX S'APPLIQUE À LA PRÉPA DU VOL ACTUEL.</small>
    </div>
 
-   <div class="conflict-list">
-    ${rows.map(c=>`
-      <label class="conflict-row conflict-select-row ${c.isDifferent?'different':'same'}">
-       <input type="checkbox" data-conflict-overwrite="${c.selector}" ${c.checked?'checked':''}>
-       <div>
-        <b>${c.label}</b>
-        <span class="old">ACTUEL : ${c.current}</span>
-        <span class="new">IMPORT : ${c.next}</span>
-       </div>
-      </label>`).join('')}
+   <div class="import-action-grid">
+     <button class="import-action overwrite" onclick="applyPrepaImport('overwrite')">
+       <b>ÉCRASER</b>
+       <span>REMPLACE TOUTE LA PRÉPA ACTUELLE PAR CE NOUVEL IMPORT.</span>
+     </button>
+
+     <button class="import-action update" onclick="applyPrepaImport('update')">
+       <b>METTRE À JOUR</b>
+       <span>REMPLACE LES CHAMPS TROUVÉS DANS LE FICHIER ET CONSERVE LE RESTE.</span>
+     </button>
+
+     <button class="import-action delete" onclick="applyPrepaImport('delete')">
+       <b>SUPPRIMER</b>
+       <span>SUPPRIME LA PRÉPA ET LES DONNÉES PRÉPA DÉJÀ INJECTÉES SUR CE VOL.</span>
+     </button>
+
+     <button class="import-action keep" onclick="applyPrepaImport('keep')">
+       <b>CONSERVER</b>
+       <span>GARDE LES DONNÉES ACTUELLES ET COMPLÈTE UNIQUEMENT LES CHAMPS VIDES.</span>
+     </button>
    </div>
+
+   <details class="import-action-details">
+     <summary>VOIR LES INFORMATIONS DÉTECTÉES (${rows.length})</summary>
+     <div class="conflict-list">
+       ${rows.map(c=>`
+         <div class="conflict-row ${c.current!=='VIDE'&&c.current!==c.next?'different':'same'}">
+           <div>
+             <b>${c.label}</b>
+             <span class="old">ACTUEL : ${c.current}</span>
+             <span class="new">IMPORT : ${c.next}</span>
+           </div>
+         </div>`).join('')}
+     </div>
+   </details>
 
    <div class="conflict-actions">
-    <button class="keep" onclick="applyPrepaImport('keep')">TOUT CONSERVER</button>
-    <button class="overwrite" onclick="document.querySelectorAll('[data-conflict-overwrite]').forEach(x=>x.checked=true)">TOUT ÉCRASER</button>
-    <button class="primary" onclick="applyPrepaImport('selected')">APPLIQUER LE CHOIX</button>
-    <button class="cancel" onclick="cancelPrepaImport()">ANNULER</button>
+     <button class="cancel" onclick="cancelPrepaImport()">ANNULER</button>
    </div>
   </div>`);
 }
@@ -8175,7 +8401,7 @@ function companyConfigSystemRecord(){
 function syncCompanyConfigFromFlights(records){
  let latest=null;
 
- // V49.11 preferred source: one dedicated D1 system record.
+ // V49.12 preferred source: one dedicated D1 system record.
  const sys=(records||[]).find(isCompanyConfigSystemRecord);
  if(sys?._companyConfigBundle){
    latest={
@@ -10413,7 +10639,7 @@ async function confirmClearAllFlights(){await confirmFullReset()}
 
 
 /* =========================================================
-   V49.11 — SYNCHRONISATION SILENCIEUSE MULTI-POSTES
+   V49.12 — SYNCHRONISATION SILENCIEUSE MULTI-POSTES
    ========================================================= */
 const OPS_REALTIME_INTERVAL_VISIBLE=2500;
 const OPS_REALTIME_INTERVAL_HIDDEN=8000;
@@ -10664,7 +10890,7 @@ function openTools(){
    <button class="tool-card" onclick="openSariaApp()"><span class="tool-icon">✈</span><b>SARIA</b><span>OUVRIR DIRECTEMENT L’OUTIL SARIA CABIN / SEATMAP.</span></button>
    <div class="ops-cloud-card">
      <div id="opsCloudStatusBox" class="ops-cloud-status ${OPS_CLOUD_ONLINE?'ok':'warn'}">${OPS_CLOUD_ONLINE?'☁ SYNC MULTI-POSTES ACTIVE':'☁ SYNC MULTI-POSTES'}</div>
-     <div class="ops-cloud-help">D1 PARTAGÉ · FICHE OUVERTE ~0,8 S · SYNCHRO GLOBALE ~2,5 S · PC, TABLETTE ET TÉLÉPHONE.<br><b style="color:#087749">V49.11 · IMPORT FIX ACTIF</b></div>
+     <div class="ops-cloud-help">D1 PARTAGÉ · FICHE OUVERTE ~0,8 S · SYNCHRO GLOBALE ~2,5 S · PC, TABLETTE ET TÉLÉPHONE.<br><b style="color:#087749">V49.12 · IMPORT FIX ACTIF</b></div>
      <button class="live-refresh" onclick="manualCloudRefresh()">↻ SYNCHRONISER MAINTENANT</button>
    </div>
    <div class="adb-usage-card"><div id="adbUsageBox"><button class="live-refresh" onclick="loadAeroUsage()">CHARGER COMPTEUR AERODATABOX</button></div></div>
