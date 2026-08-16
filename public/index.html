@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V47.4 · Modales Responsive sans zoom</title>
+<title>ALYZIA OPS - V48.0 · Flight Enrichment Engine</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -3975,6 +3975,67 @@ html,body{
   text-size-adjust:100%;
 }
 
+
+/* V48.0 — FLIGHT ENRICHMENT ENGINE */
+.enrichment-chip{
+ width:100%;margin-top:6px;border:1px solid #c8d6e5;background:#f7fafc;border-radius:8px;
+ padding:6px 8px;display:grid;grid-template-columns:auto auto 1fr;gap:6px;align-items:center;
+ text-align:left;cursor:pointer;color:#52677e
+}
+.enrichment-chip span{font-size:8px;font-weight:950;letter-spacing:.4px}
+.enrichment-chip b{font-size:13px;font-weight:1000}
+.enrichment-chip small{font-size:7px;font-weight:900;text-align:right}
+.enrichment-chip.good{border-color:#94d7b0;background:#effaf3;color:#087a4c}
+.enrichment-chip.mid{border-color:#edcc87;background:#fff9ec;color:#a56600}
+.enrichment-chip.low{border-color:#efb1b8;background:#fff3f4;color:#b92535}
+.data-source-badge{
+ display:inline-flex;align-items:center;width:max-content;max-width:100%;margin-top:5px;padding:3px 6px;
+ border-radius:999px;border:1px solid #d8e2ec;background:#f6f9fc;color:#667b90;font-size:7px;font-weight:950
+}
+.data-source-badge.manual{background:#f3edff;border-color:#cab6f6;color:#6840af}
+.data-source-badge.prepa{background:#effaf3;border-color:#a2dab9;color:#087a4c}
+.data-source-badge.aerodatabox{background:#eef7ff;border-color:#9dccf3;color:#0865ad}
+.data-source-badge.saria{background:#fff6e8;border-color:#edc27b;color:#9d6100}
+.data-source-badge.import_excel{background:#f4f6f8;border-color:#cbd4dc;color:#596a79}
+.data-source-badge.unknown{background:#fff3f4;border-color:#edb8be;color:#b22e3c}
+.enrichment-summary{
+ margin-top:10px;display:grid;grid-template-columns:150px 1fr;gap:10px;padding:12px;border-radius:10px;
+ border:1px solid #dbe5ee;background:#f8fafc
+}
+.enrichment-summary.complete{border-color:#a5dbba;background:#f1faf4}
+.enrichment-summary.incomplete{border-color:#efd08d;background:#fffaf0}
+.enrichment-summary>div{display:grid;gap:3px}
+.enrichment-summary small{font-size:8px;font-weight:900;color:#718398}
+.enrichment-summary strong{font-size:26px;font-weight:1000}
+.enrichment-summary b{font-size:11px;line-height:1.35}
+.enrichment-source-list{display:grid;gap:6px;margin-top:10px}
+.enrichment-source-row{
+ border:1px solid #e0e7ee;border-radius:9px;background:#fff;padding:9px 10px;display:grid;
+ grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px
+}
+.enrichment-source-row>div{display:grid;gap:2px;min-width:0}
+.enrichment-source-row small{font-size:8px;color:#718398;font-weight:900}
+.enrichment-source-row b{font-size:12px;white-space:normal;overflow-wrap:anywhere}
+.enrichment-source-legend{
+ margin:10px 0;padding:8px;border-radius:8px;background:#f4f7fa;font-size:8px;font-weight:850;
+ color:#687d91;text-align:center
+}
+.enrichment-source-legend b{color:#6840af}
+.flight-enrichment-inline{
+ margin-bottom:10px;padding:8px 10px;border-radius:9px;display:grid;grid-template-columns:auto 1fr auto;
+ gap:8px;align-items:center;cursor:pointer
+}
+.flight-enrichment-inline.complete{background:#effaf3;border:1px solid #a1dab8;color:#087a4c}
+.flight-enrichment-inline.incomplete{background:#fff9ed;border:1px solid #edcc88;color:#9c6200}
+.flight-enrichment-inline span{font-size:11px;font-weight:1000}
+.flight-enrichment-inline b{font-size:9px}
+.flight-enrichment-inline small{font-size:7px;font-weight:950}
+@media(max-width:720px){
+ .enrichment-summary{grid-template-columns:1fr}
+ .enrichment-source-row{grid-template-columns:minmax(0,1fr)}
+ .flight-enrichment-inline{grid-template-columns:1fr;gap:3px}
+}
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
@@ -4401,10 +4462,8 @@ async function refreshAeroDataBox(){
   const a=j.flights?.[0];if(!a)throw new Error('AUCUNE DONNÉE');
   ADB_STATE[key]={data:a,cacheHit:!!j.cache?.hit,fetchedAt:j.fetchedAt||new Date().toISOString(),usage:j.usage||null};
   if(a.departure?.terminal)x.terminal=a.departure.terminal;
-  // Ne jamais écraser les données ALYZIA/Excel par null. Gate/immat/type sont enrichis seulement si fournis.
-  if(a.departure?.gate)x.gate=a.departure.gate;
-  if(a.aircraft?.registration)x.reg=a.aircraft.registration;
-  if(a.aircraft?.model&&(!x.aircraft||x.aircraft==='NON RENSEIGNÉ'))x.aircraft=a.aircraft.model;
+  // V48 : les valeurs passent par le moteur de priorité et sont enregistrées dans D1.
+  await runFlightEnrichment({persist:true});
   render();
  }catch(e){ADB_STATE[key]={error:String(e.message||e).toUpperCase()};render()}
 }
@@ -4432,6 +4491,164 @@ function airlineLogo(code,size='normal'){
 function f(){return FLIGHTS[selected]}
 function sum(obj){return Object.values(obj||{}).reduce((a,b)=>a+(Number(b)||0),0)}
 
+
+
+/* =========================================================
+   V48.0 — FLIGHT ENRICHMENT ENGINE
+   D1 = mémoire centrale. Les données importantes mémorisent
+   leur provenance, la date de mise à jour et une priorité.
+   ========================================================= */
+const ENRICHMENT_SOURCE_PRIORITY={
+ DEFAULT:0, IMPORT_EXCEL:10, SARIA:15, AERODATABOX:20, PREPA:30, MANUAL:40
+};
+const ENRICHMENT_SOURCE_LABELS={
+ DEFAULT:'DÉFAUT', IMPORT_EXCEL:'PLANNING', SARIA:'SARIA',
+ AERODATABOX:'LIVE', PREPA:'PREPA', MANUAL:'MANUEL'
+};
+
+function ensureEnrichmentMeta(x){
+ if(!x)return null;
+ if(!x.enrichment||typeof x.enrichment!=='object')x.enrichment={};
+ if(!x.enrichment.fields||typeof x.enrichment.fields!=='object')x.enrichment.fields={};
+ if(!Array.isArray(x.enrichment.history))x.enrichment.history=[];
+ return x.enrichment;
+}
+
+function seedEnrichmentSources(x){
+ const meta=ensureEnrichmentMeta(x); if(!meta)return;
+ const seed=(field,value,source='IMPORT_EXCEL')=>{
+   if(value===undefined||value===null||value===''||value==='—'||value==='NON RENSEIGNÉ')return;
+   if(!meta.fields[field])meta.fields[field]={
+     source,updated_at:x.lastActionAt||x.importedAt||new Date().toISOString()
+   };
+ };
+ seed('date',x.date);seed('airline',x.airline);seed('flight',x.flight);seed('dest',x.dest);
+ seed('std',x.std);seed('aircraft',x.aircraft);seed('reg',x.reg);seed('gate',x.gate);seed('sta',x.sta);
+ if(sum(x.config)>0)seed('config',x.config,'PREPA');
+ if(sum(x.booked)>0)seed('booked',x.booked,'PREPA');
+ if(sum(x.meals)>0)seed('meals',x.meals,'PREPA');
+ meta.last_engine_at=new Date().toISOString();
+}
+
+function enrichmentFieldSource(x,field){
+ seedEnrichmentSources(x);
+ return x?.enrichment?.fields?.[field]||null;
+}
+
+function setEnrichmentSource(x,field,source,note=''){
+ const meta=ensureEnrichmentMeta(x),now=new Date().toISOString();
+ meta.fields[field]={source,updated_at:now,note:note||undefined};
+ meta.last_engine_at=now;
+ meta.history.unshift({field,source,at:now,note:note||undefined});
+ meta.history=meta.history.slice(0,40);
+}
+
+function canApplyEnrichedField(x,field,source){
+ const current=enrichmentFieldSource(x,field);
+ if(!current)return true;
+ return (ENRICHMENT_SOURCE_PRIORITY[source]??0)>=(ENRICHMENT_SOURCE_PRIORITY[current.source]??0);
+}
+
+function applyEnrichedField(x,field,value,source,note=''){
+ if(value===undefined||value===null||value===''||value==='—')return false;
+ if(!canApplyEnrichedField(x,field,source))return false;
+ let changed=false;
+ if(['config','booked','meals','web'].includes(field)){
+   const next=typeof value==='object'&&value?JSON.parse(JSON.stringify(value)):value;
+   if(JSON.stringify(x[field])!==JSON.stringify(next)){x[field]=next;changed=true}
+ }else if(x[field]!==value){x[field]=value;changed=true}
+ setEnrichmentSource(x,field,source,note);
+ return changed;
+}
+
+function markManualFields(x,fields,note=''){
+ (Array.isArray(fields)?fields:[fields]).forEach(field=>field&&setEnrichmentSource(x,field,'MANUAL',note));
+}
+function markPrepaFields(x,fields,note=''){
+ (Array.isArray(fields)?fields:[fields]).forEach(field=>field&&setEnrichmentSource(x,field,'PREPA',note));
+}
+
+function sourceBadgeHtml(x,field){
+ const s=enrichmentFieldSource(x,field);
+ if(!s)return `<span class="data-source-badge unknown">NON RENSEIGNÉ</span>`;
+ const lab=ENRICHMENT_SOURCE_LABELS[s.source]||s.source;
+ let time='';try{time=s.updated_at?new Date(s.updated_at).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}):''}catch(e){}
+ return `<span class="data-source-badge ${String(s.source||'').toLowerCase()}">${lab}${time?` · ${time}`:''}</span>`;
+}
+
+function flightMissingInfo(x){
+ const missing=[],has=v=>!(v===undefined||v===null||v===''||v==='—'||v==='NON RENSEIGNÉ');
+ if(!has(x.std))missing.push('STD');
+ if(!has(x.sta)&&!schedule(x).sta)missing.push('STA');
+ if(!has(x.aircraft))missing.push('TYPE A/C');
+ if(!has(x.reg))missing.push('IMMAT');
+ if(!has(x.gate))missing.push('GATE');
+ if(sum(x.config)<=0)missing.push('CONFIG');
+ if(sum(x.booked)<=0)missing.push('BOOKED');
+ return missing;
+}
+
+function flightEnrichmentStatus(x){
+ seedEnrichmentSources(x);
+ const missing=flightMissingInfo(x),total=7;
+ const score=Math.max(0,Math.round((total-Math.min(total,missing.length))/total*100));
+ return {score,missing,complete:missing.length===0};
+}
+
+function enrichmentHeaderButton(x){
+ const s=flightEnrichmentStatus(x),cls=s.score>=86?'good':s.score>=57?'mid':'low';
+ return `<button class="enrichment-chip ${cls}" onclick="openEnrichmentPanel()" title="Sources et informations manquantes">
+  <span>DATA</span><b>${s.score}%</b>${s.missing.length?`<small>${s.missing.length} MANQUANT${s.missing.length>1?'S':''}</small>`:'<small>COMPLET</small>'}
+ </button>`;
+}
+
+async function runFlightEnrichment({persist=false}={}){
+ const x=f();if(!x)return;
+ seedEnrichmentSources(x);
+ const live=adbState(x)?.data;
+ if(live){
+   if(live.departure?.gate)applyEnrichedField(x,'gate',live.departure.gate,'AERODATABOX','AeroDataBox');
+   if(live.aircraft?.registration)applyEnrichedField(x,'reg',live.aircraft.registration,'AERODATABOX','AeroDataBox');
+   if(live.aircraft?.model)applyEnrichedField(x,'aircraft',live.aircraft.model,'AERODATABOX','AeroDataBox');
+   const staLive=live.arrival?.scheduledTime?.local||live.arrival?.scheduledTimeLocal||live.arrival?.scheduled||null;
+   if(staLive){
+     const m=String(staLive).match(/(\d{2}):(\d{2})/);
+     if(m)applyEnrichedField(x,'sta',`${m[1]}:${m[2]}`,'AERODATABOX','STA AeroDataBox');
+   }
+ }
+ const p=getPrepaInfo(x,currentFlightDate());
+ if(p?.state?.ok){
+   if(sum(x.config)>0)markPrepaFields(x,'config','Prépa validée');
+   if(sum(x.booked)>0)markPrepaFields(x,'booked','Prépa validée');
+   if(sum(x.meals)>0)markPrepaFields(x,'meals','Prépa validée');
+ }
+ x.enrichment.last_engine_at=new Date().toISOString();
+ if(persist)await saveImportedFlightsPersistent(FLIGHTS);
+}
+
+function openEnrichmentPanel(){
+ const x=f(),s=flightEnrichmentStatus(x);
+ const rows=[
+  ['STD','std',x.std||'—'],['STA','sta',schedule(x).sta||x.sta||'—'],
+  ['TYPE A/C','aircraft',x.aircraft||'—'],['IMMAT','reg',x.reg||'—'],
+  ['GATE','gate',x.gate||'—'],
+  ['CONFIG','config',Object.entries(x.config||{}).map(([k,v])=>`${k}${v}`).join(' ')||'—'],
+  ['BOOKED','booked',Object.entries(x.booked||{}).map(([k,v])=>`${k}${v}`).join(' ')||'—']
+ ];
+ showModal('DATA SOURCES',x.flight,`
+  <div class="enrichment-summary ${s.complete?'complete':'incomplete'}">
+    <div><small>ENRICHISSEMENT</small><strong>${s.score}%</strong></div>
+    <div><small>INFORMATIONS MANQUANTES</small><b>${s.missing.length?s.missing.join(' · '):'AUCUNE'}</b></div>
+  </div>
+  <div class="enrichment-source-list">
+   ${rows.map(([label,field,value])=>`<div class="enrichment-source-row"><div><small>${label}</small><b>${value}</b></div>${sourceBadgeHtml(x,field)}</div>`).join('')}
+  </div>
+  <div class="enrichment-source-legend"><span>PRIORITÉ :</span> <b>MANUEL</b> › PREPA › LIVE › SARIA › PLANNING</div>
+  <div class="web-all-actions">
+   <button class="secondary" onclick="closeModal();setTimeout(()=>refreshAeroDataBox(),30)">↻ ACTUALISER LIVE</button>
+   <button class="primary" onclick="closeModal()">FERMER</button>
+  </div>`);
+}
 
 function baseClassesForFlight(x){
  const airline=String(x?.airline||'').toUpperCase();
@@ -4947,6 +5164,11 @@ function saveEditingFromModal(silent=false,syncBlanks=false){
 
   const btn=document.getElementById('saveEditingBtn');
   if(btn){btn.textContent='✓ ENREGISTRÉ';btn.classList.add('saved')}
+  if(sum(x.config)>0)markPrepaFields(x,'config','Editing PREPA');
+  if(sum(x.booked)>0)markPrepaFields(x,'booked','Editing PREPA');
+  if(sum(x.meals)>0)markPrepaFields(x,'meals','Editing PREPA');
+  if(x.sta)markPrepaFields(x,'sta','Editing PREPA');
+  if(x.std)markPrepaFields(x,'std','Editing PREPA');
   if(!silent)editingFeedback(`EDITING ${x.airline} ENREGISTRÉ ET INJECTÉ DANS ${x.flight}.`,'ok');
   persistFlightAction('PREPA / EDITING');
   return true;
@@ -5948,7 +6170,9 @@ function persistFlightAction(reason='ACTION FICHE VOL',immediate=false){
 function render(){
  currentView='detail';
  updateMobileNav();
- const x=f(), sc=schedule(x), cap=sum(x.config), booked=sum(x.booked);
+ const x=f();
+ seedEnrichmentSources(x);
+ const sc=schedule(x), cap=sum(x.config), booked=sum(x.booked);
  const classes=orderedClasses(x);
  const nokByClass={};classes.forEach(k=>nokByClass[k]=0);
  (x.inopSeats||[]).forEach(r=>{if(r.status==='NOK' && nokByClass[r.class]!==undefined)nokByClass[r.class]++});
@@ -5966,6 +6190,7 @@ function render(){
     <div class="flight-id-with-logo">${airlineLogo(x.airline,'large')}<div class="flight-number">${x.flight}</div></div>
     <div class="route">${x.dep}<span class="arrow">→</span>${x.dest}</div>
     ${adbLiveStrip(x)}
+    ${enrichmentHeaderButton(x)}
     <div class="detail-prepa-actions"><button class="detail-prepa-btn ${getPrepaInfo(x,currentFlightDate())?.state?.ok?'done':'nok'}" onclick="openDetailPrepa()"><span class="sheet">▤</span><span>PREPA</span></button><button class="print-icon-btn" title="Imprimer la prépa" onclick="printCurrentFlightPrepa()">🖨</button><button class="clear-flight-btn" title="Vider la fiche du vol" onclick="openClearCurrentFlight()">⌫</button></div>
    </div>
    <div class="headcell">
@@ -6421,7 +6646,7 @@ function staffTable(){
  </div>`;
 }
 
-function updateConfig(k,v){const x=f();x.config[k]=Math.max(0,parseInt(v||0));render();persistFlightAction('CONFIGURATION')}
+function updateConfig(k,v){const x=f();x.config[k]=Math.max(0,parseInt(v||0));markManualFields(x,'config','Configuration modifiée');render();persistFlightAction('CONFIGURATION')}
 
 
 function inopForm(index=null){
@@ -6519,6 +6744,11 @@ function saveEdit(){
  else if(editKey==='reg'){x.reg=document.getElementById('editValue').value.toUpperCase()}
  else if(editKey==='gate'){x.gate=document.getElementById('editValue').value.toUpperCase()}
  else if(editKey==='parking'){x.parking=document.getElementById('editValue').value.toUpperCase()}
+ const manualMap={
+   class:['booked'],time:['std','sta'],sta:['std','sta'],
+   aircraft:['aircraft'],reg:['reg'],gate:['gate'],parking:['parking']
+ };
+ markManualFields(x,manualMap[editKey]||[editKey],'Modification fiche vol');
  closeModal();render();persistFlightAction('MODIFICATION FICHE VOL',true);
 }
 
@@ -6563,6 +6793,7 @@ async function saveBookedEdit(){
  document.querySelectorAll('[data-booked-edit]').forEach(el=>{
    x.booked[el.dataset.bookedEdit]=Math.max(0,parseInt(el.value||'0',10)||0);
  });
+ markManualFields(x,'booked','Booked modifié');
  closeModal();
  render();
  await persistFlightAction('BOOKED',true);
@@ -6842,6 +7073,16 @@ function defaultFlightObject(row){
  const zero=()=>Object.fromEntries(Object.keys(base).map(k=>[k,0]));
  return {
   airline,flight,dep:'CDG',dest,std,duration:null,durationSource:'IMPORT_EXCEL',aircraft:aircraft||'NON RENSEIGNÉ',reg:reg||'—',gate:'—',parking:parking||'—',date,
+  importedAt:new Date().toISOString(),
+  enrichment:{fields:{
+    date:{source:'IMPORT_EXCEL',updated_at:new Date().toISOString()},
+    airline:{source:'IMPORT_EXCEL',updated_at:new Date().toISOString()},
+    flight:{source:'IMPORT_EXCEL',updated_at:new Date().toISOString()},
+    dest:{source:'IMPORT_EXCEL',updated_at:new Date().toISOString()},
+    std:{source:'IMPORT_EXCEL',updated_at:new Date().toISOString()},
+    aircraft:{source:'IMPORT_EXCEL',updated_at:new Date().toISOString()},
+    reg:{source:'IMPORT_EXCEL',updated_at:new Date().toISOString()}
+  },history:[]},
   config:{...base},booked:zero(),edt:'',web:zero(),meals:zero(),standby:0,emd:0,etk:0,
   common:{WCH:0,DEAF_BLND:0,EXST_CBBG:0,PET_AV:0,INF:0,CHLD:0,UMNR:0,VIP:0,EMD:0,ETK:0,FQTV:0,STAFF:0},
   passengers:[],common_lists:{WCH:[],DEAF_BLND:[],EXST_CBBG:[],PET_AV:[],INF:[],CHLD:[],UMNR:[],VIP:[],EMD:[],ETK:[],FQTV:[],STAFF:[]},
@@ -7043,19 +7284,25 @@ async function applyFlightImportChoice(choice){
 function openFlightInfo(){
  const x=f(),sc=schedule(x),cap=sum(x.config),booked=sum(x.booked),avail=x.available;
  const nok=(x.inopSeats||[]).filter(r=>r.status==='NOK').length;
+ const enrich=flightEnrichmentStatus(x);
  showModal('INFOS VOL',x.flight,`
+   <div class="flight-enrichment-inline ${enrich.complete?'complete':'incomplete'}" onclick="openEnrichmentPanel()">
+     <span>DATA ${enrich.score}%</span>
+     <b>${enrich.missing.length?`À COMPLÉTER : ${enrich.missing.join(' · ')}`:'FICHE ESSENTIELLE COMPLÈTE'}</b>
+     <small>VOIR LES SOURCES</small>
+   </div>
    <div class="flight-info-grid">
     <div class="flight-info-item"><small>ROUTE</small><b>${x.dep} → ${x.dest}</b></div>
     <div class="flight-info-item"><small>COMPAGNIE</small><b>${x.airline}</b></div>
-    <div class="flight-info-item"><small>STD / ETD</small><b>${x.std}${x.edt?` / ${x.edt} (+${sc.delay} MIN)`:''}</b></div>
-    <div class="flight-info-item"><small>STA / ETA</small><b>${sc.sta} ${daytag(sc.staDay)}${x.edt?` / ${sc.eta} ${daytag(sc.etaDay)}`:''}</b></div>
+    <div class="flight-info-item"><small>STD / ETD</small><b>${x.std}${x.edt?` / ${x.edt} (+${sc.delay} MIN)`:''}</b>${sourceBadgeHtml(x,'std')}</div>
+    <div class="flight-info-item"><small>STA / ETA</small><b>${sc.sta||'—'} ${sc.sta?daytag(sc.staDay):''}${x.edt&&sc.eta?` / ${sc.eta} ${daytag(sc.etaDay)}`:''}</b>${sourceBadgeHtml(x,'sta')}</div>
     <div class="flight-info-item"><small>DURÉE</small><b>${durationText(x.duration)}</b></div>
-    <div class="flight-info-item"><small>GATE</small><b>${x.gate||'—'}</b></div>
+    <div class="flight-info-item"><small>GATE</small><b>${x.gate||'—'}</b>${sourceBadgeHtml(x,'gate')}</div>
 
-    <div class="flight-info-item"><small>TYPE APPAREIL</small><b>${x.aircraft}</b></div>
-    <div class="flight-info-item"><small>IMMATRICULATION</small><b>${x.reg}</b></div>
-    <div class="flight-info-item"><small>CONFIGURATION</small><b>${Object.entries(x.config).map(([k,v])=>k+' '+v).join(' · ')}</b></div>
-    <div class="flight-info-item"><small>CAPACITY / BOOKED / AVAILABLE</small><b>${cap} / ${booked} / ${avail}</b></div>
+    <div class="flight-info-item"><small>TYPE APPAREIL</small><b>${x.aircraft}</b>${sourceBadgeHtml(x,'aircraft')}</div>
+    <div class="flight-info-item"><small>IMMATRICULATION</small><b>${x.reg}</b>${sourceBadgeHtml(x,'reg')}</div>
+    <div class="flight-info-item"><small>CONFIGURATION</small><b>${Object.entries(x.config).map(([k,v])=>k+' '+v).join(' · ')}</b>${sourceBadgeHtml(x,'config')}</div>
+    <div class="flight-info-item"><small>CAPACITY / BOOKED / AVAILABLE</small><b>${cap} / ${booked} / ${avail}</b>${sourceBadgeHtml(x,'booked')}</div>
     <div class="flight-info-item"><small>INOP NOK</small><b>${nok}</b></div>
     <div class="flight-info-item"><small>STANDBY</small><b>${x.standby}</b></div>
     <div class="flight-info-item flight-info-wide" onclick="openNotesList()" style="cursor:pointer"><small>NOTES PASSAGERS</small><b>${passengerNotesForCurrentFlight().length?`🔔 ${passengerNotesForCurrentFlight().length} NOTE(S) — CLIQUER POUR OUVRIR`:'AUCUNE NOTE'}</b></div>
@@ -7716,6 +7963,7 @@ async function bootstrapAlyziaOps(){
    }
  }
 
+ FLIGHTS.forEach(seedEnrichmentSources);
  restoreManualMeals();
  restoreSariaFlightSelections();
  renderHome();
