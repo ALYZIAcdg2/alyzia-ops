@@ -1,4 +1,4 @@
-// ALYZIA OPS V49.9 · Worker complet
+// ALYZIA OPS V49.11 · Worker complet
 // - Assets statiques public/
 // - API vols partagée D1
 // - Bridge interne vers SARIA
@@ -293,10 +293,21 @@ export default {
         if(result)return result;
       }
 
-      return env.ASSETS.fetch(request);
+      const assetResponse=await env.ASSETS.fetch(request);
+    const headers=new Headers(assetResponse.headers);
+    if(url.pathname==="/" || url.pathname.endsWith(".html")){
+      headers.set("Cache-Control","no-store, no-cache, must-revalidate, max-age=0");
+      headers.set("Pragma","no-cache");
+      headers.set("Expires","0");
+    }
+    return new Response(assetResponse.body,{
+      status:assetResponse.status,
+      statusText:assetResponse.statusText,
+      headers
+    });
 
     }catch(err){
-      console.error("ALYZIA OPS V49.9",err);
+      console.error("ALYZIA OPS V49.11",err);
       return json({
         ok:false,
         error:err?.message||String(err)
