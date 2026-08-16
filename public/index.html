@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V48.9 · Merge Import + FQTV</title>
+<title>ALYZIA OPS - V48.12 · NOTE Bell</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -4283,6 +4283,46 @@ html,body{
  .prepa-import-help{font-size:8px}
 }
 
+
+/* V48.10 — import reliability */
+.flight-info-item b[style*="white-space:pre-wrap"]{
+ line-height:1.45;
+ overflow-wrap:anywhere;
+}
+
+
+/* V48.11 — NOTE COMMENTS PREPA sous OUTBOUND */
+.prepa-note-card{margin-top:12px;padding:14px}
+.prepa-note-title{
+ display:flex;justify-content:space-between;align-items:center;gap:8px;
+ margin-bottom:9px
+}
+.prepa-note-title span{font-size:15px;font-weight:1000;color:#13263c}
+.prepa-note-title small{font-size:8px;font-weight:900;color:#718398}
+.prepa-note-list{display:grid;gap:7px}
+.prepa-note-row{
+ display:grid;grid-template-columns:130px minmax(0,1fr);gap:9px;align-items:start;
+ border:1px solid #e0e7ee;border-radius:8px;background:#fafcff;padding:8px 9px
+}
+.prepa-note-row b{font-size:8px;color:#52677e}
+.prepa-note-row span{font-size:9px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}
+@media(max-width:720px){
+ .prepa-note-row{grid-template-columns:1fr}
+}
+
+
+/* V48.12 — cloche NOTE PREPA */
+.prepa-note-card.active{
+ border-color:#edc873;
+ background:#fffdf7;
+}
+.prepa-note-title .note-bell{
+ display:inline-block;
+ margin-left:5px;
+ vertical-align:middle;
+ font-size:14px;
+}
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
@@ -5398,6 +5438,7 @@ function saveEditingFromModal(silent=false,syncBlanks=false){
   // Conserver toutes les rubriques PREPA sur le vol.
   x.prepaEditing=data;
   x.prepaParticularities={...data.particularities};
+  syncPrepaCommentsToFlightNote(x,data);
 
   // Mapping des rubriques communes visibles dans la fiche vol.
   const p=data.particularities||{};
@@ -6236,51 +6277,56 @@ const SQ_SSR_MAP={
 const SQ_MEAL_CODES=['CHML','BBML','AVML','MOML','LFML','FPML','NLML','SPML'];
 
 
-function detectSqFqtvProgram(lines,allText){
- const txt=String(allText||'').toUpperCase();
- const matches=[...txt.matchAll(/\b([A-Z0-9]{2,3})-?(\d{5,20})\b/g)];
- // Avoid ticket/phone/other numeric fields; only keep likely frequent-flyer prefixes.
- const known=['SQ','KR','AI','NZ','LH','UA','AC','NH','TK','SK','ET','AV','OZ','TG','BR','CA','ZH','MS','TP','LX','OS'];
- for(const m of matches){
-   const code=m[1];
-   if(known.includes(code))return {program:code,number:m[2]};
- }
- return null;
-}
-
 
 function parseSqFqtvReports(rawOriginal){
- const upper=String(rawOriginal||'').toUpperCase().replace(/\r/g,' ').replace(/\n/g,' ');
+ const raw=String(rawOriginal||'');
  const entries=[];
 
- const reportRe=/LIST\s+OF\s*:\s*(FQT-KFEG|FQT-KFES|PDF-IPPS)\b/g;
- const starts=[...upper.matchAll(reportRe)];
- if(!starts.length)return entries;
+ // Multi-file import writes a clear file separator. Parse every file separately
+ // so a KFES file can never swallow the following VBC passenger manifest.
+ let sourceBlocks=raw.split(/(?======\s*FICHIER\s*:)/i).filter(b=>b.trim());
+ if(sourceBlocks.length<=1)sourceBlocks=[raw];
 
- for(let r=0;r<starts.length;r++){
-   const reportCode=starts[r][1];
-   const reportStart=starts[r].index;
-   const reportEnd=r+1<starts.length?starts[r+1].index:upper.length;
-   const report=upper.slice(reportStart,reportEnd);
+ sourceBlocks.forEach((sourceBlock,blockIndex)=>{
+   const upper=sourceBlock.toUpperCase().replace(/\r/g,' ').replace(/\n/g,' ');
 
-   // PDF.js flattens a page into one line, so do NOT depend on line breaks.
-   const paxStarts=[...report.matchAll(/\b(\d{1,3})\.([A-Z][A-Z0-9 '/.-]+?)\s+(?:MR|MRS|MS|MISS|MSTR|MDM|DR|F|M|C)\s+CDG\s+SIN\b/g)];
-   for(let i=0;i<paxStarts.length;i++){
-     const recStart=paxStarts[i].index;
-     const recEnd=i+1<paxStarts.length?paxStarts[i+1].index:report.length;
+   const header=upper.match(/LIST\s+OF\s*:\s*(FQT-KFEG|FQT-KFES|PDF-IPPS)\b([\s\S]{0,120}?)\bTOTAL\s+(\d{1,3})\b/);
+   if(!header)return;
+
+   const reportCode=header[1];
+   const expectedTotal=Number(header[3]||0);
+
+   // Start only after the LIST OF header.
+   const reportStart=header.index||0;
+   let report=upper.slice(reportStart);
+
+   // If a different LIST OF exists later in a pasted text, stop there.
+   const nextList=report.slice(10).search(/LIST\s+OF\s*:/);
+   if(nextList>=0)report=report.slice(0,nextList+10);
+
+   const paxStarts=[...report.matchAll(/\b(\d{1,3})\.([A-Z][A-Z0-9 '/.-]+?)\s+(?:(?:MR|MRS|MS|MISS|MSTR|MDM|DR)\s+)?(?:[MFCI]\s+)?CDG\s+SIN\b/g)];
+
+   // The report itself tells us exactly how many passengers belong to this FQTV list.
+   const limited=expectedTotal>0?paxStarts.slice(0,expectedTotal):paxStarts;
+
+   limited.forEach((pm,i)=>{
+     const recStart=pm.index;
+     const recEnd=i+1<limited.length?limited[i+1].index:report.length;
      const block=report.slice(recStart,recEnd).trim();
 
-     const header=block.match(/^\s*(\d{1,3})\.([A-Z][A-Z0-9 '/.-]+?)\s+(?:(MR|MRS|MS|MISS|MSTR|MDM|DR)\s+)?([MFCI])?\s*CDG\s+SIN\s+([A-Z0-9]{1,3})(?:\s+(\d{2,3}[A-K]))?\s+([\s\S]*?)(?=\bSQ\d{8,12}\b|$)/);
-     if(!header)continue;
+     const head=block.match(
+       /^\s*(\d{1,3})\.([A-Z][A-Z0-9 '/.-]+?)\s+(?:(MR|MRS|MS|MISS|MSTR|MDM|DR)\s+)?([MFCI])?\s*CDG\s+SIN\s+([A-Z0-9]{1,3})\s+(\d{2,3}[A-K])\s+([\s\S]*?)(?=\bSQ\d{8,12}\b|$)/
+     );
+     if(!head)return;
 
-     let name=String(header[2]||'').trim().replace(/\//g,' ').replace(/\s+/g,' ');
-     let cls=String(header[5]||'Y').charAt(0);
+     const name=String(head[2]||'').trim().replace(/\//g,' ').replace(/\s+/g,' ');
+     let cls=String(head[5]||'Y').charAt(0);
      if(cls==='C')cls='J';
      if(cls==='W')cls='S';
      if(!['F','J','S','Y'].includes(cls))cls='Y';
 
-     const seat=header[6]||'';
-     const tail=String(header[7]||'').trim();
+     const seat=head[6]||'';
+     const statusText=String(head[7]||'').trim();
      const member=(block.match(/\bSQ(\d{8,12})\b/)||[])[1]||'';
 
      let category='',status='';
@@ -6288,29 +6334,39 @@ function parseSqFqtvReports(rawOriginal){
        category='KFEG'; status='ELITE GOLD';
      }else if(reportCode==='FQT-KFES'){
        category='KFES'; status='ELITE SILVER';
-     }else if(/SOLITAIRE/.test(tail)){
+     }else if(/SOLITAIRE/.test(statusText)){
        category='SOLITAIRE';
-       status=(tail.match(/\b(BASIC\/SOLITAIRE|SILVER\/SOLITAIRE|SOLITAIRE)\b/)||[])[1]||'SOLITAIRE';
+       status=(statusText.match(/\b(BASIC\/SOLITAIRE|SILVER\/SOLITAIRE|SOLITAIRE)\b/)||[])[1]||'SOLITAIRE';
      }else{
        category='PPS'; status='QUALIFIED';
      }
 
      entries.push({
-       id:`FQTV-${reportCode}-${r}-${i}`,
+       id:`FQTV-${reportCode}-${blockIndex}-${i}`,
        name,seat,class:cls,pnr:'',etkt:'',emd:'',status:'BOOKED',
        type:'FQTV',
        specific:`${category} · ${status}${member?` · SQ${member}`:''}`,
        fqtv:{code:category,status,number:member?`SQ${member}`:''}
      });
-   }
- }
+   });
+ });
 
  const seen=new Set();
  return entries.filter(p=>{
-   const k=[p.name,p.fqtv?.code,p.fqtv?.number].join('|');
-   if(seen.has(k))return false;
-   seen.add(k);return true;
+   const key=[p.name,p.fqtv?.code,p.fqtv?.number].join('|');
+   if(seen.has(key))return false;
+   seen.add(key);
+   return true;
  });
+}
+
+function isValidSqFqtvPassenger(p){
+ const code=String(p?.fqtv?.code||'').toUpperCase();
+ return ['KFEG','KFES','PPS','SOLITAIRE'].includes(code);
+}
+
+function cleanSqFqtvList(list){
+ return (Array.isArray(list)?list:[]).filter(isValidSqFqtvPassenger);
 }
 
 function extractSqVbcplistSource(rawOriginal){
@@ -6443,12 +6499,6 @@ function parseSqPassengerManifest(rawOriginal){
      commonLists.MEAL.push({...p,specific:details||meals.join(' · ')});
    }
 
-   const fq=detectSqFqtvProgram(lines,allText);
-   if(fq){
-     p.fqtv=fq;
-     commonLists.FQTV.push({...p,specific:`${fq.program} ${fq.number}`});
-   }
-
    p.specific=[...p.ssr,...meals].join(' · ');
    passengers.push(p);
  });
@@ -6495,8 +6545,8 @@ function autofillSqPrepaFromManifest(x,manifest){
 
  // FQTV reports only enrich FQTV fields, never booking/config/passenger counts.
  const allFq=mergeUniquePassengers(
-   x.common_lists?.FQTV||[],
-   manifest.commonLists?.FQTV||[],
+   cleanSqFqtvList(x.common_lists?.FQTV||[]),
+   cleanSqFqtvList(manifest.commonLists?.FQTV||[]),
    p=>[p.name,p.fqtv?.code,p.fqtv?.number].join('|')
  );
  d.particularities['KFEG']=allFq.filter(p=>fqtvCategoryForPassenger(p)==='KFEG').length;
@@ -6567,9 +6617,11 @@ function applySqManifestToFlight(manifest){
 
  // FQTV is additive across KFEG, KFES and PPS/SOLITAIRE reports.
  if(manifest.hasFqtv || manifest.commonLists?.FQTV?.length){
+   const existingClean=cleanSqFqtvList(x.common_lists.FQTV||[]);
+   const incomingClean=cleanSqFqtvList(manifest.commonLists?.FQTV||[]);
    x.common_lists.FQTV=mergeUniquePassengers(
-     x.common_lists.FQTV||[],
-     manifest.commonLists?.FQTV||[],
+     existingClean,
+     incomingClean,
      p=>[p.name,p.fqtv?.code,p.fqtv?.number].join('|')
    );
    x.common.FQTV=x.common_lists.FQTV.length;
@@ -6710,29 +6762,109 @@ function prepaSelectorLabel(selector){
  const map={edFlight:'FLIGHT',edReg:'REG',edGate:'GATE',edParking:'PARKING',edStd:'STD',edSta:'STA',edBusiness:'COMMENTS BUSINESS',edPremium:'COMMENTS PREMIUM',edEconomy:'COMMENTS ECONOMY',edQuickRamp:'QUICK RAMP'};
  return map[el.id]||el.id;
 }
+
+function applyAcceptedImportToEditingModel(accepted){
+ const idx=Number(document.getElementById('editingFlightIndex')?.value);
+ const x=FLIGHTS[idx];
+ const departureDate=document.getElementById('editingDepartureDate')?.value||x?.date;
+ if(!x||!departureDate)return;
+
+ const d=getEditingData(x,departureDate);
+ d.config=d.config||{};
+ d.booking=d.booking||{};
+ d.meals=d.meals||{};
+ d.particularities=d.particularities||{};
+ d.comments=d.comments||{business:'',premium:'',economy:'',quickRamp:''};
+ d.extra=d.extra||{};
+
+ Object.entries(accepted||{}).forEach(([selector,value])=>{
+   let m;
+
+   if((m=selector.match(/^\[data-ed-config="([^"]+)"\]$/))){
+     d.config[m[1]]=String(value);
+     const n=Number(value);
+     if(Number.isFinite(n))x.config[m[1]]=n;
+     return;
+   }
+   if((m=selector.match(/^\[data-ed-booking="([^"]+)"\]$/))){
+     d.booking[m[1]]=String(value);
+     const n=Number(value);
+     if(Number.isFinite(n))x.booked[m[1]]=n;
+     return;
+   }
+   if((m=selector.match(/^\[data-ed-meal="([^"]+)"\]$/))){
+     d.meals[m[1]]=String(value);
+     const n=Number(value);
+     if(Number.isFinite(n))x.meals[m[1]]=n;
+     return;
+   }
+   if((m=selector.match(/^\[data-ed-part="([^"]+)"\]$/))){
+     d.particularities[m[1]]=String(value);
+     return;
+   }
+   if((m=selector.match(/^\[data-ed-extra="([^"]+)"\]$/))){
+     d.extra[m[1]]=String(value);
+     return;
+   }
+
+   if(selector==='#edBusiness')d.comments.business=String(value);
+   else if(selector==='#edPremium')d.comments.premium=String(value);
+   else if(selector==='#edEconomy')d.comments.economy=String(value);
+   else if(selector==='#edQuickRamp')d.comments.quickRamp=String(value);
+   else if(selector==='#edStd'){d.std=String(value);x.std=String(value)}
+   else if(selector==='#edSta'){d.sta=String(value);x.sta=String(value)}
+   else if(selector==='#edReg'){d.reg=String(value);x.reg=String(value)}
+   else if(selector==='#edGate'){d.gate=String(value);x.gate=String(value)}
+   else if(selector==='#edParking'){d.parking=String(value);x.parking=String(value)}
+   else if(selector==='#edType'){d.type=String(value);x.aircraft=String(value)}
+   else if(selector==='#edFlight')d.flight=String(value);
+ });
+
+ saveAutofilledEditingData(x,d,departureDate);
+ syncPrepaCommentsToFlightNote(x,d);
+}
+
+function syncPrepaCommentsToFlightNote(x,data){
+ if(!x||!data)return;
+ const c=data.comments||{};
+ // V48.11 : les COMMENTS PREPA ne vont plus dans NOTE OPS.
+ // Ils alimentent la rubrique NOTE dédiée située sous OUTBOUND.
+ x.prepaComments={...c};
+}
+
 function applyPrepaValues(values,overwriteSelectors=null){
  let applied=0,kept=0;
+ const accepted={};
+
  Object.entries(values||{}).forEach(([selector,value])=>{
-   const el=document.querySelector(selector);if(!el)return;
-   const current=String(el.value||'').trim();
+   const el=document.querySelector(selector);
+   const current=String(el?.value||'').trim();
    const conflict=current!=='' && current!==String(value).trim();
 
    if(conflict && overwriteSelectors && !overwriteSelectors.has(selector)){
      kept++;return;
    }
 
-   el.value=value;
-   flashInjected(el);
+   accepted[selector]=value;
+   if(el){
+     el.value=value;
+     flashInjected(el);
+   }
    applied++;
  });
- return {applied,kept};
+
+ return {applied,kept,accepted};
 }
 
 function finalizePrepaAutomaticImport(result){
- const {applied,kept}=result;
+ const {applied,kept,accepted={}}=result;
  const saved=saveEditingFromModal(true,false); // NEVER wipe blank fields during automatic import.
  const idx=Number(document.getElementById('editingFlightIndex')?.value);
  const fx=FLIGHTS[idx];
+
+ // Redundant by design: persist accepted values directly in the PREPA model.
+ // This protects BOOKING/COMMENTS even if the conflict modal has rebuilt the DOM.
+ applyAcceptedImportToEditingModel(accepted);
 
  if(PREPA_PENDING_MANIFEST){
    applySqManifestToFlight(PREPA_PENDING_MANIFEST);
@@ -6829,7 +6961,7 @@ function injectPrepaRawText(airline){
   }
   if(!entries.length && PREPA_PENDING_MANIFEST){
     PREPA_PENDING_INJECTION={values:{}};
-    finalizePrepaAutomaticImport({applied:0,kept:0});
+    finalizePrepaAutomaticImport({applied:0,kept:0,accepted:{}});
     return;
   }
 
@@ -6837,7 +6969,13 @@ function injectPrepaRawText(airline){
   entries.forEach(([selector,next])=>{
     const el=document.querySelector(selector);if(!el)return;
     const current=String(el.value||'').trim();
-    if(current!=='' && current!==String(next).trim())conflicts.push({selector,label:prepaSelectorLabel(selector),current,next});
+    const isBooking=!!el.dataset.edBooking;
+    const bookedSource=isBooking?enrichmentFieldSource(f(),'booked'):null;
+    const zeroIsDefault=isBooking && current==='0' && bookedSource?.source!=='MANUAL';
+
+    if(!zeroIsDefault && current!=='' && current!==String(next).trim()){
+      conflicts.push({selector,label:prepaSelectorLabel(selector),current,next});
+    }
   });
 
   if(conflicts.length){showPrepaConflictPopup(values,conflicts);return}
@@ -7195,6 +7333,7 @@ function render(){
  <section class="bottom">
    ${flightTable('INBOUND',x.inbound,true)}
    ${flightTable('OUTBOUND',x.outbound,false)}
+   ${prepaNoteSection()}
    ${notesTable()}
  </section>`;
  updateClocks();
@@ -7496,7 +7635,7 @@ function fqtvCategoryForPassenger(p){
 }
 
 function openFqtvCategories(){
- const x=f(),arr=Array.isArray(x.common_lists?.FQTV)?x.common_lists.FQTV:[];
+ const x=f(),arr=cleanSqFqtvList(Array.isArray(x.common_lists?.FQTV)?x.common_lists.FQTV:[]);
  const order=['KFEG','KFES','PPS','SOLITAIRE'];
  const groups={};
  arr.forEach(p=>{
@@ -7516,7 +7655,7 @@ function openFqtvCategories(){
 }
 
 function openFqtvPassengerList(cat){
- const x=f(),arr=Array.isArray(x.common_lists?.FQTV)?x.common_lists.FQTV:[];
+ const x=f(),arr=cleanSqFqtvList(Array.isArray(x.common_lists?.FQTV)?x.common_lists.FQTV:[]);
  const match=arr.filter(p=>fqtvCategoryForPassenger(p)===cat);
  PAX_MODAL_ITEMS=match;
 
@@ -7919,6 +8058,34 @@ function openMealPassengerList(code){
        </button>`).join(''):'<div class="prepa-empty">AUCUN PASSAGER</div>'}
    </div>
  `);
+}
+
+
+function prepaNoteSection(){
+ const x=f(),c=x.prepaComments||x.prepaEditing?.comments||{};
+ const rows=[
+   ['FIRST / BUSINESS',c.business],
+   ['PREMIUM',c.premium],
+   ['ECONOMY',c.economy],
+   ['QUICK RAMP',c.quickRamp]
+ ].filter(([,v])=>String(v||'').trim());
+
+ const active=rows.length>0;
+ return `<div class="card prepa-note-card ${active?'active':''}">
+   <div class="prepa-note-title">
+     <span>NOTE ${active?`<span class="note-bell active" title="NOTE PREPA ACTIVE">🔔</span>`:''}</span>
+     <small>${active?`${rows.length} NOTE${rows.length>1?'S':''} ACTIVE${rows.length>1?'S':''}`:'COMMENTS PREPA'}</small>
+   </div>
+   ${rows.length?`
+     <div class="prepa-note-list">
+       ${rows.map(([label,value])=>`
+         <div class="prepa-note-row">
+           <b>${label}</b>
+           <span>${String(value).replace(/</g,'&lt;').replace(/>/g,'&gt;')}</span>
+         </div>`).join('')}
+     </div>
+   `:'<div class="prepa-empty">AUCUN COMMENTAIRE PREPA</div>'}
+ </div>`;
 }
 
 function staffTable(){
@@ -8724,7 +8891,7 @@ function openFlightInfo(){
     <div class="flight-info-item"><small>INOP NOK</small><b>${nok}</b></div>
     <div class="flight-info-item"><small>STANDBY</small><b>${x.standby}</b></div>
     <div class="flight-info-item flight-info-wide" onclick="openNotesList()" style="cursor:pointer"><small>NOTES PASSAGERS</small><b>${passengerNotesForCurrentFlight().length?`🔔 ${passengerNotesForCurrentFlight().length} NOTE(S) — CLIQUER POUR OUVRIR`:'AUCUNE NOTE'}</b></div>
-    <div class="flight-info-item flight-info-wide"><small>NOTE OPS</small><b>ZONE À UTILISER PLUS TARD POUR REMARQUES VOL, CHANGEMENT PORTE, RETARD, CONTACT COMPAGNIE, PARTICULARITÉ GÉNÉRALE.</b></div>
+    <div class="flight-info-item flight-info-wide"><small>NOTE OPS</small><b>ZONE OPÉRATIONNELLE INDÉPENDANTE DE LA PRÉPA.</b></div>
    </div>`);
 }
 
