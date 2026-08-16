@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V48.7 · Fix PREPA + Connections</title>
+<title>ALYZIA OPS - V48.8 · FQTV + MAAS</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -4256,6 +4256,13 @@ html,body{
  .connection-flight-sub small{width:100%;margin-left:0}
 }
 
+
+/* V48.8 — FQTV exact SQ reports */
+.fqtv-code-pill{
+ display:inline-flex;padding:3px 6px;border:1px solid #c8d8e8;border-radius:999px;
+ font-size:7px;font-weight:950;background:#f6f9fc
+}
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
@@ -6216,6 +6223,95 @@ function detectSqFqtvProgram(lines,allText){
  return null;
 }
 
+
+function parseSqFqtvReports(rawOriginal){
+ const raw=String(rawOriginal||'').replace(/\r/g,'\n');
+ const upper=raw.toUpperCase();
+ const entries=[];
+
+ // Split by report headers so multiple selected PDF reports can be merged safely.
+ const reportStarts=[...upper.matchAll(/LIST\s+OF\s*:\s*(FQT-KFEG|FQT-KFES|PDF-IPPS)\b/g)];
+ if(!reportStarts.length)return entries;
+
+ for(let r=0;r<reportStarts.length;r++){
+   const start=reportStarts[r].index;
+   const end=r+1<reportStarts.length?reportStarts[r+1].index:upper.length;
+   const report=upper.slice(start,end);
+   const reportCode=reportStarts[r][1];
+
+   // Passenger record starts with "1.NAME ... CDG SIN ... STATUS"
+   const starts=[...report.matchAll(/(?:^|\n)\s*(\d{1,3})\.([^\n]+)/g)];
+   for(let i=0;i<starts.length;i++){
+     const recStart=starts[i].index;
+     const recEnd=i+1<starts.length?starts[i+1].index:report.length;
+     const block=report.slice(recStart,recEnd).trim();
+     const first=(block.split('\n')[0]||'').trim();
+     const routePos=first.indexOf(' CDG SIN ');
+     if(routePos<0)continue;
+
+     const prefix=first.replace(/^\d{1,3}\./,'').slice(0,routePos).trim();
+     const after=first.slice(routePos+' CDG SIN '.length).trim();
+
+     // Name before title/gender markers.
+     let name=prefix
+       .replace(/\s+(MR|MRS|MS|MISS|MSTR|MDM|DR)\b.*$/,'')
+       .replace(/\s+[MFCI]\s*$/,'')
+       .trim();
+     if(!name)name=prefix;
+
+     const classCode=(after.split(/\s+/)[0]||'Y').charAt(0);
+     let cls=classCode==='C'?'J':classCode==='W'?'S':classCode;
+     if(!['F','J','S','Y'].includes(cls))cls='Y';
+
+     const seat=(after.match(/\b(\d{2,3}[A-K])\b/)||[])[1]||'';
+     const number=(block.match(/\bSQ(\d{8,12})\b/)||[])[1]||'';
+
+     let category='',status='';
+     if(reportCode==='FQT-KFEG'){
+       category='KFEG';
+       status='ELITE GOLD';
+     }else if(reportCode==='FQT-KFES'){
+       category='KFES';
+       status='ELITE SILVER';
+     }else{
+       const firstUpper=first.toUpperCase();
+       if(/SOLITAIRE/.test(firstUpper)){
+         category='SOLITAIRE';
+         status=(firstUpper.match(/\b(BASIC\/SOLITAIRE|SILVER\/SOLITAIRE|SOLITAIRE)\b/)||[])[1]||'SOLITAIRE';
+       }else{
+         category='PPS';
+         status='QUALIFIED';
+       }
+     }
+
+     entries.push({
+       id:`FQTV-${reportCode}-${r}-${i}`,
+       name:name.replace(/\//g,' ').replace(/\s+/g,' ').trim(),
+       seat,class:cls,pnr:'',etkt:'',emd:'',status:'BOOKED',
+       type:'FQTV',
+       specific:`${category} · ${status}${number?` · SQ${number}`:''}`,
+       fqtv:{code:category,status,number:number?`SQ${number}`:''}
+     });
+   }
+ }
+
+ // De-duplicate identical passenger/category/member number records.
+ const seen=new Set();
+ return entries.filter(p=>{
+   const k=[p.name,p.fqtv?.code,p.fqtv?.number].join('|');
+   if(seen.has(k))return false;
+   seen.add(k);return true;
+ });
+}
+
+function mergeSqFqtvIntoManifest(manifest,rawOriginal){
+ if(!manifest)return manifest;
+ const fq=parseSqFqtvReports(rawOriginal);
+ manifest.commonLists=manifest.commonLists||{};
+ manifest.commonLists.FQTV=fq;
+ return manifest;
+}
+
 function parseSqPassengerManifest(rawOriginal){
  const raw=String(rawOriginal||'').replace(/\r/g,'\n');
  const upper=raw.toUpperCase();
@@ -6354,6 +6450,13 @@ function autofillSqPrepaFromManifest(x,manifest){
  d.particularities['HCIP']=vip.filter(p=>/HCIP/.test(String(p.specific||''))).length;
  d.particularities['VIP']=vip.filter(p=>/^VIP$/.test(String(p.specific||''))).length;
  d.particularities['VVIP']=vip.filter(p=>/VVIP/.test(String(p.specific||''))).length;
+
+ const fq=manifest.commonLists?.FQTV||[];
+ d.particularities['KFEG']=fq.filter(p=>fqtvCategoryForPassenger(p)==='KFEG').length;
+ d.particularities['KFES']=fq.filter(p=>fqtvCategoryForPassenger(p)==='KFES').length;
+ d.particularities['QPPS']=fq.filter(p=>fqtvCategoryForPassenger(p)==='PPS').length;
+ d.particularities['LPPS']=0;
+ d.particularities['TPPS']=0;
 
  d.particularities['BOOKABLE STAFF']=Number(d.particularities['BOOKABLE STAFF']||0);
  d.particularities['REBATE STAFF']=Number(d.particularities['REBATE STAFF']||0);
@@ -6593,7 +6696,7 @@ function injectPrepaRawText(airline){
   pushPrepaUndoSnapshot();
   const values=collectPrepaImport(rawOriginal,airline);
   PREPA_PENDING_MANIFEST=(String(airline||'').toUpperCase()==='SQ'||/\bSQ\s*\d{2,4}\b/i.test(rawOriginal))
-    ?parseSqPassengerManifest(rawOriginal):null;
+    ?mergeSqFqtvIntoManifest(parseSqPassengerManifest(rawOriginal),rawOriginal):null;
   const entries=Object.entries(values);
   if(!entries.length){editingFeedback('AUCUNE INFORMATION RECONNUE DANS LE FICHIER OU LE TEXTE.','warn');return}
 
@@ -6945,6 +7048,7 @@ function render(){
   ${commonTile('INF','INF')}
   ${commonTile('CHLD','CHLD')}
   ${commonTile('UMNR','UMNR')}
+  ${commonTile('MAAS','MAAS')}
   ${mealSummaryTile()}
   ${commonTile('VIP','IMPT/HCIP/VIP/VVIP')}
   ${commonTile('EMD','EMD')}
@@ -7248,52 +7352,53 @@ function openGroupedParticularityList(key,code){
  showModal(`${key} · ${code}`,x.flight,paxRows(list,list.length));
 }
 
+function fqtvCategoryForPassenger(p){
+ const code=String(p?.fqtv?.code||'').toUpperCase();
+ const status=String(p?.fqtv?.status||p?.specific||'').toUpperCase();
+ if(code==='KFEG'||/ELITE GOLD/.test(status))return 'KFEG';
+ if(code==='KFES'||/ELITE SILVER/.test(status))return 'KFES';
+ if(code==='SOLITAIRE'||/SOLITAIRE/.test(status))return 'SOLITAIRE';
+ if(code==='PPS'||/QUALIFIED/.test(status))return 'PPS';
+ return 'AUTRES';
+}
+
 function openFqtvCategories(){
  const x=f(),arr=Array.isArray(x.common_lists?.FQTV)?x.common_lists.FQTV:[];
+ const order=['KFEG','KFES','PPS','SOLITAIRE'];
  const groups={};
  arr.forEach(p=>{
-   const code=String(p.fqtv?.code||p.fqtv?.program||p.specific||'AUTRES').toUpperCase();
-   let cat='AUTRES';
-   if(/KFEG|ELITE GOLD/.test(code))cat='KRISFLYER ELITE GOLD';
-   else if(/KFES|ELITE SILVER/.test(code))cat='KRISFLYER ELITE SILVER';
-   else if(/LPPS/.test(code))cat='LIFE PPS';
-   else if(/QPPS|TPPS|PPS|IPPS|QUALIFIED/.test(code))cat='PPS CLUB';
-   else if(/SOLITAIRE/.test(code))cat='SOLITAIRE PPS';
-   groups[cat]=groups[cat]||[];
-   groups[cat].push(p);
+   const cat=fqtvCategoryForPassenger(p);
+   if(cat==='AUTRES')return;
+   (groups[cat]=groups[cat]||[]).push(p);
  });
 
- showModal('FQTV',x.flight,`
+ showModal(`FQTV · ${arr.length}`,x.flight,`
    <div class="meal-category-list">
-     ${Object.entries(groups).length?Object.entries(groups).map(([cat,list])=>`
-       <button class="meal-category-row" onclick="openFqtvPassengerList('${cat.replace(/'/g,"\\'")}')">
-         <span>${cat}</span><b>${list.length}</b><small>VOIR LES PASSAGERS</small>
-       </button>`).join(''):'<div class="prepa-empty">AUCUN FQTV IMPORTÉ</div>'}
+     ${order.filter(cat=>groups[cat]?.length).map(cat=>`
+       <button class="meal-category-row" onclick="openFqtvPassengerList('${cat}')">
+         <span>${cat}</span><b>${groups[cat].length}</b><small>VOIR LES PASSAGERS</small>
+       </button>`).join('')||'<div class="prepa-empty">AUCUN FQTV IMPORTÉ</div>'}
    </div>
  `);
 }
 
-let FQTV_MODAL_GROUPS={};
 function openFqtvPassengerList(cat){
  const x=f(),arr=Array.isArray(x.common_lists?.FQTV)?x.common_lists.FQTV:[];
- const match=arr.filter(p=>{
-   const code=String(p.fqtv?.code||p.fqtv?.program||p.specific||'AUTRES').toUpperCase();
-   if(cat==='KRISFLYER ELITE GOLD')return /KFEG|ELITE GOLD/.test(code);
-   if(cat==='KRISFLYER ELITE SILVER')return /KFES|ELITE SILVER/.test(code);
-   if(cat==='LIFE PPS')return /LPPS/.test(code);
-   if(cat==='SOLITAIRE PPS')return /SOLITAIRE/.test(code);
-   if(cat==='PPS CLUB')return /QPPS|TPPS|PPS|IPPS|QUALIFIED/.test(code);
-   return true;
- });
+ const match=arr.filter(p=>fqtvCategoryForPassenger(p)===cat);
  PAX_MODAL_ITEMS=match;
+
  showModal(`FQTV · ${cat}`,x.flight,`
    <div class="meal-passenger-list">
      ${match.length?match.map((p,i)=>`
        <button class="meal-passenger-row" onclick="openPaxFromModal(${i})">
-         <div><strong>${p.name||'PASSAGER'}</strong><span>${p.seat||'—'} · CL ${p.class||'—'}</span></div>
-         <small>${p.specific||p.fqtv?.program||'FQTV'}</small>
+         <div>
+           <strong>${p.name||'PASSAGER'}</strong>
+           <span>${p.seat||'—'} · CL ${p.class||'—'}</span>
+         </div>
+         <small>${p.fqtv?.status||cat}${p.fqtv?.number?` · ${p.fqtv.number}`:''}</small>
        </button>`).join(''):'<div class="prepa-empty">AUCUN PASSAGER</div>'}
-   </div>`);
+   </div>
+ `);
 }
 
 function commonTile(key,label){
@@ -8251,8 +8356,8 @@ function defaultFlightObject(row){
     reg:{source:'IMPORT_EXCEL',updated_at:new Date().toISOString()}
   },history:[]},
   config:{...base},booked:zero(),edt:'',web:zero(),meals:zero(),standby:0,emd:0,etk:0,
-  common:{WCH:0,DEAF_BLND:0,EXST_CBBG:0,PET_AV:0,INF:0,CHLD:0,UMNR:0,BSCT:0,MEAL:0,VIP:0,EMD:0,ETK:0,FQTV:0,STAFF:0},
-  passengers:[],common_lists:{WCH:[],DEAF_BLND:[],EXST_CBBG:[],PET_AV:[],INF:[],CHLD:[],UMNR:[],BSCT:[],MEAL:[],VIP:[],EMD:[],ETK:[],FQTV:[],STAFF:[]},meal_lists:{CHML:[],BBML:[],AVML:[],MOML:[],LFML:[],FPML:[],NLML:[],SPML:[]},
+  common:{WCH:0,DEAF_BLND:0,EXST_CBBG:0,PET_AV:0,INF:0,CHLD:0,UMNR:0,MAAS:0,BSCT:0,MEAL:0,VIP:0,EMD:0,ETK:0,FQTV:0,STAFF:0},
+  passengers:[],common_lists:{WCH:[],DEAF_BLND:[],EXST_CBBG:[],PET_AV:[],INF:[],CHLD:[],UMNR:[],MAAS:[],BSCT:[],MEAL:[],VIP:[],EMD:[],ETK:[],FQTV:[],STAFF:[]},meal_lists:{CHML:[],BBML:[],AVML:[],MOML:[],LFML:[],FPML:[],NLML:[],SPML:[]},
   inbound:[],outbound:[],inopSeats:[]
  };
 }
