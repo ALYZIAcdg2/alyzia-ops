@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V48.14 · Compact Classes + SQ J+3 Fix</title>
+<title>ALYZIA OPS - V48.15 · SQ PREPA + Booked + Cards Fix</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -4605,6 +4605,11 @@ html,body{
   margin-bottom:0!important;
 }
 
+
+/* V48.15 */
+.prepa-row:has(.prepa-rule:last-child){min-width:0}
+.prepa-row .prepa-rule{white-space:nowrap}
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
@@ -7442,6 +7447,69 @@ function injectCurrentEditingWithoutSource(){
  if(ok)editingFeedback('EDITING INJECTÉ DANS LA FICHE VOL ET ENREGISTRÉ.','ok');
 }
 
+
+function sqPrepaTemplate(flight){
+ const list=FLIGHTS.filter(x=>x.airline==='SQ'&&x.flight===flight);
+ if(!list.length)return null;
+ // Prefer the closest/latest real imported flight as a structural template.
+ return list.slice().sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')))[0];
+}
+
+function buildVirtualSqPrepaFlight(flight,departureDate){
+ const t=sqPrepaTemplate(flight);
+ if(!t)return null;
+
+ const base=baseClassesForFlight({airline:'SQ',flight});
+ const x=JSON.parse(JSON.stringify(t));
+ x.date=departureDate;
+ x.flight=flight;
+ x.airline='SQ';
+ x.dep='CDG';
+ x.dest='SIN';
+ x.config={...base};
+ x.booked=Object.fromEntries(Object.keys(base).map(k=>[k,0]));
+ x.web=Object.fromEntries(Object.keys(base).map(k=>[k,0]));
+ x.meals=Object.fromEntries(Object.keys(base).map(k=>[k,0]));
+ x.passengers=[];
+ x.common={WCH:0,DEAF_BLND:0,EXST_CBBG:0,PET_AV:0,INF:0,CHLD:0,UMNR:0,MAAS:0,BSCT:0,MEAL:0,GROUP:0,VIP:0,EMD:0,ETK:0,FQTV:0,STAFF:0};
+ x.common_lists={WCH:[],DEAF_BLND:[],EXST_CBBG:[],PET_AV:[],INF:[],CHLD:[],UMNR:[],MAAS:[],BSCT:[],MEAL:[],GROUP:[],VIP:[],EMD:[],ETK:[],FQTV:[],STAFF:[]};
+ x.meal_lists={CHML:[],BBML:[],AVML:[],MOML:[],LFML:[],FPML:[],NLML:[],SPML:[]};
+ x.inbound=[];
+ x.outbound=[];
+ x.positioningCrew=[];
+ x.virtualPrepa=true;
+ x.importedAt=new Date().toISOString();
+ return x;
+}
+
+async function ensureSqPrepaFlight(flight,departureDate){
+ let idx=FLIGHTS.findIndex(x=>x.airline==='SQ'&&x.flight===flight&&String(x.date)===String(departureDate));
+ if(idx>=0)return idx;
+
+ const x=buildVirtualSqPrepaFlight(flight,departureDate);
+ if(!x)return -1;
+
+ FLIGHTS.push(x);
+ idx=FLIGHTS.length-1;
+ await saveImportedFlightsPersistent(FLIGHTS);
+ return idx;
+}
+
+async function openSqPrepaForDate(flight,departureDate){
+ const idx=await ensureSqPrepaFlight(flight,departureDate);
+ if(idx<0){
+   editingFeedback?.(`AUCUN MODÈLE ${flight} DISPONIBLE.`,'warn');
+   return;
+ }
+ openPrepaEditing(idx,departureDate);
+}
+
+async function openSqFlightForDate(flight,departureDate){
+ const idx=await ensureSqPrepaFlight(flight,departureDate);
+ if(idx<0)return;
+ openFlightFromPrepa(idx);
+}
+
 function renderPrepa(){
  currentView='prepa';PREPA_DATE=PREPA_DATE||selectedDate;selectedDate=PREPA_DATE;saveViewDates();
  updateMobileNav();
@@ -7464,7 +7532,20 @@ function renderPrepa(){
    seen.add(uniqueKey);
 
    const key=prepaKey(x.flight,departureDate),state=PREPA_STATE[key]||null;
-   items.push({x,i,lead,departureDate,key,state});
+   items.push({x,i,lead,departureDate,key,state,virtual:false});
+ });
+
+ // SQ335 / SQ337 restent accessibles en PREPA J+3 chaque jour,
+ // même si le planning importé ne contient pas encore la ligne future.
+ const sqDeparture=addDaysISO(selectedDate,PREPA_RULES.SQ||3);
+ ['SQ335','SQ337'].forEach(flight=>{
+   const uniqueKey=['SQ',flight,sqDeparture].join('|');
+   if(seen.has(uniqueKey))return;
+   const virtual=buildVirtualSqPrepaFlight(flight,sqDeparture);
+   if(!virtual)return;
+   seen.add(uniqueKey);
+   const key=prepaKey(flight,sqDeparture),state=PREPA_STATE[key]||null;
+   items.push({x:virtual,i:-1,lead:3,departureDate:sqDeparture,key,state,virtual:true});
  });
 
  items.sort((a,b)=>parseHM(a.x.std)-parseHM(b.x.std)||a.x.flight.localeCompare(b.x.flight));
@@ -7485,14 +7566,20 @@ function renderPrepa(){
     ${items.map(r=>`
      <div class="prepa-row">
       <div>${airlineLogo(r.x.airline)}</div>
-      <div><div class="home-flight">${r.x.flight}</div><div class="prepa-rule">PRÉPA J+${r.lead}</div></div>
+      <div><div class="home-flight">${r.x.flight}</div><div class="prepa-rule">PRÉPA J+${r.lead}${r.virtual?' · À CRÉER':''}</div></div>
       <div><div class="home-route">${r.x.dep} → ${r.x.dest}</div><div class="home-sub">${r.x.aircraft}</div></div>
       <div><div class="prepa-date">${formatDateShort(selectedDate)}</div><div class="prepa-rule">DATE PRÉPA</div></div>
       <div><div class="prepa-departure">${formatDateShort(r.departureDate)}</div><div class="prepa-rule">DÉPART</div></div>
       <div><div class="home-time" style="font-size:16px">${r.x.std}</div><div class="prepa-rule">STD</div></div>
-      <div class="prepa-action-group">${['TK','SQ','TW','OZ','SB'].includes(r.x.airline)?`<button class="prepa-open-flight" onclick="openFlightFromPrepa(${r.i})">✈ FICHE VOL</button><button class="prepa-open-sheet ${r.x.airline.toLowerCase()}" onclick="openPrepaEditing(${r.i},'${r.departureDate}')">EDITING ${r.x.airline}</button>`:''}${(()=>{const pg=getPrepaProgress(r.x,r.departureDate);const cls=pg.validated?'done':(pg.hasAny?'state-partial':'state-empty');
+      <div class="prepa-action-group">${['TK','SQ','TW','OZ','SB'].includes(r.x.airline)?
+  (r.virtual
+    ?`<button class="prepa-open-flight" onclick="openSqFlightForDate('${r.x.flight}','${r.departureDate}')">✈ FICHE VOL</button><button class="prepa-open-sheet sq" onclick="openSqPrepaForDate('${r.x.flight}','${r.departureDate}')">EDITING SQ</button>`
+    :`<button class="prepa-open-flight" onclick="openFlightFromPrepa(${r.i})">✈ FICHE VOL</button><button class="prepa-open-sheet ${r.x.airline.toLowerCase()}" onclick="openPrepaEditing(${r.i},'${r.departureDate}')">EDITING ${r.x.airline}</button>`)
+  :''}${(()=>{const pg=getPrepaProgress(r.x,r.departureDate);const cls=pg.validated?'done':(pg.hasAny?'state-partial':'state-empty');
  const lab=pg.validated?'✓ PREPA OK':(pg.hasAny?'! PRÉPA À VALIDER':'PRÉPA VIDE');
- return `<button class="prepa-validate ${cls}" onclick="setPrepaValidated(${r.i},'${r.departureDate}')">${lab}</button>`})()}</div>
+ return r.virtual
+   ?`<button class="prepa-validate ${cls}" onclick="openSqPrepaForDate('${r.x.flight}','${r.departureDate}')">${lab}</button>`
+   :`<button class="prepa-validate ${cls}" onclick="setPrepaValidated(${r.i},'${r.departureDate}')">${lab}</button>`})()}</div>
      </div>`).join('')}
    </div>`:`<div class="prepa-empty">AUCUN VOL À PRÉPARER POUR CETTE DATE.</div>`}
   </section>`;
@@ -7588,8 +7675,7 @@ function render(){
    ${kpi('WEB',icons.web,sum(web),webMiniEditable(classes),'purple').replace('<div class="kpi','<div onclick="openWebAllEdit()" style="cursor:pointer" class="kpi')}
    ${kpi('AVAILABLE',icons.available,avail,mini(available),'orange',pct,true)}
    ${simpleKpi('STANDBY',icons.standby,x.standby,'cyan',()=>openSynthetic('STANDBY',x.standby))}
-   ${simpleKpi('EMD',icons.emd,x.emd,'pink',()=>openCommon('EMD'))}
-   ${simpleKpi('ETK',icons.etk,x.etk,'blue',()=>openCommon('ETK'))}
+
  </section>
 
 
@@ -8746,7 +8832,12 @@ function samplePaxForClass(cls,count){
  if(arr.length>=count)return arr.slice(0,count);
  const out=[];for(let i=0;i<count;i++){let p={...arr[i%arr.length]};p.id=(p.id||'P')+'X'+i;out.push(p)}return out
 }
-function openClass(k){showPax('CLASSE '+k,samplePaxForClass(k,f().booked[k]||0),f().booked[k]||0)}
+function openClass(k){
+ const x=f();
+ const real=(x.passengers||[]).filter(p=>String(p.class||'').toUpperCase()===String(k).toUpperCase());
+ const items=real.length?real:samplePaxForClass(k,x.booked[k]||0);
+ showPax('CLASSE '+k,items,x.booked[k]||items.length);
+}
 
 function openBookedEdit(){
  const x=f(),classes=classesByValue(x.booked,x);
@@ -8814,7 +8905,11 @@ function showPax(label,items,count){
 }
 function openPaxFromModal(index){
  const p=PAX_MODAL_ITEMS[Number(index)];
- if(p)openPax(p);
+ if(!p)return;
+ // Snapshot avoids losing the selected passenger when another modal/list
+ // changes the shared array while the detail modal is being opened.
+ const snapshot=JSON.parse(JSON.stringify(p));
+ setTimeout(()=>openPax(snapshot),0);
 }
 function paxRows(items,count){
  const rows=(items||[]).map((p,i)=>`<button class="paxrow" onclick="openPaxFromModal(${i})">
