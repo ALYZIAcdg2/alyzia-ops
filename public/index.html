@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V49.4 · Full Sync / Upgrade / SARIA</title>
+<title>ALYZIA OPS - V49.5 · Upgrade Calculation Fix</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -4794,12 +4794,12 @@ html,body{
 }
 
 
-/* V49.4 — synchro silencieuse */
+/* V49.5 — synchro silencieuse */
 .ops-cloud-status.ok::before{content:'●';margin-right:5px;color:#0aa56b}
 
 
 /* =========================================================
-   V49.4 — full sync / refresh / upgrade / numeric / WEB gauge
+   V49.5 — full sync / refresh / upgrade / numeric / WEB gauge
    ========================================================= */
 .top-sync-btn{
  width:31px;height:31px;min-width:31px;border:1px solid #d5e0ea;border-radius:9px;
@@ -4848,6 +4848,13 @@ html,body{
 @media(max-width:720px){
  .top-sync-btn{width:29px;height:29px;min-width:29px;font-size:16px}
  .upgrade-line{grid-template-columns:55px 1fr 1fr 1fr 32px}
+}
+
+
+/* V49.5 — UPGRADE calculation */
+.upgrade-formula-note{
+ padding:7px 9px;border:1px solid #dce7f1;border-radius:7px;background:#f8fbfe;
+ font-size:7px;font-weight:900;color:#60768c;text-align:center
 }
 
 </style>
@@ -8844,20 +8851,44 @@ function upgradeAutoDetails(x=f()){
  const classes=companyClassesForFlight(x);
  const result=[];
  let total=0;
+
  if(!classes.length)return {total:0,result,reason:'AUCUNE CLASSE'};
 
- const anyMeal=classes.some(c=>Number(x.meals?.[c]||0)>0);
+ // UPGRADE = sièges disponibles dans la classe cible ET repas supplémentaires
+ // disponibles dans cette même classe.
+ //
+ // Exemple TK C20 / BOOKED C10 / MEALS C15 :
+ // sièges libres C = 10 ; repas en plus C = 5 => UPGRADE = 5.
+ //
+ // La classe la plus basse n'est pas une classe cible d'upgrade.
+ const targetClasses=classes.slice(0,-1);
+
+ const anyMeal=targetClasses.some(c=>Number(x.meals?.[c]||0)>0);
  if(!anyMeal)return {total:0,result,reason:'REPAS NON RENSEIGNÉS'};
 
- for(let i=0;i<classes.length-1;i++){
-   const high=classes[i],low=classes[i+1];
-   const highAvail=Math.max(0,Number(x.config?.[high]||0)-Number(x.booked?.[high]||0));
-   const lowOver=Math.max(0,Number(x.booked?.[low]||0)-Number(x.config?.[low]||0));
-   const mealSurplus=Math.max(0,Number(x.meals?.[high]||0)-Number(x.booked?.[high]||0));
-   const n=Math.max(0,Math.min(highAvail,lowOver,mealSurplus));
-   result.push({from:low,to:high,highAvail,lowOver,mealSurplus,n});
+ targetClasses.forEach((target,i)=>{
+   const source=classes[i+1]||'';
+   const config=Number(x.config?.[target]||0);
+   const booked=Number(x.booked?.[target]||0);
+   const meals=Number(x.meals?.[target]||0);
+
+   const seatAvail=Math.max(0,config-booked);
+   const mealSurplus=Math.max(0,meals-booked);
+   const n=Math.max(0,Math.min(seatAvail,mealSurplus));
+
+   result.push({
+     from:source,
+     to:target,
+     config,
+     booked,
+     meals,
+     seatAvail,
+     mealSurplus,
+     n
+   });
    total+=n;
- }
+ });
+
  return {total,result,reason:''};
 }
 
@@ -8875,15 +8906,18 @@ function openUpgradeModal(){
    <div class="upgrade-modal">
      <div class="upgrade-auto-head">
        <div><small>CALCUL AUTO</small><b>${auto.total}</b></div>
-       <span>${auto.reason||'CONFIG + BOOKING + REPAS'}</span>
+       <span>${auto.reason||'PLACES DISPONIBLES + REPAS SUPPLÉMENTAIRES'}</span>
+     </div>
+     <div class="upgrade-formula-note">
+       UPGRADE AUTO = MIN(CONFIG − BOOKED, REPAS − BOOKED) PAR CLASSE CIBLE
      </div>
      <div class="upgrade-lines">
        ${auto.result.map(r=>`
          <div class="upgrade-line">
-           <b>${r.from} → ${r.to}</b>
-           <span>SIÈGES ${r.highAvail}</span>
-           <span>SURBOOK ${r.lowOver}</span>
-           <span>REPAS ${r.mealSurplus}</span>
+           <b>${r.from||'—'} → ${r.to}</b>
+           <span>CONFIG ${r.config}</span>
+           <span>BOOKED ${r.booked}</span>
+           <span>REPAS ${r.meals}</span>
            <strong>${r.n}</strong>
          </div>`).join('')||'<div class="prepa-empty">AUCUN UPGRADE AUTOMATIQUE</div>'}
      </div>
@@ -8920,7 +8954,7 @@ function upgradeKpi(){
      <div class="kpi-value">${val}</div>
      <div class="class-mini"><div><span>BASE</span><b>${auto.total}</b></div></div>
    </div>
-   <div class="upgrade-kpi-note">${auto.reason||'CONFIG · BOOKING · REPAS'}</div>
+   <div class="upgrade-kpi-note">${auto.reason||'DISPO · REPAS'}</div>
  </div>`;
 }
 
@@ -10190,7 +10224,7 @@ async function confirmClearAllFlights(){await confirmFullReset()}
 
 
 /* =========================================================
-   V49.4 — SYNCHRONISATION SILENCIEUSE MULTI-POSTES
+   V49.5 — SYNCHRONISATION SILENCIEUSE MULTI-POSTES
    ========================================================= */
 const OPS_REALTIME_INTERVAL_VISIBLE=2000;
 const OPS_REALTIME_INTERVAL_HIDDEN=10000;
