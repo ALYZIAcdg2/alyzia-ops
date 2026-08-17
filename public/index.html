@@ -6,7 +6,7 @@
   <meta http-equiv="Expires" content="0">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V49.17 · TK FQTV / Modals / Import Detail</title>
+<title>ALYZIA OPS - V49.18 · TK Full Names / ETKT EMD / Compact KPIs</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -4797,12 +4797,12 @@ html,body{
 }
 
 
-/* V49.17 — synchro silencieuse */
+/* V49.18 — synchro silencieuse */
 .ops-cloud-status.ok::before{content:'●';margin-right:5px;color:#0aa56b}
 
 
 /* =========================================================
-   V49.17 — full sync / refresh / upgrade / numeric / WEB gauge
+   V49.18 — full sync / refresh / upgrade / numeric / WEB gauge
    ========================================================= */
 .top-sync-btn{
  width:31px;height:31px;min-width:31px;border:1px solid #d5e0ea;border-radius:9px;
@@ -4854,14 +4854,14 @@ html,body{
 }
 
 
-/* V49.17 — UPGRADE calculation */
+/* V49.18 — UPGRADE calculation */
 .upgrade-formula-note{
  padding:7px 9px;border:1px solid #dce7f1;border-radius:7px;background:#f8fbfe;
  font-size:7px;font-weight:900;color:#60768c;text-align:center
 }
 
 
-/* V49.17 — D1 live consistency + tablet digits keypad */
+/* V49.18 — D1 live consistency + tablet digits keypad */
 .tablet-numeric-pad{
  display:none;
  position:fixed;
@@ -4898,7 +4898,7 @@ html,body{
 }
 
 
-/* V49.17 */
+/* V49.18 */
 .config-cap-input{
  width:100%;
  font-variant-numeric:tabular-nums;
@@ -4914,7 +4914,7 @@ html,body{
 }
 
 
-/* V49.17 — Import PREPA actions */
+/* V49.18 — Import PREPA actions */
 .import-action-grid{
  display:grid;
  grid-template-columns:repeat(2,minmax(0,1fr));
@@ -4958,7 +4958,7 @@ html,body{
 }
 
 
-/* V49.17 — PREPA class alignment / BOOKED filters */
+/* V49.18 — PREPA class alignment / BOOKED filters */
 .editing-class-row{
  display:grid!important;
  grid-template-columns:repeat(var(--editing-class-count),minmax(0,1fr))!important;
@@ -5011,7 +5011,7 @@ html,body{
 }
 
 
-/* V49.17 — Passenger modal readability */
+/* V49.18 — Passenger modal readability */
 .paxlist{display:grid;gap:8px}
 .paxrow{
  min-height:58px!important;
@@ -5059,7 +5059,7 @@ html,body{
 }
 
 
-/* V49.17 — clearer operational modals */
+/* V49.18 — clearer operational modals */
 .modalbox{font-size:14px!important}
 .modalhead h3{font-size:24px!important;line-height:1.1!important;font-weight:950!important;letter-spacing:.01em}
 .modalhead p{font-size:13px!important;line-height:1.35!important;font-weight:750!important;color:#5b7188!important}
@@ -5130,6 +5130,66 @@ html,body{
  .import-compare-current b,.import-compare-next b{font-size:15px}
  .import-compare-list{max-height:38vh}
 }
+
+
+/* V49.18 — compact operational KPIs */
+@media(min-width:900px){
+ .kpi-strip{
+   min-height:118px!important;
+   grid-template-columns:1.38fr 1.08fr .82fr .88fr .76fr .70fr!important;
+ }
+ .kpi-strip>.kpi{padding:10px 12px!important}
+ .kpi-title{font-size:10px!important;margin-bottom:5px!important}
+ .kpi-main{grid-template-columns:28px minmax(0,1fr) 48px!important;gap:4px!important}
+ .kpi-value{font-size:28px!important;line-height:1!important}
+ .kpi-icon{font-size:22px!important}
+ .kpi-gauge{margin-top:7px!important}
+ .kpi-gauge .gauge{height:8px!important}
+ .simple-kpi-compact{margin-top:12px!important}
+ .upgrade-kpi-note{font-size:8px!important;margin-top:5px!important}
+}
+.web-kpi .kpi-main{
+ grid-template-columns:30px minmax(0,1fr) minmax(58px,72px)!important;
+}
+.web-class-column{gap:3px!important}
+.web-class-row{display:grid!important;grid-template-columns:18px 1fr!important;gap:3px!important;align-items:center!important}
+.web-class-row span{font-size:9px!important;font-weight:950!important}
+.web-class-row button{
+ min-width:34px!important;height:27px!important;padding:0 5px!important;
+ font-size:13px!important;font-weight:950!important;border-radius:7px!important
+}
+
+/* Passenger readability */
+.pax-seat-line{
+ font-weight:950!important;
+ color:#213f5f!important;
+ font-size:13px!important;
+}
+.pax-doc-line{
+ display:block!important;
+ margin-top:4px!important;
+ font-weight:900!important;
+ color:#7a541c!important;
+ font-size:11px!important;
+ letter-spacing:.01em
+}
+.pax-ssr,.specific{
+ font-weight:950!important;
+ color:#7a541c!important
+}
+.profile b{font-weight:950!important}
+.profile div:first-child b{font-size:19px!important}
+.connection-pax-class .paxrow .seat{
+ font-weight:950!important;
+ font-size:14px!important;
+ color:#17324f!important
+}
+.part-detail-code span{font-weight:950!important}
+.part-detail-code b{font-weight:950!important;font-size:21px!important}
+
+/* Stronger list rows */
+.meal-passenger-row strong,.paxrow strong{font-weight:950!important;color:#08182b!important}
+.meal-passenger-row span{font-weight:900!important}
 
 </style>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -5310,7 +5370,7 @@ async function patchFlightToCloud(identity,patch){
    }
    throw new Error(data?.error||'PATCH REFUSÉ');
  }catch(e){
-   console.warn('V49.17 CLOUD PATCH',e);
+   console.warn('V49.18 CLOUD PATCH',e);
    return null;
  }
 }
@@ -7693,6 +7753,19 @@ function parseTkPassengerRows(section,{ticketMode=false,emdMode=false,connection
  for(const rawLine of lines){
    const line=rawLine.trimEnd();
    if(last && !/^\s*\d{1,3}\./.test(line)){
+     // Detailed TK name line, when present:
+     // SURNAME-FIRSTNAME-ADT-/CHD-/STF-...
+     const detailed=line.trim().match(/^([A-Z][A-Z0-9! ]{1,35})-([A-Z][A-Z0-9 ]{1,45})-(?:ADT|CHD|STF|STU|FFY|SNN|UNN|INF|)\b/i);
+     if(detailed){
+       const surname=tkNormalizeName(detailed[1]);
+       const given=tkNormalizeName(detailed[2]);
+       if(surname&&given){
+         last.shortName=last.name;
+         last.fullName=`${surname} ${given}`.replace(/\s+/g,' ').trim();
+         last.name=last.fullName;
+       }
+       continue;
+     }
      const inf=(line.match(/ET\s+INF\s+TICKET:\s*(\d{13})/i)||[])[1];
      if(inf){last.infEtkt=inf;continue}
      if(emdMode){
@@ -7725,6 +7798,57 @@ function parseTkPassengerRows(section,{ticketMode=false,emdMode=false,connection
    out.push(p); last=p;
  }
  return out;
+}
+
+
+function tkPassengerMasterMaps(etkList,emdList=[]){
+ const bySeat=new Map(),byEtkt=new Map(),byName=new Map(),byEmdSeat=new Map();
+
+ const keyName=v=>String(v||'').replace(/[^A-Z0-9]/g,'').toUpperCase();
+ const put=(map,key,p)=>{if(key&&!map.has(key))map.set(key,p)};
+
+ (etkList||[]).forEach(p=>{
+   put(bySeat,`${String(p.seat||'').toUpperCase()}|${String(p.class||'').toUpperCase()}`,p);
+   put(byEtkt,String(p.etkt||''),p);
+   put(byName,keyName(p.name),p);
+   if(p.shortName)put(byName,keyName(p.shortName),p);
+ });
+
+ (emdList||[]).forEach(p=>{
+   put(byEmdSeat,`${String(p.seat||'').toUpperCase()}|${String(p.class||'').toUpperCase()}`,p);
+ });
+
+ return {bySeat,byEtkt,byName,byEmdSeat,keyName};
+}
+
+function enrichTkPassenger(p,maps){
+ if(!p||!maps)return p;
+ const seatKey=`${String(p.seat||'').toUpperCase()}|${String(p.class||'').toUpperCase()}`;
+ const nameKey=maps.keyName(p.name);
+ const master=
+   (p.etkt&&maps.byEtkt.get(String(p.etkt))) ||
+   maps.bySeat.get(seatKey) ||
+   maps.byName.get(nameKey) ||
+   null;
+ const emdMaster=maps.byEmdSeat.get(seatKey)||null;
+
+ if(master){
+   if(master.name)p.name=master.name;
+   if(master.fullName)p.fullName=master.fullName;
+   if(master.shortName)p.shortName=master.shortName;
+   if(master.etkt)p.etkt=master.etkt;
+   if(master.pnr)p.pnr=master.pnr;
+ }
+ if(emdMaster){
+   if(emdMaster.emd)p.emd=emdMaster.emd;
+   if(emdMaster.emdNumbers)p.emdNumbers=[...(emdMaster.emdNumbers||[])];
+   if(emdMaster.emdReason&&!p.emdReason)p.emdReason=emdMaster.emdReason;
+ }
+ return p;
+}
+
+function enrichTkPassengerList(list,maps){
+ return (Array.isArray(list)?list:[]).map(p=>enrichTkPassenger(p,maps));
 }
 
 function parseTkCommentedCategories(rawOriginal){
@@ -7908,15 +8032,27 @@ function prepareTkImportManifest(rawOriginal){
  }));
  const duty=parseTkExplicitDutyStaff(rawOriginal);
  const etk=parseTkPassengerRows(tkSection(rawOriginal,'E-TKT FULL PAX LIST'),{ticketMode:true});
- const emd=parseTkPassengerRows(tkSection(rawOriginal,'EMD FULL PAX LIST'),{emdMode:true});
- const onward=parseTkPassengerRows(tkSection(rawOriginal,'ONCARRIAGE PAX'),{connectionMode:true});
- const inbound=parseTkPassengerRows(tkSection(rawOriginal,'PAX WITH INBOUND CONNECTION'),{connectionMode:true});
- const group=parseTkNamedSection(rawOriginal,'PAX BY GROUP','GROUP');
- const fqtv=parseTkFqtvCategories(rawOriginal);
+ let emd=parseTkPassengerRows(tkSection(rawOriginal,'EMD FULL PAX LIST'),{emdMode:true});
+ let onward=parseTkPassengerRows(tkSection(rawOriginal,'ONCARRIAGE PAX'),{connectionMode:true});
+ let inbound=parseTkPassengerRows(tkSection(rawOriginal,'PAX WITH INBOUND CONNECTION'),{connectionMode:true});
+ let group=parseTkNamedSection(rawOriginal,'PAX BY GROUP','GROUP');
+ let fqtv=parseTkFqtvCategories(rawOriginal);
  const commented=parseTkCommentedCategories(rawOriginal);
 
+ const masterMaps=tkPassengerMasterMaps(etk,emd);
+ emd=enrichTkPassengerList(emd,masterMaps);
+ onward=enrichTkPassengerList(onward,masterMaps);
+ inbound=enrichTkPassengerList(inbound,masterMaps);
+ group=enrichTkPassengerList(group,masterMaps);
+ fqtv=enrichTkPassengerList(fqtv,masterMaps);
+ Object.keys(commented).forEach(k=>commented[k]=enrichTkPassengerList(commented[k],masterMaps));
+
  // CHLD / TOY'S is ONE category. Do not add two counters.
- const chldToys=toys.map(p=>({...p,specific:"CHLD / TOY'S"}));
+ const infEnriched=enrichTkPassengerList(inf,masterMaps);
+ const toysEnriched=enrichTkPassengerList(toys,masterMaps);
+ const rebateEnriched=enrichTkPassengerList(rebate,masterMaps);
+ const dutyEnriched=enrichTkPassengerList(duty,masterMaps);
+ const chldToys=toysEnriched.map(p=>({...p,specific:"CHLD / TOY'S"}));
 
  // VIP is based on named !VIP! passengers; header count is only a fallback.
  const vipNamed=commented.VIP||[];
@@ -7928,7 +8064,7 @@ function prepareTkImportManifest(rawOriginal){
  const escort=commented.ESCORT||[];
 
  const commonLists={
-   INF:inf.map(p=>({...p,specific:'INF'})),
+   INF:infEnriched.map(p=>({...p,specific:'INF'})),
    CHLD:chldToys,
    WCH:[
      ...(commented.WCHR||[]),
@@ -7940,8 +8076,8 @@ function prepareTkImportManifest(rawOriginal){
    GROUP:group,
    ETK:etk.filter(p=>p.etkt),
    EMD:emd,
-   REBATE_STAFF:rebate,
-   DUTY_STAFF:duty,
+   REBATE_STAFF:rebateEnriched,
+   DUTY_STAFF:dutyEnriched,
    DEPA:depa,
    DEPU:depu,
    INAD:inad,
@@ -7957,8 +8093,9 @@ function prepareTkImportManifest(rawOriginal){
 
  // Master passenger list from ETKT; enrich with EMD / connections.
  const byName=new Map(etk.map(p=>[p.name,p]));
+ const bySeatMaster=new Map(etk.map(p=>[`${String(p.seat||'').toUpperCase()}|${String(p.class||'').toUpperCase()}`,p]));
  emd.forEach(e=>{
-   const p=byName.get(e.name);
+   const p=byName.get(e.name)||bySeatMaster.get(`${String(e.seat||'').toUpperCase()}|${String(e.class||'').toUpperCase()}`);
    if(p){p.emd=e.emd||'';p.emdNumbers=e.emdNumbers||[];p.emdReason=e.emdReason||''}
  });
  onward.forEach(o=>{
@@ -7997,8 +8134,8 @@ function prepareTkImportManifest(rawOriginal){
      VIP:vipNamed.length||flags.vipHeader,
      GROUP:group.length,
      FQTV:fqtv.length,
-     REBATE:rebate.length,
-     DUTY:duty.length,
+     REBATE:rebateEnriched.length,
+     DUTY:dutyEnriched.length,
      DEPA:depa.length||flags.depaHeader,
      DEPU:depu.length,
      INAD:inad.length,
@@ -9163,7 +9300,7 @@ function companyConfigSystemRecord(){
 function syncCompanyConfigFromFlights(records){
  let latest=null;
 
- // V49.17 preferred source: one dedicated D1 system record.
+ // V49.18 preferred source: one dedicated D1 system record.
  const sys=(records||[]).find(isCompanyConfigSystemRecord);
  if(sys?._companyConfigBundle){
    latest={
@@ -9446,6 +9583,11 @@ function particularityCountByDef(x,def){
 }
 
 function detailCodesForDef(x,def){
+ if(x?.airline==='TK'&&def?.id==='CHLD_TOY'){
+   const list=Array.isArray(x.common_lists?.CHLD)?x.common_lists.CHLD:[];
+   const count=list.length||Math.max(prepaSpecificValue(x,'CHLD'),prepaSpecificValue(x,"TOY'S"));
+   return [{code:"CHLD / TOY'S",count}];
+ }
  return (def.codes||[]).map(code=>({code,count:prepaSpecificValue(x,code)}));
 }
 
@@ -10114,7 +10256,7 @@ function kpi(title,icon,value,classes,color,pct=null,neg=false){
 }
 function simpleKpi(title,icon,value,color,fn){
  const id='k'+Math.random().toString(36).slice(2); setTimeout(()=>{const el=document.getElementById(id);if(el)el.onclick=fn},0);
- return `<div class="kpi" id="${id}" style="cursor:pointer"><div class="kpi-title">${title}</div><div style="display:flex;align-items:center;justify-content:center;gap:15px;margin-top:25px"><span class="${color}" style="font-size:29px">${icon}</span><span class="kpi-value">${value}</span></div></div>`;
+ return `<div class="kpi" id="${id}" style="cursor:pointer"><div class="kpi-title">${title}</div><div class="simple-kpi-compact" style="display:flex;align-items:center;justify-content:center;gap:12px;margin-top:16px"><span class="${color}" style="font-size:25px">${icon}</span><span class="kpi-value">${value}</span></div></div>`;
 }
 
 function classAvailableValue(cls){
@@ -10219,6 +10361,17 @@ function classCard(k){
 }
 
 
+
+function passengerDocMeta(p){
+ const bits=[];
+ if(p?.etkt)bits.push(`ETKT ${p.etkt}`);
+ if(p?.emd)bits.push(`EMD ${p.emd}`);
+ return bits.join(' · ');
+}
+function passengerDisplayName(p){
+ return String(p?.fullName||p?.name||'PASSAGER').trim().toUpperCase();
+}
+
 function openGroupedParticularity(key,label){
  const x=f(),arr=Array.isArray(x.common_lists?.[key])?x.common_lists[key]:[];
  let cats=[];
@@ -10298,8 +10451,9 @@ function openFqtvPassengerList(cat){
      ${match.length?match.map((p,i)=>`
        <button class="meal-passenger-row fqtv-pax-row ${cat.toLowerCase()}" onclick="openPaxFromModal(${i})">
          <div>
-           <strong>${p.name||'PASSAGER'}</strong>
-           <span>${p.seat||'—'} · CL ${p.class||'—'}</span>
+           <strong>${passengerDisplayName(p)}</strong>
+           <span class="pax-seat-line">${p.seat||'—'} · CL ${p.class||'—'}</span>
+           ${passengerDocMeta(p)?`<span class="pax-doc-line">${passengerDocMeta(p)}</span>`:''}
          </div>
          <small>${p.fqtv?.status||cat}${p.fqtv?.number?` · ${p.fqtv.number}`:''}</small>
        </button>`).join(''):'<div class="prepa-empty">AUCUN PASSAGER</div>'}
@@ -10354,8 +10508,12 @@ function openPrepaSpecificityCard(defId){
      <div class="part-detail-list">
        ${availableLists.map((p,i)=>`
          <button class="meal-passenger-row" onclick="PAX_MODAL_ITEMS=window.__partPax||[];openPaxFromModal(${i})">
-           <div><strong>${p.name||'PASSAGER'}</strong><span>${p.seat||'—'} · CL ${p.class||'—'}</span></div>
-           <small>${p.specific||def.label}</small>
+           <div>
+             <strong>${passengerDisplayName(p)}</strong>
+             <span class="pax-seat-line">${p.seat||'—'} · CL ${p.class||'—'}</span>
+             ${passengerDocMeta(p)?`<span class="pax-doc-line">${passengerDocMeta(p)}</span>`:''}
+           </div>
+           <small class="pax-ssr">${p.specific||def.label}</small>
          </button>`).join('')}
      </div>`:'<div class="prepa-empty">AUCUN PASSAGER DÉTAILLÉ · QUANTITÉS ISSUES DE LA PRÉPA</div>'}
  `);
@@ -10796,7 +10954,7 @@ function openConnectionModal(title,inbound){
  showModal(`${title} · ${rows.length} PAX`,f().flight,`
    <div class="connection-modal-head">
      <b>${connectionClassCounts(rows)||'AUCUNE CLASSE'}</b>
-     <small>${inbound?'ALERTE < 1H00':'ALERTE < 1H30'}</small>
+     <small>${inbound?'ALERTE < 1H00':(f().airline==='TK'?'ALERTE < 1H15':'ALERTE < 1H30')}</small>
    </div>
    <div class="connection-flight-groups">
      ${CONNECTION_MODAL_GROUPS.length?CONNECTION_MODAL_GROUPS.map((g,i)=>`
@@ -10841,11 +10999,11 @@ function openConnectionPassengers(index,title){
          ${list.map((p,i)=>{
            const absolute=pax.indexOf(p);
            return `<button class="paxrow" onclick="openConnectionPassengerDetail(${index},${absolute})">
-             <strong>${p.name||'PASSAGER'}</strong>
+             <strong>${passengerDisplayName(p)}</strong>
              <span class="seat">${p.seat||'—'}</span>
              <span class="class-cell">CL ${p.class||'—'}</span>
              <span>${p.pnr||'—'}</span>
-             <span class="specific">${p.specific||p.note||'—'}</span>
+             <span class="specific">${p.specific||p.note||'—'}${passengerDocMeta(p)?` · ${passengerDocMeta(p)}`:''}</span>
            </button>`;
          }).join('')}
        </div>
@@ -10897,8 +11055,12 @@ function openMealPassengerList(code){
    <div class="meal-passenger-list">
      ${MEAL_MODAL_ITEMS.length?MEAL_MODAL_ITEMS.map((p,i)=>`
        <button class="meal-passenger-row" onclick="openPaxFromModal(${i})">
-         <div><strong>${p.name||'PASSAGER'}</strong><span>${p.seat||'—'} · CL ${p.class||'—'}</span></div>
-         <small>${p.specific||code}</small>
+         <div>
+           <strong>${passengerDisplayName(p)}</strong>
+           <span class="pax-seat-line">${p.seat||'—'} · CL ${p.class||'—'}</span>
+           ${passengerDocMeta(p)?`<span class="pax-doc-line">${passengerDocMeta(p)}</span>`:''}
+         </div>
+         <small class="pax-ssr">${p.specific||code}</small>
        </button>`).join(''):'<div class="prepa-empty">AUCUN PASSAGER</div>'}
    </div>
  `);
@@ -11452,7 +11614,7 @@ function openPax(p){
  const fqHtml=(p.fqtv&&fqCat!=='AUTRES')
    ?`<div class="pax-fqtv-banner ${fqCat.toLowerCase()}"><b>${fqCat}</b><span>${p.fqtv.status||''}${p.fqtv.number?` · ${p.fqtv.number}`:''}</span></div>`
    :'';
- showModal(p.name,f().flight,`
+ showModal(passengerDisplayName(p),f().flight,`
   ${fqHtml}
   <div class="profile">
    <div><small>SIÈGE</small><b>${p.seat||'—'}</b></div>
@@ -11503,7 +11665,7 @@ async function confirmClearAllFlights(){await confirmFullReset()}
 
 
 /* =========================================================
-   V49.17 — SYNCHRONISATION SILENCIEUSE MULTI-POSTES
+   V49.18 — SYNCHRONISATION SILENCIEUSE MULTI-POSTES
    ========================================================= */
 const OPS_REALTIME_INTERVAL_VISIBLE=2500;
 const OPS_REALTIME_INTERVAL_HIDDEN=8000;
@@ -11754,7 +11916,7 @@ function openTools(){
    <button class="tool-card" onclick="openSariaApp()"><span class="tool-icon">✈</span><b>SARIA</b><span>OUVRIR DIRECTEMENT L’OUTIL SARIA CABIN / SEATMAP.</span></button>
    <div class="ops-cloud-card">
      <div id="opsCloudStatusBox" class="ops-cloud-status ${OPS_CLOUD_ONLINE?'ok':'warn'}">${OPS_CLOUD_ONLINE?'☁ SYNC MULTI-POSTES ACTIVE':'☁ SYNC MULTI-POSTES'}</div>
-     <div class="ops-cloud-help">D1 PARTAGÉ · FICHE OUVERTE ~0,8 S · SYNCHRO GLOBALE ~2,5 S · PC, TABLETTE ET TÉLÉPHONE.<br><b style="color:#087749">V49.17 · IMPORT FIX ACTIF</b></div>
+     <div class="ops-cloud-help">D1 PARTAGÉ · FICHE OUVERTE ~0,8 S · SYNCHRO GLOBALE ~2,5 S · PC, TABLETTE ET TÉLÉPHONE.<br><b style="color:#087749">V49.18 · IMPORT FIX ACTIF</b></div>
      <button class="live-refresh" onclick="manualCloudRefresh()">↻ SYNCHRONISER MAINTENANT</button>
    </div>
    <div class="adb-usage-card"><div id="adbUsageBox"><button class="live-refresh" onclick="loadAeroUsage()">CHARGER COMPTEUR AERODATABOX</button></div></div>
