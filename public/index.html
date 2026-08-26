@@ -6,7 +6,7 @@
   <meta http-equiv="Expires" content="0">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V49.47 · Version Visible</title>
+<title>ALYZIA OPS - V49.48 · Operational UI / Import / Search / Group</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -5912,7 +5912,7 @@ html,body{
 }
 
 
-/* V49.47 — visible application version */
+/* V49.48 — visible application version */
 .app-version-badge{
   display:inline-flex;
   align-items:center;
@@ -5973,6 +5973,23 @@ html,body{
   font-weight:950;
 }
 
+
+/* V49.48 */
+.company-particularity-strip .company-part-card .common-name,.company-particularity-strip .common-item .common-name{min-height:32px!important;display:flex!important;align-items:center!important;justify-content:center!important;font-size:12px!important;line-height:1.15!important;font-weight:950!important;letter-spacing:.015em!important}
+.company-particularity-strip .common-count{font-size:24px!important}.company-particularity-strip .view-list{font-size:10px!important;font-weight:950!important}.company-particularity-strip .part-minus,.company-particularity-strip .part-plus{font-size:18px!important}
+.passenger-search-card .common-count{min-height:31px}.passenger-search-card .ico{font-size:29px!important}
+.pax-search-modal{display:grid;gap:10px}.pax-search-modal>input,.home-flight-search input{width:100%;box-sizing:border-box;border:1.5px solid #b9cce0;border-radius:12px;padding:13px 14px;font-size:14px;font-weight:900;outline:none;background:#fff}
+.pax-search-count{font-size:10px;font-weight:950;color:#657b91}.pax-search-results{display:grid;gap:6px;max-height:58vh;overflow:auto}.pax-search-results button{display:grid;grid-template-columns:minmax(0,1fr) 100px 210px;gap:8px;align-items:center;text-align:left;border:1px solid #dbe5ef;border-radius:10px;padding:10px;background:#fff}.pax-search-results strong{font-size:13px}.pax-search-results span,.pax-search-results small{font-size:10px;font-weight:850}
+.group-pnr-list{display:grid;gap:10px}.group-pnr-card{border:1px solid #cbd9e7;border-radius:12px;overflow:hidden;background:#fff}.group-pnr-head{display:grid;grid-template-columns:100px 1fr 70px;align-items:center;gap:8px;padding:10px 12px;background:#f3f7fb}.group-pnr-head span{font-size:9px;font-weight:900;color:#65798e}.group-pnr-head b{font-size:15px}.group-pnr-head strong{text-align:right;font-size:11px;color:#086bd8}.group-pnr-pax{display:grid}.group-pnr-pax button{display:grid;grid-template-columns:minmax(0,1fr) 100px 190px;gap:8px;align-items:center;text-align:left;padding:10px 12px;border:0;border-top:1px solid #e5edf4;background:#fff}
+.import-select-toolbar{display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding:8px 0}.import-select-toolbar b{margin-right:auto;font-size:10px}.import-select-toolbar button{border:1px solid #b9cada;border-radius:8px;background:#fff;padding:7px 9px;font-size:9px;font-weight:950}.import-compare-row{grid-template-columns:30px minmax(130px,1.3fr) minmax(90px,1fr) 30px minmax(90px,1fr)!important}.import-row-check{display:flex;align-items:center;justify-content:center}.import-row-check input{width:18px;height:18px;accent-color:#0872d9}
+.connections-side-by-side{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;align-items:start;grid-column:1/-1}.connections-side-by-side>.card{min-width:0;width:100%;box-sizing:border-box}
+.pax-meal-lines{display:block;line-height:1.45;text-align:left}.profile-specificity{grid-column:span 2}
+.home-flight-search{display:grid;grid-template-columns:28px minmax(0,520px);align-items:center;gap:6px;margin:10px 0 12px}.home-flight-search>span{font-size:22px;color:#0870d8;text-align:center}
+.flight-head .headcell{align-content:start}.flight-head .head-label{min-height:24px;display:flex;align-items:center;justify-content:center}.flight-head .time-big{min-height:42px;display:flex;align-items:center;justify-content:center;gap:6px;line-height:1!important}.flight-head .time-big .blue,.flight-head .time-secondary .red{display:inline-flex;align-items:center;vertical-align:middle;line-height:1!important}
+.auto-refresh-chip{display:inline-flex;align-items:center;gap:4px;border:1px solid #a9d3b7;background:#f0fbf3;color:#26743d;border-radius:999px;padding:4px 7px;font-size:8px;font-weight:950}
+.fqtv-cat.solitaire,.fqtv-table-row.solitaire{background:linear-gradient(135deg,#eef5ff,#4c79ae)!important;color:#163f6d!important}.fqtv-cat.pps,.fqtv-table-row.pps{background:linear-gradient(135deg,#f4efff,#8b78bd)!important;color:#443374!important}
+@media(max-width:900px){.connections-side-by-side{grid-template-columns:1fr}.pax-search-results button,.group-pnr-pax button{grid-template-columns:1fr 85px}.pax-search-results button small,.group-pnr-pax button small{grid-column:1/-1}.company-particularity-strip .company-part-card .common-name{font-size:11px!important}}
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
@@ -5980,11 +5997,11 @@ html,body{
 </head>
 <body>
 <script>
-const ALYZIA_APP_VERSION='V49.47';
-const ALYZIA_APP_BUILD='2026-08-26';
+const ALYZIA_APP_VERSION='V49.48';
+const ALYZIA_APP_BUILD='2026-08-26-01';
 </script>
 <header class="topbar">
- <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V49.47</span></div>
+ <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V49.48</span></div>
  <nav class="nav">
    <button class="home-nav" onclick="renderHome()" title="Accueil vols">⌂</button>
    <button onclick="renderHome()">VOLS</button><button onclick="openFlightSearch()">RECHERCHE</button><button onclick="renderPrepa()">PRÉPA</button><button onclick="openTools()">OUTILS</button><button>ADMIN</button>
@@ -7023,6 +7040,14 @@ function toggleFavoriteFlight(index){
  renderHome();
 }
 
+
+let HOME_FLIGHT_QUERY='';
+function flightListSearchText(x){return [x.airline,x.flight,String(x.flight||'').replace(/^[A-Z]+/i,''),x.dep,x.dest,CITY[x.dest]||''].join(' ').toUpperCase()}
+function filterFlightHomeRows(value){
+ HOME_FLIGHT_QUERY=String(value||'').trim().toUpperCase();const q=HOME_FLIGHT_QUERY.replace(/\s+/g,'');let visible=0;
+ document.querySelectorAll('.flight-home-row[data-flight-search]').forEach(row=>{const hay=String(row.dataset.flightSearch||'').toUpperCase().replace(/\s+/g,''),ok=!q||hay.includes(q);row.style.display=ok?'':'none';if(ok)visible++});
+ const b=document.getElementById('homeVisibleFlightCount');if(b)b.textContent=`${visible} VOL${visible>1?'S':''}`;
+}
 function renderHome(){
  currentView='home';HOME_DATE=HOME_DATE||selectedDate;selectedDate=HOME_DATE;saveViewDates();
  updateMobileNav();
@@ -7038,16 +7063,17 @@ function renderHome(){
        <button class="day-nav-btn" onclick="changeSelectedDate(-1)">J-1</button>
        <button class="date-main-btn" onclick="openDateCalendar()">▣ ${dateLabel}</button>
        <button class="day-nav-btn" onclick="changeSelectedDate(1)">J+1</button>
-       <span class="flight-count-badge">${rows.length} VOL${rows.length>1?'S':''}</span><button class="home-print-btn" onclick="printFlightList()">🖨 IMPRIMER</button>
+       <span id="homeVisibleFlightCount" class="flight-count-badge">${rows.length} VOL${rows.length>1?'S':''}</span><button class="home-print-btn" onclick="printFlightList()">🖨 IMPRIMER</button>
      </div>
    </div>
+   <div class="home-flight-search"><span>⌕</span><input autocomplete="off" placeholder="RECHERCHER : SQ · SQ335 · 335..." value="${HOME_FLIGHT_QUERY}" oninput="filterFlightHomeRows(this.value)"></div>
    <div class="home-head"><span>DÉPART</span><span>VOL</span><span>ROUTE</span><span>APPAREIL</span><span>GATE</span><span>CONFIG / BOOKING</span><span>AVAILABLE</span><span></span></div>
    <div class="flight-home-list">
     ${rows.map(x=>{
       const cap=sum(x.config),booked=sum(x.booked);
       const nok=(x.inopSeats||[]).filter(r=>r.status==='NOK').length;
       const avail=cap-booked-nok,pct=cap?Math.round(booked/cap*100):0;
-      return `<div class="flight-home-row" onclick="selected=${x._index};f().activeDate='${HOME_DATE}';render()">
+      return `<div class="flight-home-row" data-flight-search="${flightListSearchText(x).replace(/"/g,'&quot;')}" onclick="selected=${x._index};f().activeDate='${HOME_DATE}';render()">
         <div class="home-time">${x.std}${x.edt?`<span class="etd-small">ETD ${x.edt}</span>`:''}</div>
         <div class="home-flight-cell">${airlineLogo(x.airline)}<div>
           <div class="home-flight-top"><div class="home-flight">${x.flight}</div></div>
@@ -7071,6 +7097,7 @@ function renderHome(){
    </div>
  </section>`;
  updateClocks();
+ if(HOME_FLIGHT_QUERY)filterFlightHomeRows(HOME_FLIGHT_QUERY);
 }
 
 
@@ -8526,10 +8553,15 @@ function parseSqSimpleOperationalReport(sourceBlock){
      // Keep any explicit staff code present in the row/continuation.
      const code=(txt.match(/\b(STF-[A-Z0-9-]+|STAFF|FIRM)\b/i)||[])[1]||'STFFIRM';
 
+     const staffMove=(txt.match(/\b\d{2,3}([FJSY])\/([FJSY])\d{1,3}\b/i)||[]);
+     const baseClass=String(staffMove[1]||r.class||'').toUpperCase();
+     const upgradeClass=String(staffMove[2]||'').toUpperCase();
+     const staffSpecific=upgradeClass?`${baseClass} → ${upgradeClass}`:`BOOKABLE STAFF · ${String(code).toUpperCase()}`;
      add('BOOKABLE_STAFF',{
        ...r,id:`SQ-BOOKABLE-${r.seq}`,status:'BOOKED',
        sourceReport:'PDF-STFFIRM',
-       specific:`BOOKABLE STAFF · ${String(code).toUpperCase()}`,
+       staffBaseClass:baseClass,upgradeClass,
+       specific:staffSpecific,
        ssr:[String(code).toUpperCase(),'BOOKABLE STAFF']
      });
    });
@@ -9040,6 +9072,8 @@ function applySqManifestToFlight(manifest,context=null){
  x.common_lists.ETK=normalizeSqOperationalList((x.passengers||[]).filter(p=>p.etkt),x.passengers||[],'ETK');
  x.common.ETK=x.common_lists.ETK.length;
  x.etk=x.common.ETK;
+ const sqGroupPax=(x.passengers||[]).filter(p=>String(p.groupCode||'').trim());
+ if(sqGroupPax.length){x.common_lists.GROUP=normalizeSqOperationalList(sqGroupPax,x.passengers||[],'GROUP');x.common.GROUP=groupCountDistinct(x)}
 
  // Enrich SQ connection rows with the passenger master.
  // Routing comes from INC/GOCLIST/DINLIST, identity/documents come from VBC.
@@ -11094,7 +11128,12 @@ function applyPrepaImport(strategy){
  const pending=PREPA_PENDING_INJECTION||{values:{}};
  const ctx=pendingPrepaContext();
  if(!ctx)return;
-
+ const selectedLabels=selectedImportLabelsFromModal();
+ if(strategy!=='delete'&&selectedLabels&&selectedLabels.size===0){alert('SÉLECTIONNEZ AU MOINS UNE INFORMATION À IMPORTER.');return}
+ if(selectedLabels){
+   pending.values=Object.fromEntries(Object.entries(pending.values||{}).filter(([selector])=>selectedLabels.has(prepaSelectorLabelFromSelector(selector))));
+   PREPA_PENDING_MANIFEST=filterManifestForSelectedImport(PREPA_PENDING_MANIFEST,selectedLabels);
+ }
  if(strategy==='delete'){
    deleteCurrentPrepaImport();
    return;
@@ -11180,6 +11219,28 @@ function prepaManifestPreviewRows(manifest,ctx){
  return rows;
 }
 
+
+function selectedImportLabelsFromModal(){
+ const checks=[...document.querySelectorAll('[data-import-row-select]')];
+ if(!checks.length)return null;
+ return new Set(checks.filter(c=>c.checked).map(c=>String(c.dataset.importLabel||'')));
+}
+function toggleAllImportRows(checked){document.querySelectorAll('[data-import-row-select]').forEach(c=>c.checked=!!checked);importRowSelectionChanged()}
+function importRowSelectionChanged(){const n=document.getElementById('importSelectedCount');if(n)n.textContent=[...document.querySelectorAll('[data-import-row-select]')].filter(c=>c.checked).length}
+function filterManifestForSelectedImport(manifest,labels){
+ if(!manifest||!labels)return manifest;
+ const m=JSON.parse(JSON.stringify(manifest)),has=(...names)=>names.some(n=>labels.has(n));
+ if(!has('ALL PAX · SOURCE PASSAGER PRIORITAIRE')){m.passengers=[];m.hasMainManifest=false}
+ const clear=(key,...names)=>{if(!has(...names)){if(m.commonLists)m.commonLists[key]=[];if(m.owned)m.owned[key]=false}};
+ clear('ETK','ETKT');clear('EMD','EMD');clear('INF','INF','INFANT(S)');clear('CHLD','CHLD','KID');clear('UMNR','UMNR');clear('MAAS','MAAS');clear('REBATE_STAFF','REBATE STAFF');clear('BOOKABLE_STAFF','BOOKABLE STAFF');
+ if(!has('HCIP','VIP','IMPT','VVIP')){if(m.commonLists)m.commonLists.VIP=[];if(m.owned)m.owned.HCIP=false}
+ if(!has('WCHR','WCHS','WCHC')){if(m.commonLists)m.commonLists.WCH=[];if(m.owned)m.owned.WCH=false}
+ else if(m.commonLists?.WCH)m.commonLists.WCH=m.commonLists.WCH.filter(p=>{const t=String(p.specific||p.ssr||'').toUpperCase();return labels.has('WCHR')&&/\bWCHR\b/.test(t)||labels.has('WCHS')&&/\bWCHS\b/.test(t)||labels.has('WCHC')&&/\bWCHC\b/.test(t)});
+ if(m.commonLists?.FQTV){m.commonLists.FQTV=m.commonLists.FQTV.filter(p=>labels.has(fqtvCategoryForPassenger(p)));['KFEG','KFES','LPPS','QPPS','TPPS'].forEach(c=>{if(m.owned&&!labels.has(c))m.owned[c]=false});m.hasFqtv=m.commonLists.FQTV.length>0}
+ if(!has('INBOUND')){m.inbound=[];if(m.owned)m.owned.INBOUND=false}
+ if(!has('OUTBOUND')){m.outbound=[];if(m.owned)m.owned.OUTBOUND=false}
+ return m;
+}
 function showPrepaConflictPopup(values,conflicts=[]){
  const ctx=pendingPrepaContext();
  const currentValues=ctx?.currentValues||{};
@@ -11216,11 +11277,13 @@ function showPrepaConflictPopup(values,conflicts=[]){
 
    ${v4920EngineStatusHtml()}
 
-   <div class="import-compare-title">DÉTAIL DES DONNÉES V49.19 À INJECTER</div>
+   <div class="import-compare-title">DÉTAIL DES DONNÉES À INJECTER</div>
+   <div class="import-select-toolbar"><b><span id="importSelectedCount">${rows.length}</span> / ${rows.length} SÉLECTIONNÉES</b><button onclick="toggleAllImportRows(true)">TOUT COCHER</button><button onclick="toggleAllImportRows(false)">TOUT DÉCOCHER</button></div>
    <div class="import-compare-list">
     ${rows.map(c=>{
       const different=String(c.current)!==String(c.next);
       return `<div class="import-compare-row ${different?'different':'same'}">
+       <label class="import-row-check"><input type="checkbox" checked data-import-row-select data-import-label="${String(c.label).replace(/"/g,'&quot;')}" onchange="importRowSelectionChanged()"><span></span></label>
        <div class="import-compare-label">${c.label}</div>
        <div class="import-compare-current"><small>ACTUEL</small><b>${c.current}</b></div>
        <div class="import-compare-arrow">→</div>
@@ -11852,7 +11915,7 @@ const COMPANY_PARTICULARITY_DEFS={
    {id:'FQTV',label:'FQTV',codes:['ELPL','ELIT','CLPL','CLSC','GOLD','SILVER','GOLD_OTHER','SILVER_OTHER'],icon:'▤',special:'fqtv'},
    {id:'UPGR',label:'UPGR TK WAIVE',codes:['UPGR TK WAIVE'],icon:'⇧'},
    {id:'STAFF_GROUP',label:'STAFF',codes:['REBATE STAFF','DUTY STAFF'],icon:'✈️',special:'staff'},
-   {id:'GROUP',label:'GROUP',codes:['GROUP'],icon:'◉'},
+   {id:'GROUP',label:'GROUP',codes:['GROUP'],icon:'◉',special:'group'},
    {id:'PET_GROUP',label:'AVIH / PETC',codes:['AVIH','PETC'],icon:'🐾',special:'pet'},
    {id:'EMD',label:'EMD',codes:['EMD'],icon:'•'},
    {id:'ETK',label:'ETKT',codes:['ETKT'],icon:'■'},
@@ -11867,7 +11930,7 @@ const COMPANY_PARTICULARITY_DEFS={
    {id:'WCMOB',label:'WCMP / WCBD / WCLB',codes:['WCMP','WCBD','WCLB'],icon:'♿'},
    {id:'DEAF_BLND',label:'BLND / DEAF',codes:['BLND','DEAF'],icon:'◔'},
    {id:'INF',label:'INFANT(S)',codes:['INFANT(S)'],icon:'☺'},
-   {id:'CHLD',label:'CHLD / KID',codes:['CHLD','KID'],icon:'⚑'},
+   {id:'CHLD',label:'CHLD',codes:['CHLD','KID'],icon:'🧒'},
    {id:'UMNR',label:'UMNR',codes:['UMNR'],icon:'♟'},
    {id:'MAAS',label:'MAAS',codes:['MAAS'],icon:'•'},
    {id:'MEAL',label:'MEAL',codes:[],icon:'🍽',special:'meal'},
@@ -11877,7 +11940,7 @@ const COMPANY_PARTICULARITY_DEFS={
    {id:'FQTV',label:'FQTV',codes:['KFEG','KFES','QPPS','LPPS','TPPS'],icon:'▤',special:'fqtv'},
    {id:'BOOKABLE_STAFF',label:'BOOKABLE STAFF',codes:['BOOKABLE STAFF'],icon:'♧'},
    {id:'REBATE_STAFF',label:'REBATE STAFF',codes:['REBATE STAFF'],icon:'♧'},
-   {id:'GROUP',label:'GROUP',codes:['GROUP'],icon:'◉'},
+   {id:'GROUP',label:'GROUP',codes:['GROUP'],icon:'◉',special:'group'},
    {id:'PET_AV',label:'PETC / AVIH',codes:['PETC','AVIH'],icon:'♣'},
    {id:'POSITIONING',label:'POSITIONING',codes:[],icon:'👨‍✈️',special:'positioning'}
  ]
@@ -11997,6 +12060,7 @@ function prepaSpecificValue(x,code){
 
 function particularityCountByDef(x,def){
  if(!def)return 0;
+ if(def.special==='group')return groupCountDistinct(x);
  const manualAdj=Number(x?.groupedManualAdjust?.[def.id]||0);
  if(def.special==='meal')return Number(x?.common?.MEAL||0);
  if(def.special==='positioning')return positioningCount(x);
@@ -12280,6 +12344,7 @@ function render(){
  ${companyModuleVisible(x,'header')?`<section class="card flight-head">
    <div class="headcell">
     <span class="airline-pill">${x.airline} · AIRLINE</span>
+    <span class="auto-refresh-chip">↻ AUTO REFRESH ${Math.round(OPS_REALTIME_INTERVAL_VISIBLE/100)/10}S</span>
     <div class="flight-date">${formatDateLong(x.activeDate||HOME_DATE||selectedDate)}</div>
     <div class="flight-id-with-logo">${airlineLogo(x.airline,'large')}<div class="flight-number">${x.flight}</div></div>
     <div class="route">${x.dep}<span class="arrow">→</span>${x.dest}</div>
@@ -12386,8 +12451,7 @@ function render(){
 
 
  <section class="bottom">
-   ${companyModuleVisible(x,'inbound')?flightTable('INBOUND',x.inbound,true):''}
-   ${companyModuleVisible(x,'outbound')?flightTable('OUTBOUND',x.outbound,false):''}
+   <div class="connections-side-by-side">${companyModuleVisible(x,'inbound')?flightTable('INBOUND',x.inbound,true):''}${companyModuleVisible(x,'outbound')?flightTable('OUTBOUND',x.outbound,false):''}</div>
    ${companyModuleVisible(x,'notes')?combinedNotesSection():''}
  </section>`;
  updateClocks();
@@ -13058,28 +13122,38 @@ function fqtvCategoryForPassenger(p){
  return 'AUTRES';
 }
 
+function sqFqtvDisplayGroup(p){
+ const cat=fqtvCategoryForPassenger(p);
+ if(cat==='TPPS')return 'SOLITAIRE';
+ if(cat==='QPPS'||cat==='LPPS')return 'PPS';
+ if(cat==='KFEG')return 'KFEG';
+ if(cat==='KFES')return 'KFES';
+ return cat;
+}
 function openFqtvCategories(){
- const x=f();
- const raw=Array.isArray(x.common_lists?.FQTV)?x.common_lists.FQTV:[];
- const arr=x.airline==='SQ'?cleanSqFqtvList(raw):raw;
- const order=x.airline==='TK'
-   ?['ELPL','ELIT','CLPL','CLSC','GOLD','SILVER','GOLD_OTHER','SILVER_OTHER']
-   :['KFEG','KFES','LPPS','QPPS','TPPS'];
- const groups={};
- arr.forEach(p=>{
-   const cat=fqtvCategoryForPassenger(p);
-   if(cat==='AUTRES')return;
-   (groups[cat]=groups[cat]||[]).push(p);
- });
-
- showModal(`FQTV · ${arr.length}`,x.flight,`
-   <div class="meal-category-list">
-     ${order.filter(cat=>groups[cat]?.length).map(cat=>`
-       <button class="meal-category-row fqtv-cat ${cat.toLowerCase()}" onclick="openFqtvPassengerList('${cat}')">
-         <span>${cat}</span><b>${groups[cat].length}</b><small>${cat==='ELPL'?'ELITE PLUS':cat==='ELIT'?'ELITE':cat==='CLPL'?'CLASSIC PLUS':cat==='CLSC'?'CLASSIC':cat==='GOLD'?'GOLD TK':cat==='SILVER'?'SILVER TK':cat==='GOLD_OTHER'?'GOLD AUTRE COMPAGNIE':cat==='SILVER_OTHER'?'SILVER AUTRE COMPAGNIE':'VOIR LES PASSAGERS'}</small>
-       </button>`).join('')||'<div class="prepa-empty">AUCUN FQTV IMPORTÉ</div>'}
-   </div>
- `);
+ const x=f(),raw=Array.isArray(x.common_lists?.FQTV)?x.common_lists.FQTV:[],arr=x.airline==='SQ'?cleanSqFqtvList(raw):raw;
+ if(x.airline==='SQ'){
+   const order=['SOLITAIRE','PPS','KFEG','KFES'],groups={};
+   arr.forEach(p=>{const cat=sqFqtvDisplayGroup(p);if(order.includes(cat))(groups[cat]=groups[cat]||[]).push(p)});
+   window.__sqFqtvGroups=groups;
+   showModal(`FQTV · ${arr.length}`,x.flight,`<div class="meal-category-list fq-display-order">
+     ${order.filter(cat=>groups[cat]?.length).map(cat=>`<button class="meal-category-row fqtv-cat ${cat.toLowerCase()}" onclick="openSqFqtvDisplayList('${cat}')"><span>${cat}</span><b>${groups[cat].length}</b><small>VOIR LES PASSAGERS</small></button>`).join('')||'<div class="prepa-empty">AUCUN FQTV IMPORTÉ</div>'}
+   </div>`);return;
+ }
+ const order=['ELPL','ELIT','CLPL','CLSC','GOLD','SILVER','GOLD_OTHER','SILVER_OTHER'],groups={};
+ arr.forEach(p=>{const cat=fqtvCategoryForPassenger(p);if(cat!=='AUTRES')(groups[cat]=groups[cat]||[]).push(p)});
+ showModal(`FQTV · ${arr.length}`,x.flight,`<div class="meal-category-list">${order.filter(cat=>groups[cat]?.length).map(cat=>`<button class="meal-category-row fqtv-cat ${cat.toLowerCase()}" onclick="openFqtvPassengerList('${cat}')"><span>${cat}</span><b>${groups[cat].length}</b><small>VOIR LES PASSAGERS</small></button>`).join('')||'<div class="prepa-empty">AUCUN FQTV IMPORTÉ</div>'}</div>`);
+}
+function openSqFqtvDisplayList(group,sort='name',dir='asc'){
+ const x=f(),source=cleanSqFqtvList(x.common_lists?.FQTV||[]).filter(p=>sqFqtvDisplayGroup(p)===group),match=sortPaxItems(source,sort,dir);
+ PAX_MODAL_ITEMS=match;PAX_MODAL_SOURCE=source.slice();
+ const next=s=>sort===s?(dir==='asc'?'desc':'asc'):'asc';
+ showModal(`FQTV · ${group}`,x.flight,`<div class="sortbar compact-sortbar">
+ <button class="${sort==='name'?'active':''}" onclick="openSqFqtvDisplayList('${group}','name','${next('name')}')">NOM${sortArrow(sort==='name',dir)}</button>
+ <button class="${sort==='class'?'active':''}" onclick="openSqFqtvDisplayList('${group}','class','${next('class')}')">CLASSE${sortArrow(sort==='class',dir)}</button>
+ <button class="${sort==='seat'?'active':''}" onclick="openSqFqtvDisplayList('${group}','seat','${next('seat')}')">SIÈGE${sortArrow(sort==='seat',dir)}</button></div>
+ <div class="fqtv-table-wrap"><div class="fqtv-table-head"><span>NOM / PRÉNOM</span><span>SIÈGE</span><span>CLASSE</span><span>FQTV</span><span>DOCUMENT</span></div>
+ <div class="fqtv-table-body">${match.map((p,i)=>`<button class="fqtv-table-row ${group.toLowerCase()}" onclick="openPaxFromModal(${i})"><strong>${passengerDisplayName(p)}</strong><span>${p.seat||'—'}</span><span>CL ${p.class||'—'}</span><span>${p.fqtv?.number||group}</span><span>${passengerDocMeta(p)||'—'}</span></button>`).join('')||'<div class="prepa-empty">AUCUN PASSAGER</div>'}</div></div>`);
 }
 
 function openFqtvPassengerList(cat,sort='name',dir='asc'){
@@ -13371,6 +13445,23 @@ async function removeCompanyParticularityManual(defId){
  await persistFlightAction('SUPPRESSION MANUELLE '+def.label,true);
 }
 
+
+function operationalGroupPassengers(x=f()){
+ const list=Array.isArray(x?.common_lists?.GROUP)?x.common_lists.GROUP:[];
+ const seen=new Set();
+ return list.map(p=>resolvePassengerForDisplay(p,x)).filter(p=>{
+   const k=String(p.etkt||'')||`${String(p.pnr||'')}|${sqNormalizeIdentityName(p.name)}|${String(p.seat||'')}`;
+   if(seen.has(k))return false;seen.add(k);return true;
+ });
+}
+function groupBucketKey(p){return String(p?.pnr||p?.groupCode||'SANS PNR').toUpperCase().trim()||'SANS PNR'}
+function groupCountDistinct(x=f()){return new Set(operationalGroupPassengers(x).map(groupBucketKey)).size}
+function openGroupModal(){
+ const x=f(),list=operationalGroupPassengers(x),groups=new Map();
+ list.forEach(p=>{const key=groupBucketKey(p);if(!groups.has(key))groups.set(key,[]);groups.get(key).push(p)});
+ window.__groupPnrSections=[...groups.entries()].sort((a,b)=>a[0].localeCompare(b[0]));
+ showModal(`GROUP · ${groups.size}`,x.flight,`<div class="group-pnr-list">${window.__groupPnrSections.length?window.__groupPnrSections.map(([pnr,pax],gi)=>`<div class="group-pnr-card"><div class="group-pnr-head"><span>PNR / GROUPE</span><b>${pnr}</b><strong>${pax.length} PAX</strong></div><div class="group-pnr-pax">${pax.map((p,pi)=>`<button onclick="PAX_MODAL_ITEMS=window.__groupPnrSections[${gi}][1];openPaxFromModal(${pi})"><strong>${passengerDisplayName(p)}</strong><span>${p.seat||'—'} · CL ${p.class||'—'}</span><small>${passengerDocMeta(p)||'DOSSIER PASSAGER'}</small></button>`).join('')}</div></div>`).join(''):'<div class="prepa-empty">AUCUN GROUPE DÉTAILLÉ</div>'}</div>`);
+}
 function companyParticularityCard(def){
  const x=f();
  const n=particularityCountByDef(x,def);
@@ -13378,6 +13469,9 @@ function companyParticularityCard(def){
  if(def.special==='meal')return mealSummaryTile();
  if(def.special==='positioning')return positioningTile();
  if(def.special==='quickRamp')return quickRampTile();
+ if(def.special==='group'){
+   return `<div class="common-item company-part-card group"><div class="common-name">GROUP</div><div class="common-count"><span class="ico">◉</span>${groupCountDistinct(x)}</div><div class="particularity-actions"><button class="part-minus" onclick="removeCompanyParticularityManual('${def.id}')">−</button><button class="view-list" onclick="openGroupModal()">VOIR LES GROUPES</button><button class="part-plus" onclick="openCompanyParticularityAdd('${def.id}')">＋</button></div></div>`;
+ }
  if(['staff','pet','police'].includes(def.special)){
    return `<div class="common-item company-part-card ${String(def.id).toLowerCase()}">
      <div class="common-name">${def.label}</div>
@@ -13401,6 +13495,24 @@ function companyParticularityCard(def){
  </div>`;
 }
 
+
+function allOperationalPassengerRecords(x=f()){
+ const rows=[...(x.passengers||[])];
+ Object.values(x.common_lists||{}).forEach(arr=>{if(Array.isArray(arr))rows.push(...arr)});
+ (x.inbound||[]).forEach(r=>{if(r.passenger||r.name)rows.push({...r,name:r.passenger||r.name})});
+ (x.outbound||[]).forEach(r=>{if(r.passenger||r.name)rows.push({...r,name:r.passenger||r.name})});
+ const map=new Map();
+ rows.forEach(raw=>{const p=resolvePassengerForDisplay(raw,x),key=String(p.etkt||'')||`${String(p.pnr||'')}|${sqNormalizeIdentityName(p.name)}|${String(p.seat||'')}`,old=map.get(key)||{};map.set(key,{...old,...p,ssr:[...new Set([...(old.ssr||[]),...(p.ssr||[])])]})});
+ return [...map.values()];
+}
+function passengerSearchTile(){return `<div class="common-item company-part-card passenger-search-card"><div class="common-name">RECHERCHE</div><div class="common-count"><span class="ico">⌕</span></div><div class="particularity-actions grouped-only"><button class="view-list wide-view" onclick="openPassengerSearchModal()">RECHERCHER</button></div></div>`}
+function openPassengerSearchModal(query=''){
+ const x=f(),q=String(query||'').trim().toUpperCase(),all=allOperationalPassengerRecords(x),norm=v=>String(v||'').toUpperCase().replace(/[^A-Z0-9]/g,''),nq=norm(q);
+ const results=!q?[]:all.filter(p=>[p.name,p.fullName,p.shortName,p.pnr,p.etkt,p.emd,p.seat,p.groupCode,p.title].map(norm).join('|').includes(nq)).slice(0,80);
+ window.__paxSearchResults=results;
+ replaceModal('RECHERCHE PASSAGER',x.flight,`<div class="pax-search-modal"><input id="paxSearchInput" autocomplete="off" placeholder="NOM · PRÉNOM · PNR · ETKT · SIÈGE" value="${String(query||'').replace(/"/g,'&quot;')}" oninput="openPassengerSearchModal(this.value)"><div class="pax-search-count">${q?`${results.length} RÉSULTAT${results.length>1?'S':''}`:'SAISISSEZ UN CRITÈRE'}</div><div class="pax-search-results">${results.map((p,i)=>`<button onclick="PAX_MODAL_ITEMS=window.__paxSearchResults;openPaxFromModal(${i})"><strong>${passengerDisplayName(p)}</strong><span>${p.seat||'—'} · CL ${p.class||'—'}</span><small>${p.pnr?`PNR ${p.pnr} · `:''}${p.etkt?`ETKT ${p.etkt}`:'DOSSIER PASSAGER'}</small></button>`).join('')}</div></div>`);
+ const el=document.getElementById('paxSearchInput');if(el){el.focus();try{el.setSelectionRange(el.value.length,el.value.length)}catch(e){}}
+}
 function renderCompanyParticularities(x){
  const defs=companyParticularityDefs(x.airline);
  if(!defs.length){
@@ -13426,7 +13538,7 @@ function renderCompanyParticularities(x){
  return defs
    .filter(def=>companyParticularityVisible(x,def.id))
    .map(def=>companyParticularityCard(def))
-   .join('');
+   .join('') + passengerSearchTile();
 }
 
 function commonTile(key,label){
@@ -14532,6 +14644,13 @@ function passengerConnectionsHtml(p){
  return `<div class="pax-connections">${block('VOL(S) INBOUND',ins)}${block('VOL(S) OUTBOUND',outs)}</div>`;
 }
 
+
+function passengerMealDetails(p,x=f()){
+ const norm=v=>String(v||'').replace(/[^A-Z0-9]/gi,'').toUpperCase(),pn=norm(p?.name||p?.fullName),pe=String(p?.etkt||''),ps=String(p?.seat||'').toUpperCase(),rows=[];
+ Object.values(x?.meal_lists||{}).forEach(list=>(list||[]).forEach(q=>{const match=(pe&&q.etkt&&String(q.etkt)===pe)||(pn&&norm(q.name||q.fullName)===pn)||(ps&&q.seat&&String(q.seat).toUpperCase()===ps);if(!match)return;let s=String(q.specific||'').trim();s=s.replace(/\s*·\s*(?=SPML-|CHML-|BBML-|AVML-|MOML-|LFML-|FPML-|NLML-)/gi,'\n');rows.push(...s.split(/\n+/))}));
+ return [...new Set(rows.map(s=>s.trim()).filter(Boolean))];
+}
+function passengerSpecificityHtml(p,x=f()){const meals=passengerMealDetails(p,x);return meals.length?`<span class="pax-meal-lines">${meals.map(s=>escapeHtml(s)).join('<br>')}</span>`:escapeHtml(cleanPassengerSpecificity(p)||'—')}
 function openPax(p){
  p=resolvePassengerForDisplay(p);
  const savedNote=getPassengerNote(p);
@@ -14550,7 +14669,7 @@ function openPax(p){
    <div><small>EMD</small><b>${p.emd||'—'}</b></div>
    <div><small>CODE GROUPE</small><b>${p.groupCode||'—'}</b></div>
    <div><small>SSR</small><b>${Array.isArray(p.ssr)&&p.ssr.length?[...new Set(p.ssr)].filter(Boolean).join(' · '):(cleanPassengerSpecificity(p)||'—')}</b></div>
-   <div><small>SPÉCIFICITÉ</small><b>${cleanPassengerSpecificity(p)||'—'}</b></div>
+   <div class="profile-specificity"><small>SPÉCIFICITÉ</small><b>${passengerSpecificityHtml(p)}</b></div>
    ${p.ownerMatchMissing?`<div class="owner-match-warning"><small>ASSOCIATION</small><b>PASSAGER RÉEL NON RETROUVÉ</b></div>`:''}
   </div>
   ${passengerConnectionsHtml(p)}
@@ -14854,7 +14973,7 @@ function openTools(){
    <button class="tool-card" onclick="openSariaApp()"><span class="tool-icon">✈</span><b>SARIA</b><span>OUVRIR DIRECTEMENT L’OUTIL SARIA CABIN / SEATMAP.</span></button>
    <div class="ops-cloud-card">
      <div id="opsCloudStatusBox" class="ops-cloud-status ${OPS_CLOUD_ONLINE?'ok':'warn'}">${OPS_CLOUD_ONLINE?'☁ SYNC MULTI-POSTES ACTIVE':'☁ SYNC MULTI-POSTES'}</div>
-     <div class="ops-cloud-help">D1 PARTAGÉ · FICHE OUVERTE ~0,8 S · SYNCHRO GLOBALE ~2,5 S · PC, TABLETTE ET TÉLÉPHONE.<br><b style="color:#087749">V49.47 · VERSION AFFICHÉE</b></div>
+     <div class="ops-cloud-help">D1 PARTAGÉ · FICHE OUVERTE ~0,8 S · SYNCHRO GLOBALE ~2,5 S · PC, TABLETTE ET TÉLÉPHONE.<br><b style="color:#087749">V49.48 · VERSION AFFICHÉE</b></div>
      <button class="live-refresh" onclick="manualCloudRefresh()">↻ SYNCHRONISER MAINTENANT</button>
    </div>
    <div class="adb-usage-card"><div id="adbUsageBox"><button class="live-refresh" onclick="loadAeroUsage()">CHARGER COMPTEUR AERODATABOX</button></div></div>
@@ -15237,7 +15356,7 @@ function openFlightInfo(){
 }
 
 
-console.info('ALYZIA OPS V49.47 · VERSION VISIBLE');
+console.info('ALYZIA OPS V49.48 · VERSION VISIBLE');
 const SARIA_DIRECT_URL="https://saria-seatmap.alyzia-cdg2.workers.dev";
 const SARIA_BRIDGE_BASE=(location.protocol==='http:'||location.protocol==='https:')
   ? `${location.origin}/api/saria`
@@ -15995,6 +16114,7 @@ document.addEventListener('blur',e=>{
  }
 },true);
 document.getElementById('modal').addEventListener('click',e=>{if(e.target.id==='modal')closeModal()});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&modalIsOpen()){e.preventDefault();closeAllModals()}});
 setInterval(updateClocks,1000);
 
 async function bootstrapAlyziaOps(){
