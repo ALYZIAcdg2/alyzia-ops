@@ -6,7 +6,7 @@
   <meta http-equiv="Expires" content="0">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V49.46 · SQ Connection Passenger Profile Enrichment</title>
+<title>ALYZIA OPS - V49.47 · Version Visible</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -5911,14 +5911,80 @@ html,body{
   color:#4d6178;
 }
 
+
+/* V49.47 — visible application version */
+.app-version-badge{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-height:22px;
+  padding:3px 8px;
+  border:1px solid #b9c9da;
+  border-radius:999px;
+  background:#f5f9fd;
+  color:#53677d;
+  font-size:9px;
+  line-height:1;
+  font-weight:950;
+  letter-spacing:.04em;
+  white-space:nowrap;
+}
+.brand-version{
+  margin-left:-5px;
+}
+@media(max-width:720px){
+  .app-version-badge{
+    min-height:19px;
+    padding:3px 6px;
+    font-size:8px;
+  }
+  .brand-version{
+    margin-left:-3px;
+  }
+}
+.tools-version-card{
+  grid-column:1/-1;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:12px 14px;
+  border:1px solid #cbd9e7;
+  border-radius:12px;
+  background:#f8fbfe;
+}
+.tools-version-card .version-main{
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+}
+.tools-version-card .version-main small{
+  color:#6a7d91;
+  font-size:9px;
+  font-weight:850;
+}
+.tools-version-card .version-main b{
+  color:#10233d;
+  font-size:16px;
+}
+.tools-version-card .version-build{
+  color:#0b67cc;
+  font-size:10px;
+  font-weight:950;
+}
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 </head>
 <body>
+<script>
+const ALYZIA_APP_VERSION='V49.47';
+const ALYZIA_APP_BUILD='2026-08-26';
+</script>
 <header class="topbar">
- <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span></div>
+ <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V49.47</span></div>
  <nav class="nav">
    <button class="home-nav" onclick="renderHome()" title="Accueil vols">⌂</button>
    <button onclick="renderHome()">VOLS</button><button onclick="openFlightSearch()">RECHERCHE</button><button onclick="renderPrepa()">PRÉPA</button><button onclick="openTools()">OUTILS</button><button>ADMIN</button>
@@ -14773,6 +14839,14 @@ async function manualCloudRefresh(){
 
 function openTools(){
  showModal('OUTILS','ALYZIA OPS',`<div class="tools-grid">
+   <div class="tools-version-card">
+     <div class="version-main">
+       <small>VERSION DE L’APPLICATION</small>
+       <b>${ALYZIA_APP_VERSION}</b>
+       <span class="version-build">BUILD ${ALYZIA_APP_BUILD}</span>
+     </div>
+     <span class="app-version-badge">${ALYZIA_APP_VERSION}</span>
+   </div>
    <button class="tool-card" onclick="openFlightImport()"><span class="tool-icon">⇩</span><b>IMPORTER LISTE DES VOLS</b><span>IMPORT EXCEL .XLS / .XLSX AVEC LES COLONNES OPÉRATIONNELLES K, L, M, N, O, W, X ET Y.</span></button>
    <button class="tool-card" onclick="openCreateFlight()"><span class="tool-icon">＋</span><b>CRÉATION DE VOLS</b><span>AJOUTER MANUELLEMENT UN VOL ABSENT DE L'IMPORT, AVEC DATE, COMPAGNIE, NUMÉRO, ROUTE ET HORAIRES.</span></button>
    <button class="tool-card company-config-tool" onclick="openCompanyConfig()"><span class="tool-icon">⚙</span><b>CONFIG COMPAGNIE</b><span>CONFIGURER LES CLASSES PAR NUMÉRO DE VOL ET LES BLOCS VISIBLES SUR LA FICHE. TK / SQ.</span></button>
@@ -14780,7 +14854,7 @@ function openTools(){
    <button class="tool-card" onclick="openSariaApp()"><span class="tool-icon">✈</span><b>SARIA</b><span>OUVRIR DIRECTEMENT L’OUTIL SARIA CABIN / SEATMAP.</span></button>
    <div class="ops-cloud-card">
      <div id="opsCloudStatusBox" class="ops-cloud-status ${OPS_CLOUD_ONLINE?'ok':'warn'}">${OPS_CLOUD_ONLINE?'☁ SYNC MULTI-POSTES ACTIVE':'☁ SYNC MULTI-POSTES'}</div>
-     <div class="ops-cloud-help">D1 PARTAGÉ · FICHE OUVERTE ~0,8 S · SYNCHRO GLOBALE ~2,5 S · PC, TABLETTE ET TÉLÉPHONE.<br><b style="color:#087749">V49.46 · IMPORT FIX ACTIF</b></div>
+     <div class="ops-cloud-help">D1 PARTAGÉ · FICHE OUVERTE ~0,8 S · SYNCHRO GLOBALE ~2,5 S · PC, TABLETTE ET TÉLÉPHONE.<br><b style="color:#087749">V49.47 · VERSION AFFICHÉE</b></div>
      <button class="live-refresh" onclick="manualCloudRefresh()">↻ SYNCHRONISER MAINTENANT</button>
    </div>
    <div class="adb-usage-card"><div id="adbUsageBox"><button class="live-refresh" onclick="loadAeroUsage()">CHARGER COMPTEUR AERODATABOX</button></div></div>
@@ -15163,7 +15237,7 @@ function openFlightInfo(){
 }
 
 
-console.info('ALYZIA OPS V46.4 · SARIA SEATMAP LOOP FIX');
+console.info('ALYZIA OPS V49.47 · VERSION VISIBLE');
 const SARIA_DIRECT_URL="https://saria-seatmap.alyzia-cdg2.workers.dev";
 const SARIA_BRIDGE_BASE=(location.protocol==='http:'||location.protocol==='https:')
   ? `${location.origin}/api/saria`
