@@ -6,7 +6,7 @@
   <meta http-equiv="Expires" content="0">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V49.58 · VBCP CHLD SPML OUTBOUND Fix</title>
+<title>ALYZIA OPS - V49.59 · VBCP CHLD SPML OUTBOUND Fix</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -6490,11 +6490,11 @@ html,body{
 </head>
 <body>
 <script>
-const ALYZIA_APP_VERSION='V49.58';
+const ALYZIA_APP_VERSION='V49.59';
 const ALYZIA_APP_BUILD='2026-08-26-06';
 </script>
 <header class="topbar">
- <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V49.58</span></div>
+ <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V49.59</span></div>
  <nav class="nav">
    <button class="home-nav" onclick="renderHome()" title="Accueil vols">⌂</button>
    <button onclick="renderHome()">VOLS</button><button onclick="openFlightSearch()">RECHERCHE</button><button onclick="renderPrepa()">PRÉPA</button><button onclick="openTools()">OUTILS</button><button>ADMIN</button>
@@ -9078,10 +9078,15 @@ function parseSqSimpleOperationalReport(sourceBlock){
      const txt=[r.tail,...(r.continuation||[])].join(' ').toUpperCase();
      const code=(txt.match(/\b(WCHR|WCHS|WCHC)\b/)||[])[1]||'';
      if(!code)return;
+     const detail=txt
+       .replace(new RegExp(`^.*?\b${code}\b[-:]?\s*`,'i'),'')
+       .replace(/\s+/g,' ')
+       .trim();
      add('WCH',{
        ...r,id:`SQ-WCH-${code}-${r.seq}`,status:'BOOKED',
        sourceReport:'PDF-PSPLWCHR',
-       specific:code,ssr:[code]
+       specific:code,ssr:[code],
+       note:detail && detail!==code ? detail : ''
      });
    });
  }
@@ -12476,7 +12481,7 @@ const COMPANY_PARTICULARITY_DEFS={
    {id:'WCH',label:'WCHR / WCHS / WCHC · WCMP / WCBD / WCLB',codes:['WCHR','WCHS','WCHC','WCMP','WCBD','WCLB'],icon:'♿'},
    {id:'DEAF_BLND',label:'BLND / DEAF',codes:['BLND','DEAF'],icon:'◔'},
    {id:'INF',label:'INFANT(S)',codes:['INFANT(S)'],icon:'☺'},
-   {id:'CHLD',label:'CHLD',codes:['CHLD','KID'],icon:'🧒'},
+   {id:'CHLD',label:'CHLD',codes:['CHLD'],icon:'🧒'},
    {id:'UMNR',label:'UMNR',codes:['UMNR'],icon:'♟'},
    {id:'MAAS',label:'MAAS',codes:['MAAS'],icon:'•'},
    {id:'MEAL',label:'MEAL',codes:[],icon:'🍽',special:'meal'},
@@ -12635,6 +12640,11 @@ function particularityCountByDef(x,def){
 }
 
 function detailCodesForDef(x,def){
+ if(def?.id==='ETK'){
+   const list=Array.isArray(x?.common_lists?.ETK)?x.common_lists.ETK:[];
+   const count=list.length || (Array.isArray(x?.passengers)?x.passengers.filter(p=>p?.etkt).length:0) || Number(x?.etk||x?.etkt||0);
+   return [{code:'ETKT',count}];
+ }
  if(x?.airline==='TK'&&def?.id==='EXST_CBBG'){
    return [
      {code:'EXST',count:Array.isArray(x.common_lists?.EXST)?x.common_lists.EXST.length:0},
@@ -14501,7 +14511,7 @@ function openConnectionPassengers(index,title,sort='name',dir='asc',replaceSort=
            return `<button class="paxrow" onclick="openConnectionPassengerDetail(${index},${absolute})">
              <strong>${passengerDisplayName(p)}</strong>
              <span class="seat">${p.groupCode?`<em class="group-code-chip">${p.groupCode}</em> `:''}${p.seat||'—'}</span>
-             <span class="class-cell">CL ${p.class||'—'}</span>
+             <span class="class-cell">${p.class||'—'}</span>
              <span class="connection-pnr">${p.pnr||'—'}</span>
              <span class="specific">${passengerDocMeta(p)||p.specific||p.note||'—'}</span>
            </button>`;
@@ -15132,7 +15142,7 @@ function paxRows(items,count){
    return `<button class="paxrow" onclick="openPaxFromModal(${i})">
    <strong>${passengerDisplayName(p)}</strong>
    <span class="seat">${p.groupCode?`<em class="group-code-chip">${p.groupCode}</em> `:''}${p.seat||'—'}</span>
-   <span class="class-cell">CL ${p.class||'—'}</span>
+   <span class="class-cell">${p.class||'—'}</span>
    <span class="pax-pnr">${p.pnr?`PNR ${p.pnr}`:(p.connection?.flight||'—')}</span>
    <span class="specific">${p.specific||p.note||(p.connection?`${p.connection.flight} ${p.connection.destination} ${p.connection.time}`:'—')}${passengerDocMeta(p)?` · ${passengerDocMeta(p)}`:''}</span>
  </button>`;
@@ -15177,16 +15187,30 @@ function savePassengerNote(p){
 
 function cleanPassengerSpecificity(p){
  let s=String(p?.specific||p?.note||'').trim();
- if(!s)return '—';
+ if(!s)return '';
+ const ssrCodes=[...(Array.isArray(p?.ssr)?p.ssr:[]),'CHLD','INF','WCHR','WCHS','WCHC','WCMP','WCBD','WCLB','BLND','DEAF','UMNR','MAAS','IMPT','HCIP','VIP','VVIP','ETKT','EMD','BOOKABLE STAFF','REBATE STAFF'];
  s=s.replace(/\bETKT?\s*\d{13}(?:C\d+)?\b/gi,'')
-    .replace(/\bEMD\s*\d{13}(?:C\d+)?\b/gi,'')
-    .replace(/\s*·\s*·\s*/g,' · ')
-    .replace(/^\s*·\s*|\s*·\s*$/g,'')
+    .replace(/\bEMD\s*\d{13}(?:C\d+)?\b/gi,'');
+ ssrCodes.filter(Boolean).sort((a,b)=>String(b).length-String(a).length).forEach(code=>{
+   const safe=String(code).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+   s=s.replace(new RegExp(`(^|\\s*[·,;/]\\s*|\\s+)${safe}(?=\\s*[·,;/]|\\s*$)`,'gi'),' ');
+ });
+ s=s.replace(/\s*·\s*·\s*/g,' · ')
+    .replace(/^\s*[·,;/]\s*|\s*[·,;/]\s*$/g,'')
     .replace(/\s{2,}/g,' ')
     .trim();
- return s||'—';
+ return s;
 }
 
+function passengerOperationalDetailLines(p,x=f()){
+ const norm=v=>String(v||'').replace(/[^A-Z0-9]/gi,'').toUpperCase();
+ const pn=norm(p?.name||p?.fullName),pe=String(p?.etkt||''),ps=String(p?.seat||'').toUpperCase();
+ const rows=[];
+ const matches=q=>(pe&&q?.etkt&&String(q.etkt)===pe)||(pn&&norm(q?.name||q?.fullName)===pn)||(ps&&q?.seat&&String(q.seat).toUpperCase()===ps);
+ const push=v=>{const t=String(v||'').replace(/\s+/g,' ').trim();if(t)rows.push(t)};
+ (x?.common_lists?.WCH||[]).forEach(q=>{if(matches(q))push(q.note||q.detail||'')});
+ return [...new Set(rows)];
+}
 
 function passengerConnectionRows(p,inbound){
  const x=f(),rows=inbound?(x.inbound||[]): (x.outbound||[]);
@@ -15211,7 +15235,7 @@ function passengerConnectionsHtml(p){
  const ins=passengerConnectionRows(p,true),outs=passengerConnectionRows(p,false);
  if(!ins.length&&!outs.length)return '';
  const block=(title,rows)=>rows.length?`<div class="pax-connection-block"><h4>${title}</h4>${rows.map(r=>`
-   <div class="pax-connection-row"><b>${r.flight||'—'}</b><span>${r.from||'—'} → ${r.to||'—'}</span><strong>${r.time||'—'}</strong><small>CL ${r.class||'—'}</small></div>
+   <div class="pax-connection-row"><b>${r.flight||'—'}</b><span>${r.from||'—'} → ${r.to||'—'}</span><strong>${r.time||'—'}</strong><small>${r.class||'—'}</small></div>
  `).join('')}</div>`:'';
  return `<div class="pax-connections">${block('VOL(S) INBOUND',ins)}${block('VOL(S) OUTBOUND',outs)}</div>`;
 }
@@ -15219,14 +15243,20 @@ function passengerConnectionsHtml(p){
 
 function passengerMealDetails(p,x=f()){
  const norm=v=>String(v||'').replace(/[^A-Z0-9]/gi,'').toUpperCase(),pn=norm(p?.name||p?.fullName),pe=String(p?.etkt||''),ps=String(p?.seat||'').toUpperCase(),rows=[];
- Object.values(x?.meal_lists||{}).forEach(list=>(list||[]).forEach(q=>{const match=(pe&&q.etkt&&String(q.etkt)===pe)||(pn&&norm(q.name||q.fullName)===pn)||(ps&&q.seat&&String(q.seat).toUpperCase()===ps);if(!match)return;let s=String(q.specific||'').trim();s=s.replace(/\s*·\s*(?=SPML-|CHML-|BBML-|AVML-|MOML-|LFML-|FPML-|NLML-)/gi,'\n');rows.push(...s.split(/\n+/))}));
+ const matches=q=>(pe&&q?.etkt&&String(q.etkt)===pe)||(pn&&norm(q?.name||q?.fullName)===pn)||(ps&&q?.seat&&String(q.seat).toUpperCase()===ps);
+ const pushSpecific=q=>{if(!matches(q))return;let v=String(q?.specific||'').trim();if(!v)return;v=v.replace(/\s*·\s*(?=(?:SPML|CHML|BBML|AVML|MOML|LFML|FPML|NLML)-)/gi,'\n');v.split(/\n+/).map(t=>t.trim()).filter(t=>/^(?:SPML|CHML|BBML|AVML|MOML|LFML|FPML|NLML)-/i.test(t)).forEach(t=>rows.push(t));};
+ Object.values(x?.meal_lists||{}).forEach(list=>(list||[]).forEach(pushSpecific));
+ (x?.common_lists?.MEAL||[]).forEach(pushSpecific);
  return [...new Set(rows.map(s=>s.trim()).filter(Boolean))];
 }
 function passengerSpecificityHtml(p,x=f()){
- const meals=passengerMealDetails(p,x);
- return meals.length
-   ?`<span class="pax-meal-lines">${meals.map(s=>escHtml(s)).join('<br>')}</span>`
-   :escHtml(cleanPassengerSpecificity(p)||'—');
+ const detail=[];
+ detail.push(...passengerMealDetails(p,x));
+ detail.push(...passengerOperationalDetailLines(p,x));
+ const cleaned=cleanPassengerSpecificity(p);
+ if(cleaned && !/^(?:SPML|CHML|BBML|AVML|MOML|LFML|FPML|NLML)$/i.test(cleaned))detail.push(cleaned);
+ const unique=[...new Set(detail.map(v=>String(v||'').trim()).filter(Boolean))];
+ return unique.length?`<span class="pax-meal-lines">${unique.map(s=>escHtml(s)).join('<br>')}</span>`:'—';
 }
 function openPax(p){
  p=resolvePassengerForDisplay(p);
@@ -15241,11 +15271,10 @@ function openPax(p){
    <div><small>SIÈGE</small><b>${p.seat||'—'}</b></div>
    <div><small>CLASSE</small><b>${p.class||'—'}</b></div>
    <div><small>GENRE / TITRE</small><b>${p.title||'—'}</b></div>
-   <div><small>PNR</small><b>${p.pnr||'—'}</b></div>
    <div><small>ETKT</small><b>${p.etkt||'—'}</b></div>
    <div><small>EMD</small><b>${p.emd||'—'}</b></div>
    <div><small>CODE GROUPE</small><b>${p.groupCode||'—'}</b></div>
-   <div><small>SSR</small><b>${Array.isArray(p.ssr)&&p.ssr.length?[...new Set(p.ssr)].filter(Boolean).join(' · '):(cleanPassengerSpecificity(p)||'—')}</b></div>
+   <div><small>SSR</small><b>${Array.isArray(p.ssr)&&p.ssr.length?[...new Set(p.ssr)].filter(Boolean).join(' · '):'—'}</b></div>
    <div class="profile-specificity"><small>SPÉCIFICITÉ</small><b>${passengerSpecificityHtml(p)}</b></div>
    ${p.ownerMatchMissing?`<div class="owner-match-warning"><small>ASSOCIATION</small><b>PASSAGER RÉEL NON RETROUVÉ</b></div>`:''}
   </div>
