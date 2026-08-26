@@ -5928,7 +5928,7 @@ html,body{
 }
 
 
-/* V49.53 — visible application version */
+/* V49.55 — visible application version */
 .app-version-badge{
   display:inline-flex;
   align-items:center;
@@ -5990,7 +5990,7 @@ html,body{
 }
 
 
-/* V49.53 */
+/* V49.55 */
 .company-particularity-strip .company-part-card .common-name,.company-particularity-strip .common-item .common-name{min-height:32px!important;display:flex!important;align-items:center!important;justify-content:center!important;font-size:12px!important;line-height:1.15!important;font-weight:950!important;letter-spacing:.015em!important}
 .company-particularity-strip .common-count{font-size:24px!important}.company-particularity-strip .view-list{font-size:10px!important;font-weight:950!important}.company-particularity-strip .part-minus,.company-particularity-strip .part-plus{font-size:18px!important}
 .passenger-search-card .common-count{min-height:31px}.passenger-search-card .ico{font-size:29px!important}
@@ -6007,7 +6007,7 @@ html,body{
 @media(max-width:900px){.connections-side-by-side{grid-template-columns:1fr}.pax-search-results button,.group-pnr-pax button{grid-template-columns:1fr 85px}.pax-search-results button small,.group-pnr-pax button small{grid-column:1/-1}.company-particularity-strip .company-part-card .common-name{font-size:11px!important}}
 
 
-/* V49.53 — HEADER UNIFORMITÉ */
+/* V49.55 — HEADER UNIFORMITÉ */
 .flight-head .headcell:nth-child(2),
 .flight-head .headcell:nth-child(3),
 .flight-head .headcell:nth-child(4),
@@ -6142,7 +6142,7 @@ html,body{
 }
 
 
-/* V49.53 — WCH group unique + header rework */
+/* V49.55 — WCH group unique + header rework */
 .company-particularity-strip .company-part-card .common-name{
   min-height:40px!important;
   font-size:13px!important;
@@ -6489,11 +6489,11 @@ html,body{
 </head>
 <body>
 <script>
-const ALYZIA_APP_VERSION='V49.53';
+const ALYZIA_APP_VERSION='V49.55';
 const ALYZIA_APP_BUILD='2026-08-26-06';
 </script>
 <header class="topbar">
- <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V49.53</span></div>
+ <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V49.55</span></div>
  <nav class="nav">
    <button class="home-nav" onclick="renderHome()" title="Accueil vols">⌂</button>
    <button onclick="renderHome()">VOLS</button><button onclick="openFlightSearch()">RECHERCHE</button><button onclick="renderPrepa()">PRÉPA</button><button onclick="openTools()">OUTILS</button><button>ADMIN</button>
@@ -15495,7 +15495,7 @@ function openTools(){
    <button class="tool-card" onclick="openSariaApp()"><span class="tool-icon">✈</span><b>SARIA</b><span>OUVRIR DIRECTEMENT L’OUTIL SARIA CABIN / SEATMAP.</span></button>
    <div class="ops-cloud-card">
      <div id="opsCloudStatusBox" class="ops-cloud-status ${OPS_CLOUD_ONLINE?'ok':'warn'}">${OPS_CLOUD_ONLINE?'☁ SYNC MULTI-POSTES ACTIVE':'☁ SYNC MULTI-POSTES'}</div>
-     <div class="ops-cloud-help">D1 PARTAGÉ · FICHE OUVERTE ~0,8 S · SYNCHRO GLOBALE ~2,5 S · PC, TABLETTE ET TÉLÉPHONE.<br><b style="color:#087749">V49.53 · WCH GROUP + HEADER REWORK</b></div>
+     <div class="ops-cloud-help">D1 PARTAGÉ · FICHE OUVERTE ~0,8 S · SYNCHRO GLOBALE ~2,5 S · PC, TABLETTE ET TÉLÉPHONE.<br><b style="color:#087749">V49.55 · VISUAL FINISH</b></div>
      <button class="live-refresh" onclick="manualCloudRefresh()">↻ SYNCHRONISER MAINTENANT</button>
    </div>
    <div class="adb-usage-card"><div id="adbUsageBox"><button class="live-refresh" onclick="loadAeroUsage()">CHARGER COMPTEUR AERODATABOX</button></div></div>
@@ -15878,7 +15878,7 @@ function openFlightInfo(){
 }
 
 
-console.info('ALYZIA OPS V49.53 · VERSION VISIBLE');
+console.info('ALYZIA OPS V49.55 · VISUAL FINISH');
 const SARIA_DIRECT_URL="https://saria-seatmap.alyzia-cdg2.workers.dev";
 const SARIA_BRIDGE_BASE=(location.protocol==='http:'||location.protocol==='https:')
   ? `${location.origin}/api/saria`
