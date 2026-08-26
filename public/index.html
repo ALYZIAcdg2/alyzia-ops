@@ -11760,12 +11760,15 @@ function showPrepaConflictPopup(values,conflicts=[]){
    };
  });
  const manifestRows=prepaManifestPreviewRows(PREPA_PENDING_MANIFEST,ctx);
- if(PREPA_PENDING_MANIFEST?.counts?.ALL_PAX){
+ const mainManifestPassengerCount=Array.isArray(PREPA_PENDING_MANIFEST?.passengers)
+   ? PREPA_PENDING_MANIFEST.passengers.length
+   : Number(PREPA_PENDING_MANIFEST?.counts?.ALL_PAX||0);
+ if(PREPA_PENDING_MANIFEST?.hasMainManifest && mainManifestPassengerCount>0){
    manifestRows.unshift({
      selector:'MANIFEST:ALL_PAX',
      label:'ALL PAX · SOURCE PASSAGER PRIORITAIRE',
      current:String(FLIGHTS[Number(ctx?.idx)]?.passengers?.length||0),
-     next:String(PREPA_PENDING_MANIFEST.counts.ALL_PAX)
+     next:String(mainManifestPassengerCount)
    });
  }
  const rows=[...fieldRows,...manifestRows];
