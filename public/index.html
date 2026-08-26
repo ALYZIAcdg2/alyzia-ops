@@ -6,7 +6,7 @@
   <meta http-equiv="Expires" content="0">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V49.58 · Base V49.55 + STFFIRM / MEAL / UI</title>
+<title>ALYZIA OPS - V49.55 · Visual Finish</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -4813,6 +4813,7 @@ html,body{
 }
 
 
+/* V49.56 — D1 / synchronisation corrective uniquement (UI + parsers inchangés) */
 /* V49.46 — synchro silencieuse */
 .ops-cloud-status.ok::before{content:'●';margin-right:5px;color:#0aa56b}
 
@@ -6482,54 +6483,6 @@ html,body{
  .kpi-strip>.kpi{min-height:194px!important}
 }
 
-
-
-/* V49.58 — FICHE VOL: HEADER + KPI COMPACT / EQUILIBRE */
-@media(min-width:901px){
-  .flight-head{
-    grid-template-columns:minmax(350px,1.9fr) minmax(115px,.72fr) minmax(115px,.72fr) minmax(100px,.62fr) minmax(165px,.95fr) minmax(120px,.72fr) minmax(130px,.76fr)!important;
-    min-height:208px!important;
-    height:208px!important;
-  }
-  .flight-head .headcell{min-height:208px!important;height:208px!important;padding:11px 12px!important}
-  .flight-head .headcell:first-child{gap:5px!important;grid-template-rows:auto auto auto auto 1fr auto!important}
-  .flight-head .headcell:not(:first-child){grid-template-rows:24px 48px 1fr 36px!important;gap:2px!important}
-  .flight-head .head-label{min-height:24px!important;font-size:11px!important}
-  .flight-head .time-big{min-height:48px!important;font-size:28px!important;align-items:center!important}
-  .flight-head .duration,.flight-head .head-main-value,.flight-head .gate-pkg-value{min-height:48px!important;align-items:center!important}
-  .flight-head .duration{font-size:17px!important}
-  .flight-head .local-clock{min-height:36px!important;font-size:11px!important}
-  .flight-head .local-clock small{font-size:9px!important}
-  .flight-head .aircraft-select{min-height:40px!important;font-size:11px!important}
-  .flight-head .gate-only-wrap{grid-template-rows:24px 48px 1fr!important}
-  .flight-head .info-button{min-height:36px!important;padding:8px 12px!important;margin-top:4px!important}
-  .flight-id-with-logo{margin-top:4px!important;gap:9px!important}
-  .flight-id-with-logo .airline-logo.large{width:82px!important;height:44px!important}
-  .flight-id-with-logo .flight-number{font-size:43px!important}
-  .flight-head .route{font-size:21px!important}
-  .flight-date{font-size:9px!important;margin:2px 0!important}
-  .airline-pill{font-size:10px!important;padding:5px 8px!important}
-  .auto-refresh-chip{font-size:7.5px!important;padding:3px 6px!important}
-  .live-strip{margin-top:2px!important}
-  .detail-prepa-actions{margin-top:3px!important}
-
-  .kpi-strip{
-    grid-template-columns:1.18fr 1fr 1fr 1.18fr 1fr!important;
-    min-height:176px!important;
-    height:176px!important;
-    align-items:stretch!important;
-  }
-  .kpi-strip>.kpi{min-height:176px!important;height:176px!important;padding:10px 12px!important;justify-content:flex-start!important}
-  .kpi-title{min-height:25px!important;font-size:10px!important;margin-bottom:5px!important}
-  .kpi-main{min-height:60px!important;grid-template-columns:34px minmax(0,1fr) 52px!important;gap:4px!important}
-  .kpi-icon{font-size:20px!important}.kpi-value{font-size:28px!important}.class-mini{font-size:10px!important;line-height:1.45!important}
-  .kpi-gauge{margin-top:7px!important}.gauge{height:7px!important}
-  .config-cap-kpi{padding:9px 12px!important}.config-cap-wrap{gap:8px!important}.config-cap-classes{gap:5px 7px!important}.config-cap-field input{height:29px!important}.config-cap-total strong{font-size:31px!important;margin-top:2px!important}.config-actions{margin-top:8px!important}.inop-wrap{margin-top:8px!important;padding-top:8px!important}.inop-btn,.seatmap-btn{padding:7px 8px!important}
-  .wsa-kpi{padding:8px 9px!important;gap:4px!important}.wsa-grid{gap:5px!important}.wsa-cell{min-height:126px!important;padding:6px!important}.wsa-cell-title{font-size:8px!important;margin-bottom:2px!important}.wsa-cell-value{min-height:24px!important;margin-bottom:2px!important}.wsa-cell-value b{font-size:21px!important}.wsa-mini-classes{gap:2px!important}.wsa-mini-row{grid-template-columns:13px 34px!important;gap:2px!important}.wsa-mini-row span{font-size:8px!important}.wsa-mini-row button{height:19px!important;min-width:34px!important;font-size:9px!important;padding:0 4px!important}.wsa-chip{padding:3px 6px!important;font-size:8px!important}.wsa-foot{min-height:15px!important}
-  .meal-kpi-card .kpi-main{min-height:70px!important}
-}
-.pax-meal-lines{display:block;line-height:1.55;text-transform:none!important;white-space:normal}
-
 </style>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
@@ -6537,11 +6490,11 @@ html,body{
 </head>
 <body>
 <script>
-const ALYZIA_APP_VERSION='V49.58';
+const ALYZIA_APP_VERSION='V49.55';
 const ALYZIA_APP_BUILD='2026-08-26-06';
 </script>
 <header class="topbar">
- <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V49.58</span></div>
+ <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V49.55</span></div>
  <nav class="nav">
    <button class="home-nav" onclick="renderHome()" title="Accueil vols">⌂</button>
    <button onclick="renderHome()">VOLS</button><button onclick="openFlightSearch()">RECHERCHE</button><button onclick="renderPrepa()">PRÉPA</button><button onclick="openTools()">OUTILS</button><button>ADMIN</button>
@@ -6739,6 +6692,13 @@ const OPS_FLIGHT_KEY='importedFlights';
 let PENDING_FLIGHT_IMPORT=null;
 const OPS_ZERO_STATE_KEY='alyzia_ops_zero_state_v4611';
 
+// V49.56 — D1 write barrier: no cloud refresh may run while a persistent write is in progress.
+let OPS_CLOUD_WRITE_DEPTH=0;
+function beginOpsCloudWrite(){OPS_CLOUD_WRITE_DEPTH++}
+function endOpsCloudWrite(){OPS_CLOUD_WRITE_DEPTH=Math.max(0,OPS_CLOUD_WRITE_DEPTH-1)}
+function opsCloudWriteInProgress(){return OPS_CLOUD_WRITE_DEPTH>0}
+
+
 function openOpsFlightDb(){
  return new Promise((resolve,reject)=>{
   if(!('indexedDB' in window)){reject(new Error('INDEXEDDB NON DISPONIBLE'));return}
@@ -6752,35 +6712,39 @@ function openOpsFlightDb(){
  });
 }
 async function saveImportedFlightsPersistent(flights){
- if(Array.isArray(flights)&&flights.length){
-   try{localStorage.removeItem(OPS_ZERO_STATE_KEY)}catch(e){}
- }
-
- let localSaved=false;
-
- // Cache local rapide / secours hors-ligne.
+ beginOpsCloudWrite();
  try{
-  const db=await openOpsFlightDb();
-  await new Promise((resolve,reject)=>{
-   const tx=db.transaction(OPS_FLIGHT_STORE,'readwrite');
-   tx.objectStore(OPS_FLIGHT_STORE).put(flights,OPS_FLIGHT_KEY);
-   tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);
-  });
-  db.close();
-  localSaved=true;
- }catch(e){
-  console.warn('CACHE INDEXEDDB V47',e);
+   if(Array.isArray(flights)&&flights.length){
+     try{localStorage.removeItem(OPS_ZERO_STATE_KEY)}catch(e){}
+   }
+
+   let localSaved=false;
+
+   // Cache local rapide / secours hors-ligne.
+   try{
+    const db=await openOpsFlightDb();
+    await new Promise((resolve,reject)=>{
+     const tx=db.transaction(OPS_FLIGHT_STORE,'readwrite');
+     tx.objectStore(OPS_FLIGHT_STORE).put(flights,OPS_FLIGHT_KEY);
+     tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);
+    });
+    db.close();
+    localSaved=true;
+   }catch(e){
+    console.warn('CACHE INDEXEDDB V47',e);
+   }
+
+   try{
+     localStorage.setItem('alyzia_ops_imported_flights_v19',JSON.stringify(flights));
+     localSaved=true;
+   }catch(e){}
+
+   // Source partagée : D1. Le verrou reste actif jusqu'à la fin réelle du POST.
+   const cloudSaved=await syncFlightsToCloud(flights);
+   return cloudSaved || localSaved;
+ }finally{
+   endOpsCloudWrite();
  }
-
- try{
-   localStorage.setItem('alyzia_ops_imported_flights_v19',JSON.stringify(flights));
-   localSaved=true;
- }catch(e){}
-
- // Source partagée : D1.
- const cloudSaved=await syncFlightsToCloud(flights);
-
- return cloudSaved || localSaved;
 }
 async function loadImportedFlightsPersistent(){
  try{
@@ -9094,14 +9058,7 @@ function parseSqSimpleOperationalReport(sourceBlock){
      // Keep any explicit staff code present in the row/continuation.
      const code=(txt.match(/\b(STF-[A-Z0-9-]+|STAFF|FIRM)\b/i)||[])[1]||'STFFIRM';
 
-     let staffMove=(txt.match(/\b\d{2,3}([FJSY])\/([FJSY])\d{1,3}\b/i)||[]);
-     if(!staffMove[1]){
-       const flatRaw=String(raw||'').replace(/\s+/g,' ');
-       const surname=String(r.name||'').trim().split(/\s+/)[0];
-       const pos=surname?flatRaw.toUpperCase().indexOf(surname.toUpperCase()):-1;
-       const near=pos>=0?flatRaw.slice(pos,Math.min(flatRaw.length,pos+260)):flatRaw;
-       staffMove=(near.match(/\b\d{2,3}([FJSY])\/([FJSY])\d{1,3}\b/i)||[]);
-     }
+     const staffMove=(txt.match(/\b\d{2,3}([FJSY])\/([FJSY])\d{1,3}\b/i)||[]);
      const baseClass=String(staffMove[1]||r.class||'').toUpperCase();
      const upgradeClass=String(staffMove[2]||'').toUpperCase();
      const staffSpecific=upgradeClass?`${baseClass} → ${upgradeClass}`:`BOOKABLE STAFF · ${String(code).toUpperCase()}`;
@@ -9390,26 +9347,15 @@ function parseSqPassengerManifest(rawOriginal){
    }
 
    const meals=[];
-   const mealServices=[];
-   // SQ meal text may arrive flattened by pdf.js. Extract the real SQML service
-   // text independently of line breaks, e.g. SQML/BREK/CDG/BTC ...
-   const mealSource=allText.replace(/\s+/g,' ').trim();
-   const serviceRe=/(?:SPML-)?(SQML\/[A-Z0-9]+\/[A-Z]{3}\/[A-Z0-9]+(?:\s+[A-Z0-9][A-Z0-9 '&+\-/.]*)?)(?=\s+(?:SPML-)?SQML\/|\s+[A-Z]{4}-|\s+\d{13}\s+AS|$)/gi;
-   let sm;
-   while((sm=serviceRe.exec(mealSource))){
-     const svc=String(sm[1]||'').replace(/\s+/g,' ').trim().replace(/[·;]+$/,'').trim();
-     if(svc&&!mealServices.includes(svc))mealServices.push(svc);
-   }
    SQ_MEAL_CODES.forEach(code=>{
-     if(!codes.has(code) && !(code==='SPML'&&mealServices.length))return;
+     if(!codes.has(code))return;
      meals.push(code);
-     const lineDetails=lines.filter(l=>l.startsWith(code+'-')).map(l=>l.replace(new RegExp('^'+code+'-','i'),'').trim()).filter(Boolean);
-     const details=(code==='SPML'&&mealServices.length?mealServices:lineDetails).slice(0,8);
-     mealLists[code].push({...p,specific:details.length?details.join('\n'):code});
+     const details=lines.filter(l=>l.startsWith(code+'-')).slice(0,3).join(' · ');
+     mealLists[code].push({...p,specific:details||code});
    });
-   if(meals.length||mealServices.length){
-     const details=mealServices.length?mealServices:lines.filter(l=>/^(SPML|CHML|BBML|AVML|MOML|LFML|FPML|NLML)-/.test(l)).map(l=>l.replace(/^[A-Z]{4}-/,'').trim()).filter(Boolean);
-     commonLists.MEAL.push({...p,specific:details.length?details.join('\n'):meals.join(' · ')});
+   if(meals.length){
+     const details=lines.filter(l=>/^(SPML|CHML|BBML|AVML|MOML|LFML|FPML|NLML)-/.test(l)).slice(0,3).join(' · ');
+     commonLists.MEAL.push({...p,specific:details||meals.join(' · ')});
    }
 
    p.specific=[...p.ssr,...meals].join(' · ');
@@ -11500,7 +11446,7 @@ function applyPrepaValues(values,overwriteSelectors=null){
  return {applied,kept,accepted};
 }
 
-function finalizePrepaAutomaticImport(result,context=null){
+async function finalizePrepaAutomaticImport(result,context=null){
  const ctx=context||pendingPrepaContext();
  const idx=Number(ctx?.idx);
  const fx=FLIGHTS[idx];
@@ -11523,8 +11469,8 @@ function finalizePrepaAutomaticImport(result,context=null){
  PREPA_PENDING_INJECTION=null;
  const depDate=ctx?.departureDate||fx.date;
 
- saveImportedFlightsPersistent(FLIGHTS).catch(()=>{});
- persistFlightAction('IMPORT PREPA FINALISÉ',true);
+ await saveImportedFlightsPersistent(FLIGHTS).catch(()=>false);
+ await persistFlightAction('IMPORT PREPA FINALISÉ',true);
 
  PREPA_PENDING_CONTEXT=null;
  closeAllModals();
@@ -11703,9 +11649,10 @@ function applyPrepaImport(strategy){
  const result=selectImportValues(pending.values||{},strategy,ctx);
  applyAcceptedImportToEditingModel(result.accepted,ctx);
 
- closeAllModals();
+ // Le modal reste ouvert pendant l'écriture : le refresh ne peut pas reprendre
+ // avant la fin réelle de la sauvegarde D1.
  setTimeout(()=>{
-   finalizePrepaAutomaticImport(result,ctx);
+   finalizePrepaAutomaticImport(result,ctx).catch(e=>console.warn('IMPORT PREPA FINALIZE',e));
  },20);
 }
 
@@ -12405,6 +12352,7 @@ function persistFlightAction(reason='ACTION FICHE VOL',immediate=false){
  clearTimeout(__flightPersistTimer);
 
  const run=async()=>{
+   beginOpsCloudWrite();
    try{
      const x=f();
      if(!x)return false;
@@ -12446,6 +12394,8 @@ function persistFlightAction(reason='ACTION FICHE VOL',immediate=false){
    }catch(e){
      console.warn('PERSIST FICHE VOL',reason,e);
      return false;
+   }finally{
+     endOpsCloudWrite();
    }
  };
 
@@ -15228,47 +15178,16 @@ function passengerConnectionsHtml(p){
 }
 
 
-function passengerIdentityMatch(a,b){
- const norm=v=>String(v||'').replace(/[^A-Z0-9]/gi,'').toUpperCase();
- const ae=String(a?.etkt||''),be=String(b?.etkt||'');
- if(ae&&be&&ae===be)return true;
- const ap=String(a?.pnr||'').toUpperCase(),bp=String(b?.pnr||'').toUpperCase();
- if(ap&&bp&&ap===bp)return true;
- const an=norm(a?.name||a?.fullName),bn=norm(b?.name||b?.fullName);
- if(an&&bn&&an===bn)return true;
- const as=String(a?.seat||'').toUpperCase(),bs=String(b?.seat||'').toUpperCase();
- return !!(as&&bs&&as===bs);
-}
 function passengerMealDetails(p,x=f()){
- const rows=[];
- const sources=[...Object.values(x?.meal_lists||{}),x?.common_lists?.MEAL||[]];
- sources.forEach(list=>(list||[]).forEach(q=>{
-   if(!passengerIdentityMatch(p,q))return;
-   let s=String(q.specific||'').trim();
-   if(!s)return;
-   s=s.replace(/\s*·\s*(?=(?:SPML-)?SQML\/|SPML-|CHML-|BBML-|AVML-|MOML-|LFML-|FPML-|NLML-)/gi,'\n');
-   s=s.replace(/(^|\n)SPML-/gi,'$1');
-   s.split(/\n+/).map(v=>v.trim()).filter(v=>/^SQML\//i.test(v)).forEach(v=>rows.push(v));
- }));
- return [...new Set(rows)];
-}
-function passengerStaffSpecificity(p,x=f()){
- if(x?.airline!=='SQ')return '';
- const list=Array.isArray(x?.common_lists?.BOOKABLE_STAFF)?x.common_lists.BOOKABLE_STAFF:[];
- const row=list.find(q=>passengerIdentityMatch(p,q));
- if(!row)return '';
- const base=String(row.staffBaseClass||'').toUpperCase();
- const up=String(row.upgradeClass||'').toUpperCase();
- if(base&&up)return `${base} → ${up}`;
- const s=String(row.specific||'').trim();
- return /[FJSY]\s*→\s*[FJSY]/.test(s)?s:'';
+ const norm=v=>String(v||'').replace(/[^A-Z0-9]/gi,'').toUpperCase(),pn=norm(p?.name||p?.fullName),pe=String(p?.etkt||''),ps=String(p?.seat||'').toUpperCase(),rows=[];
+ Object.values(x?.meal_lists||{}).forEach(list=>(list||[]).forEach(q=>{const match=(pe&&q.etkt&&String(q.etkt)===pe)||(pn&&norm(q.name||q.fullName)===pn)||(ps&&q.seat&&String(q.seat).toUpperCase()===ps);if(!match)return;let s=String(q.specific||'').trim();s=s.replace(/\s*·\s*(?=SPML-|CHML-|BBML-|AVML-|MOML-|LFML-|FPML-|NLML-)/gi,'\n');rows.push(...s.split(/\n+/))}));
+ return [...new Set(rows.map(s=>s.trim()).filter(Boolean))];
 }
 function passengerSpecificityHtml(p,x=f()){
  const meals=passengerMealDetails(p,x);
- if(meals.length)return `<span class="pax-meal-lines">${meals.map(s=>escHtml(s)).join('<br>')}</span>`;
- const staff=passengerStaffSpecificity(p,x);
- if(staff)return escHtml(staff);
- return escHtml(cleanPassengerSpecificity(p)||'—');
+ return meals.length
+   ?`<span class="pax-meal-lines">${meals.map(s=>escHtml(s)).join('<br>')}</span>`
+   :escHtml(cleanPassengerSpecificity(p)||'—');
 }
 function openPax(p){
  p=resolvePassengerForDisplay(p);
@@ -15384,11 +15303,44 @@ function stableCloudHash(list){
    return JSON.stringify((Array.isArray(list)?list:[]).map(x=>[
      flightImportIdentity(x),
      x.updated_at||x.updatedAt||x.lastActionAt||'',
-     x.booked,x.config,x.web,x.meals,x.common,x.common_lists,x.inbound,x.outbound,
+     x.booked,x.config,x.web,x.meals,x.common,x.common_lists,
+     x.passengers,x.inbound,x.outbound,x.meal_lists,
      x.prepaEditing,x.prepaParticularities,x.prepaSpecificities,x.prepaComments,
      x.note,x.gate,x.reg,x.std,x.sta,x.aircraft,x.positioningCrew,x.inopSeats
    ]));
  }catch(e){return String(Date.now())}
+}
+
+function sameBookedForSync(a,b){
+ try{
+   const norm=v=>Object.fromEntries(Object.keys(v||{}).sort().map(k=>[k,Number(v?.[k]||0)]));
+   return JSON.stringify(norm(a))===JSON.stringify(norm(b));
+ }catch(e){return false}
+}
+function hasRows(v){return Array.isArray(v)&&v.length>0}
+function mealListsHaveRows(v){
+ return !!(v&&typeof v==='object'&&Object.values(v).some(list=>Array.isArray(list)&&list.length>0));
+}
+function protectDetailedLocalFlight(local,cloud){
+ if(!local||!cloud)return cloud;
+ const localHasPassengers=hasRows(local.passengers);
+ const cloudHasPassengers=hasRows(cloud.passengers);
+ if(!localHasPassengers||cloudHasPassengers||!sameBookedForSync(local.booked,cloud.booked))return cloud;
+
+ // D1 downgrade guard: same BOOKED + local detailed PAX + cloud without PAX.
+ // Preserve only detailed fields that are absent/empty in cloud; other cloud updates still win.
+ const safe={...cloud,passengers:local.passengers};
+ if(!hasRows(cloud.inbound)&&hasRows(local.inbound))safe.inbound=local.inbound;
+ if(!hasRows(cloud.outbound)&&hasRows(local.outbound))safe.outbound=local.outbound;
+ if(!mealListsHaveRows(cloud.meal_lists)&&mealListsHaveRows(local.meal_lists))safe.meal_lists=local.meal_lists;
+ return safe;
+}
+function protectCloudListAgainstLocal(cloudList,localList){
+ const localMap=new Map((Array.isArray(localList)?localList:[]).map(x=>[flightImportIdentity(x),x]));
+ return (Array.isArray(cloudList)?cloudList:[]).map(cloud=>{
+   const local=localMap.get(flightImportIdentity(cloud));
+   return local?protectDetailedLocalFlight(local,cloud):cloud;
+ });
 }
 
 function remapSelectedAfterCloud(identity){
@@ -15399,7 +15351,7 @@ function remapSelectedAfterCloud(identity){
 
 function modalIsOpen(){
  const m=document.getElementById('modal');
- return !!(m && m.classList.contains('show'));
+ return !!(m && m.classList.contains('open'));
 }
 
 function renderCurrentViewPreserved(){
@@ -15427,7 +15379,7 @@ async function cacheCloudFlightsLocally(list){
 }
 
 async function silentCloudRefresh({forceRender=false}={}){
- if(OPS_REALTIME_RUNNING || !navigator.onLine)return false;
+ if(OPS_REALTIME_RUNNING || opsCloudWriteInProgress() || !navigator.onLine)return false;
  OPS_REALTIME_RUNNING=true;
  const selectedIdentity=currentSelectedIdentity();
  try{
@@ -15438,9 +15390,11 @@ async function silentCloudRefresh({forceRender=false}={}){
    const afterConfigHash=stableCompanyConfigHash();
    const configChanged=beforeConfigHash!==afterConfigHash;
 
-   const {flights:filtered}=splitCloudRecords(data.flights);
-   normalizeLegacyImportedDurations(filtered);
-   rebuildCloudSnapshot(filtered);
+   const {flights:cloudFiltered}=splitCloudRecords(data.flights);
+   normalizeLegacyImportedDurations(cloudFiltered);
+   const filtered=protectCloudListAgainstLocal(cloudFiltered,FLIGHTS);
+   // Snapshot = état D1 réel, pas la version localement protégée.
+   rebuildCloudSnapshot(cloudFiltered);
    const nextHash=stableCloudHash(filtered);
    const flightChanged=nextHash!==OPS_REALTIME_LAST_HASH;
    const changed=flightChanged||configChanged;
@@ -15476,32 +15430,35 @@ let OPS_SELECTED_FLIGHT_TIMER=null;
 let OPS_SELECTED_FLIGHT_RUNNING=false;
 
 async function syncSelectedFlightFast(){
- if(OPS_SELECTED_FLIGHT_RUNNING||document.hidden||currentView!=='detail'||modalIsOpen()||!navigator.onLine)return false;
+ if(OPS_SELECTED_FLIGHT_RUNNING||opsCloudWriteInProgress()||document.hidden||currentView!=='detail'||modalIsOpen()||!navigator.onLine)return false;
  const identity=currentSelectedIdentity();
  if(!identity)return false;
 
  OPS_SELECTED_FLIGHT_RUNNING=true;
  try{
-   const cloud=await getOneFlightFromCloud(identity);
-   if(!cloud)return false;
+   const cloudRaw=await getOneFlightFromCloud(identity);
+   if(!cloudRaw)return false;
 
    const idx=FLIGHTS.findIndex(x=>flightImportIdentity(x)===identity);
    if(idx<0)return false;
+   const cloud=protectDetailedLocalFlight(FLIGHTS[idx],cloudRaw);
 
    const before=JSON.stringify([
      FLIGHTS[idx].lastActionAt,FLIGHTS[idx].booked,FLIGHTS[idx].config,FLIGHTS[idx].web,
      FLIGHTS[idx].meals,FLIGHTS[idx].common,FLIGHTS[idx].common_lists,
+     FLIGHTS[idx].passengers,FLIGHTS[idx].inbound,FLIGHTS[idx].outbound,FLIGHTS[idx].meal_lists,
      FLIGHTS[idx].positioningCrew,FLIGHTS[idx].prepaSpecificities,
      FLIGHTS[idx].std,FLIGHTS[idx].sta,FLIGHTS[idx].gate,FLIGHTS[idx].reg
    ]);
    const after=JSON.stringify([
      cloud.lastActionAt,cloud.booked,cloud.config,cloud.web,
      cloud.meals,cloud.common,cloud.common_lists,
+     cloud.passengers,cloud.inbound,cloud.outbound,cloud.meal_lists,
      cloud.positioningCrew,cloud.prepaSpecificities,
      cloud.std,cloud.sta,cloud.gate,cloud.reg
    ]);
 
-   OPS_CLOUD_SNAPSHOT.set(identity,JSON.parse(JSON.stringify(cloud)));
+   OPS_CLOUD_SNAPSHOT.set(identity,JSON.parse(JSON.stringify(cloudRaw)));
 
    if(before!==after){
      FLIGHTS[idx]={...FLIGHTS[idx],...cloud};
@@ -15592,7 +15549,7 @@ function openTools(){
    <button class="tool-card" onclick="openSariaApp()"><span class="tool-icon">✈</span><b>SARIA</b><span>OUVRIR DIRECTEMENT L’OUTIL SARIA CABIN / SEATMAP.</span></button>
    <div class="ops-cloud-card">
      <div id="opsCloudStatusBox" class="ops-cloud-status ${OPS_CLOUD_ONLINE?'ok':'warn'}">${OPS_CLOUD_ONLINE?'☁ SYNC MULTI-POSTES ACTIVE':'☁ SYNC MULTI-POSTES'}</div>
-     <div class="ops-cloud-help">D1 PARTAGÉ · FICHE OUVERTE ~0,8 S · SYNCHRO GLOBALE ~2,5 S · PC, TABLETTE ET TÉLÉPHONE.<br><b style="color:#087749">V49.58 · BASE V49.55 + STFFIRM/MEAL + UI</b></div>
+     <div class="ops-cloud-help">D1 PARTAGÉ · FICHE OUVERTE ~0,8 S · SYNCHRO GLOBALE ~2,5 S · PC, TABLETTE ET TÉLÉPHONE.<br><b style="color:#087749">V49.55 · VISUAL FINISH</b></div>
      <button class="live-refresh" onclick="manualCloudRefresh()">↻ SYNCHRONISER MAINTENANT</button>
    </div>
    <div class="adb-usage-card"><div id="adbUsageBox"><button class="live-refresh" onclick="loadAeroUsage()">CHARGER COMPTEUR AERODATABOX</button></div></div>
@@ -15975,7 +15932,7 @@ function openFlightInfo(){
 }
 
 
-console.info('ALYZIA OPS V49.58 · BASE V49.55 + STFFIRM/MEAL + UI');
+console.info('ALYZIA OPS V49.55 · VISUAL FINISH');
 const SARIA_DIRECT_URL="https://saria-seatmap.alyzia-cdg2.workers.dev";
 const SARIA_BRIDGE_BASE=(location.protocol==='http:'||location.protocol==='https:')
   ? `${location.origin}/api/saria`
@@ -16741,10 +16698,13 @@ async function bootstrapAlyziaOps(){
  const cloudFlights=await loadFlightsFromCloud();
 
  if(Array.isArray(cloudFlights)){
-   const filteredCloud=cloudFlights.filter(x=>String(x.airline||'').toUpperCase()!=='KL');
+   const localBeforeCloud=await loadImportedFlightsPersistent();
+   const rawFilteredCloud=cloudFlights.filter(x=>String(x.airline||'').toUpperCase()!=='KL');
+   const filteredCloud=protectCloudListAgainstLocal(rawFilteredCloud,localBeforeCloud);
 
    if(filteredCloud.length){
-     rebuildCloudSnapshot(filteredCloud);
+     // Snapshot = état D1 réel afin qu'une future sauvegarde puisse réparer les détails manquants.
+     rebuildCloudSnapshot(rawFilteredCloud);
      FLIGHTS.splice(0,FLIGHTS.length,...filteredCloud);
 
      // Met à jour le cache local silencieusement sans refaire un POST.
