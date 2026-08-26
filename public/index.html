@@ -6,7 +6,7 @@
   <meta http-equiv="Expires" content="0">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V49.48 · Operational UI / Import / Search / Group</title>
+<title>ALYZIA OPS - V49.49 · Operational UI / Import / Search / Group</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -5912,7 +5912,7 @@ html,body{
 }
 
 
-/* V49.48 — visible application version */
+/* V49.49 — visible application version */
 .app-version-badge{
   display:inline-flex;
   align-items:center;
@@ -5974,7 +5974,7 @@ html,body{
 }
 
 
-/* V49.48 */
+/* V49.49 */
 .company-particularity-strip .company-part-card .common-name,.company-particularity-strip .common-item .common-name{min-height:32px!important;display:flex!important;align-items:center!important;justify-content:center!important;font-size:12px!important;line-height:1.15!important;font-weight:950!important;letter-spacing:.015em!important}
 .company-particularity-strip .common-count{font-size:24px!important}.company-particularity-strip .view-list{font-size:10px!important;font-weight:950!important}.company-particularity-strip .part-minus,.company-particularity-strip .part-plus{font-size:18px!important}
 .passenger-search-card .common-count{min-height:31px}.passenger-search-card .ico{font-size:29px!important}
@@ -5990,6 +5990,141 @@ html,body{
 .fqtv-cat.solitaire,.fqtv-table-row.solitaire{background:linear-gradient(135deg,#eef5ff,#4c79ae)!important;color:#163f6d!important}.fqtv-cat.pps,.fqtv-table-row.pps{background:linear-gradient(135deg,#f4efff,#8b78bd)!important;color:#443374!important}
 @media(max-width:900px){.connections-side-by-side{grid-template-columns:1fr}.pax-search-results button,.group-pnr-pax button{grid-template-columns:1fr 85px}.pax-search-results button small,.group-pnr-pax button small{grid-column:1/-1}.company-particularity-strip .company-part-card .common-name{font-size:11px!important}}
 
+
+/* V49.49 — HEADER UNIFORMITÉ */
+.flight-head .headcell:nth-child(2),
+.flight-head .headcell:nth-child(3),
+.flight-head .headcell:nth-child(4),
+.flight-head .headcell:nth-child(5),
+.flight-head .headcell:nth-child(6),
+.flight-head .headcell:nth-child(7){
+  display:grid!important;
+  grid-template-rows:28px 50px minmax(58px,auto)!important;
+  align-content:center!important;
+  justify-items:center!important;
+  text-align:center!important;
+}
+.flight-head .headcell:nth-child(4),
+.flight-head .headcell:nth-child(5),
+.flight-head .headcell:nth-child(6),
+.flight-head .headcell:nth-child(7){
+  align-content:start!important;
+}
+.flight-head .headcell:nth-child(2) .head-label,
+.flight-head .headcell:nth-child(3) .head-label,
+.flight-head .headcell:nth-child(4) .head-label,
+.flight-head .headcell:nth-child(5) .head-label,
+.flight-head .headcell:nth-child(6) .head-label,
+.flight-head .headcell:nth-child(7) .head-label{
+  width:100%!important;
+  min-height:28px!important;
+  font-size:12px!important;
+  font-weight:950!important;
+  line-height:1!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  text-align:center!important;
+  margin:0!important;
+}
+.flight-head .headcell:nth-child(2) .time-big,
+.flight-head .headcell:nth-child(3) .time-big,
+.flight-head .headcell:nth-child(6) .time-big,
+.flight-head .headcell:nth-child(7) .gate-pkg-value{
+  font-size:29px!important;
+  font-weight:950!important;
+  line-height:1!important;
+  min-height:50px!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  text-align:center!important;
+  margin:0!important;
+}
+.flight-head .headcell:nth-child(4) .duration{
+  font-size:18px!important;
+  font-weight:950!important;
+  line-height:1!important;
+  min-height:50px!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  text-align:center!important;
+  margin:0!important;
+}
+.flight-head .headcell:nth-child(5) .aircraft-select{
+  align-self:center!important;
+  min-height:44px!important;
+  width:100%!important;
+  margin:0!important;
+}
+.flight-head .headcell:nth-child(6) .head-main-value{
+  width:100%!important;
+}
+.flight-head .headcell:nth-child(6) .head-sub-placeholder{
+  visibility:hidden!important;
+}
+.flight-head .headcell:nth-child(7) .gate-only-wrap{
+  width:100%!important;
+  display:grid!important;
+  grid-template-rows:28px 50px auto!important;
+  align-content:start!important;
+  justify-items:center!important;
+  text-align:center!important;
+  margin:0!important;
+}
+.flight-head .headcell:nth-child(7) .info-button{
+  align-self:end!important;
+  justify-self:center!important;
+  margin-top:8px!important;
+}
+.flight-head .headcell:nth-child(2) .time-secondary,
+.flight-head .headcell:nth-child(3) .time-secondary,
+.flight-head .headcell:nth-child(2) .local-clock,
+.flight-head .headcell:nth-child(3) .local-clock,
+.flight-head .headcell:nth-child(4) .time-secondary,
+.flight-head .headcell:nth-child(5) .time-secondary,
+.flight-head .headcell:nth-child(6) .time-secondary{
+  width:100%!important;
+  min-height:58px!important;
+  font-size:12px!important;
+  font-weight:800!important;
+  line-height:1.25!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  text-align:center!important;
+  margin:0!important;
+  flex-wrap:wrap!important;
+}
+.flight-head .time-big .blue{
+  font-size:16px!important;
+  line-height:1!important;
+  display:inline-flex!important;
+  align-items:flex-end!important;
+}
+.flight-head .headcell:nth-child(3) .time-big{
+  gap:4px!important;
+}
+@media(min-width:901px) and (max-width:1300px){
+  .flight-head .headcell:nth-child(2) .time-big,
+  .flight-head .headcell:nth-child(3) .time-big,
+  .flight-head .headcell:nth-child(6) .time-big,
+  .flight-head .headcell:nth-child(7) .gate-pkg-value{font-size:23px!important}
+  .flight-head .headcell:nth-child(2),
+  .flight-head .headcell:nth-child(3),
+  .flight-head .headcell:nth-child(4),
+  .flight-head .headcell:nth-child(5),
+  .flight-head .headcell:nth-child(6),
+  .flight-head .headcell:nth-child(7){grid-template-rows:24px 42px minmax(52px,auto)!important}
+  .flight-head .headcell:nth-child(2) .head-label,
+  .flight-head .headcell:nth-child(3) .head-label,
+  .flight-head .headcell:nth-child(4) .head-label,
+  .flight-head .headcell:nth-child(5) .head-label,
+  .flight-head .headcell:nth-child(6) .head-label,
+  .flight-head .headcell:nth-child(7) .head-label{font-size:10px!important}
+}
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
@@ -5997,11 +6132,11 @@ html,body{
 </head>
 <body>
 <script>
-const ALYZIA_APP_VERSION='V49.48';
+const ALYZIA_APP_VERSION='V49.49';
 const ALYZIA_APP_BUILD='2026-08-26-01';
 </script>
 <header class="topbar">
- <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V49.48</span></div>
+ <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V49.49</span></div>
  <nav class="nav">
    <button class="home-nav" onclick="renderHome()" title="Accueil vols">⌂</button>
    <button onclick="renderHome()">VOLS</button><button onclick="openFlightSearch()">RECHERCHE</button><button onclick="renderPrepa()">PRÉPA</button><button onclick="openTools()">OUTILS</button><button>ADMIN</button>
@@ -12376,7 +12511,9 @@ function render(){
     ${sariaAircraftSelectHtml(x)}
    </div>
    <div class="headcell">
-    <div class="head-label">IMMAT <button class="edit-link" onclick="openEdit('reg')">✎</button></div><div style="font-weight:900">${x.reg}</div>
+    <div class="head-label">IMMAT <button class="edit-link" onclick="openEdit('reg')">✎</button></div>
+    <div class="time-big head-main-value">${x.reg||'—'}</div>
+    <div class="time-secondary head-sub-placeholder">&nbsp;</div>
    </div>
    <div class="headcell">
     <div class="gate-only-wrap">
@@ -14973,7 +15110,7 @@ function openTools(){
    <button class="tool-card" onclick="openSariaApp()"><span class="tool-icon">✈</span><b>SARIA</b><span>OUVRIR DIRECTEMENT L’OUTIL SARIA CABIN / SEATMAP.</span></button>
    <div class="ops-cloud-card">
      <div id="opsCloudStatusBox" class="ops-cloud-status ${OPS_CLOUD_ONLINE?'ok':'warn'}">${OPS_CLOUD_ONLINE?'☁ SYNC MULTI-POSTES ACTIVE':'☁ SYNC MULTI-POSTES'}</div>
-     <div class="ops-cloud-help">D1 PARTAGÉ · FICHE OUVERTE ~0,8 S · SYNCHRO GLOBALE ~2,5 S · PC, TABLETTE ET TÉLÉPHONE.<br><b style="color:#087749">V49.48 · VERSION AFFICHÉE</b></div>
+     <div class="ops-cloud-help">D1 PARTAGÉ · FICHE OUVERTE ~0,8 S · SYNCHRO GLOBALE ~2,5 S · PC, TABLETTE ET TÉLÉPHONE.<br><b style="color:#087749">V49.49 · VERSION AFFICHÉE</b></div>
      <button class="live-refresh" onclick="manualCloudRefresh()">↻ SYNCHRONISER MAINTENANT</button>
    </div>
    <div class="adb-usage-card"><div id="adbUsageBox"><button class="live-refresh" onclick="loadAeroUsage()">CHARGER COMPTEUR AERODATABOX</button></div></div>
@@ -15356,7 +15493,7 @@ function openFlightInfo(){
 }
 
 
-console.info('ALYZIA OPS V49.48 · VERSION VISIBLE');
+console.info('ALYZIA OPS V49.49 · VERSION VISIBLE');
 const SARIA_DIRECT_URL="https://saria-seatmap.alyzia-cdg2.workers.dev";
 const SARIA_BRIDGE_BASE=(location.protocol==='http:'||location.protocol==='https:')
   ? `${location.origin}/api/saria`
