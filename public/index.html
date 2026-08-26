@@ -6,7 +6,7 @@
   <meta http-equiv="Expires" content="0">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V49.61 · VBCP CHLD SPML OUTBOUND Fix</title>
+<title>ALYZIA OPS - V49.66 · SQ + TK LOCKED</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -6528,11 +6528,14 @@ html,body{
 </head>
 <body>
 <script>
-const ALYZIA_APP_VERSION='V49.64';
+/* V49.66 — LOCKED BASELINE: SQ frozen at V49.64 behavior; TK frozen after EDITING normalization. */
+const ALYZIA_APP_VERSION='V49.66';
+const ALYZIA_SQ_LOCK_VERSION='V49.64';
+const ALYZIA_TK_LOCK_VERSION='V49.66';
 const ALYZIA_APP_BUILD='2026-08-26-09';
 </script>
 <header class="topbar">
- <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V49.64</span></div>
+ <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V49.66</span></div>
  <nav class="nav">
    <button class="home-nav" onclick="renderHome()" title="Accueil vols">⌂</button>
    <button onclick="renderHome()">VOLS</button><button onclick="openFlightSearch()">RECHERCHE</button><button onclick="renderPrepa()">PRÉPA</button><button onclick="openTools()">OUTILS</button><button>ADMIN</button>
@@ -9923,58 +9926,44 @@ function parseTkCommentedCategories(rawOriginal){
  const raw=String(rawOriginal||'').replace(/\r/g,'');
  const re=/TK\s*\d{3,4}\s+\d{1,2}[A-Z]{3}\s+CDG\s+COMMENTED PAX[\s\S]*?END NAMES/gi;
  const cats={WCHR:[],WCHS:[],WCHC:[],WCMP:[],WCLB:[],WCBD:[],MAAS:[],PETC:[],VIP:[],UPGR:[],DEPA:[],DEPU:[],INAD:[],ESCORT:[],EXST:[],CBBG:[]};
+ const cleanDetail=(line,code)=>{
+   let t=String(line||'').trim();
+   const bang=new RegExp(`!${code}!`,'i'),bm=t.match(bang);
+   if(bm)t=t.slice((bm.index||0)+bm[0].length);
+   else {
+     const plain=new RegExp(`\b${code}\b`,'i'),pm=t.match(plain);
+     if(pm)t=t.slice((pm.index||0)+pm[0].length);else return '';
+   }
+   t=t.replace(/^[\s·:;\-/]+|[\s·:;\-/]+$/g,'').replace(/\s{2,}/g,' ').trim();
+   let prev='';
+   while(t&&t!==prev){prev=t;t=t.replace(/\s+(?:@?[O]?A?S?I?C?K|N|FC|PH|IT|!!|[OASICK]{1,5})\s*$/i,'').trim()}
+   if(/^(?:@?[O]?A?S?I?C?K|N|FC|PH|IT|!!|[OASICK]{1,5})?$/i.test(t))return '';
+   return t;
+ };
+ const push=(code,current,line='')=>{
+   if(!current||!cats[code])return;
+   const detail=cleanDetail(line,code);
+   const exists=cats[code].find(p=>p.name===current.name&&p.seat===current.seat);
+   if(exists){if(detail&&!exists.note){exists.note=detail;exists.specific=detail}return}
+   cats[code].push({...current,specific:detail,note:detail,ssr:[code],operationalDetails:detail?[detail]:[]});
+ };
  let block;
-
  while((block=re.exec(raw))){
-   const lines=block[0].split('\n');
-   let current=null;
-
+   const lines=block[0].split('\n');let current=null;
    for(const rawLine of lines){
      const line=rawLine.trimEnd();
      const m=line.match(/^\s*(\d{1,3})\.\s*(.+?)\s+IST\s+([FCY])\s+(.*)$/i);
      if(m){
-       const idx=Number(m[1]);
-       const name=tkNormalizeName(m[2]);
-       const cls=m[3].toUpperCase();
-       const rest=m[4];
+       const idx=Number(m[1]),name=tkNormalizeName(m[2]),cls=m[3].toUpperCase(),rest=m[4];
        const seatMatch=rest.match(/\b(\d{2}[A-K])(?:-[A-Z])?\b/i)||rest.match(/\b(\d{3})\b/);
-       current={
-         id:`TK-COM-${idx}-${name.replace(/[^A-Z0-9]/g,'')}`,
-         name, seat:seatMatch?seatMatch[1].toUpperCase():'', class:cls,
-         pnr:'', etkt:'', emd:'', status:'BOOKED', specific:'', note:'', ssr:[]
-       };
-
-       // Codes may already be on the passenger line.
-       const up=line.toUpperCase();
-       Object.keys(cats).forEach(code=>{
-         if(new RegExp(`!${code}!|\\b${code}\\b`).test(up)){
-           const p={...current,specific:code,ssr:[code]};
-           cats[code].push(p);
-         }
-       });
-       if(/!WCBW!|\bWCBW\b/.test(up)){
-         const p={...current,specific:'WCBD · WCBW',ssr:['WCBD','WCBW']};
-         cats.WCBD.push(p);
-       }
+       current={id:`TK-COM-${idx}-${name.replace(/[^A-Z0-9]/g,'')}`,name,seat:seatMatch?seatMatch[1].toUpperCase():'',class:cls,pnr:'',etkt:'',emd:'',status:'BOOKED',specific:'',note:'',ssr:[]};
+       const up=line.toUpperCase();Object.keys(cats).forEach(code=>{const loose=['PETC','EXST','CBBG'].includes(code);if(new RegExp(loose?`!${code}!|\\b${code}\\b`:`!${code}!`).test(up))push(code,current,line)});
+       if(/!WCBW!|\bWCBW\b/.test(up))push('WCBD',current,line);
        continue;
      }
-
-     if(current){
-       const up=line.toUpperCase();
-       Object.keys(cats).forEach(code=>{
-         if(new RegExp(`!${code}!|\\b${code}\\b`).test(up)){
-           const exists=cats[code].some(p=>p.name===current.name&&p.seat===current.seat);
-           if(!exists){
-             const p={...current,specific:code,ssr:[code],note:line.trim()};
-             cats[code].push(p);
-           }
-         }
-       });
-       if(/!WCBW!|\bWCBW\b/.test(up)){
-         const exists=cats.WCBD.some(p=>p.name===current.name&&p.seat===current.seat);
-         if(!exists)cats.WCBD.push({...current,specific:'WCBD · WCBW',ssr:['WCBD','WCBW'],note:line.trim()});
-       }
-     }
+     if(!current)continue;
+     const up=line.toUpperCase();Object.keys(cats).forEach(code=>{const loose=['PETC','EXST','CBBG'].includes(code);if(new RegExp(loose?`!${code}!|\\b${code}\\b`:`!${code}!`).test(up))push(code,current,line)});
+     if(/!WCBW!|\bWCBW\b/.test(up))push('WCBD',current,line);
    }
  }
  return cats;
@@ -9996,68 +9985,43 @@ function parseTkExplicitDutyStaff(rawOriginal){
 
 function parseTkFqtvCategories(rawOriginal){
  const raw=String(rawOriginal||'').replace(/\r/g,'');
- const categories={
-   ELPL:['ELPL','ELITE PLUS','ELITEPLUS'],
-   ELIT:['ELIT','ELITE'],
-   CLPL:['CLPL','CLASSIC PLUS','CLASSICPLUS'],
-   CLSC:['CLSC','CLASSIC'],
-   GOLD:['GOLD'],
-   SILVER:['SILVER']
- };
  const output=[];
  const seen=new Set();
+ const normCat=(carrier,code)=>{
+   carrier=String(carrier||'').toUpperCase();code=String(code||'').toUpperCase();
+   return (carrier!=='TK'&&(code==='GOLD'||code==='SILVER'))?`${code}_OTHER`:code;
+ };
+ const add=(p,carrier,code,number='')=>{
+   if(!p||!code)return;
+   const cat=normCat(carrier,code);
+   const key=`${cat}|${String(p.name||'').toUpperCase()}|${String(p.seat||'').toUpperCase()}|${String(number||'')}`;
+   if(seen.has(key))return;
+   seen.add(key);
+   output.push({...p,specific:cat,fqtv:{code:cat,status:carrier==='TK'?code:`${carrier} ${code}`,number:String(number||''),carrier}});
+ };
 
- // TK operational reports are block-based. Detect a TK...CDG block whose
- // heading contains the FQTV category, then reuse the normal pax line parser.
+ // Primary source: explicit FQTV passenger/card sections. Keep the actual number.
  const blockRe=/TK\s*\d{3,4}\s+\d{1,2}[A-Z]{3}\s+CDG\s+([^\n\r]+)[\s\S]*?END NAMES/gi;
- let m;
- while((m=blockRe.exec(raw))){
-   const heading=String(m[1]||'').toUpperCase();
-   let cat='';
-   for(const [key,aliases] of Object.entries(categories)){
-     if(aliases.some(a=>heading.includes(a))){cat=key;break}
-   }
-   if(!cat)continue;
-   parseTkPassengerRows(m[0]).forEach(p=>{
-     const key=`${cat}|${p.name}|${p.seat}|${p.class}`;
-     if(seen.has(key))return;
-     seen.add(key);
-     output.push({
-       ...p,
-       specific:cat,
-       fqtv:{code:cat,status:cat,number:''}
-     });
+ let bm;
+ while((bm=blockRe.exec(raw))){
+   const block=bm[0],heading=String(bm[1]||'').toUpperCase();
+   if(!/(FQTV CARD NUMBERS|ELITE CLUB MEMBER|CLASSIC CLUB MEMBER|ELITE PLUS|CLASSIC PLUS|GOLD|SILVER)/.test(heading))continue;
+   const rows=parseTkPassengerRows(block);
+   const bySeat=new Map(rows.map(p=>[`${String(p.seat||'').toUpperCase()}|${String(p.class||'').toUpperCase()}`,p]));
+   String(block).split('\n').forEach(line=>{
+     const m=line.match(/^\s*\d{1,3}\.\s*(.+?)\s+IST\s+([FCY])\s+(.*)$/i);if(!m)return;
+     const rest=m[3];
+     const fq=rest.match(/\b([A-Z0-9]{2})\s*\/\s*(ELPL|ELIT|CLPL|CLSC|GOLD|SILVER)(?:TK)?(\d{6,15})?/i);if(!fq)return;
+     const sm=rest.match(/\b(\d{2}[A-K])(?:-[A-Z])?\b/i)||rest.match(/\b(\d{3})\b/);
+     const seat=sm?sm[1].toUpperCase():'',cls=m[2].toUpperCase();
+     const p=bySeat.get(`${seat}|${cls}`)||{name:tkNormalizeName(m[1]),seat,class:cls,pnr:'',etkt:'',emd:'',ssr:[]};
+     add(p,fq[1].toUpperCase(),fq[2].toUpperCase(),fq[3]||'');
    });
  }
 
- // Also support reports where the code is carried on a passenger/comment line
- // instead of in the section title.
- const lines=raw.split('\n');
- let current=null;
- lines.forEach(line=>{
-   const pm=line.match(/^\s*\d{1,3}\.\s*(.+?)\s+IST\s+([FCY])\s+(.*)$/i);
-   if(pm){
-     const name=tkNormalizeName(pm[1]),cls=pm[2].toUpperCase(),rest=pm[3];
-     const sm=rest.match(/\b(\d{2}[A-K])(?:-[A-Z])?\b/i)||rest.match(/\b(\d{3})\b/);
-     current={name,class:cls,seat:sm?sm[1].toUpperCase():'',pnr:'',etkt:'',emd:'',status:'BOOKED'};
-   }
-   if(!current)return;
-   const up=line.toUpperCase();
-   let cat='';
-   if(/\bELPL\b|ELITE\s*PLUS/.test(up))cat='ELPL';
-   else if(/\bCLPL\b|CLASSIC\s*PLUS/.test(up))cat='CLPL';
-   else if(/\bCLSC\b|(?:^|\s)CLASSIC(?:\s|$)/.test(up))cat='CLSC';
-   else if(/\bELIT\b|(?:^|\s)ELITE(?:\s|$)/.test(up))cat='ELIT';
-   else if(/\bGOLD\b/.test(up))cat='GOLD';
-   else if(/\bSILVER\b/.test(up))cat='SILVER';
-   if(cat){
-     const key=`${cat}|${current.name}|${current.seat}|${current.class}`;
-     if(!seen.has(key)){
-       seen.add(key);
-       output.push({...current,specific:cat,fqtv:{code:cat,status:cat,number:''}});
-     }
-   }
- });
+ // Secondary source: ALL PAX continuation lines (TK /CLSCTK..., UA /GOLD...).
+ const rows=parseTkPassengerRows(tkSection(rawOriginal,'ALL PAX'),{ticketMode:true});
+ rows.filter(p=>p.fqtv).forEach(p=>add(p,p.fqtv.carrier||'TK',String(p.fqtv.code||'').replace(/_OTHER$/,''),p.fqtv.number||''));
  return output;
 }
 
@@ -10149,25 +10113,37 @@ function parseTkPriorityPassengerList(rawOriginal){
 
 
 function parseTkSpecialMeals(rawOriginal){
- const section=tkSection(rawOriginal,'PAX WITH SPECIAL MEAL');
- const rows=parseTkPassengerRows(section);
- const bySeat=new Map(rows.map(p=>[`${String(p.seat||'').toUpperCase()}|${String(p.class||'').toUpperCase()}`,p]));
+ const raw=String(rawOriginal||'').replace(/\r/g,'');
+ const blocks=[];
+ const re=/TK\s*\d{3,4}\s+\d{1,2}[A-Z]{3}\s+CDG\s+PAX WITH (?:SPECIAL|SPEC\.) MEAL[^\n\r]*[\s\S]*?(?:END NAMES|(?=\nTK\s*\d{3,4}\s+\d{1,2}[A-Z]{3}\s+CDG)|$)/gi;
+ let m;while((m=re.exec(raw)))blocks.push(m[0]);
  const codes=['CHML','BBML','AVML','MOML','LFML','FPML','NLML','SPML','VGML','KSML','HNML','DBML','GFML','LCML'];
  const found=[];
- String(section||'').split('\n').forEach(line=>{
-   const m=line.match(/^\s*\d{1,3}\.\s*(.+?)\s+IST\s+([FCY])\s+(.*)$/i);
-   if(!m)return;
-   const rest=m[3].toUpperCase();
-   const code=codes.find(c=>new RegExp(`\\b${c}\\b`).test(rest));
-   if(!code)return;
-   const sm=rest.match(/\b(\d{2}[A-K])(?:-[A-Z])?\b/i)||rest.match(/\b(\d{3})\b/);
-   const seat=sm?sm[1].toUpperCase():'',cls=m[2].toUpperCase();
-   const p=bySeat.get(`${seat}|${cls}`)||{name:tkNormalizeName(m[1]),seat,class:cls,pnr:'',etkt:'',emd:'',ssr:[]};
-   found.push({...p,mealCode:code,specific:code,ssr:[...(p.ssr||[]),code]});
+ const add=(p,code)=>{if(!p||!code)return;found.push({...p,mealCode:code,specific:code,ssr:[...new Set([...(p.ssr||[]),code])]})};
+ blocks.forEach(block=>{
+   const numbered=parseTkPassengerRows(block);
+   const bySeat=new Map(numbered.map(p=>[`${String(p.seat||'').toUpperCase()}|${String(p.class||'').toUpperCase()}`,p]));
+   String(block).split('\n').forEach(line=>{
+     // Standard numbered section: 1.LUDER L IST Y ... HNML
+     let x=line.match(/^\s*\d{1,3}\.\s*(.+?)\s+IST\s+([FCY])\s+(.*)$/i);
+     if(x){
+       const rest=x[3].toUpperCase(),code=codes.find(c=>new RegExp(`\\b${c}\\b`).test(rest));if(!code)return;
+       const sm=rest.match(/\b(\d{2}[A-K])(?:-[A-Z])?\b/i)||rest.match(/\b(\d{3})\b/);
+       const seat=sm?sm[1].toUpperCase():'',cls=x[2].toUpperCase();
+       add(bySeat.get(`${seat}|${cls}`)||{name:tkNormalizeName(x[1]),seat,class:cls,pnr:'',etkt:'',emd:'',ssr:[]},code);return;
+     }
+     // Compact SPEC. MEAL section: 22B/IST Y VGML CROVISIE!AGATHE
+     x=line.match(/^\s*(\d{1,3}[A-K]?)\/IST\s+([FCY])\s+([A-Z]{4})\s+(.+?)\s*$/i);
+     if(x&&codes.includes(x[3].toUpperCase())){
+       const seat=x[1].toUpperCase(),cls=x[2].toUpperCase(),code=x[3].toUpperCase();
+       add({name:tkNormalizeName(x[4]),seat,class:cls,pnr:'',etkt:'',emd:'',ssr:[]},code);
+     }
+   });
  });
- const lists={};
- found.forEach(p=>(lists[p.mealCode]=lists[p.mealCode]||[]).push(p));
- return {passengers:found,lists};
+ const unique=[];const seen=new Set();
+ found.forEach(p=>{const k=`${p.mealCode}|${String(p.name||'').replace(/[^A-Z0-9]/gi,'').toUpperCase()}|${String(p.seat||'').toUpperCase()}`;if(!seen.has(k)){seen.add(k);unique.push(p)}});
+ const lists={};unique.forEach(p=>(lists[p.mealCode]=lists[p.mealCode]||[]).push(p));
+ return {passengers:unique,lists};
 }
 
 function parseTkWebPassengers(rawOriginal){
@@ -10342,7 +10318,7 @@ function prepareTkImportManifest(rawOriginal){
  let fqtv=parseTkFqtvCategories(rawOriginal);
  if(masterPassengers.length){
    const priorityFqtv=masterPassengers.filter(p=>p.fqtv);
-   if(priorityFqtv.length)fqtv=priorityFqtv;
+   if(priorityFqtv.length)fqtv=tkUniquePassengerList([...fqtv,...priorityFqtv]);
  }
  const commented=parseTkCommentedCategories(rawOriginal);
 
@@ -10366,21 +10342,25 @@ function prepareTkImportManifest(rawOriginal){
  const dutyEnriched=enrichTkPassengerList(duty,masterMaps);
  const priorityChildren=masterPassengers.filter(p=>p.childType==='CHD').map(p=>({...p,specific:"CHLD / TOY'S"}));
  const childSeen=new Set();
- const chldToys=[...priorityChildren,...toysEnriched.map(p=>({...p,specific:"CHLD / TOY'S"}))]
-   .filter(p=>{
-     const key=`${String(p.seat||'').toUpperCase()}|${String(p.name||'').toUpperCase()}`;
-     if(childSeen.has(key))return false;
-     childSeen.add(key);return true;
-   });
+ // EDITING TK rule: TOY'S R US is authoritative when present. ALL PAX CHD is fallback only.
+ const childSource=toysEnriched.length?toysEnriched.map(p=>({...p,specific:"CHLD / TOY'S"})):priorityChildren;
+ const chldToys=childSource.filter(p=>{
+   const key=`${String(p.seat||'').toUpperCase()}|${String(p.name||'').toUpperCase()}`;
+   if(childSeen.has(key))return false;
+   childSeen.add(key);return true;
+ });
 
  // TK PARTICULARITIES: named passenger lists are the ONLY operational source. Header counters are diagnostic only.
  const vipNamed=commented.VIP||[];
+ const vipCount=Math.max(vipNamed.length,Number(flags.vipHeader||0));
 
  // DEPA / DEPU / INAD / ESCORT are independent named lists.
  const depa=commented.DEPA||[];
  const depu=commented.DEPU||[];
  const inad=commented.INAD||[];
  const escort=commented.ESCORT||[];
+ const depaCount=Math.max(depa.length,Number(flags.depaHeader||0));
+ const escortCount=Math.max(escort.length,Number(flags.escortHeader||0));
 
  // CBBG / EXST: named passenger lists only.
  // ALL PAX synthetic passenger names (e.g. BUREL CBBG / MONNET CBBG) are valid named records.
@@ -10486,12 +10466,28 @@ function prepareTkImportManifest(rawOriginal){
  const outboundTimed=applyTkConnectionTimes(outbound,outboundSchedule,false);
  const inboundTimed=applyTkConnectionTimes(inboundRows,inboundSchedule,true);
 
+ 
+ // Locked TK FQTV breakdown used by EDITING and passenger cards.
+ const tkFqtvCounts={ELPL:0,ELIT:0,CLPL:0,CLSC:0,GOLD_OTHER:0,SILVER_OTHER:0};
+ fqtv.forEach(p=>{const c=String(p?.fqtv?.code||'').toUpperCase();if(Object.prototype.hasOwnProperty.call(tkFqtvCounts,c))tkFqtvCounts[c]++});
+
+ const tkRawUpper=String(rawOriginal||'').toUpperCase();
+ const owned={
+   INBOUND: inbound.length>0 || /PAX WITH INBOUND CONNECTION|INBOUND CONNECTIONS/.test(tkRawUpper),
+   OUTBOUND: onward.length>0 || /ONCARRIAGE PAX|OUTBOUND CONNECTIONS/.test(tkRawUpper),
+   MEAL: specialMeals.passengers.length>0 || /PAX WITH SPECIAL MEAL/.test(tkRawUpper),
+   FQTV: fqtv.length>0,
+   CHLD: chldToys.length>0
+ };
+
  return {
    airline:'TK',
+   owned,
    values:hv.values,
    passengers:[...passengerMap.values()],
    commonLists,
    mealLists:specialMeals.lists,
+   tkFqtvCounts,
    outboundSchedule:[...outboundSchedule.values()],
    inboundSchedule:[...inboundSchedule.values()],
    outbound:outboundTimed,
@@ -10509,16 +10505,16 @@ function prepareTkImportManifest(rawOriginal){
      WCBD:(commented.WCBD||[]).length,
      MAAS:(commented.MAAS||[]).length,
      PETC:petcCount,
-     VIP:vipNamed.length,
+     VIP:vipCount,
      GROUP:group.length,
      FQTV:fqtv.length,
      ALL_PAX:masterPassengers.length,
      REBATE:rebateEnriched.length,
      DUTY:dutyEnriched.length,
-     DEPA:depa.length,
+     DEPA:depaCount,
      DEPU:depu.length,
      INAD:inad.length,
-     ESCORT:escort.length,
+     ESCORT:escortCount,
      EXST:(commonLists.EXST||[]).length,
      CBBG:(commonLists.CBBG||[]).length,
      ETK:commonLists.ETK.length,
@@ -10556,6 +10552,19 @@ function applyTkManifestToFlight(manifest,context=null){
  x.common=x.common||{};
  x.common_lists=x.common_lists||{};
  x.passengers=manifest.passengers||x.passengers||[];
+ // Merge locked TK FQTV payload back into master passenger records so the number
+ // is always visible in the passenger dossier.
+ if(Array.isArray(manifest.commonLists?.FQTV)&&manifest.commonLists.FQTV.length&&Array.isArray(x.passengers)){
+   const norm=v=>String(v||'').replace(/[^A-Z0-9]/gi,'').toUpperCase();
+   manifest.commonLists.FQTV.forEach(fq=>{
+     let p=null;
+     if(fq.etkt)p=x.passengers.find(q=>q.etkt&&String(q.etkt)===String(fq.etkt))||null;
+     if(!p&&fq.seat)p=x.passengers.find(q=>String(q.seat||'').toUpperCase()===String(fq.seat||'').toUpperCase()&&String(q.class||'').toUpperCase()===String(fq.class||'').toUpperCase())||null;
+     if(!p)p=x.passengers.find(q=>norm(q.name||q.fullName)===norm(fq.name||fq.fullName))||null;
+     if(p&&fq.fqtv)p.fqtv={...fq.fqtv};
+   });
+ }
+ x.tkFqtvCounts={...(manifest.tkFqtvCounts||{})};
 
  const setList=(k,l,countOverride=null)=>{
    x.common_lists[k]=Array.isArray(l)?l:[];
@@ -10599,10 +10608,14 @@ function applyTkManifestToFlight(manifest,context=null){
 
  x.etk=Number(manifest.counts?.ETK||0);
  x.emd=Number(manifest.counts?.EMD||0);
- x.outbound=manifest.outbound||[];
- x.inbound=manifest.inbound||[];
- x.tkOutboundSchedule=Array.isArray(manifest.outboundSchedule)?manifest.outboundSchedule:[];
- x.tkInboundSchedule=Array.isArray(manifest.inboundSchedule)?manifest.inboundSchedule:[];
+ if(manifest.owned?.OUTBOUND){
+   x.outbound=manifest.outbound||[];
+   x.tkOutboundSchedule=Array.isArray(manifest.outboundSchedule)?manifest.outboundSchedule:[];
+ }
+ if(manifest.owned?.INBOUND){
+   x.inbound=manifest.inbound||[];
+   x.tkInboundSchedule=Array.isArray(manifest.inboundSchedule)?manifest.inboundSchedule:[];
+ }
 
  // SBY is the explicit "ON SBY" column only.
  x.standby=Number(manifest.counts?.SBY||0);
@@ -10659,7 +10672,8 @@ function applyTkManifestToFlight(manifest,context=null){
    'ETKT':Number(manifest.counts?.ETK||0),
    'EMD':Number(manifest.counts?.EMD||0),
    'INBOUNDS':Number(manifest.counts?.INBOUND||0),
-   'OUTBOUNDS':Number(manifest.counts?.OUTBOUND||0)
+   'OUTBOUNDS':Number(manifest.counts?.OUTBOUND||0),
+   'SPECIAL MEAL':Number(manifest.counts?.MEAL||0)
  });
 
  x.prepaSpecificities=x.prepaSpecificities||{};
@@ -11801,8 +11815,9 @@ function prepaManifestPreviewRows(manifest,ctx){
    add('ESCORT',cur('ESCORT'),c.ESCORT);
    add('ETKT',Number(x.etk||0),c.ETK);
    add('EMD',Number(x.emd||0),c.EMD);
-   add('INBOUND',Array.isArray(x.inbound)?x.inbound.length:0,c.INBOUND);
-   add('OUTBOUND',Array.isArray(x.outbound)?x.outbound.length:0,c.OUTBOUND);
+   add('MEAL',Number(x.common?.MEAL||0),c.MEAL);
+   if(manifest.owned?.INBOUND)add('INBOUND',Array.isArray(x.inbound)?x.inbound.length:0,c.INBOUND);
+   if(manifest.owned?.OUTBOUND)add('OUTBOUND',Array.isArray(x.outbound)?x.outbound.length:0,c.OUTBOUND);
    add('STANDBY',Number(x.standby||0),c.SBY);
  }
  return rows;
@@ -11819,6 +11834,35 @@ function importRowSelectionChanged(){const n=document.getElementById('importSele
 function filterManifestForSelectedImport(manifest,labels){
  if(!manifest||!labels)return manifest;
  const m=JSON.parse(JSON.stringify(manifest)),has=(...names)=>names.some(n=>labels.has(n));
+
+ // V49.66 — TK selection uses the locked TK EDITING card labels.
+ // The generic branch below is SQ-oriented (CHLD/KID + individual FQTV tiers) and
+ // previously cleared valid TK CHLD/TOY'S, FQTV and SPECIAL MEAL passenger lists.
+ if(String(m.airline||'').toUpperCase()==='TK'){
+   if(!has('ALL PAX · SOURCE PASSAGER PRIORITAIRE')){m.passengers=[];m.hasMainManifest=false}
+   const clearTk=(key,...names)=>{if(!has(...names)&&m.commonLists)m.commonLists[key]=[]};
+   clearTk('INF','INFANT(S)','INF');
+   clearTk('CHLD',"CHLD / TOY'S",'CHLD',"TOY'S");
+   if(!has('WCHR','WCHS','WCHC')){if(m.commonLists)m.commonLists.WCH=[]}
+   else if(m.commonLists?.WCH)m.commonLists.WCH=m.commonLists.WCH.filter(p=>{
+     const t=[p.specific,...(Array.isArray(p.ssr)?p.ssr:[]),p.note].filter(Boolean).join(' ').toUpperCase();
+     return (has('WCHR')&&/\bWCHR\b/.test(t))||(has('WCHS')&&/\bWCHS\b/.test(t))||(has('WCHC')&&/\bWCHC\b/.test(t));
+   });
+   clearTk('VIP','VIP');
+   clearTk('GROUP','GROUP');
+   clearTk('REBATE_STAFF','REBATE STAFF');
+   clearTk('DUTY_STAFF','DUTY STAFF');
+   clearTk('DEPA','DEPA'); clearTk('DEPU','DEPU'); clearTk('INAD','INAD'); clearTk('ESCORT','ESCORT');
+   clearTk('ETK','ETKT'); clearTk('EMD','EMD');
+   clearTk('FQTV','FQTV');
+   if(!has('MEAL')){
+     if(m.commonLists)m.commonLists.MEAL=[];
+     if(m.mealLists)Object.keys(m.mealLists).forEach(k=>m.mealLists[k]=[]);
+   }
+   if(m.owned?.INBOUND && !has('INBOUND'))m.inbound=[];
+   if(m.owned?.OUTBOUND && !has('OUTBOUND'))m.outbound=[];
+   return m;
+ }
  if(!has('ALL PAX · SOURCE PASSAGER PRIORITAIRE')){m.passengers=[];m.hasMainManifest=false}
  const clear=(key,...names)=>{if(!has(...names)){if(m.commonLists)m.commonLists[key]=[];if(m.owned)m.owned[key]=false}};
  clear('ETK','ETKT');clear('EMD','EMD');clear('INF','INF','INFANT(S)');clear('CHLD','CHLD','KID');clear('UMNR','UMNR');clear('MAAS','MAAS');clear('REBATE_STAFF','REBATE STAFF');clear('BOOKABLE_STAFF','BOOKABLE STAFF');
