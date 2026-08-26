@@ -6,7 +6,7 @@
   <meta http-equiv="Expires" content="0">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V49.55 · Visual Finish</title>
+<title>ALYZIA OPS - V49.58 · VBCP CHLD SPML OUTBOUND Fix</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -6490,11 +6490,11 @@ html,body{
 </head>
 <body>
 <script>
-const ALYZIA_APP_VERSION='V49.55';
+const ALYZIA_APP_VERSION='V49.58';
 const ALYZIA_APP_BUILD='2026-08-26-06';
 </script>
 <header class="topbar">
- <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V49.55</span></div>
+ <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V49.58</span></div>
  <nav class="nav">
    <button class="home-nav" onclick="renderHome()" title="Accueil vols">⌂</button>
    <button onclick="renderHome()">VOLS</button><button onclick="openFlightSearch()">RECHERCHE</button><button onclick="renderPrepa()">PRÉPA</button><button onclick="openTools()">OUTILS</button><button>ADMIN</button>
@@ -9193,6 +9193,11 @@ function prepareSqImportManifest(rawOriginal){
    if(/PDF-VBCPLIST/i.test(block)){
      part.owned.ETKT=true;
      part.owned.BOOKING=true;
+     // VBCP is the SQ master passenger source for these passenger-level data.
+     part.owned.INF=true;
+     part.owned.CHLD=true;
+     part.owned.MEAL=true;
+     part.owned.OUTBOUND=true;
    }
    if(/PDF-PSPLWCHR/i.test(block))part.owned.WCH=true;
    if(/PDF-STFFIRM/i.test(block))part.owned.BOOKABLE_STAFF=true;
@@ -9244,6 +9249,33 @@ function prepareSqImportManifest(rawOriginal){
 
 function mergeSqFqtvIntoManifest(manifest,rawOriginal){
  return prepareSqImportManifest(rawOriginal);
+}
+
+function extractSqMealDetailLines(lines,code){
+ const wanted=String(code||'').toUpperCase();
+ const out=[];
+ let current='';
+ const structured=/^(?:CTCE|CTCM|CEID|SSMB|EUGD|MBEN|SNWA|NOEX|ACIS|OTHS|RUID|LANG|CKIN|EXMP|FMLY|IDLC|WCHR|WCHS|WCHC|UMNR|MAAS|HCIP|IMPT|VVIP|VIP|AVML|CHML|BBML|MOML|LFML|FPML|NLML|SPML|VGML|KSML|HNML|DBML|GFML|LCML)-/i;
+ for(const rawLine of (lines||[])){
+   const line=String(rawLine||'').trim();
+   if(!line)continue;
+   if(new RegExp(`^${wanted}-`,'i').test(line)){
+     if(current)out.push(current.trim());
+     current=line;
+     continue;
+   }
+   if(!current)continue;
+   // A wrapped meal description belongs to the current SPML/meal row until
+   // the next structured SSR/contact/document line.
+   if(structured.test(line)||/^\d{13}\s+AS\b/i.test(line)||/^\d{1,3}\./.test(line)||/^REPORT CONTENT$/i.test(line)||/^GENERIC REPORT\b/i.test(line)||/^LIST OF:/i.test(line)||/^SQ\d{2,4}\b/i.test(line)){
+     out.push(current.trim());
+     current='';
+     continue;
+   }
+   current+=` ${line}`;
+ }
+ if(current)out.push(current.trim());
+ return out.filter(Boolean);
 }
 
 function parseSqPassengerManifest(rawOriginal){
@@ -9350,11 +9382,11 @@ function parseSqPassengerManifest(rawOriginal){
    SQ_MEAL_CODES.forEach(code=>{
      if(!codes.has(code))return;
      meals.push(code);
-     const details=lines.filter(l=>l.startsWith(code+'-')).slice(0,3).join(' · ');
+     const details=extractSqMealDetailLines(lines,code).slice(0,3).join(' · ');
      mealLists[code].push({...p,specific:details||code});
    });
    if(meals.length){
-     const details=lines.filter(l=>/^(SPML|CHML|BBML|AVML|MOML|LFML|FPML|NLML)-/.test(l)).slice(0,3).join(' · ');
+     const details=meals.flatMap(code=>extractSqMealDetailLines(lines,code)).slice(0,3).join(' · ');
      commonLists.MEAL.push({...p,specific:details||meals.join(' · ')});
    }
 
@@ -11681,6 +11713,9 @@ function prepaManifestPreviewRows(manifest,ctx){
    const own=manifest.owned||{};
    if(own.UMNR)add('UMNR',cur('UMNR'),manifest.commonLists?.UMNR?.length||0);
    if(own.MAAS)add('MAAS',cur('MAAS'),manifest.commonLists?.MAAS?.length||0);
+   if(own.INF)add('INFANT(S)',cur('INF'),manifest.commonLists?.INF?.length||0);
+   if(own.CHLD)add('CHLD',cur('CHLD'),manifest.commonLists?.CHLD?.length||0);
+   if(own.MEAL)add('MEAL',cur('MEAL'),manifest.commonLists?.MEAL?.length||0);
 
    if(own.WCH){
      const wchPreview=manifest.commonLists?.WCH||[];
@@ -11739,6 +11774,7 @@ function filterManifestForSelectedImport(manifest,labels){
  if(!has('ALL PAX · SOURCE PASSAGER PRIORITAIRE')){m.passengers=[];m.hasMainManifest=false}
  const clear=(key,...names)=>{if(!has(...names)){if(m.commonLists)m.commonLists[key]=[];if(m.owned)m.owned[key]=false}};
  clear('ETK','ETKT');clear('EMD','EMD');clear('INF','INF','INFANT(S)');clear('CHLD','CHLD','KID');clear('UMNR','UMNR');clear('MAAS','MAAS');clear('REBATE_STAFF','REBATE STAFF');clear('BOOKABLE_STAFF','BOOKABLE STAFF');
+ if(!has('MEAL')){if(m.commonLists)m.commonLists.MEAL=[];if(m.mealLists)Object.keys(m.mealLists).forEach(k=>m.mealLists[k]=[]);if(m.owned)m.owned.MEAL=false}
  if(!has('HCIP','VIP','IMPT','VVIP')){if(m.commonLists)m.commonLists.VIP=[];if(m.owned)m.owned.HCIP=false}
  if(!has('WCHR','WCHS','WCHC')){if(m.commonLists)m.commonLists.WCH=[];if(m.owned)m.owned.WCH=false}
  else if(m.commonLists?.WCH)m.commonLists.WCH=m.commonLists.WCH.filter(p=>{const t=String(p.specific||p.ssr||'').toUpperCase();return labels.has('WCHR')&&/\bWCHR\b/.test(t)||labels.has('WCHS')&&/\bWCHS\b/.test(t)||labels.has('WCHC')&&/\bWCHC\b/.test(t)});
