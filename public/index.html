@@ -6499,6 +6499,22 @@ html,body{
 .meal-passenger-row{display:grid;grid-template-columns:minmax(260px,1.3fr) minmax(320px,1.7fr);align-items:center;text-align:left}
 .meal-passenger-row .pax-seat-line{display:block;text-align:center}
 
+/* V49.64 — SQ FQTV passenger field + clean WCH specificity + connection cards */
+.sq-fqtv-field{position:relative;overflow:hidden}
+.sq-fqtv-field span{display:block;margin-top:4px;font-size:9px;font-weight:900;color:#5f748b}
+.pax-connections-v2{display:grid;gap:12px;margin:14px 0}
+.pax-connection-card{border:1px solid #d5e2ef;border-radius:12px;background:#f8fbff;overflow:hidden}
+.pax-connection-card.inbound{border-left:4px solid #1b73e8}
+.pax-connection-card.outbound{border-left:4px solid #0a9d69}
+.pax-connection-card-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 14px;background:#f2f7fc;border-bottom:1px solid #dce6f0}
+.pax-connection-card-head>div{display:flex;align-items:center;gap:8px}.pax-connection-card-head b{font-size:12px;letter-spacing:.2px}.pax-connection-card-head>strong{font-size:9px;color:#60758a}
+.pax-connection-icon{font-size:17px}
+.pax-connection-columns,.pax-connection-card-row{display:grid;grid-template-columns:110px minmax(180px,1fr) 100px 80px;align-items:center;text-align:center}
+.pax-connection-columns{padding:7px 12px;background:#fbfdff;border-bottom:1px solid #e2eaf2;color:#6d8094;font-size:8px;font-weight:1000}
+.pax-connection-card-row{min-height:54px;padding:0 12px;background:#fff;border-top:1px solid #e5edf5}
+.pax-connection-card-row:first-child{border-top:0}.pax-connection-card-row b{font-size:14px}.pax-connection-card-row span{font-size:12px;font-weight:900}.pax-connection-card-row span i{font-style:normal;color:#6c8195;margin:0 5px}.pax-connection-card-row strong{font-size:13px;color:#0b69d7}.pax-connection-card-row small{font-size:11px;font-weight:1000}
+@media(max-width:700px){.pax-connection-columns,.pax-connection-card-row{grid-template-columns:85px minmax(120px,1fr) 70px 55px}.pax-connection-card-row{padding:0 8px}.pax-connection-card-row b{font-size:12px}.pax-connection-card-row span,.pax-connection-card-row strong{font-size:10px}}
+
 /* V49.63 — navigation modale : Retour = écran précédent, croix = fermeture complète */
 #modalBackBtn{display:none;align-items:center;justify-content:center;gap:5px;white-space:nowrap}
 .modal-head-actions .close{flex:0 0 auto}
@@ -6512,11 +6528,11 @@ html,body{
 </head>
 <body>
 <script>
-const ALYZIA_APP_VERSION='V49.63';
-const ALYZIA_APP_BUILD='2026-08-26-08';
+const ALYZIA_APP_VERSION='V49.64';
+const ALYZIA_APP_BUILD='2026-08-26-09';
 </script>
 <header class="topbar">
- <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V49.63</span></div>
+ <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V49.64</span></div>
  <nav class="nav">
    <button class="home-nav" onclick="renderHome()" title="Accueil vols">⌂</button>
    <button onclick="renderHome()">VOLS</button><button onclick="openFlightSearch()">RECHERCHE</button><button onclick="renderPrepa()">PRÉPA</button><button onclick="openTools()">OUTILS</button><button>ADMIN</button>
@@ -15232,19 +15248,48 @@ function cleanPassengerSpecificity(p){
  return s;
 }
 
+function normalizeSqOperationalDetailText(value){
+ let t=String(value||'').replace(/\s+/g,' ').trim();
+ if(!t)return '';
+ // Dedicated SQ WCH reports can be merged with a VBC-derived string such as:
+ // "FREE TEXT WCHR WCHR-FREE TEXT". The CODE- payload is authoritative.
+ const matches=[...t.matchAll(/\b(?:WCHR|WCHS|WCHC)[-:]\s*([^]*?)(?=\s+\b(?:WCHR|WCHS|WCHC)[-:]|$)/gi)];
+ if(matches.length){
+   t=String(matches[matches.length-1][1]||'').trim();
+ }else{
+   t=t.replace(/\b(?:WCHR|WCHS|WCHC)\b[-:]?/gi,' ').replace(/\s+/g,' ').trim();
+ }
+ return t.replace(/^[·,;:/\s-]+|[·,;:/\s-]+$/g,'').trim();
+}
 function passengerOperationalDetailLines(p,x=f()){
  const norm=v=>String(v||'').replace(/[^A-Z0-9]/gi,'').toUpperCase();
  const pn=norm(p?.name||p?.fullName),pe=String(p?.etkt||''),ps=String(p?.seat||'').toUpperCase();
  const rows=[];
  const matches=q=>(pe&&q?.etkt&&String(q.etkt)===pe)||(pn&&norm(q?.name||q?.fullName)===pn)||(ps&&q?.seat&&String(q.seat).toUpperCase()===ps);
- const push=v=>{const t=String(v||'').replace(/\s+/g,' ').trim();if(t&&!/^(WCHR|WCHS|WCHC|CHLD|INF|SPML)$/i.test(t))rows.push(t)};
+ const push=v=>{
+   let t=String(v||'').replace(/\s+/g,' ').trim();
+   if(x?.airline==='SQ')t=normalizeSqOperationalDetailText(t);
+   if(t&&!/^(WCHR|WCHS|WCHC|CHLD|INF|SPML)$/i.test(t))rows.push(t);
+ };
  (p?.operationalDetails||[]).forEach(push);
  (x?.common_lists?.WCH||[]).forEach(q=>{
    if(!matches(q))return;
    (q?.operationalDetails||[]).forEach(push);
    push(q.note||q.detail||'');
  });
- return [...new Set(rows)];
+ // De-duplicate after canonicalization and remove a longer corrupted entry when
+ // it only contains an already-rendered clean wheelchair comment.
+ const unique=[];
+ rows.forEach(v=>{
+   const key=String(v).replace(/\s+/g,' ').trim().toUpperCase();
+   if(!key)return;
+   if(unique.some(q=>String(q).replace(/\s+/g,' ').trim().toUpperCase()===key))return;
+   unique.push(v);
+ });
+ return unique.filter((v,i,arr)=>{
+   const k=String(v).replace(/\s+/g,' ').trim().toUpperCase();
+   return !arr.some((q,j)=>j!==i && k!==String(q).replace(/\s+/g,' ').trim().toUpperCase() && k.includes(String(q).replace(/\s+/g,' ').trim().toUpperCase()));
+ });
 }
 function passengerConnectionRows(p,inbound){
  const x=f(),rows=inbound?(x.inbound||[]): (x.outbound||[]);
@@ -15268,12 +15313,34 @@ function passengerConnectionRows(p,inbound){
 function passengerConnectionsHtml(p){
  const ins=passengerConnectionRows(p,true),outs=passengerConnectionRows(p,false);
  if(!ins.length&&!outs.length)return '';
- const block=(title,rows)=>rows.length?`<div class="pax-connection-block"><h4>${title}</h4>${rows.map(r=>`
-   <div class="pax-connection-row"><b>${r.flight||'—'}</b><span>${r.from||'—'} → ${r.to||'—'}</span><strong>${r.time||'—'}</strong><small>${r.class||'—'}</small></div>
- `).join('')}</div>`:'';
- return `<div class="pax-connections">${block('VOL(S) INBOUND',ins)}${block('VOL(S) OUTBOUND',outs)}</div>`;
+ const block=(type,rows)=>{
+   if(!rows.length)return '';
+   const inbound=type==='INBOUND';
+   return `<section class="pax-connection-card ${inbound?'inbound':'outbound'}">
+     <div class="pax-connection-card-head"><div><span class="pax-connection-icon">${inbound?'🛬':'🛫'}</span><b>${type}</b></div><strong>${rows.length} VOL${rows.length>1?'S':''}</strong></div>
+     <div class="pax-connection-columns"><span>VOL</span><span>ROUTE</span><span>HEURE</span><span>CLASSE</span></div>
+     <div class="pax-connection-card-body">${rows.map(r=>`<div class="pax-connection-card-row">
+       <b>${r.flight||'—'}</b><span>${r.from||'—'} <i>→</i> ${r.to||'—'}</span><strong>${r.time||'—'}</strong><small>${r.class||'—'}</small>
+     </div>`).join('')}</div>
+   </section>`;
+ };
+ return `<div class="pax-connections pax-connections-v2">${block('INBOUND',ins)}${block('OUTBOUND',outs)}</div>`;
 }
 
+
+function passengerFqtvInfo(p,x=f()){
+ if(!p)return null;
+ if(p.fqtv&&p.fqtv.number)return {...p.fqtv};
+ const list=Array.isArray(x?.common_lists?.FQTV)?x.common_lists.FQTV:[];
+ if(!list.length)return p.fqtv?{...p.fqtv}:null;
+ const norm=v=>String(v||'').replace(/[^A-Z0-9]/gi,'').toUpperCase();
+ const pe=String(p.etkt||''),pn=norm(p.name||p.fullName),ps=String(p.seat||'').toUpperCase();
+ let q=null;
+ if(pe)q=list.find(r=>String(r.etkt||'')===pe)||null;
+ if(!q&&pn)q=list.find(r=>norm(r.name||r.fullName)===pn)||null;
+ if(!q&&ps)q=list.find(r=>String(r.seat||'').toUpperCase()===ps)||null;
+ return q?.fqtv?{...q.fqtv}:(p.fqtv?{...p.fqtv}:null);
+}
 
 function passengerMealDetails(p,x=f()){
  const norm=v=>String(v||'').replace(/[^A-Z0-9]/gi,'').toUpperCase(),pn=norm(p?.name||p?.fullName),pe=String(p?.etkt||''),ps=String(p?.seat||'').toUpperCase(),rows=[];
@@ -15295,9 +15362,13 @@ function passengerMealDetails(p,x=f()){
 function passengerSpecificityHtml(p,x=f()){
  const detail=[];
  const meals=passengerMealDetails(p,x);
+ const operational=passengerOperationalDetailLines(p,x);
  detail.push(...meals);
- detail.push(...passengerOperationalDetailLines(p,x));
+ detail.push(...operational);
  let cleaned=cleanPassengerSpecificity(p);
+ // SQ wheelchair free text is rendered from the dedicated operational payload.
+ // Do not append the VBC/dedicated merged SSR string a second time.
+ if(x?.airline==='SQ' && operational.length && /\b(?:WCHR|WCHS|WCHC)\b/i.test(String(p?.specific||p?.note||'')))cleaned='';
  // Meal details can also exist in p.specific as one concatenated string.
  // Remove the already-rendered individual meal lines before keeping any
  // genuinely additional operational text.
@@ -15320,10 +15391,15 @@ function passengerSpecificityHtml(p,x=f()){
 function openPax(p){
  p=resolvePassengerForDisplay(p);
  const x=f(),isSq=x?.airline==='SQ';
+ const sqFqtv=passengerFqtvInfo(p,x);
+ if(sqFqtv)p={...p,fqtv:sqFqtv};
  const savedNote=getPassengerNote(p);
  const fqCat=fqtvCategoryForPassenger(p);
- const fqHtml=(p.fqtv&&fqCat!=='AUTRES')
+ const fqHtml=(!isSq&&p.fqtv&&fqCat!=='AUTRES')
    ?`<div class="pax-fqtv-banner ${fqCat.toLowerCase()}"><b>${fqCat}</b><span>${p.fqtv.status||''}${p.fqtv.number?` · ${p.fqtv.number}`:''}</span></div>`
+   :'';
+ const sqFqtvField=isSq&&p.fqtv
+   ?`<div class="sq-fqtv-field"><small>FQTV</small><b>${p.fqtv.number||'—'}</b><span>${sqFqtvDisplayGroup(p)}${p.fqtv.status?` · ${p.fqtv.status}`:''}</span></div>`
    :'';
  const extraIdentity=isSq?'':`
    <div><small>EMD</small><b>${p.emd||'—'}</b></div>
@@ -15335,6 +15411,7 @@ function openPax(p){
    <div><small>CLASSE</small><b>${p.class||'—'}</b></div>
    <div><small>GENRE / TITRE</small><b>${p.title||'—'}</b></div>
    <div><small>ETKT</small><b>${p.etkt||'—'}</b></div>
+   ${sqFqtvField}
    ${extraIdentity}
    <div><small>SSR</small><b>${Array.isArray(p.ssr)&&p.ssr.length?[...new Set(p.ssr)].filter(Boolean).join(' · '):'—'}</b></div>
    <div class="profile-specificity"><small>SPÉCIFICITÉ</small><b>${passengerSpecificityHtml(p)}</b></div>
