@@ -6,7 +6,7 @@
   <meta http-equiv="Expires" content="0">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V49.59 · VBCP CHLD SPML OUTBOUND Fix</title>
+<title>ALYZIA OPS - V49.60 · VBCP CHLD SPML OUTBOUND Fix</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -128,10 +128,15 @@ tr:last-child td{border-bottom:0}
 .sortbar{display:flex;gap:7px;margin:15px 0 8px}
 .sortbar button{border:1px solid #d8e1ea;background:#fff;color:#466079;border-radius:999px;padding:6px 10px;font-size:11px}
 .sortbar button.active{background:var(--blue);color:#fff;border-color:var(--blue)}
-.paxlist{display:grid;gap:7px}
-.paxrow{display:grid;grid-template-columns:1.25fr 80px 60px 100px 1fr;gap:8px;align-items:center;border:1px solid #dfe7ef;background:#fafcff;border-radius:8px;padding:10px;text-align:left;color:#17243a}
-.paxrow:hover{border-color:#83b5f3}
-.paxrow strong{font-size:13px}.paxrow span{font-size:11px;color:#65778b}.paxrow .seat{color:#0c9b60;font-weight:900}.paxrow .specific{color:#bd7100;font-weight:900}
+.paxlist{display:grid;gap:0;border:1px solid #dfe7ef;border-radius:10px;overflow:hidden;background:#fff}
+.paxlist-head,.paxrow{display:grid;grid-template-columns:minmax(260px,2fr) 110px 90px minmax(170px,1.1fr) minmax(260px,1.8fr);gap:0;align-items:stretch}
+.paxlist-head{background:#f1f5f9;color:#52667d;font-size:10px;font-weight:900;text-transform:uppercase}
+.paxlist-head span{padding:10px 12px;border-right:1px solid #dfe7ef;text-align:center}.paxlist-head span:first-child{text-align:left}.paxlist-head span:last-child{border-right:0}
+.paxrow{border:0;border-top:1px solid #dfe7ef;background:#fff;border-radius:0;padding:0;text-align:left;color:#17243a;min-height:56px}
+.paxrow:hover{background:#f8fbff}
+.paxrow strong,.paxrow span{display:flex;align-items:center;padding:10px 12px;border-right:1px solid #e6edf5}
+.paxrow strong{font-size:13px}.paxrow span{font-size:11px;color:#65778b}.paxrow span:last-child{border-right:0}
+.paxrow .seat,.paxrow .class-cell{justify-content:center;text-align:center;font-weight:900}.paxrow .seat{color:#0c9b60}.paxrow .class-cell{color:#173b67}.paxrow .specific{color:#bd7100;font-weight:900}
 .profile{display:grid;grid-template-columns:repeat(2,1fr);gap:9px;margin-top:15px}
 .profile div{border:1px solid #dfe7ef;background:#fafcff;border-radius:8px;padding:10px}
 .profile small{display:block;color:#718296;font-size:9px}.profile b{display:block;font-size:13px;margin-top:4px;word-break:break-word}
@@ -6483,6 +6488,16 @@ html,body{
  .kpi-strip>.kpi{min-height:194px!important}
 }
 
+.profile.sq-profile .profile-specificity{grid-column:1/-1}.profile-specificity{grid-column:1/-1}.pax-meal-lines{display:block;line-height:1.55;white-space:normal}.pax-connection-row{display:grid;grid-template-columns:110px minmax(180px,1fr) 100px 70px;align-items:center}.pax-connection-row>*{text-align:center}.pax-connection-row span{text-align:left}
+
+/* V49.60 · passenger modal column alignment */
+.fqtv-table-head,.fqtv-table-row,.part-detail-head,.part-detail-row{display:grid;align-items:stretch;text-align:center}
+.fqtv-table-head,.fqtv-table-row{grid-template-columns:minmax(250px,1.8fr) 100px 90px minmax(220px,1.3fr) minmax(180px,1fr)}
+.part-detail-head,.part-detail-row{grid-template-columns:minmax(250px,1.8fr) 100px 90px minmax(190px,1fr) minmax(240px,1.5fr)}
+.fqtv-table-head>*,.fqtv-table-row>*,.part-detail-head>*,.part-detail-row>*{display:flex;align-items:center;justify-content:center;padding:10px 12px;text-align:center}
+.fqtv-table-head>*:first-child,.fqtv-table-row>*:first-child,.part-detail-head>*:first-child,.part-detail-row>*:first-child{justify-content:flex-start;text-align:left}
+.meal-passenger-row{display:grid;grid-template-columns:minmax(260px,1.3fr) minmax(320px,1.7fr);align-items:center;text-align:left}
+.meal-passenger-row .pax-seat-line{display:block;text-align:center}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
@@ -6490,11 +6505,11 @@ html,body{
 </head>
 <body>
 <script>
-const ALYZIA_APP_VERSION='V49.59';
+const ALYZIA_APP_VERSION='V49.60';
 const ALYZIA_APP_BUILD='2026-08-26-06';
 </script>
 <header class="topbar">
- <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V49.59</span></div>
+ <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V49.60</span></div>
  <nav class="nav">
    <button class="home-nav" onclick="renderHome()" title="Accueil vols">⌂</button>
    <button onclick="renderHome()">VOLS</button><button onclick="openFlightSearch()">RECHERCHE</button><button onclick="renderPrepa()">PRÉPA</button><button onclick="openTools()">OUTILS</button><button>ADMIN</button>
@@ -8947,7 +8962,9 @@ function mergeSqPassengerRows(existing,incoming){
    const key=sqPassengerKey(p);
    const old=map.get(key)||{};
    const merged={...old,...p};
-   merged.ssr=[...new Set([...(old.ssr||[]),...(p.ssr||[])])];
+   merged.ssr=[...new Set([...(old.ssr||[]),...(p.ssr||[])].filter(Boolean))];
+   merged.mealDetails=[...new Set([...(old.mealDetails||[]),...(p.mealDetails||[])].map(v=>String(v||'').trim()).filter(Boolean))];
+   merged.operationalDetails=[...new Set([...(old.operationalDetails||[]),...(p.operationalDetails||[])].map(v=>String(v||'').trim()).filter(Boolean))];
    if(old.fqtv&&!p.fqtv)merged.fqtv={...old.fqtv};
    map.set(key,merged);
  });
@@ -9075,22 +9092,23 @@ function parseSqSimpleOperationalReport(sourceBlock){
  if(/PDF-PSPLWCHR/i.test(u)){
    out.reportTypes.push('SQ_WHEELCHAIR');
    rows.forEach(r=>{
-     const txt=[r.tail,...(r.continuation||[])].join(' ').toUpperCase();
-     const code=(txt.match(/\b(WCHR|WCHS|WCHC)\b/)||[])[1]||'';
+     const rawTxt=[r.tail,...(r.continuation||[])].join(' ').replace(/\s+/g,' ').trim();
+     const code=(rawTxt.match(/\b(WCHR|WCHS|WCHC)\b/i)||[])[1]?.toUpperCase()||'';
      if(!code)return;
-     const detail=txt
-       .replace(new RegExp(`^.*?\b${code}\b[-:]?\s*`,'i'),'')
-       .replace(/\s+/g,' ')
-       .trim();
+     // Keep only the free text following CODE- / CODE: . The first standalone
+     // CODE in the passenger row is the SSR itself and must not be repeated.
+     let detail='';
+     const detailMatch=rawTxt.match(new RegExp('\\b'+code+'[-:]\\s*(.+)$','i'));
+     if(detailMatch)detail=String(detailMatch[1]||'').replace(/\s+/g,' ').trim();
      add('WCH',{
        ...r,id:`SQ-WCH-${code}-${r.seq}`,status:'BOOKED',
        sourceReport:'PDF-PSPLWCHR',
        specific:code,ssr:[code],
-       note:detail && detail!==code ? detail : ''
+       note:detail,
+       operationalDetails:detail?[detail]:[]
      });
    });
  }
-
  // "INC" = passengers with inbound connection.
  if(/\bLIST\s+OF\s*:\s*INC\b/i.test(u)){
    out.reportTypes.push('SQ_INBOUND_PAX');
@@ -9343,7 +9361,7 @@ function parseSqPassengerManifest(rawOriginal){
      name:name.replace(/\//g,' ').replace(/\s+/g,' ').trim(),
      title:String(title||'').toUpperCase(),
      seat,class:cls,bookingClass:bookingCode,pnr:'',etkt:ticket,emd,status:'BOOKED',
-     specific:'',note:'',ssr:[],connection:null
+     specific:'',note:'',ssr:[],mealDetails:[],operationalDetails:[],connection:null
    };
 
    if(conn){
@@ -9387,8 +9405,10 @@ function parseSqPassengerManifest(rawOriginal){
    SQ_MEAL_CODES.forEach(code=>{
      if(!codes.has(code))return;
      meals.push(code);
-     const details=extractSqMealDetailLines(lines,code).slice(0,3).join(' · ');
-     mealLists[code].push({...p,specific:details||code});
+     const detailLines=extractSqMealDetailLines(lines,code).slice(0,3);
+     p.mealDetails.push(...detailLines);
+     const details=detailLines.join(' · ');
+     mealLists[code].push({...p,mealDetails:detailLines.slice(),specific:details||code});
    });
    if(meals.length){
      const details=meals.flatMap(code=>extractSqMealDetailLines(lines,code)).slice(0,3).join(' · ');
@@ -12486,7 +12506,6 @@ const COMPANY_PARTICULARITY_DEFS={
    {id:'MAAS',label:'MAAS',codes:['MAAS'],icon:'•'},
    {id:'MEAL',label:'MEAL',codes:[],icon:'🍽',special:'meal'},
    {id:'VIP',label:'IMPT / HCIP / VIP / VVIP',codes:['IMPT','HCIP','VIP','VVIP'],icon:'☆'},
-   {id:'EMD',label:'EMD',codes:['EMD'],icon:'•'},
    {id:'ETK',label:'ETKT',codes:['ETKT'],icon:'■'},
    {id:'FQTV',label:'FQTV',codes:['KFEG','KFES','QPPS','LPPS','TPPS'],icon:'▤',special:'fqtv'},
    {id:'BOOKABLE_STAFF',label:'BOOKABLE STAFF',codes:['BOOKABLE STAFF'],icon:'♧'},
@@ -13644,7 +13663,7 @@ function passengerDocMeta(p){
  p=resolvePassengerForDisplay(p);
  const bits=[];
  if(p?.etkt)bits.push(`ETKT ${p.etkt}`);
- if(p?.emd)bits.push(`EMD ${p.emd}`);
+ if(f()?.airline!=='SQ'&&p?.emd)bits.push(`EMD ${p.emd}`);
  return bits.join(' · ');
 }
 function passengerDisplayName(p){
@@ -13734,7 +13753,7 @@ function openSqFqtvDisplayList(group,sort='name',dir='asc'){
  <button class="${sort==='class'?'active':''}" onclick="openSqFqtvDisplayList('${group}','class','${next('class')}')">CLASSE${sortArrow(sort==='class',dir)}</button>
  <button class="${sort==='seat'?'active':''}" onclick="openSqFqtvDisplayList('${group}','seat','${next('seat')}')">SIÈGE${sortArrow(sort==='seat',dir)}</button></div>
  <div class="fqtv-table-wrap"><div class="fqtv-table-head"><span>NOM / PRÉNOM</span><span>SIÈGE</span><span>CLASSE</span><span>FQTV</span><span>DOCUMENT</span></div>
- <div class="fqtv-table-body">${match.map((p,i)=>`<button class="fqtv-table-row ${group.toLowerCase()}" onclick="openPaxFromModal(${i})"><strong>${passengerDisplayName(p)}</strong><span>${p.seat||'—'}</span><span>CL ${p.class||'—'}</span><span>${p.fqtv?.number||group}</span><span>${passengerDocMeta(p)||'—'}</span></button>`).join('')||'<div class="prepa-empty">AUCUN PASSAGER</div>'}</div></div>`);
+ <div class="fqtv-table-body">${match.map((p,i)=>`<button class="fqtv-table-row ${group.toLowerCase()}" onclick="openPaxFromModal(${i})"><strong>${passengerDisplayName(p)}</strong><span>${p.seat||'—'}</span><span>${p.class||'—'}</span><span>${p.fqtv?.number||group}</span><span>${passengerDocMeta(p)||'—'}</span></button>`).join('')||'<div class="prepa-empty">AUCUN PASSAGER</div>'}</div></div>`);
 }
 
 function openFqtvPassengerList(cat,sort='name',dir='asc'){
@@ -13763,7 +13782,7 @@ function openFqtvPassengerList(cat,sort='name',dir='asc'){
          <button class="fqtv-table-row ${cat.toLowerCase()}" onclick="openPaxFromModal(${i})">
            <strong class="fqtv-col-name">${passengerDisplayName(p)}</strong>
            <span class="fqtv-col-seat">${p.seat||'—'}</span>
-           <span class="fqtv-col-class">CL ${p.class||'—'}</span>
+           <span class="fqtv-col-class">${modalClassText(p.class)}</span>
            <span class="fqtv-col-status">${p.fqtv?.status||cat}${p.fqtv?.number?` · ${p.fqtv.number}`:''}</span>
            <span class="fqtv-col-doc">${passengerDocMeta(p)||'—'}</span>
          </button>`).join(''):'<div class="prepa-empty">AUCUN PASSAGER</div>'}
@@ -13910,7 +13929,7 @@ function openPrepaSpecificityCard(defId,sort='name',dir='asc',replaceSort=false)
            <button class="part-detail-row" onclick="PAX_MODAL_ITEMS=window.__partPax||[];openPaxFromModal(${i})">
              <strong class="part-col-name">${passengerDisplayName(p)}</strong>
              <span class="part-col-seat">${p.seat||'—'}</span>
-             <span class="part-col-class">CL ${p.class||'—'}</span>
+             <span class="part-col-class">${modalClassText(p.class)}</span>
              <span class="part-col-doc">${passengerDocMeta(p)||'—'}</span>
              <span class="part-col-ssr">${Array.isArray(p.ssr)&&p.ssr.length?[...new Set(p.ssr)].filter(Boolean).join(' · '):(p.specific||p.note||def.label)}</span>
            </button>`).join('')}
@@ -14042,7 +14061,7 @@ function openGroupModal(){
  const x=f(),list=operationalGroupPassengers(x),groups=new Map();
  list.forEach(p=>{const key=groupBucketKey(p);if(!groups.has(key))groups.set(key,[]);groups.get(key).push(p)});
  window.__groupPnrSections=[...groups.entries()].sort((a,b)=>a[0].localeCompare(b[0]));
- showModal(`GROUP · ${groups.size}`,x.flight,`<div class="group-pnr-list">${window.__groupPnrSections.length?window.__groupPnrSections.map(([pnr,pax],gi)=>`<div class="group-pnr-card"><div class="group-pnr-head"><span>PNR / GROUPE</span><b>${pnr}</b><strong>${pax.length} PAX</strong></div><div class="group-pnr-pax">${pax.map((p,pi)=>`<button onclick="PAX_MODAL_ITEMS=window.__groupPnrSections[${gi}][1];openPaxFromModal(${pi})"><strong>${passengerDisplayName(p)}</strong><span>${p.seat||'—'} · CL ${p.class||'—'}</span><small>${passengerDocMeta(p)||'DOSSIER PASSAGER'}</small></button>`).join('')}</div></div>`).join(''):'<div class="prepa-empty">AUCUN GROUPE DÉTAILLÉ</div>'}</div>`);
+ showModal(`GROUP · ${groups.size}`,x.flight,`<div class="group-pnr-list">${window.__groupPnrSections.length?window.__groupPnrSections.map(([pnr,pax],gi)=>`<div class="group-pnr-card"><div class="group-pnr-head"><span>GROUPE</span><b>${pnr}</b><strong>${pax.length} PAX</strong></div><div class="group-pnr-pax">${pax.map((p,pi)=>`<button onclick="PAX_MODAL_ITEMS=window.__groupPnrSections[${gi}][1];openPaxFromModal(${pi})"><strong>${passengerDisplayName(p)}</strong><span>${p.seat||'—'} · ${modalClassText(p.class)}</span><small>${passengerDocMeta(p)||'DOSSIER PASSAGER'}</small></button>`).join('')}</div></div>`).join(''):'<div class="prepa-empty">AUCUN GROUPE DÉTAILLÉ</div>'}</div>`);
 }
 function companyParticularityCard(def){
  const x=f();
@@ -14092,7 +14111,7 @@ function openPassengerSearchModal(query=''){
  const x=f(),q=String(query||'').trim().toUpperCase(),all=allOperationalPassengerRecords(x),norm=v=>String(v||'').toUpperCase().replace(/[^A-Z0-9]/g,''),nq=norm(q);
  const results=!q?[]:all.filter(p=>[p.name,p.fullName,p.shortName,p.pnr,p.etkt,p.emd,p.seat,p.groupCode,p.title].map(norm).join('|').includes(nq)).slice(0,80);
  window.__paxSearchResults=results;
- replaceModal('RECHERCHE PASSAGER',x.flight,`<div class="pax-search-modal"><input id="paxSearchInput" autocomplete="off" placeholder="NOM · PRÉNOM · PNR · ETKT · SIÈGE" value="${String(query||'').replace(/"/g,'&quot;')}" oninput="openPassengerSearchModal(this.value)"><div class="pax-search-count">${q?`${results.length} RÉSULTAT${results.length>1?'S':''}`:'SAISISSEZ UN CRITÈRE'}</div><div class="pax-search-results">${results.map((p,i)=>`<button onclick="PAX_MODAL_ITEMS=window.__paxSearchResults;openPaxFromModal(${i})"><strong>${passengerDisplayName(p)}</strong><span>${p.seat||'—'} · CL ${p.class||'—'}</span><small>${p.pnr?`PNR ${p.pnr} · `:''}${p.etkt?`ETKT ${p.etkt}`:'DOSSIER PASSAGER'}</small></button>`).join('')}</div></div>`);
+ replaceModal('RECHERCHE PASSAGER',x.flight,`<div class="pax-search-modal"><input id="paxSearchInput" autocomplete="off" placeholder="NOM · PRÉNOM · PNR · ETKT · SIÈGE" value="${String(query||'').replace(/"/g,'&quot;')}" oninput="openPassengerSearchModal(this.value)"><div class="pax-search-count">${q?`${results.length} RÉSULTAT${results.length>1?'S':''}`:'SAISISSEZ UN CRITÈRE'}</div><div class="pax-search-results">${results.map((p,i)=>`<button onclick="PAX_MODAL_ITEMS=window.__paxSearchResults;openPaxFromModal(${i})"><strong>${passengerDisplayName(p)}</strong><span>${p.seat||'—'} · ${modalClassText(p.class)}</span><small>${p.etkt?`ETKT ${p.etkt}`:'DOSSIER PASSAGER'}</small></button>`).join('')}</div></div>`);
  const el=document.getElementById('paxSearchInput');if(el){el.focus();try{el.setSelectionRange(el.value.length,el.value.length)}catch(e){}}
 }
 function renderCompanyParticularities(x){
@@ -14573,7 +14592,7 @@ function openMealPassengerList(code,sort='name',dir='asc'){
        <button class="meal-passenger-row" onclick="openPaxFromModal(${i})">
          <div>
            <strong>${passengerDisplayName(p)}</strong>
-           <span class="pax-seat-line">${p.seat||'—'} · CL ${p.class||'—'}</span>
+           <span class="pax-seat-line">${p.seat||'—'} · ${modalClassText(p.class)}</span>
            ${passengerDocMeta(p)?`<span class="pax-doc-line">${passengerDocMeta(p)}</span>`:''}
          </div>
          <small class="pax-ssr">${p.specific||code}</small>
@@ -14705,7 +14724,7 @@ function openStaffModal(){
          <div class="staff-modal-title"><b>${label}</b><span>${arr.length||Number(x.prepaParticularities?.[label]||0)}</span></div>
          ${arr.length?arr.map((p,i)=>`
            <button class="meal-passenger-row" onclick="PAX_MODAL_ITEMS=${JSON.stringify(arr).replace(/</g,'\\u003c')};openPaxFromModal(${i})">
-             <div><strong>${passengerDisplayName(p)}</strong><span>${p.seat||'—'} · CL ${p.class||'—'}${passengerDocMeta(p)?` · ${passengerDocMeta(p)}`:''}</span></div>
+             <div><strong>${passengerDisplayName(p)}</strong><span>${p.seat||'—'} · ${modalClassText(p.class)}${passengerDocMeta(p)?` · ${passengerDocMeta(p)}`:''}</span></div>
            </button>`).join(''):'<div class="prepa-empty">AUCUN NOM IMPORTÉ</div>'}
        </div>`).join('')}
    </div>
@@ -14787,7 +14806,7 @@ function openPositioningModal(){
      ${arr.length?arr.map((p,i)=>`
        <div class="positioning-row">
          <div><strong>${p.name}</strong><span>${p.role||'CREW'}</span></div>
-         <b>${p.seat} · CL ${p.class}</b>
+         <b>${p.seat} · ${modalClassText(p.class)}</b>
          <button onclick="deletePositioning(${i})">SUPPRIMER</button>
        </div>`).join(''):'<div class="prepa-empty">AUCUN POSITIONING CREW</div>'}
    </div>`);
@@ -14826,7 +14845,7 @@ function inopForm(index=null){
 function inopList(){
  const x=f();
  return (x.inopSeats||[]).map((r,i)=>`<div class="inop-row" onclick="openInopEditor(${i})" style="cursor:pointer">
-   <b>${r.seat}</b><span>CL ${r.class}</span><span class="${r.status.toLowerCase()}">${r.status}</span>
+   <b>${r.seat}</b><span>${modalClassText(r.class)}</span><span class="${r.status.toLowerCase()}">${r.status}</span>
    <span>${r.status==='NOK'?'DÉDUIT DE AVAILABLE':'UTILISABLE'}</span>
    <button class="inop-del" onclick="event.stopPropagation();deleteInop(${i})">SUPPRIMER</button>
  </div>`).join('');
@@ -15115,6 +15134,7 @@ function sortPaxItems(items,sort='name',dir='asc'){
  return arr;
 }
 function sortArrow(active,dir){return active?(dir==='asc'?' ▲':' ▼'):''}
+function modalClassText(v,x=f()){const c=String(v||'—');return x?.airline==='SQ'?c:`CL ${c}`}
 let PAX_MODAL_SOURCE=[];
 function showPax(label,items,count,sort='name',dir='asc'){
  if(items!==PAX_MODAL_ITEMS)PAX_MODAL_SOURCE=Array.isArray(items)?items.slice():[];
@@ -15137,20 +15157,23 @@ function openPaxFromModal(index){
  setTimeout(()=>openPax(snapshot),0);
 }
 function paxRows(items,count){
+ const isSq=f()?.airline==='SQ';
  const rows=(items||[]).map((raw,i)=>{
    const p=resolvePassengerForDisplay(raw);
+   const info=p.specific||p.note||(p.connection?`${p.connection.flight} ${p.connection.destination} ${p.connection.time}`:'—');
+   const doc=passengerDocMeta(p)||'—';
    return `<button class="paxrow" onclick="openPaxFromModal(${i})">
    <strong>${passengerDisplayName(p)}</strong>
-   <span class="seat">${p.groupCode?`<em class="group-code-chip">${p.groupCode}</em> `:''}${p.seat||'—'}</span>
+   <span class="seat">${p.seat||'—'}</span>
    <span class="class-cell">${p.class||'—'}</span>
-   <span class="pax-pnr">${p.pnr?`PNR ${p.pnr}`:(p.connection?.flight||'—')}</span>
-   <span class="specific">${p.specific||p.note||(p.connection?`${p.connection.flight} ${p.connection.destination} ${p.connection.time}`:'—')}${passengerDocMeta(p)?` · ${passengerDocMeta(p)}`:''}</span>
+   <span class="pax-document">${doc}</span>
+   <span class="specific">${info||'—'}</span>
  </button>`;
  }).join('');
  const shown=(items||[]).length;
- return `<div class="paxlist">${rows||'<div class="prepa-empty">AUCUN PASSAGER DÉTAILLÉ</div>'}</div>${count>shown?`<div style="margin-top:10px;color:#64768b;font-size:11px">AFFICHAGE DE ${shown} PASSAGER(S) SUR ${count}</div>`:''}`;
+ const head=`<div class="paxlist-head"><span>NOM / PRÉNOM</span><span>SIÈGE</span><span>CLASSE</span><span>DOCUMENT</span><span>SSR / INFO</span></div>`;
+ return `<div class="paxlist">${head}${rows||'<div class="prepa-empty">AUCUN PASSAGER DÉTAILLÉ</div>'}</div>${count>shown?`<div style="margin-top:10px;color:#64768b;font-size:11px">AFFICHAGE DE ${shown} PASSAGER(S) SUR ${count}</div>`:''}`;
 }
-
 function passengerNoteKey(p){
  return [f().flight, f().activeDate||selectedDate||'', p.pnr||'', p.etkt||'', p.name||''].join('|');
 }
@@ -15207,11 +15230,15 @@ function passengerOperationalDetailLines(p,x=f()){
  const pn=norm(p?.name||p?.fullName),pe=String(p?.etkt||''),ps=String(p?.seat||'').toUpperCase();
  const rows=[];
  const matches=q=>(pe&&q?.etkt&&String(q.etkt)===pe)||(pn&&norm(q?.name||q?.fullName)===pn)||(ps&&q?.seat&&String(q.seat).toUpperCase()===ps);
- const push=v=>{const t=String(v||'').replace(/\s+/g,' ').trim();if(t)rows.push(t)};
- (x?.common_lists?.WCH||[]).forEach(q=>{if(matches(q))push(q.note||q.detail||'')});
+ const push=v=>{const t=String(v||'').replace(/\s+/g,' ').trim();if(t&&!/^(WCHR|WCHS|WCHC|CHLD|INF|SPML)$/i.test(t))rows.push(t)};
+ (p?.operationalDetails||[]).forEach(push);
+ (x?.common_lists?.WCH||[]).forEach(q=>{
+   if(!matches(q))return;
+   (q?.operationalDetails||[]).forEach(push);
+   push(q.note||q.detail||'');
+ });
  return [...new Set(rows)];
 }
-
 function passengerConnectionRows(p,inbound){
  const x=f(),rows=inbound?(x.inbound||[]): (x.outbound||[]);
  const q=resolvePassengerForDisplay(p,x),norm=v=>String(v||'').replace(/[^A-Z0-9]/gi,'').toUpperCase();
@@ -15244,7 +15271,16 @@ function passengerConnectionsHtml(p){
 function passengerMealDetails(p,x=f()){
  const norm=v=>String(v||'').replace(/[^A-Z0-9]/gi,'').toUpperCase(),pn=norm(p?.name||p?.fullName),pe=String(p?.etkt||''),ps=String(p?.seat||'').toUpperCase(),rows=[];
  const matches=q=>(pe&&q?.etkt&&String(q.etkt)===pe)||(pn&&norm(q?.name||q?.fullName)===pn)||(ps&&q?.seat&&String(q.seat).toUpperCase()===ps);
- const pushSpecific=q=>{if(!matches(q))return;let v=String(q?.specific||'').trim();if(!v)return;v=v.replace(/\s*·\s*(?=(?:SPML|CHML|BBML|AVML|MOML|LFML|FPML|NLML)-)/gi,'\n');v.split(/\n+/).map(t=>t.trim()).filter(t=>/^(?:SPML|CHML|BBML|AVML|MOML|LFML|FPML|NLML)-/i.test(t)).forEach(t=>rows.push(t));};
+ const add=v=>{String(v||'').split(/\n+/).map(t=>t.trim()).filter(t=>/^(?:SPML|CHML|BBML|AVML|MOML|LFML|FPML|NLML|VGML|KSML|HNML|DBML|GFML|LCML)-/i.test(t)).forEach(t=>rows.push(t));};
+ (p?.mealDetails||[]).forEach(add);
+ const pushSpecific=q=>{
+   if(!matches(q))return;
+   (q?.mealDetails||[]).forEach(add);
+   let v=String(q?.specific||'').trim();
+   if(!v)return;
+   v=v.replace(/\s*·\s*(?=(?:SPML|CHML|BBML|AVML|MOML|LFML|FPML|NLML|VGML|KSML|HNML|DBML|GFML|LCML)-)/gi,'\n');
+   add(v);
+ };
  Object.values(x?.meal_lists||{}).forEach(list=>(list||[]).forEach(pushSpecific));
  (x?.common_lists?.MEAL||[]).forEach(pushSpecific);
  return [...new Set(rows.map(s=>s.trim()).filter(Boolean))];
@@ -15260,20 +15296,23 @@ function passengerSpecificityHtml(p,x=f()){
 }
 function openPax(p){
  p=resolvePassengerForDisplay(p);
+ const x=f(),isSq=x?.airline==='SQ';
  const savedNote=getPassengerNote(p);
  const fqCat=fqtvCategoryForPassenger(p);
  const fqHtml=(p.fqtv&&fqCat!=='AUTRES')
    ?`<div class="pax-fqtv-banner ${fqCat.toLowerCase()}"><b>${fqCat}</b><span>${p.fqtv.status||''}${p.fqtv.number?` · ${p.fqtv.number}`:''}</span></div>`
    :'';
- showModal(passengerDisplayName(p),f().flight,`
+ const extraIdentity=isSq?'':`
+   <div><small>EMD</small><b>${p.emd||'—'}</b></div>
+   <div><small>CODE GROUPE</small><b>${p.groupCode||'—'}</b></div>`;
+ showModal(passengerDisplayName(p),x.flight,`
   ${fqHtml}
-  <div class="profile">
+  <div class="profile ${isSq?'sq-profile':''}">
    <div><small>SIÈGE</small><b>${p.seat||'—'}</b></div>
    <div><small>CLASSE</small><b>${p.class||'—'}</b></div>
    <div><small>GENRE / TITRE</small><b>${p.title||'—'}</b></div>
    <div><small>ETKT</small><b>${p.etkt||'—'}</b></div>
-   <div><small>EMD</small><b>${p.emd||'—'}</b></div>
-   <div><small>CODE GROUPE</small><b>${p.groupCode||'—'}</b></div>
+   ${extraIdentity}
    <div><small>SSR</small><b>${Array.isArray(p.ssr)&&p.ssr.length?[...new Set(p.ssr)].filter(Boolean).join(' · '):'—'}</b></div>
    <div class="profile-specificity"><small>SPÉCIFICITÉ</small><b>${passengerSpecificityHtml(p)}</b></div>
    ${p.ownerMatchMissing?`<div class="owner-match-warning"><small>ASSOCIATION</small><b>PASSAGER RÉEL NON RETROUVÉ</b></div>`:''}
@@ -15287,7 +15326,6 @@ function openPax(p){
    </div>
   </div>`);
 }
-
 
 
 function resetCurrentFlightData(index){
