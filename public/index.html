@@ -6,7 +6,7 @@
   <meta http-equiv="Expires" content="0">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V49.66 · SQ + TK LOCKED</title>
+<title>ALYZIA OPS - V49.68 · SQ + TK LOCKED</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -6528,14 +6528,14 @@ html,body{
 </head>
 <body>
 <script>
-/* V49.66 — LOCKED BASELINE: SQ frozen at V49.64 behavior; TK frozen after EDITING normalization. */
-const ALYZIA_APP_VERSION='V49.66';
+/* V49.68 — LOCKED BASELINE: SQ frozen at V49.64 behavior; TK frozen after EDITING normalization. */
+const ALYZIA_APP_VERSION='V49.68';
 const ALYZIA_SQ_LOCK_VERSION='V49.64';
-const ALYZIA_TK_LOCK_VERSION='V49.66';
+const ALYZIA_TK_LOCK_VERSION='V49.68';
 const ALYZIA_APP_BUILD='2026-08-26-09';
 </script>
 <header class="topbar">
- <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V49.66</span></div>
+ <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V49.68</span></div>
  <nav class="nav">
    <button class="home-nav" onclick="renderHome()" title="Accueil vols">⌂</button>
    <button onclick="renderHome()">VOLS</button><button onclick="openFlightSearch()">RECHERCHE</button><button onclick="renderPrepa()">PRÉPA</button><button onclick="openTools()">OUTILS</button><button>ADMIN</button>
@@ -9769,6 +9769,7 @@ function parseTkPassengerRows(section,{ticketMode=false,emdMode=false,connection
          last.ssr=Array.from(new Set([...(last.ssr||[]),'EXST']));
        }
 
+       if(paxType)last.passengerType=paxType;
        if(paxType==='CHD'){
          last.childType='CHD';
          last.ssr=Array.from(new Set([...(last.ssr||[]),'CHLD']));
@@ -9810,7 +9811,8 @@ function parseTkPassengerRows(section,{ticketMode=false,emdMode=false,connection
    const m=line.match(/^\s*(\d{1,3})\.\s*(.+?)\s+IST\s+([FCY])\s+(.*)$/i);
    if(!m)continue;
    const idx=Number(m[1]), name=tkNormalizeName(m[2]), cls=m[3].toUpperCase(), rest=m[4];
-   const seatMatch=rest.match(/\b(\d{2}[A-K])(?:-[A-Z])?\b/i)||rest.match(/\b(\d{3})\b/);
+   const seatMatch=rest.match(/\b(\d{2}[A-K])(?:-([MFCI]))?\b/i)||rest.match(/\b(\d{3})\b/);
+   const genderMatch=rest.match(/\b\d{2}[A-K]-([MFCI])\b/i);
    const groupMatch=rest.match(/(?:^|\s)([A-Z]{1,2}\d{1,2})(?=\s+\d{2}[A-K](?:-[A-Z])?\b|\s+\d{3}\b)/i);
    const rebateCode=(rest.match(/\b(R\d+[A-Z]?)\b/i)||[])[1]?.toUpperCase()||'';
    const p={
@@ -9822,6 +9824,8 @@ function parseTkPassengerRows(section,{ticketMode=false,emdMode=false,connection
      etkt:'',
      emd:'',
      groupCode:groupMatch?groupMatch[1].toUpperCase():'',
+     gender:genderMatch?genderMatch[1].toUpperCase():'',
+     passengerType:'',
      status:'BOOKED',
      specific:'',
      note:'',
@@ -10291,7 +10295,6 @@ function tkAllPaxSpecialPassengers(masterPassengers,type){
 
 function prepareTkImportManifest(rawOriginal){
  const hv=parseTkHeaderValues(rawOriginal);
- const flags=parseTkHeaderFlags(rawOriginal);
  const standby=parseTkStandby(rawOriginal);
 
  const inf=parseTkPassengerRows(tkSection(rawOriginal,'PASSENGERS WITH INFANTS'));
@@ -10307,8 +10310,9 @@ function prepareTkImportManifest(rawOriginal){
  let etk=parseTkPassengerRows(tkSection(rawOriginal,'E-TKT FULL PAX LIST'),{ticketMode:true});
  const priorityPax=parseTkPriorityPassengerList(rawOriginal);
 
- // Passenger identity priority: ALL PAX > E-TKT FULL PAX LIST > standalone pasted passenger list.
- let masterPassengers=allPax.length?allPax:(etk.length?etk:priorityPax);
+ // TK LOCKED RULE: ALL PAX is the ONLY passenger master source.
+ // Every other TK report is enrichment only and must never create/replace the master passenger list.
+ let masterPassengers=allPax;
  if(!etk.length && masterPassengers.length)etk=masterPassengers.filter(p=>p.etkt);
 
  let emd=parseTkPassengerRows(tkSection(rawOriginal,'EMD FULL PAX LIST'),{emdMode:true});
@@ -10352,15 +10356,15 @@ function prepareTkImportManifest(rawOriginal){
 
  // TK PARTICULARITIES: named passenger lists are the ONLY operational source. Header counters are diagnostic only.
  const vipNamed=commented.VIP||[];
- const vipCount=Math.max(vipNamed.length,Number(flags.vipHeader||0));
+ const vipCount=vipNamed.length;
 
  // DEPA / DEPU / INAD / ESCORT are independent named lists.
  const depa=commented.DEPA||[];
  const depu=commented.DEPU||[];
  const inad=commented.INAD||[];
  const escort=commented.ESCORT||[];
- const depaCount=Math.max(depa.length,Number(flags.depaHeader||0));
- const escortCount=Math.max(escort.length,Number(flags.escortHeader||0));
+ const depaCount=depa.length;
+ const escortCount=escort.length;
 
  // CBBG / EXST: named passenger lists only.
  // ALL PAX synthetic passenger names (e.g. BUREL CBBG / MONNET CBBG) are valid named records.
@@ -10433,6 +10437,42 @@ function prepareTkImportManifest(rawOriginal){
    (p.etkt&&byEtktMaster.get(String(p.etkt))) ||
    (p.seat&&bySeatMaster.get(`${String(p.seat||'').toUpperCase()}|${String(p.class||'').toUpperCase()}`)) ||
    byShortMaster.get(String(p.shortName||p.name||'').replace(/[^A-Z0-9]/gi,'').toUpperCase());
+
+ // Secondary TK reports enrich the ALL PAX master only.
+ const enrichMasterFromList=(list,code)=>{
+   (Array.isArray(list)?list:[]).forEach(src=>{
+     const p=findMaster(src); if(!p)return;
+     p.ssr=Array.from(new Set([...(p.ssr||[]),...(src.ssr||[]),...(code?[code]:[])]));
+     if(src.fqtv)p.fqtv={...src.fqtv};
+     if(src.groupCode&&!p.groupCode)p.groupCode=src.groupCode;
+     if(src.title&&!p.title)p.title=src.title;
+     if(src.gender&&!p.gender)p.gender=src.gender;
+     if(src.passengerType&&!p.passengerType)p.passengerType=src.passengerType;
+     if(src.childType&&!p.childType)p.childType=src.childType;
+     if(src.note){p.operationalDetails=Array.from(new Set([...(p.operationalDetails||[]),src.note]));}
+     if(src.specific && src.specific!==code){p.operationalDetails=Array.from(new Set([...(p.operationalDetails||[]),src.specific]));}
+     if(src.mealCode){p.mealDetails=Array.from(new Set([...(p.mealDetails||[]),src.mealCode]));}
+   });
+ };
+ enrichMasterFromList(infEnriched,'INF');
+ enrichMasterFromList(chldToys,'CHLD');
+ enrichMasterFromList(commonLists.WCH);
+ enrichMasterFromList(commonLists.WCMOB);
+ enrichMasterFromList(commonLists.MAAS,'MAAS');
+ enrichMasterFromList(commonLists.PET_AV,'PETC');
+ enrichMasterFromList(commonLists.VIP,'VIP');
+ enrichMasterFromList(commonLists.GROUP,'GROUP');
+ enrichMasterFromList(commonLists.REBATE_STAFF,'REBATE STAFF');
+ enrichMasterFromList(commonLists.DUTY_STAFF,'DUTY STAFF');
+ enrichMasterFromList(commonLists.DEPA,'DEPA');
+ enrichMasterFromList(commonLists.DEPU,'DEPU');
+ enrichMasterFromList(commonLists.INAD,'INAD');
+ enrichMasterFromList(commonLists.ESCORT,'ESCORT');
+ enrichMasterFromList(commonLists.EXST,'EXST');
+ enrichMasterFromList(commonLists.CBBG,'CBBG');
+ enrichMasterFromList(commonLists.FQTV);
+ enrichMasterFromList(commonLists.MEAL);
+ enrichMasterFromList(commonLists.UPGR,'UPGR');
 
  emd.forEach(e=>{
    const p=findMaster(e);
@@ -11835,7 +11875,7 @@ function filterManifestForSelectedImport(manifest,labels){
  if(!manifest||!labels)return manifest;
  const m=JSON.parse(JSON.stringify(manifest)),has=(...names)=>names.some(n=>labels.has(n));
 
- // V49.66 — TK selection uses the locked TK EDITING card labels.
+ // V49.68 — TK selection uses the locked TK EDITING card labels.
  // The generic branch below is SQ-oriented (CHLD/KID + individual FQTV tiers) and
  // previously cleared valid TK CHLD/TOY'S, FQTV and SPECIAL MEAL passenger lists.
  if(String(m.airline||'').toUpperCase()==='TK'){
