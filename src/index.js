@@ -1,4 +1,4 @@
-// ALYZIA OPS V49.11 · Worker complet
+// ALYZIA OPS V49.89 · Worker PREPA + imports non identifiés
 // - Assets statiques public/
 // - API vols partagée D1
 // - Bridge interne vers SARIA
@@ -253,9 +253,17 @@ function normalizePrepaPayload(body) {
   const flight = body.flight || {};
   const email = body.email || {};
   const drive = body.drive || {};
+  const detection = body.detection || {};
 
   const gmailMessageId =
     String(gmail.messageId || "").trim();
+
+  if (!gmailMessageId) return null;
+
+  const source =
+    String(body.source || "GMAIL")
+      .trim()
+      .toUpperCase();
 
   const airline =
     String(flight.airline || "")
@@ -270,16 +278,42 @@ function normalizePrepaPayload(body) {
   const flightDate =
     String(flight.date || "").trim();
 
-  if (
-    !gmailMessageId ||
-    !airline ||
-    !flightNumber ||
-    !flightDate
-  ) {
-    return null;
-  }
+  const detectionStatus =
+    String(detection.status || "")
+      .trim()
+      .toUpperCase();
 
-  if (!["TK", "SQ", "BJ"].includes(airline)) {
+  const attachments =
+    Array.isArray(body.attachments)
+      ? body.attachments
+      : [];
+
+  /*
+   * IMPORT IDENTIFIÉ :
+   * compagnie + vol + date obligatoires.
+   */
+  const identified =
+    !!airline &&
+    !!flightNumber &&
+    !!flightDate &&
+    ["TK", "SQ", "BJ"].includes(airline);
+
+  /*
+   * IMPORT NON IDENTIFIÉ :
+   * accepté uniquement si le script central l'annonce
+   * explicitement ET s'il existe au moins une pièce jointe.
+   *
+   * Cela évite qu'un mail banal sans vol soit injecté.
+   */
+  const unidentified =
+    !identified &&
+    (
+      detectionStatus === "UNIDENTIFIED" ||
+      source === "GMAIL_UNIDENTIFIED"
+    ) &&
+    attachments.length > 0;
+
+  if (!identified && !unidentified) {
     return null;
   }
 
@@ -289,9 +323,20 @@ function normalizePrepaPayload(body) {
     gmailThreadId:
       String(gmail.threadId || "").trim(),
 
-    airline,
-    flightNumber,
-    flightDate,
+    source:
+      source || "GMAIL",
+
+    detectionStatus:
+      identified ? "IDENTIFIED" : "UNIDENTIFIED",
+
+    airline:
+      identified ? airline : "",
+
+    flightNumber:
+      identified ? flightNumber : "",
+
+    flightDate:
+      identified ? flightDate : "",
 
     subject:
       String(gmail.subject || ""),
@@ -311,23 +356,26 @@ function normalizePrepaPayload(body) {
     driveEmailPdfId:
       String(drive.emailPdfId || ""),
 
-    attachments:
-      Array.isArray(body.attachments)
-        ? body.attachments
-        : []
+    attachments
   };
 }
-
 
 async function savePrepaInbox(env, item) {
 
   const attachmentsJson =
     JSON.stringify(item.attachments || []);
 
+  const initialStatus =
+    item.detectionStatus === "UNIDENTIFIED"
+      ? "UNIDENTIFIED"
+      : "PENDING";
+
   await env.OPS_DB.prepare(`
     INSERT INTO prepa_inbox (
       gmail_message_id,
       gmail_thread_id,
+
+      source,
 
       airline,
       flight_number,
@@ -345,11 +393,12 @@ async function savePrepaInbox(env, item) {
       attachments_json,
 
       status,
+      error_message,
       updated_at
     )
 
     VALUES (
-      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING',
+      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '',
       CURRENT_TIMESTAMP
     )
 
@@ -357,6 +406,8 @@ async function savePrepaInbox(env, item) {
     DO UPDATE SET
 
       gmail_thread_id=excluded.gmail_thread_id,
+
+      source=excluded.source,
 
       airline=excluded.airline,
       flight_number=excluded.flight_number,
@@ -373,10 +424,33 @@ async function savePrepaInbox(env, item) {
 
       attachments_json=excluded.attachments_json,
 
+      /*
+       * Ne jamais remettre à PENDING un import déjà finalisé.
+       * En revanche un ancien UNIDENTIFIED peut devenir PENDING
+       * si le même message est renvoyé ensuite avec vol/date trouvés.
+       */
+      status=
+        CASE
+          WHEN prepa_inbox.status='PROCESSED'
+            THEN 'PROCESSED'
+          WHEN excluded.status='PENDING'
+            THEN 'PENDING'
+          ELSE excluded.status
+        END,
+
+      error_message=
+        CASE
+          WHEN excluded.status='PENDING'
+            THEN ''
+          ELSE prepa_inbox.error_message
+        END,
+
       updated_at=CURRENT_TIMESTAMP
   `).bind(
     item.gmailMessageId,
     item.gmailThreadId,
+
+    item.source,
 
     item.airline,
     item.flightNumber,
@@ -391,10 +465,13 @@ async function savePrepaInbox(env, item) {
     item.driveFolderId,
     item.driveEmailPdfId,
 
-    attachmentsJson
-  ).run();
-}
+    attachmentsJson,
 
+    initialStatus
+  ).run();
+
+  return initialStatus;
+}
 
 async function getPrepaInbox(env, url) {
 
@@ -425,6 +502,8 @@ async function getPrepaInbox(env, url) {
       id,
       gmail_message_id,
       gmail_thread_id,
+
+      source,
 
       airline,
       flight_number,
@@ -516,6 +595,15 @@ async function getPrepaInbox(env, url) {
 
         gmailThreadId:
           row.gmail_thread_id,
+
+        source:
+          row.source ||
+          (
+            String(row.gmail_message_id || "")
+              .startsWith("HISTO_PREPASQ_")
+              ? "HISTORIQUE_PREPASQ"
+              : "GMAIL"
+          ),
 
         airline:
           row.airline,
@@ -618,10 +706,11 @@ async function handlePrepa(request, env, url) {
     }
 
 
-    await savePrepaInbox(
-      env,
-      item
-    );
+    const savedStatus =
+      await savePrepaInbox(
+        env,
+        item
+      );
 
 
     return json({
@@ -641,7 +730,8 @@ async function handlePrepa(request, env, url) {
       flightDate:
         item.flightDate,
 
-      status: "PENDING"
+      status:
+        savedStatus
     });
   }
 
@@ -862,7 +952,7 @@ export default {
     });
 
     }catch(err){
-      console.error("ALYZIA OPS V49.11",err);
+      console.error("ALYZIA OPS V49.89",err);
       return json({
         ok:false,
         error:err?.message||String(err)
