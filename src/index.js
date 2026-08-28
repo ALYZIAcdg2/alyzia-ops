@@ -1,4 +1,4 @@
-// ALYZIA OPS V49.89 · Worker PREPA + imports non identifiés
+// ALYZIA OPS V49.90 · Worker PREPA + resource-limit fix
 // - Assets statiques public/
 // - API vols partagée D1
 // - Bridge interne vers SARIA
@@ -35,22 +35,37 @@ function validFlight(x){
     String(x.airline||"").trim().toUpperCase()!=="KL";
 }
 
-async function getFlights(env){
+async function getFlightsResponse(env){
+  /*
+   * V49.90 RESOURCE FIX
+   * Les vols sont déjà stockés en JSON valide dans data_json.
+   * On évite de JSON.parse() puis JSON.stringify() chaque vol,
+   * ce qui consommait beaucoup de CPU lorsque D1 contenait
+   * plusieurs dizaines de fiches volumineuses.
+   */
   const {results=[]}=await env.OPS_DB
-    .prepare(`SELECT data_json, updated_at
+    .prepare(`SELECT data_json
               FROM flights
               ORDER BY flight_date, std, flight_number`)
     .all();
 
-  const flights=[];
-  for(const row of results){
-    try{
-      const x=JSON.parse(row.data_json);
-      x._serverUpdatedAt=row.updated_at||"";
-      if(validFlight(x))flights.push(x);
-    }catch(e){}
-  }
-  return flights;
+  const payload =
+    `{"ok":true,"count":${results.length},"flights":[` +
+    results
+      .map(row => String(row.data_json || "{}"))
+      .join(",") +
+    `]}`;
+
+  return new Response(payload,{
+    status:200,
+    headers:{
+      "Content-Type":"application/json; charset=UTF-8",
+      "Access-Control-Allow-Origin":"*",
+      "Access-Control-Allow-Methods":"GET,POST,PUT,PATCH,DELETE,OPTIONS",
+      "Access-Control-Allow-Headers":"Content-Type, Authorization",
+      "Cache-Control":"no-store"
+    }
+  });
 }
 
 async function upsertFlight(env,x){
@@ -188,8 +203,7 @@ async function handleFlights(request,env,url){
       return json({ok:true,flight});
     }
 
-    const flights=await getFlights(env);
-    return json({ok:true,count:flights.length,flights});
+    return await getFlightsResponse(env);
   }
 
   if(url.pathname==="/api/flights" && request.method==="POST"){
@@ -555,7 +569,7 @@ async function getPrepaInbox(env, url) {
 
   sql += `
     ORDER BY received_at DESC, id DESC
-    LIMIT 200
+    LIMIT 120
   `;
 
 
@@ -580,10 +594,34 @@ async function getPrepaInbox(env, url) {
       let attachments = [];
 
       try {
-        attachments =
+        const parsed =
           JSON.parse(
             row.attachments_json || "[]"
           );
+
+        const needsPayload =
+          status === "PENDING" ||
+          status === "PROCESSING" ||
+          status === "UNIDENTIFIED";
+
+        attachments =
+          Array.isArray(parsed)
+            ? parsed.map(att => {
+                if (needsPayload) return att;
+
+                /*
+                 * Vue OUTILS / historique :
+                 * on ne renvoie pas les PDF base64.
+                 * Seulement les métadonnées nécessaires à l'interface.
+                 */
+                return {
+                  name: String(att?.name || ""),
+                  mimeType: String(att?.mimeType || ""),
+                  size: Number(att?.size || 0),
+                  driveId: String(att?.driveId || "")
+                };
+              })
+            : [];
       } catch (e) {}
 
 
@@ -767,6 +805,7 @@ async function handlePrepa(request, env, url) {
     const allowed =
       new Set([
         "PENDING",
+        "UNIDENTIFIED",
         "PROCESSING",
         "PROCESSED",
         "ERROR"
@@ -952,7 +991,7 @@ export default {
     });
 
     }catch(err){
-      console.error("ALYZIA OPS V49.89",err);
+      console.error("ALYZIA OPS V49.90",err);
       return json({
         ok:false,
         error:err?.message||String(err)
