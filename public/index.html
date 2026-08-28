@@ -6,7 +6,7 @@
   <meta http-equiv="Expires" content="0">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V49.79 · D1 MULTI-DEVICE SYNC · SQ + TK + BJ LOCKED</title>
+<title>ALYZIA OPS - V49.80 · D1 MULTI-DEVICE SYNC · SQ + TK + BJ LOCKED</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -6565,13 +6565,13 @@ html,body{
 <body>
 <script>
 /* V49.75 — BJ KPI WEB SBY AVAILABLE. SQ/TK frozen. */
-const ALYZIA_APP_VERSION='V49.79';
+const ALYZIA_APP_VERSION='V49.80';
 const ALYZIA_SQ_LOCK_VERSION='V49.64';
 const ALYZIA_TK_LOCK_VERSION='V49.69';
 const ALYZIA_APP_BUILD='2026-08-26-09';
 </script>
 <header class="topbar">
- <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V49.79</span></div>
+ <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V49.80</span></div>
  <nav class="nav">
    <button class="home-nav" onclick="renderHome()" title="Accueil vols">⌂</button>
    <button onclick="renderHome()">VOLS</button><button onclick="openFlightSearch()">RECHERCHE</button><button onclick="renderPrepa()">PRÉPA</button><button onclick="openTools()">OUTILS</button><button>ADMIN</button>
@@ -7687,7 +7687,7 @@ function editingKey(x,departureDate){return `${x.airline}|${x.flight}|${departur
 function loadEditingStore(){
  let local={};
  try{local=JSON.parse(localStorage.getItem(PREPA_EDITING_STORE_KEY)||'{}')||{}}catch(e){local={}}
- // V49.79: D1/flight payload is canonical. localStorage is cache/fallback only.
+ // V49.80: D1/flight payload is canonical. localStorage is cache/fallback only.
  try{
   (Array.isArray(FLIGHTS)?FLIGHTS:[]).forEach(x=>{
    if(!x?.prepaEditing)return;
@@ -8563,7 +8563,7 @@ function openFlightFromPrepa(flightIndex){
 }
 
 
-/* V49.79 — D1 multi-device sync hardening. SQ/TK/BJ business logic LOCKED. */
+/* V49.80 — D1 multi-device sync hardening. SQ/TK/BJ business logic LOCKED. */
 const BJ_PREPA_CARDS=['WCH','UMNR','MAAS','PETC / AVIH','DEAF / BLND','INF','CHLD','STAFF','WEB','PBOR / PCIN','MEAL','EMD','FQTV'];
 function bjNorm(v){return String(v||'').toUpperCase().replace(/[^A-Z0-9]/g,'')}
 function bjSeat(v){const m=String(v||'').toUpperCase().match(/\b\d{1,2}[A-K]\b/);return m?m[0]:''}
@@ -10984,7 +10984,10 @@ function applyTkManifestToFlight(manifest,context=null){
  setList('PET_AV',manifest.commonLists?.PET_AV||[]);
  setList('VIP',manifest.commonLists?.VIP||[]);
  setList('GROUP',manifest.commonLists?.GROUP||[],manifest.counts?.GROUP||0);
- setList('FQTV',manifest.commonLists?.FQTV||[],manifest.counts?.FQTV||0);
+ {
+   const tkFqUnique=tkUniquePassengerList(manifest.commonLists?.FQTV||[]);
+   setList('FQTV',tkFqUnique,tkFqUnique.length);
+ }
  setList('MEAL',manifest.commonLists?.MEAL||[],manifest.counts?.MEAL||0);
  setList('WEB',manifest.commonLists?.WEB||[],manifest.counts?.WEB||0);
  setList('UPGR',manifest.commonLists?.UPGR||[],manifest.counts?.UPGR||0);
@@ -14277,7 +14280,8 @@ function openFqtvCategories(){
    </div>`);return;
  }
  const order=['ELPL','ELIT','CLPL','CLSC','GOLD','SILVER','GOLD_OTHER','SILVER_OTHER'],groups={};
- arr.forEach(p=>{const cat=fqtvCategoryForPassenger(p);if(cat!=='AUTRES')(groups[cat]=groups[cat]||[]).push(p)});
+ const tkFqArr=x.airline==='TK'?tkDedupeOperationalList(arr):arr;
+ tkFqArr.forEach(p=>{const cat=fqtvCategoryForPassenger(p);if(cat!=='AUTRES')(groups[cat]=groups[cat]||[]).push(p)});
  showModal(`FQTV · ${arr.length}`,x.flight,`<div class="meal-category-list">${order.filter(cat=>groups[cat]?.length).map(cat=>`<button class="meal-category-row fqtv-cat ${cat.toLowerCase()}" onclick="openFqtvPassengerList('${cat}')"><span>${tkFqtvDisplayLabel(cat)}</span><b>${groups[cat].length}</b><small>VOIR LES PASSAGERS</small></button>`).join('')||'<div class="prepa-empty">AUCUN FQTV IMPORTÉ</div>'}</div>`);
 }
 function openSqFqtvDisplayList(group,sort='name',dir='asc'){
@@ -14294,7 +14298,7 @@ function openSqFqtvDisplayList(group,sort='name',dir='asc'){
 
 function openFqtvPassengerList(cat,sort='name',dir='asc'){
  const x=f(),raw=Array.isArray(x.common_lists?.FQTV)?x.common_lists.FQTV:[],arr=x.airline==='SQ'?cleanSqFqtvList(raw):raw;
- const rawMatch=arr.filter(p=>fqtvCategoryForPassenger(p)===cat);
+ const rawMatch=tkDedupeOperationalList(arr.filter(p=>fqtvCategoryForPassenger(p)===cat));
  const match=sortPaxItems(rawMatch,sort,dir);
  PAX_MODAL_ITEMS=match; PAX_MODAL_SOURCE=rawMatch.slice();
  const next=s=>sort===s?(dir==='asc'?'desc':'asc'):'asc';
@@ -14374,6 +14378,30 @@ function openQuickRamp(sort='name',dir='asc',replaceSort=false){
  `,replaceSort);
 }
 
+function tkOperationalDisplayCodeForCard(p,def){
+ if(f()?.airline!=='TK')return '';
+ const id=String(def?.id||'').toUpperCase();
+ const ssr=[...(Array.isArray(p?.ssr)?p.ssr:[])].map(v=>String(v||'').toUpperCase());
+ if(id==='INF')return 'INF';
+ if(id==='CHLD_TOY'||id==='CHLD')return 'CHLD';
+ if(id==='WCH')return ['WCHR','WCHS','WCHC'].filter(c=>ssr.includes(c)).join(' · ')||'WCH';
+ if(id==='WCMOB')return ['WCMP','WCLB','WCBD'].filter(c=>ssr.includes(c)).join(' · ')||'WCMOB';
+ if(id==='DEAF_BLND')return ['DEAF','BLND'].filter(c=>ssr.includes(c)).join(' · ')||'DEAF / BLND';
+ if(id==='PET_AV')return ['PETC','AVIH'].filter(c=>ssr.includes(c)).join(' · ')||'PETC / AVIH';
+ return '';
+}
+function tkPassengerDedupeKey(p){
+ const norm=v=>String(v||'').replace(/[^A-Z0-9]/gi,'').toUpperCase();
+ return String(p?.etkt||'')||`${norm(p?.name||p?.fullName)}|${String(p?.seat||'').toUpperCase()}|${String(p?.class||'').toUpperCase()}`;
+}
+function tkDedupeOperationalList(list){
+ const seen=new Set();
+ return (Array.isArray(list)?list:[]).filter(p=>{
+   const k=tkPassengerDedupeKey(p);
+   if(!k||seen.has(k))return false;
+   seen.add(k);return true;
+ });
+}
 function openPrepaSpecificityCard(defId,sort='name',dir='asc',replaceSort=false){
  const x=f();
  const def=companyParticularityDefs(x.airline).find(d=>d.id===defId);
@@ -14430,6 +14458,7 @@ function openPrepaSpecificityCard(defId,sort='name',dir='asc',replaceSort=false)
  });
 
  let partSource=availableLists.slice();
+ if(x.airline==='TK')partSource=tkDedupeOperationalList(partSource);
  if(x.airline==='SQ' && def.id==='WCH'){
    const dedicated=partSource.filter(p=>String(p.sourceReport||'').toUpperCase()==='PDF-PSPLWCHR');
    const base=dedicated.length?[...dedicated,...partSource.filter(p=>String(p.sourceReport||'').toUpperCase()!=='PDF-PSPLWCHR')]:partSource;
@@ -14438,7 +14467,11 @@ function openPrepaSpecificityCard(defId,sort='name',dir='asc',replaceSort=false)
  if(x.airline==='SQ' && ['BOOKABLE_STAFF','REBATE_STAFF'].includes(def.id)){
    partSource=normalizeSqOperationalList(partSource,x.passengers||[],def.id);
  }
- const sortedPart=sortPaxItems(partSource,sort,dir);
+ const sortedPart=sortPaxItems(partSource,sort,dir).map(p=>{
+   if(x.airline!=='TK')return p;
+   const code=tkOperationalDisplayCodeForCard(p,def);
+   return code?{...p,_modalSsrOverride:code}:p;
+ });
  window.__partPax=sortedPart;
  window.__partPaxSource=partSource;
  const nextSort=s=>sort===s?(dir==='asc'?'desc':'asc'):'asc';
@@ -14468,7 +14501,7 @@ function openPrepaSpecificityCard(defId,sort='name',dir='asc',replaceSort=false)
              <span class="part-col-seat">${p.seat||'—'}</span>
              <span class="part-col-class">${modalClassText(p.class)}</span>
              <span class="part-col-doc">${passengerDocMeta(p)||'—'}</span>
-             <span class="part-col-ssr">${x.airline==='BJ'?(bjCardInfo(p,def.id)||def.label):(Array.isArray(p.ssr)&&p.ssr.length?[...new Set(p.ssr)].filter(Boolean).join(' · '):(p.specific||p.note||def.label))}</span>
+             <span class="part-col-ssr">${x.airline==='BJ'?(bjCardInfo(p,def.id)||def.label):x.airline==='TK'?(tkOperationalDisplayCodeForCard(p,def)||(p.specific||p.note||def.label)):(Array.isArray(p.ssr)&&p.ssr.length?[...new Set(p.ssr)].filter(Boolean).join(' · '):(p.specific||p.note||def.label))}</span>
            </button>`).join('')}
        </div>
      </div>`:'<div class="prepa-empty">AUCUN PASSAGER DÉTAILLÉ · QUANTITÉS ISSUES DE LA PRÉPA</div>'}
@@ -15990,7 +16023,7 @@ function openPax(p){
    <div><small>ETKT</small><b>${p.etkt||'—'}</b></div>
    ${sqFqtvField}
    ${extraIdentity}
-   <div><small>SSR</small><b>${isBj?(bjSsrDisplay(p)||'—'):(Array.isArray(p.ssr)&&p.ssr.length?[...new Set(p.ssr)].filter(Boolean).join(' · '):'—')}</b></div>
+   <div><small>SSR</small><b>${isBj?(bjSsrDisplay(p)||'—'):(p._modalSsrOverride||((Array.isArray(p.ssr)&&p.ssr.length)?[...new Set(p.ssr)].filter(Boolean).join(' · '):'—'))}</b></div>
    <div class="profile-specificity"><small>SPÉCIFICITÉ</small><b>${passengerSpecificityHtml(p)}</b></div>
    ${p.ownerMatchMissing?`<div class="owner-match-warning"><small>ASSOCIATION</small><b>PASSAGER RÉEL NON RETROUVÉ</b></div>`:''}
   </div>
@@ -16037,6 +16070,7 @@ async function confirmClearAllFlights(){await confirmFullReset()}
 /* =========================================================
    V49.46 — SYNCHRONISATION SILENCIEUSE MULTI-POSTES
    ========================================================= */
+/* V49.80 — TK INF contextual SSR + TK CHLD/FQTV dedupe + D1 fast-sync authoritative. SQ/BJ LOCKED. */
 const OPS_REALTIME_INTERVAL_VISIBLE=2500;
 const OPS_REALTIME_INTERVAL_HIDDEN=8000;
 let OPS_REALTIME_TIMER=null;
@@ -16104,7 +16138,7 @@ function hasRows(v){return Array.isArray(v)&&v.length>0}
 function mealListsHaveRows(v){
  return !!(v&&typeof v==='object'&&Object.values(v).some(list=>Array.isArray(list)&&list.length>0));
 }
-// Legacy downgrade guard retained for reference but no longer applied in V49.79 multi-device mode.
+// Legacy downgrade guard retained for reference but no longer applied in V49.80 multi-device mode.
 function protectDetailedLocalFlight(local,cloud){
  if(!local||!cloud)return cloud;
  const localHasPassengers=hasRows(local.passengers);
@@ -16176,7 +16210,7 @@ async function silentCloudRefresh({forceRender=false}={}){
 
    const {flights:cloudFiltered}=splitCloudRecords(data.flights);
    normalizeLegacyImportedDurations(cloudFiltered);
-   const filtered=cloudFiltered; // V49.79: D1 is authoritative across devices
+   const filtered=cloudFiltered; // V49.80: D1 is authoritative across devices
    // Snapshot = état D1 réel, pas la version localement protégée.
    rebuildCloudSnapshot(cloudFiltered);
    const nextHash=stableCloudHash(filtered);
@@ -16225,7 +16259,7 @@ async function syncSelectedFlightFast(){
 
    const idx=FLIGHTS.findIndex(x=>flightImportIdentity(x)===identity);
    if(idx<0)return false;
-   const cloud=protectDetailedLocalFlight(FLIGHTS[idx],cloudRaw);
+   const cloud=cloudRaw; // V49.80: D1 authoritative in fast selected-flight refresh too
 
    const before=JSON.stringify([
      FLIGHTS[idx].lastActionAt,FLIGHTS[idx].booked,FLIGHTS[idx].config,FLIGHTS[idx].web,
@@ -17484,7 +17518,7 @@ async function bootstrapAlyziaOps(){
  if(Array.isArray(cloudFlights)){
    const localBeforeCloud=await loadImportedFlightsPersistent();
    const rawFilteredCloud=cloudFlights.filter(x=>String(x.airline||'').toUpperCase()!=='KL');
-   const filteredCloud=rawFilteredCloud; // V49.79: D1 is authoritative across devices
+   const filteredCloud=rawFilteredCloud; // V49.80: D1 is authoritative across devices
 
    if(filteredCloud.length){
      // Snapshot = état D1 réel afin qu'une future sauvegarde puisse réparer les détails manquants.
