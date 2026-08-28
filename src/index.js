@@ -646,6 +646,110 @@ async function handlePrepa(request, env, url) {
   }
 
 
+
+  /*
+   * ALYZIA OPS -> résultat du traitement d'une PREPA
+   * Autorise uniquement PENDING / PROCESSING / PROCESSED / ERROR.
+   */
+  if (
+    url.pathname === "/api/prepa/status" &&
+    request.method === "PATCH"
+  ) {
+
+    const body =
+      await request.json()
+        .catch(() => null);
+
+    const id =
+      Number(body?.id);
+
+    const gmailMessageId =
+      String(body?.gmailMessageId || "").trim();
+
+    const status =
+      String(body?.status || "")
+        .trim()
+        .toUpperCase();
+
+    const errorMessage =
+      String(body?.errorMessage || "").trim();
+
+    const allowed =
+      new Set([
+        "PENDING",
+        "PROCESSING",
+        "PROCESSED",
+        "ERROR"
+      ]);
+
+    if (
+      !Number.isFinite(id) ||
+      id <= 0 ||
+      !gmailMessageId ||
+      !allowed.has(status)
+    ) {
+      return json({
+        ok: false,
+        error: "STATUT PREPA INVALIDE"
+      }, 400);
+    }
+
+    const existing =
+      await env.OPS_DB.prepare(`
+        SELECT
+          id,
+          gmail_message_id,
+          status
+        FROM prepa_inbox
+        WHERE id=?
+          AND gmail_message_id=?
+        LIMIT 1
+      `)
+      .bind(id, gmailMessageId)
+      .first();
+
+    if (!existing) {
+      return json({
+        ok: false,
+        error: "PREPA INTROUVABLE"
+      }, 404);
+    }
+
+    await env.OPS_DB.prepare(`
+      UPDATE prepa_inbox
+      SET
+        status=?,
+        error_message=?,
+        processed_at=
+          CASE
+            WHEN ?='PROCESSED'
+              THEN CURRENT_TIMESTAMP
+            ELSE processed_at
+          END,
+        updated_at=CURRENT_TIMESTAMP
+      WHERE id=?
+        AND gmail_message_id=?
+    `)
+    .bind(
+      status,
+      status === "ERROR"
+        ? errorMessage
+        : "",
+      status,
+      id,
+      gmailMessageId
+    )
+    .run();
+
+    return json({
+      ok: true,
+      id,
+      gmailMessageId,
+      status
+    });
+  }
+
+
   /*
    * ALYZIA OPS -> lecture boîte PRÉPA
    */
