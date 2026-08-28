@@ -6,7 +6,7 @@
   <meta http-equiv="Expires" content="0">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V49.78 · BJ INF + STAFF PASS2 TEST · SQ + TK LOCKED</title>
+<title>ALYZIA OPS - V49.79 · D1 MULTI-DEVICE SYNC · SQ + TK + BJ LOCKED</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -6565,13 +6565,13 @@ html,body{
 <body>
 <script>
 /* V49.75 — BJ KPI WEB SBY AVAILABLE. SQ/TK frozen. */
-const ALYZIA_APP_VERSION='V49.78';
+const ALYZIA_APP_VERSION='V49.79';
 const ALYZIA_SQ_LOCK_VERSION='V49.64';
 const ALYZIA_TK_LOCK_VERSION='V49.69';
 const ALYZIA_APP_BUILD='2026-08-26-09';
 </script>
 <header class="topbar">
- <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V49.78</span></div>
+ <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V49.79</span></div>
  <nav class="nav">
    <button class="home-nav" onclick="renderHome()" title="Accueil vols">⌂</button>
    <button onclick="renderHome()">VOLS</button><button onclick="openFlightSearch()">RECHERCHE</button><button onclick="renderPrepa()">PRÉPA</button><button onclick="openTools()">OUTILS</button><button>ADMIN</button>
@@ -7683,9 +7683,23 @@ function renderHome(){
 
 
 const PREPA_EDITING_STORE_KEY='alyzia_ops_editing_v26';
-function loadEditingStore(){try{return JSON.parse(localStorage.getItem(PREPA_EDITING_STORE_KEY)||'{}')||{}}catch(e){return {}}}
-function saveEditingStore(v){try{localStorage.setItem(PREPA_EDITING_STORE_KEY,JSON.stringify(v))}catch(e){}}
 function editingKey(x,departureDate){return `${x.airline}|${x.flight}|${departureDate}`}
+function loadEditingStore(){
+ let local={};
+ try{local=JSON.parse(localStorage.getItem(PREPA_EDITING_STORE_KEY)||'{}')||{}}catch(e){local={}}
+ // V49.79: D1/flight payload is canonical. localStorage is cache/fallback only.
+ try{
+  (Array.isArray(FLIGHTS)?FLIGHTS:[]).forEach(x=>{
+   if(!x?.prepaEditing)return;
+   const d=x.prepaEditing;
+   const dep=d.date||x.activeDate||x.date||'';
+   if(!dep)return;
+   local[editingKey(x,dep)]=JSON.parse(JSON.stringify(d));
+  });
+ }catch(e){}
+ return local;
+}
+function saveEditingStore(v){try{localStorage.setItem(PREPA_EDITING_STORE_KEY,JSON.stringify(v))}catch(e){}}
 function defaultEditingData(x,departureDate){
  const classes=orderedClasses(x),cfg={},bkg={},meals={};
  const fixed=x.airline==='SQ'?prepaSqFixedConfig(x.flight):null;
@@ -7693,7 +7707,11 @@ function defaultEditingData(x,departureDate){
  if(fixed)Object.keys(fixed).forEach(k=>cfg[k]=fixed[k]);
  return {flight:x.flight,date:departureDate,reg:x.reg||'',config:cfg,booking:bkg,std:x.std||'',sta:schedule(x).sta||'',meals:{},parking:x.parking||'',gate:x.gate||'',type:x.aircraft||'',particularities:{},comments:{business:'',premium:'',economy:'',quickRamp:''},extra:{}};
 }
-function getEditingData(x,departureDate){const store=loadEditingStore(),key=editingKey(x,departureDate);return {...defaultEditingData(x,departureDate),...(store[key]||{})}}
+function getEditingData(x,departureDate){
+ const key=editingKey(x,departureDate),store=loadEditingStore();
+ const cloudEdit=(x?.prepaEditing && String(x.prepaEditing.date||departureDate)===String(departureDate))?x.prepaEditing:null;
+ return {...defaultEditingData(x,departureDate),...(store[key]||{}),...(cloudEdit||{})};
+}
 function editingFeedback(message,type='info'){
  const el=document.getElementById('editingFeedback');
  if(!el)return;
@@ -8545,7 +8563,7 @@ function openFlightFromPrepa(flightIndex){
 }
 
 
-/* V49.78 — BJ INF parent linking + PASS2 STAFF. SQ/TK LOCKED. */
+/* V49.79 — D1 multi-device sync hardening. SQ/TK/BJ business logic LOCKED. */
 const BJ_PREPA_CARDS=['WCH','UMNR','MAAS','PETC / AVIH','DEAF / BLND','INF','CHLD','STAFF','WEB','PBOR / PCIN','MEAL','EMD','FQTV'];
 function bjNorm(v){return String(v||'').toUpperCase().replace(/[^A-Z0-9]/g,'')}
 function bjSeat(v){const m=String(v||'').toUpperCase().match(/\b\d{1,2}[A-K]\b/);return m?m[0]:''}
@@ -16086,6 +16104,7 @@ function hasRows(v){return Array.isArray(v)&&v.length>0}
 function mealListsHaveRows(v){
  return !!(v&&typeof v==='object'&&Object.values(v).some(list=>Array.isArray(list)&&list.length>0));
 }
+// Legacy downgrade guard retained for reference but no longer applied in V49.79 multi-device mode.
 function protectDetailedLocalFlight(local,cloud){
  if(!local||!cloud)return cloud;
  const localHasPassengers=hasRows(local.passengers);
@@ -16157,7 +16176,7 @@ async function silentCloudRefresh({forceRender=false}={}){
 
    const {flights:cloudFiltered}=splitCloudRecords(data.flights);
    normalizeLegacyImportedDurations(cloudFiltered);
-   const filtered=protectCloudListAgainstLocal(cloudFiltered,FLIGHTS);
+   const filtered=cloudFiltered; // V49.79: D1 is authoritative across devices
    // Snapshot = état D1 réel, pas la version localement protégée.
    rebuildCloudSnapshot(cloudFiltered);
    const nextHash=stableCloudHash(filtered);
@@ -17465,7 +17484,7 @@ async function bootstrapAlyziaOps(){
  if(Array.isArray(cloudFlights)){
    const localBeforeCloud=await loadImportedFlightsPersistent();
    const rawFilteredCloud=cloudFlights.filter(x=>String(x.airline||'').toUpperCase()!=='KL');
-   const filteredCloud=protectCloudListAgainstLocal(rawFilteredCloud,localBeforeCloud);
+   const filteredCloud=rawFilteredCloud; // V49.79: D1 is authoritative across devices
 
    if(filteredCloud.length){
      // Snapshot = état D1 réel afin qu'une future sauvegarde puisse réparer les détails manquants.
