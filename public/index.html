@@ -6770,10 +6770,10 @@ html,body{
 <body>
 <script>
 /* V49.75 — BJ KPI WEB SBY AVAILABLE. SQ/TK frozen. */
-const ALYZIA_APP_VERSION='V49.90';
+const ALYZIA_APP_VERSION='V49.91';
 const ALYZIA_SQ_LOCK_VERSION='V49.64';
 const ALYZIA_TK_LOCK_VERSION='V49.69';
-const ALYZIA_APP_BUILD='2026-08-28-90';
+const ALYZIA_APP_BUILD='2026-08-28-91';
 </script>
 <header class="topbar">
  <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V49.89</span></div>
@@ -16786,7 +16786,7 @@ async function openTools(){
    <button class="tool-card" onclick="openSariaApp()"><span class="tool-icon">✈</span><b>SARIA</b><span>OUVRIR DIRECTEMENT L’OUTIL SARIA CABIN / SEATMAP.</span></button>
    <div class="ops-cloud-card">
      <div id="opsCloudStatusBox" class="ops-cloud-status ${OPS_CLOUD_ONLINE?'ok':'warn'}">${OPS_CLOUD_ONLINE?'☁ SYNC MULTI-POSTES ACTIVE':'☁ SYNC MULTI-POSTES'}</div>
-     <div class="ops-cloud-help">D1 PARTAGÉ · FICHE OUVERTE ~0,5 S · SYNCHRO GLOBALE ~1,5 S · PC, TABLETTE ET TÉLÉPHONE.<br><b style="color:#087749">V49.90 · CARTE IMPORTS</b></div>
+     <div class="ops-cloud-help">D1 PARTAGÉ · FICHE OUVERTE ~0,5 S · SYNCHRO GLOBALE ~1,5 S · PC, TABLETTE ET TÉLÉPHONE.<br><b style="color:#087749">V49.91 · IMPORTS GROUPÉS PAR VOL</b></div>
      <button class="live-refresh" onclick="manualCloudRefresh()">↻ SYNCHRONISER MAINTENANT</button>
    </div>
    ${renderImportsMainCard()}
@@ -17170,7 +17170,7 @@ function openFlightInfo(){
 }
 
 
-console.info('ALYZIA OPS V49.90 · CARTE IMPORTS');
+console.info('ALYZIA OPS V49.91 · IMPORTS GROUPÉS PAR VOL');
 const SARIA_DIRECT_URL="https://saria-seatmap.alyzia-cdg2.workers.dev";
 const SARIA_BRIDGE_BASE=(location.protocol==='http:'||location.protocol==='https:')
   ? `${location.origin}/api/saria`
@@ -17933,7 +17933,7 @@ setInterval(updateClocks,1000);
 
 
 /* =========================================================
-   V49.88 — GMAIL PREPA INBOX AUTO-IMPORT
+   V49.91 — GMAIL PREPA INBOX AUTO-IMPORT GROUPÉ
    Gmail -> Apps Script -> Worker/D1 -> existing PREPA parser.
    No airline parser is duplicated here.
    ========================================================= */
@@ -17949,7 +17949,7 @@ async function fetchPendingPrepaInbox(){
   const j=await r.json();
   return Array.isArray(j?.items)?j.items:[];
  }catch(e){
-  console.warn('V49.88 PREPA INBOX GET',e);
+  console.warn('V49.91 PREPA INBOX GET',e);
   return [];
  }
 }
@@ -17970,7 +17970,7 @@ async function setPrepaInboxStatus(item,status,errorMessage=''){
   if(!r.ok)throw new Error(`HTTP ${r.status}`);
   return await r.json();
  }catch(e){
-  console.warn('V49.88 PREPA INBOX STATUS',status,e);
+  console.warn('V49.91 PREPA INBOX STATUS',status,e);
   return null;
  }
 }
@@ -18027,7 +18027,7 @@ async function buildRawPrepaInboxText(item){
     blocks.push(`===== FICHIER : ${String(att?.name||'').toUpperCase()} =====\n${String(raw).trim()}`);
    }
   }catch(e){
-   console.warn('V49.88 ATTACHMENT PREPA',att?.name,e);
+   console.warn('V49.91 ATTACHMENT PREPA',att?.name,e);
   }
  }
  return blocks.join('\n\n');
@@ -18103,40 +18103,192 @@ async function applyInboxRawWithExistingParser(item,idx,raw){
  }
 }
 
+function pendingPrepaGroupKey(item){
+ return [
+  String(item?.airline||'').trim().toUpperCase(),
+  normalizeInboxFlightNumber(item?.flightNumber),
+  String(item?.flightDate||'').trim()
+ ].join('|');
+}
+
+function groupPendingPrepaInbox(items){
+ const map=new Map();
+
+ for(const item of Array.isArray(items)?items:[]){
+  const key=pendingPrepaGroupKey(item);
+  if(!key||key==='||')continue;
+
+  if(!map.has(key))map.set(key,[]);
+  map.get(key).push(item);
+ }
+
+ const groups=[...map.values()];
+
+ for(const group of groups){
+  group.sort((a,b)=>{
+   const da=new Date(a?.receivedAt||a?.createdAt||0).getTime()||0;
+   const db=new Date(b?.receivedAt||b?.createdAt||0).getTime()||0;
+   return da-db;
+  });
+ }
+
+ /*
+  * Priorité aux groupes dont le vol existe déjà dans FLIGHTS.
+  * C'est la correction principale V49.91 :
+  * un vol futur absent ne bloque plus tous les imports suivants.
+  */
+ groups.sort((a,b)=>{
+  const ia=findFlightIndexForInbox(a[0]);
+  const ib=findFlightIndexForInbox(b[0]);
+
+  if((ia>=0)!==(ib>=0))return ia>=0?-1:1;
+
+  const da=String(a[0]?.flightDate||'');
+  const db=String(b[0]?.flightDate||'');
+  return da.localeCompare(db);
+ });
+
+ return groups;
+}
+
+async function buildGroupedPrepaInboxText(group){
+ const blocks=[];
+
+ for(const item of group){
+  const raw=await buildRawPrepaInboxText(item);
+
+  if(String(raw||'').trim()){
+   blocks.push(
+    `===== MESSAGE GMAIL ${String(item?.gmailMessageId||'').toUpperCase()} =====\n` +
+    String(raw).trim()
+   );
+  }
+ }
+
+ return blocks.join('\n\n');
+}
+
+async function setPrepaInboxGroupStatus(group,status,errorMessage=''){
+ const results=[];
+
+ for(const item of group){
+  try{
+   const r=await setPrepaInboxStatus(item,status,errorMessage);
+   results.push({item,result:r});
+  }catch(e){
+   results.push({item,result:null,error:e});
+  }
+ }
+
+ return results;
+}
+
 async function processOnePendingPrepaInbox(){
  if(PREPA_INBOX_BUSY||document.hidden||!navigator.onLine)return false;
  if(typeof modalIsOpen==='function'&&modalIsOpen())return false;
 
  PREPA_INBOX_BUSY=true;
+
  try{
   const items=await fetchPendingPrepaInbox();
   if(!items.length)return false;
 
-  const item=items[0];
-  const idx=findFlightIndexForInbox(item);
+  const groups=groupPendingPrepaInbox(items);
 
-  if(idx<0){
-   console.info('V49.88 PREPA EN ATTENTE DU VOL',item?.flightNumber,item?.flightDate);
+  /*
+   * On cherche le PREMIER groupe traitable, au lieu de prendre
+   * systématiquement items[0].
+   *
+   * Exemple :
+   * SQ335 du 30/08 absent de FLIGHTS peut rester EN ATTENTE,
+   * tandis que SQ335 du 28/08 et SQ337 du 29/08 sont injectés.
+   */
+  const group=groups.find(g=>g.length&&findFlightIndexForInbox(g[0])>=0);
+
+  if(!group){
+   const first=groups[0]?.[0];
+   console.info(
+    'V49.91 PREPA — AUCUN GROUPE TRAITABLE POUR LE MOMENT',
+    first?.flightNumber,
+    first?.flightDate
+   );
    return false;
   }
 
-  const claimed=await setPrepaInboxStatus(item,'PROCESSING');
-  if(!claimed?.ok)return false;
+  const master=group[0];
+  const idx=findFlightIndexForInbox(master);
+
+  if(idx<0)return false;
+
+  /*
+   * Réservation de TOUT le groupe compagnie + vol + date.
+   * Si une ligne n'est pas réservée, on ne l'inclut pas dans
+   * l'import afin d'éviter les doubles traitements multi-postes.
+   */
+  const claimed=[];
+
+  for(const item of group){
+   const r=await setPrepaInboxStatus(item,'PROCESSING');
+   if(r?.ok)claimed.push(item);
+  }
+
+  if(!claimed.length)return false;
 
   try{
-   const raw=await buildRawPrepaInboxText(item);
-   if(!String(raw||'').trim())throw new Error('SOURCE PREPA VIDE');
+   /*
+    * Tous les mails/PDF du même vol sont assemblés puis envoyés
+    * UNE SEULE FOIS au parseur existant.
+    *
+    * Aucun parser SQ/BJ/TK n'est modifié.
+    * Les sections manquantes gardent donc leur logique existante
+    * de non-effacement.
+    */
+   const raw=await buildGroupedPrepaInboxText(claimed);
 
-   await applyInboxRawWithExistingParser(item,idx,raw);
-   await setPrepaInboxStatus(item,'PROCESSED');
-   console.info('V49.88 PREPA GMAIL IMPORTEE',item?.flightNumber,item?.flightDate,item?.gmailMessageId);
-   setTimeout(()=>wakeRealtimeSync(),200);
+   if(!String(raw||'').trim()){
+    throw new Error('SOURCES PREPA DU GROUPE VIDES');
+   }
+
+   await applyInboxRawWithExistingParser(master,idx,raw);
+
+   await setPrepaInboxGroupStatus(
+    claimed,
+    'PROCESSED'
+   );
+
+   console.info(
+    'V49.91 PREPA GROUPE INJECTÉ',
+    master?.airline,
+    master?.flightNumber,
+    master?.flightDate,
+    `${claimed.length} MAIL(S)`
+   );
+
+   /*
+    * Actualise immédiatement l'affichage OUTILS et les autres postes.
+    */
+   try{await fetchRecentPrepaImports()}catch(e){}
+   setTimeout(()=>wakeRealtimeSync(),150);
+
    return true;
+
   }catch(e){
-   console.error('V49.88 PREPA GMAIL ERROR',item,e);
-   await setPrepaInboxStatus(item,'ERROR',String(e?.message||e));
+   console.error(
+    'V49.91 PREPA GROUPE ERROR',
+    master?.flightNumber,
+    master?.flightDate,
+    e
+   );
+
+   await setPrepaInboxGroupStatus(
+    claimed,
+    'ERROR',
+    String(e?.message||e)
+   );
+
    return false;
   }
+
  }finally{
   PREPA_INBOX_BUSY=false;
  }
