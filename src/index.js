@@ -229,6 +229,452 @@ async function handleFlights(request,env,url){
   return null;
 }
 
+function isAuthorizedPrepa(request, env) {
+  const expected = String(env.ALYZIA_API_SECRET || "").trim();
+
+  if (!expected) return false;
+
+  const auth = String(
+    request.headers.get("Authorization") || ""
+  ).trim();
+
+  if (!auth.startsWith("Bearer ")) return false;
+
+  const supplied = auth.slice(7).trim();
+
+  return supplied === expected;
+}
+
+
+function normalizePrepaPayload(body) {
+  if (!body || typeof body !== "object") return null;
+
+  const gmail = body.gmail || {};
+  const flight = body.flight || {};
+  const email = body.email || {};
+  const drive = body.drive || {};
+
+  const gmailMessageId =
+    String(gmail.messageId || "").trim();
+
+  const airline =
+    String(flight.airline || "")
+      .trim()
+      .toUpperCase();
+
+  const flightNumber =
+    String(flight.flightNumber || "")
+      .trim()
+      .toUpperCase();
+
+  const flightDate =
+    String(flight.date || "").trim();
+
+  if (
+    !gmailMessageId ||
+    !airline ||
+    !flightNumber ||
+    !flightDate
+  ) {
+    return null;
+  }
+
+  if (!["TK", "SQ", "BJ"].includes(airline)) {
+    return null;
+  }
+
+  return {
+    gmailMessageId,
+
+    gmailThreadId:
+      String(gmail.threadId || "").trim(),
+
+    airline,
+    flightNumber,
+    flightDate,
+
+    subject:
+      String(gmail.subject || ""),
+
+    sender:
+      String(gmail.from || ""),
+
+    receivedAt:
+      String(gmail.receivedAt || ""),
+
+    bodyText:
+      String(email.plainText || ""),
+
+    driveFolderId:
+      String(drive.folderId || ""),
+
+    driveEmailPdfId:
+      String(drive.emailPdfId || ""),
+
+    attachments:
+      Array.isArray(body.attachments)
+        ? body.attachments
+        : []
+  };
+}
+
+
+async function savePrepaInbox(env, item) {
+
+  const attachmentsJson =
+    JSON.stringify(item.attachments || []);
+
+  await env.OPS_DB.prepare(`
+    INSERT INTO prepa_inbox (
+      gmail_message_id,
+      gmail_thread_id,
+
+      airline,
+      flight_number,
+      flight_date,
+
+      subject,
+      sender,
+      received_at,
+
+      body_text,
+
+      drive_folder_id,
+      drive_email_pdf_id,
+
+      attachments_json,
+
+      status,
+      updated_at
+    )
+
+    VALUES (
+      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING',
+      CURRENT_TIMESTAMP
+    )
+
+    ON CONFLICT(gmail_message_id)
+    DO UPDATE SET
+
+      gmail_thread_id=excluded.gmail_thread_id,
+
+      airline=excluded.airline,
+      flight_number=excluded.flight_number,
+      flight_date=excluded.flight_date,
+
+      subject=excluded.subject,
+      sender=excluded.sender,
+      received_at=excluded.received_at,
+
+      body_text=excluded.body_text,
+
+      drive_folder_id=excluded.drive_folder_id,
+      drive_email_pdf_id=excluded.drive_email_pdf_id,
+
+      attachments_json=excluded.attachments_json,
+
+      updated_at=CURRENT_TIMESTAMP
+  `).bind(
+    item.gmailMessageId,
+    item.gmailThreadId,
+
+    item.airline,
+    item.flightNumber,
+    item.flightDate,
+
+    item.subject,
+    item.sender,
+    item.receivedAt,
+
+    item.bodyText,
+
+    item.driveFolderId,
+    item.driveEmailPdfId,
+
+    attachmentsJson
+  ).run();
+}
+
+
+async function getPrepaInbox(env, url) {
+
+  const status =
+    String(
+      url.searchParams.get("status") || ""
+    )
+      .trim()
+      .toUpperCase();
+
+  const airline =
+    String(
+      url.searchParams.get("airline") || ""
+    )
+      .trim()
+      .toUpperCase();
+
+  const flightNumber =
+    String(
+      url.searchParams.get("flight") || ""
+    )
+      .trim()
+      .toUpperCase();
+
+
+  let sql = `
+    SELECT
+      id,
+      gmail_message_id,
+      gmail_thread_id,
+
+      airline,
+      flight_number,
+      flight_date,
+
+      subject,
+      sender,
+      received_at,
+
+      body_text,
+
+      drive_folder_id,
+      drive_email_pdf_id,
+
+      attachments_json,
+
+      status,
+      error_message,
+
+      created_at,
+      updated_at,
+      processed_at
+
+    FROM prepa_inbox
+
+    WHERE 1=1
+  `;
+
+  const binds = [];
+
+
+  if (status) {
+    sql += ` AND status=?`;
+    binds.push(status);
+  }
+
+
+  if (airline) {
+    sql += ` AND airline=?`;
+    binds.push(airline);
+  }
+
+
+  if (flightNumber) {
+    sql += ` AND flight_number=?`;
+    binds.push(flightNumber);
+  }
+
+
+  sql += `
+    ORDER BY received_at DESC, id DESC
+    LIMIT 200
+  `;
+
+
+  const statement =
+    env.OPS_DB.prepare(sql);
+
+  const result =
+    binds.length
+      ? await statement.bind(...binds).all()
+      : await statement.all();
+
+
+  const rows =
+    Array.isArray(result.results)
+      ? result.results
+      : [];
+
+
+  const items =
+    rows.map(row => {
+
+      let attachments = [];
+
+      try {
+        attachments =
+          JSON.parse(
+            row.attachments_json || "[]"
+          );
+      } catch (e) {}
+
+
+      return {
+        id: row.id,
+
+        gmailMessageId:
+          row.gmail_message_id,
+
+        gmailThreadId:
+          row.gmail_thread_id,
+
+        airline:
+          row.airline,
+
+        flightNumber:
+          row.flight_number,
+
+        flightDate:
+          row.flight_date,
+
+        subject:
+          row.subject,
+
+        sender:
+          row.sender,
+
+        receivedAt:
+          row.received_at,
+
+        bodyText:
+          row.body_text,
+
+        driveFolderId:
+          row.drive_folder_id,
+
+        driveEmailPdfId:
+          row.drive_email_pdf_id,
+
+        attachments,
+
+        status:
+          row.status,
+
+        errorMessage:
+          row.error_message,
+
+        createdAt:
+          row.created_at,
+
+        updatedAt:
+          row.updated_at,
+
+        processedAt:
+          row.processed_at
+      };
+
+    });
+
+
+  return items;
+}
+
+
+async function handlePrepa(request, env, url) {
+
+  if (!url.pathname.startsWith("/api/prepa")) {
+    return null;
+  }
+
+
+  if (request.method === "OPTIONS") {
+    return json({ ok: true });
+  }
+
+
+  /*
+   * GOOGLE APPS SCRIPT -> ALYZIA
+   */
+  if (
+    url.pathname === "/api/prepa/import" &&
+    request.method === "POST"
+  ) {
+
+    if (!isAuthorizedPrepa(request, env)) {
+
+      return json({
+        ok: false,
+        error: "NON AUTORISE"
+      }, 401);
+
+    }
+
+
+    const body =
+      await request.json()
+        .catch(() => null);
+
+
+    const item =
+      normalizePrepaPayload(body);
+
+
+    if (!item) {
+
+      return json({
+        ok: false,
+        error: "PREPA INVALIDE"
+      }, 400);
+
+    }
+
+
+    await savePrepaInbox(
+      env,
+      item
+    );
+
+
+    return json({
+      ok: true,
+
+      accepted: true,
+
+      gmailMessageId:
+        item.gmailMessageId,
+
+      airline:
+        item.airline,
+
+      flightNumber:
+        item.flightNumber,
+
+      flightDate:
+        item.flightDate,
+
+      status: "PENDING"
+    });
+  }
+
+
+  /*
+   * ALYZIA OPS -> lecture boîte PRÉPA
+   */
+  if (
+    url.pathname === "/api/prepa" &&
+    request.method === "GET"
+  ) {
+
+    const items =
+      await getPrepaInbox(
+        env,
+        url
+      );
+
+
+    return json({
+      ok: true,
+      count: items.length,
+      items
+    });
+  }
+
+
+  return json({
+    ok: false,
+    error: "ROUTE PREPA INTROUVABLE"
+  }, 404);
+}
+
 async function handleSariaBridge(request,env,url){
   if(!url.pathname.startsWith("/api/saria/"))return null;
 
