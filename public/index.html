@@ -11986,6 +11986,66 @@ function applyPrepaValues(values,overwriteSelectors=null){
  return {applied,kept,accepted};
 }
 
+
+/* =========================================================
+   V49.82 — D1 PER-FLIGHT VERIFIED SYNC
+   Synchronization only. Airline parsing/rendering rules unchanged.
+   ========================================================= */
+function opsFlightSyncSignature(x){
+ const listLen=k=>Array.isArray(x?.common_lists?.[k])?x.common_lists[k].length:0;
+ const mealLen=Object.values(x?.meal_lists||{}).reduce((n,v)=>n+(Array.isArray(v)?v.length:0),0);
+ return {
+   identity:flightImportIdentity(x),
+   booked:sum(x?.booked||{}),
+   config:sum(x?.config||{}),
+   passengers:Array.isArray(x?.passengers)?x.passengers.length:0,
+   inbound:Array.isArray(x?.inbound)?x.inbound.length:0,
+   outbound:Array.isArray(x?.outbound)?x.outbound.length:0,
+   meals:mealLen,
+   WCH:listLen('WCH'), INF:listLen('INF'), CHLD:listLen('CHLD'),
+   FQTV:listLen('FQTV'), EMD:listLen('EMD'), ETK:listLen('ETK'), STAFF:listLen('STAFF')
+ };
+}
+function opsFlightSyncSignatureMatches(local,server){
+ if(!local||!server)return false;
+ const a=opsFlightSyncSignature(local),b=opsFlightSyncSignature(server);
+ if(a.identity!==b.identity)return false;
+ // For imported detailed flights, D1 must at least contain the same operational payload sizes.
+ const keys=['booked','config','passengers','inbound','outbound','meals','WCH','INF','CHLD','FQTV','EMD','ETK','STAFF'];
+ return keys.every(k=>Number(a[k]||0)===Number(b[k]||0));
+}
+async function persistOneFlightVerifiedToD1(x,{label='VOL'}={}){
+ if(!x)return false;
+ beginOpsCloudWrite();
+ try{
+   await cacheFlightsLocallyOnly(FLIGHTS);
+   const ok=await upsertFlightToCloud(x);
+   if(!ok){setOpsCloudState(false,`${label} · ÉCHEC ÉCRITURE D1`);return false;}
+   const identity=flightImportIdentity(x);
+   let server=await getOneFlightFromCloud(identity);
+   if(!server || !opsFlightSyncSignatureMatches(x,server)){
+     // One retry, still one flight only. Never resend the entire fleet for PREPA.
+     await upsertFlightToCloud(x);
+     server=await getOneFlightFromCloud(identity);
+   }
+   if(!server || !opsFlightSyncSignatureMatches(x,server)){
+     console.warn('V49.82 D1 PER-FLIGHT VERIFY FAILED',identity,opsFlightSyncSignature(x),server&&opsFlightSyncSignature(server));
+     setOpsCloudState(false,`${label} · D1 INCOMPLET`);
+     return false;
+   }
+   OPS_CLOUD_SNAPSHOT.set(identity,JSON.parse(JSON.stringify(server)));
+   const i=FLIGHTS.findIndex(v=>flightImportIdentity(v)===identity);
+   if(i>=0)FLIGHTS[i]={...FLIGHTS[i],...server};
+   OPS_REALTIME_LAST_HASH=stableCloudHash(FLIGHTS);
+   setOpsCloudState(true);
+   return true;
+ }catch(e){
+   console.warn('V49.82 PER-FLIGHT SYNC',e);
+   setOpsCloudState(false,`${label} · MODE LOCAL`);
+   return false;
+ }finally{endOpsCloudWrite();}
+}
+
 async function finalizePrepaAutomaticImport(result,context=null){
  const ctx=context||pendingPrepaContext();
  const idx=Number(ctx?.idx);
@@ -12010,8 +12070,9 @@ async function finalizePrepaAutomaticImport(result,context=null){
  PREPA_PENDING_INJECTION=null;
  const depDate=ctx?.departureDate||fx.date;
 
- await saveImportedFlightsPersistent(FLIGHTS).catch(()=>false);
- await persistFlightAction('IMPORT PREPA FINALISÉ',true);
+ await cacheFlightsLocallyOnly(FLIGHTS).catch(()=>false);
+ const d1Ok=await persistOneFlightVerifiedToD1(fx,{label:'IMPORT PREPA'});
+ if(!d1Ok)console.warn('V49.82 PREPA RESTE EN CACHE LOCAL — D1 NON CONFIRMÉ',flightImportIdentity(fx));
 
  PREPA_PENDING_CONTEXT=null;
  closeAllModals();
@@ -16411,8 +16472,13 @@ async function manualCloudRefresh(){
  if(el){el.className='ops-cloud-status';el.textContent='☁ SYNCHRONISATION…'}
  const changed=await silentCloudRefresh({forceRender:true});
  if(el){
-   el.className='ops-cloud-status ok';
-   el.textContent=`☁ SYNCHRONISÉ${changed?' · NOUVELLES DONNÉES':''}`;
+   if(OPS_CLOUD_ONLINE){
+     el.className='ops-cloud-status ok';
+     el.textContent=`☁ SYNCHRONISÉ${changed?' · NOUVELLES DONNÉES':''}`;
+   }else{
+     el.className='ops-cloud-status warn';
+     el.textContent='⚠ MODE LOCAL · D1 NON JOIGNABLE / NON CONFIRMÉ';
+   }
  }
 }
 
@@ -16433,7 +16499,7 @@ function openTools(){
    <button class="tool-card" onclick="openSariaApp()"><span class="tool-icon">✈</span><b>SARIA</b><span>OUVRIR DIRECTEMENT L’OUTIL SARIA CABIN / SEATMAP.</span></button>
    <div class="ops-cloud-card">
      <div id="opsCloudStatusBox" class="ops-cloud-status ${OPS_CLOUD_ONLINE?'ok':'warn'}">${OPS_CLOUD_ONLINE?'☁ SYNC MULTI-POSTES ACTIVE':'☁ SYNC MULTI-POSTES'}</div>
-     <div class="ops-cloud-help">D1 PARTAGÉ · FICHE OUVERTE ~0,8 S · SYNCHRO GLOBALE ~2,5 S · PC, TABLETTE ET TÉLÉPHONE.<br><b style="color:#087749">V49.81 · D1 VERIFIED SYNC</b></div>
+     <div class="ops-cloud-help">D1 PARTAGÉ · FICHE OUVERTE ~0,8 S · SYNCHRO GLOBALE ~2,5 S · PC, TABLETTE ET TÉLÉPHONE.<br><b style="color:#087749">V49.82 · D1 PER-FLIGHT VERIFIED SYNC</b></div>
      <button class="live-refresh" onclick="manualCloudRefresh()">↻ SYNCHRONISER MAINTENANT</button>
    </div>
    <div class="adb-usage-card"><div id="adbUsageBox"><button class="live-refresh" onclick="loadAeroUsage()">CHARGER COMPTEUR AERODATABOX</button></div></div>
@@ -16816,7 +16882,7 @@ function openFlightInfo(){
 }
 
 
-console.info('ALYZIA OPS V49.81 · D1 VERIFIED SYNC');
+console.info('ALYZIA OPS V49.82 · D1 PER-FLIGHT VERIFIED SYNC');
 const SARIA_DIRECT_URL="https://saria-seatmap.alyzia-cdg2.workers.dev";
 const SARIA_BRIDGE_BASE=(location.protocol==='http:'||location.protocol==='https:')
   ? `${location.origin}/api/saria`
@@ -17584,7 +17650,24 @@ async function bootstrapAlyziaOps(){
  if(Array.isArray(cloudFlights)){
    const localBeforeCloud=await loadImportedFlightsPersistent();
    const rawFilteredCloud=cloudFlights.filter(x=>String(x.airline||'').toUpperCase()!=='KL');
-   const filteredCloud=rawFilteredCloud; // V49.80: D1 is authoritative across devices
+   let filteredCloud=rawFilteredCloud; // D1 normally authoritative
+   // V49.82 recovery: if D1 has an obvious empty shell while this device owns a richer cached copy,
+   // repair that single D1 record before replacing local memory. This cannot create data on a new device;
+   // it only rescues a previously imported detailed flight from the PC that still has it.
+   if(Array.isArray(localBeforeCloud)&&localBeforeCloud.length){
+     const localMap=new Map(localBeforeCloud.map(v=>[flightImportIdentity(v),v]));
+     for(let n=0;n<filteredCloud.length;n++){
+       const cloud=filteredCloud[n],local=localMap.get(flightImportIdentity(cloud));
+       if(!local)continue;
+       const cs=opsFlightSyncSignature(cloud),ls=opsFlightSyncSignature(local);
+       const cloudShell=(cs.booked===0&&cs.passengers===0&&cs.FQTV===0&&cs.ETK===0);
+       const localDetailed=(ls.booked>0||ls.passengers>0||ls.FQTV>0||ls.ETK>0);
+       if(cloudShell&&localDetailed){
+         const repaired=await persistOneFlightVerifiedToD1(local,{label:'RÉPARATION D1'});
+         if(repaired)filteredCloud[n]=JSON.parse(JSON.stringify(local));
+       }
+     }
+   }
 
    if(filteredCloud.length){
      // Snapshot = état D1 réel afin qu'une future sauvegarde puisse réparer les détails manquants.
@@ -17657,4 +17740,6 @@ window.addEventListener('focus',()=>wakeRealtimeSync());
 </nav>
 
 </body></html>
-<!-- V49.81: TK scoped fixes: ETKT uses E-TKT report (ALL PAX still master), FQTV identity dedupe/full-number enrichment, PETC detail, STAFF code sort, D1 write verification. SQ/BJ unchanged. -->
+<!-- V49.82: synchronization-only hardening: per-flight D1 verified PREPA write, truthful manual sync status, detailed read-back verification. SQ/TK/BJ parser logic unchanged. -->
+
+<!-- V49.82 D1 per-flight verified sync. Manual sync status is truthful. PREPA writes one flight and verifies counts/lists after GET. -->
