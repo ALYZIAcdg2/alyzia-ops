@@ -6,7 +6,7 @@
   <meta http-equiv="Expires" content="0">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V49.85 · KPI STANDBY LIST + MOBILE · SQ/TK/BJ LOCKED</title>
+<title>ALYZIA OPS - V49.86 · GMAIL PREPA AUTO + KPI STANDBY + MOBILE · SQ/TK/BJ LOCKED</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -6702,7 +6702,7 @@ html,body{
 </style>
 
 <style>
-/* V49.85 — KPI WEB / STANDBY / AVAILABLE + named standby list */
+/* V49.86 — KPI WEB / STANDBY / AVAILABLE + named standby list */
 .wsa-label-short{display:none}
 .wsa-main-title{font-size:14px!important;letter-spacing:.2px}
 .wsa-cell{overflow:hidden}
@@ -6743,13 +6743,13 @@ html,body{
 <body>
 <script>
 /* V49.75 — BJ KPI WEB SBY AVAILABLE. SQ/TK frozen. */
-const ALYZIA_APP_VERSION='V49.85';
+const ALYZIA_APP_VERSION='V49.86';
 const ALYZIA_SQ_LOCK_VERSION='V49.64';
 const ALYZIA_TK_LOCK_VERSION='V49.69';
 const ALYZIA_APP_BUILD='2026-08-28-84';
 </script>
 <header class="topbar">
- <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V49.85</span></div>
+ <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V49.86</span></div>
  <nav class="nav">
    <button class="home-nav" onclick="renderHome()" title="Accueil vols">⌂</button>
    <button onclick="renderHome()">VOLS</button><button onclick="openFlightSearch()">RECHERCHE</button><button onclick="renderPrepa()">PRÉPA</button><button onclick="openTools()">OUTILS</button><button>ADMIN</button>
@@ -8145,7 +8145,7 @@ function twPrintHtml(s){
  <tr><td colspan="4" class="mid">${f('twJob')}</td><td colspan="4" class="mid">${f('twBag')}</td></tr>
  <tr><th colspan="8">SSR / TICKET / CONSIGNES</th></tr><tr><td colspan="8" class="mid">${f('twSsr')}</td></tr>
  </table><script>window.onload=()=>setTimeout(()=>window.print(),150)<\/script><!-- V49.83: silent multi-device auto-sync 0.5s selected / 1.5s global; TK cards view-only; mobile TYPE header hardened. -->
-<!-- V49.85: compact mobile WSA KPI; named standby list when an explicit TK standby report is available. -->
+<!-- V49.86: compact mobile WSA KPI; named standby list when an explicit TK standby report is available. -->
 </body></html>`;
 }
 function ozPrintHtml(s){
@@ -17856,6 +17856,230 @@ document.getElementById('modal').addEventListener('click',e=>{if(e.target.id==='
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&modalIsOpen()){e.preventDefault();closeAllModals()}});
 setInterval(updateClocks,1000);
 
+
+/* =========================================================
+   V49.86 — GMAIL PREPA INBOX AUTO-IMPORT
+   Gmail -> Apps Script -> Worker/D1 -> existing PREPA parser.
+   No airline parser is duplicated here.
+   ========================================================= */
+
+const PREPA_INBOX_POLL_MS=8000;
+let PREPA_INBOX_TIMER=null;
+let PREPA_INBOX_BUSY=false;
+
+async function fetchPendingPrepaInbox(){
+ try{
+  const r=await fetch('/api/prepa?status=PENDING',{method:'GET',cache:'no-store',headers:{'Accept':'application/json'}});
+  if(!r.ok)throw new Error(`HTTP ${r.status}`);
+  const j=await r.json();
+  return Array.isArray(j?.items)?j.items:[];
+ }catch(e){
+  console.warn('V49.86 PREPA INBOX GET',e);
+  return [];
+ }
+}
+
+async function setPrepaInboxStatus(item,status,errorMessage=''){
+ try{
+  const r=await fetch('/api/prepa/status',{
+   method:'PATCH',
+   cache:'no-store',
+   headers:{'Content-Type':'application/json'},
+   body:JSON.stringify({
+    id:Number(item?.id),
+    gmailMessageId:String(item?.gmailMessageId||''),
+    status:String(status||'').toUpperCase(),
+    errorMessage:String(errorMessage||'').slice(0,1000)
+   })
+  });
+  if(!r.ok)throw new Error(`HTTP ${r.status}`);
+  return await r.json();
+ }catch(e){
+  console.warn('V49.86 PREPA INBOX STATUS',status,e);
+  return null;
+ }
+}
+
+function normalizeInboxFlightNumber(v){
+ return String(v||'').replace(/\s+/g,'').toUpperCase();
+}
+
+function findFlightIndexForInbox(item){
+ const airline=String(item?.airline||'').trim().toUpperCase();
+ const flight=normalizeInboxFlightNumber(item?.flightNumber);
+ const date=String(item?.flightDate||'').trim();
+
+ let idx=FLIGHTS.findIndex(x=>
+  String(x?.airline||'').toUpperCase()===airline &&
+  normalizeInboxFlightNumber(x?.flight)===flight &&
+  String(x?.date||'')===date
+ );
+ if(idx>=0)return idx;
+
+ idx=FLIGHTS.findIndex(x=>
+  String(x?.airline||'').toUpperCase()===airline &&
+  normalizeInboxFlightNumber(x?.flight)===flight &&
+  (!x?.date||String(x.date)===date)
+ );
+ return idx;
+}
+
+function base64ToPrepaFile(att){
+ const b64=String(att?.base64||'');
+ if(!b64)return null;
+ const bin=atob(b64);
+ const bytes=new Uint8Array(bin.length);
+ for(let i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);
+ return new File([bytes],String(att?.name||'prepa.txt'),{type:String(att?.mimeType||'application/octet-stream')});
+}
+
+async function buildRawPrepaInboxText(item){
+ const airline=String(item?.airline||'').toUpperCase();
+ const blocks=[];
+
+ if(String(item?.bodyText||'').trim()){
+  blocks.push(`===== EMAIL : ${String(item?.subject||'PREPA').toUpperCase()} =====\n${String(item.bodyText).trim()}`);
+ }
+
+ if(airline==='TK')return blocks.join('\n\n');
+
+ for(const att of Array.isArray(item?.attachments)?item.attachments:[]){
+  try{
+   const file=base64ToPrepaFile(att);
+   if(!file)continue;
+   const raw=await extractPrepaFileText(file);
+   if(String(raw||'').trim()){
+    blocks.push(`===== FICHIER : ${String(att?.name||'').toUpperCase()} =====\n${String(raw).trim()}`);
+   }
+  }catch(e){
+   console.warn('V49.86 ATTACHMENT PREPA',att?.name,e);
+  }
+ }
+ return blocks.join('\n\n');
+}
+
+async function applyInboxRawWithExistingParser(item,idx,raw){
+ const x=FLIGHTS[idx];
+ if(!x)throw new Error('VOL INTROUVABLE');
+ const depDate=String(item?.flightDate||x.date||'');
+ const modal=document.getElementById('modal');
+ const oldVisibility=modal?.style?.visibility||'';
+ const oldPointer=modal?.style?.pointerEvents||'';
+
+ try{
+  if(modal){
+   modal.style.visibility='hidden';
+   modal.style.pointerEvents='none';
+  }
+
+  openPrepaEditing(idx,depDate);
+  await new Promise(r=>setTimeout(r,50));
+
+  const textarea=document.getElementById('prepaRawText');
+  if(textarea)textarea.value=raw;
+
+  PREPA_PENDING_CONTEXT=capturePrepaImportContext();
+  const ctx=PREPA_PENDING_CONTEXT;
+  const airline=String(item?.airline||x.airline||'').toUpperCase();
+  const values=collectPrepaImport(raw,airline);
+
+  PREPA_PENDING_MANIFEST=
+   airline==='BJ'?prepareBjImportManifest(raw):
+   airline==='SQ'?prepareSqImportManifest(raw):
+   airline==='TK'?prepareTkImportManifest(raw):null;
+
+  try{v4920FinalizeShadowComparison(raw,airline,values,PREPA_PENDING_MANIFEST)}catch(e){}
+
+  if(!Object.keys(values||{}).length&&!PREPA_PENDING_MANIFEST?.hasMainManifest&&!PREPA_PENDING_MANIFEST?.hasFqtv){
+   throw new Error('AUCUNE INFORMATION PREPA RECONNUE');
+  }
+
+  applyAcceptedImportToEditingModel({...values},ctx);
+
+  if(PREPA_PENDING_MANIFEST){
+   if(PREPA_PENDING_MANIFEST.airline==='BJ')applyBjManifestToFlight(PREPA_PENDING_MANIFEST,ctx);
+   else if(PREPA_PENDING_MANIFEST.airline==='TK')applyTkManifestToFlight(PREPA_PENDING_MANIFEST,ctx);
+   else applySqManifestToFlight(PREPA_PENDING_MANIFEST,ctx);
+  }
+
+  if(typeof markPrepaFields==='function'){
+   if(sum(x.booked)>0)markPrepaFields(x,'booked','Import PREPA Gmail');
+   if(x.std)markPrepaFields(x,'std','Import PREPA Gmail');
+   if(x.sta)markPrepaFields(x,'sta','Import PREPA Gmail');
+  }
+
+  PREPA_PENDING_INJECTION=null;
+  PREPA_PENDING_MANIFEST=null;
+  PREPA_PENDING_CONTEXT=null;
+
+  await cacheFlightsLocallyOnly(FLIGHTS).catch(()=>false);
+  const d1Ok=await persistOneFlightVerifiedToD1(x,{label:'PREPA GMAIL'});
+  if(!d1Ok)throw new Error('D1 NON CONFIRME APRES IMPORT');
+  return true;
+ }finally{
+  PREPA_PENDING_INJECTION=null;
+  PREPA_PENDING_MANIFEST=null;
+  PREPA_PENDING_CONTEXT=null;
+  try{closeAllModals()}catch(e){}
+  if(modal){
+   modal.style.visibility=oldVisibility;
+   modal.style.pointerEvents=oldPointer;
+  }
+ }
+}
+
+async function processOnePendingPrepaInbox(){
+ if(PREPA_INBOX_BUSY||document.hidden||!navigator.onLine)return false;
+ if(typeof modalIsOpen==='function'&&modalIsOpen())return false;
+
+ PREPA_INBOX_BUSY=true;
+ try{
+  const items=await fetchPendingPrepaInbox();
+  if(!items.length)return false;
+
+  const item=items[0];
+  const idx=findFlightIndexForInbox(item);
+
+  if(idx<0){
+   console.info('V49.86 PREPA EN ATTENTE DU VOL',item?.flightNumber,item?.flightDate);
+   return false;
+  }
+
+  const claimed=await setPrepaInboxStatus(item,'PROCESSING');
+  if(!claimed?.ok)return false;
+
+  try{
+   const raw=await buildRawPrepaInboxText(item);
+   if(!String(raw||'').trim())throw new Error('SOURCE PREPA VIDE');
+
+   await applyInboxRawWithExistingParser(item,idx,raw);
+   await setPrepaInboxStatus(item,'PROCESSED');
+   console.info('V49.86 PREPA GMAIL IMPORTEE',item?.flightNumber,item?.flightDate,item?.gmailMessageId);
+   setTimeout(()=>wakeRealtimeSync(),200);
+   return true;
+  }catch(e){
+   console.error('V49.86 PREPA GMAIL ERROR',item,e);
+   await setPrepaInboxStatus(item,'ERROR',String(e?.message||e));
+   return false;
+  }
+ }finally{
+  PREPA_INBOX_BUSY=false;
+ }
+}
+
+function schedulePrepaInboxAutoImport(delay=PREPA_INBOX_POLL_MS){
+ if(PREPA_INBOX_TIMER)clearTimeout(PREPA_INBOX_TIMER);
+ PREPA_INBOX_TIMER=setTimeout(async()=>{
+  try{await processOnePendingPrepaInbox()}
+  finally{schedulePrepaInboxAutoImport(PREPA_INBOX_POLL_MS)}
+ },Math.max(1000,Number(delay)||PREPA_INBOX_POLL_MS));
+}
+
+function startPrepaInboxAutoImport(){
+ schedulePrepaInboxAutoImport(1500);
+}
+
+
 async function bootstrapAlyziaOps(){
  // V47 : le serveur D1 est la source de vérité commune.
  const cloudFlights=await loadFlightsFromCloud();
@@ -17934,13 +18158,14 @@ async function bootstrapAlyziaOps(){
  updateClocks();
  OPS_REALTIME_LAST_HASH=stableCloudHash(FLIGHTS);
  startRealtimeSync();
+ startPrepaInboxAutoImport();
  loadSariaCatalog().then(()=>{if(currentView==='detail')render();}).catch(()=>{});
 }
 bootstrapAlyziaOps();
-window.addEventListener('online',()=>{setTimeout(()=>wakeRealtimeSync(),300)});
+window.addEventListener('online',()=>{setTimeout(()=>{wakeRealtimeSync();schedulePrepaInboxAutoImport(700)},300)});
 window.addEventListener('offline',()=>setOpsCloudState(false,'HORS-LIGNE'));
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)wakeRealtimeSync();else scheduleRealtimeSync()});
-window.addEventListener('focus',()=>wakeRealtimeSync());
+window.addEventListener('focus',()=>{wakeRealtimeSync();schedulePrepaInboxAutoImport(700)});
 
 </script>
 
