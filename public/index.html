@@ -6560,6 +6560,19 @@ html,body{
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <style>
 .bj-prepa-card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:7px;margin-top:8px}.bj-prepa-card{display:flex;align-items:center;justify-content:space-between;gap:8px;border:1px solid var(--line,#d7e0e8);border-radius:10px;padding:8px 10px;background:var(--card,#fff);min-height:42px}.bj-prepa-card span{font-size:11px;font-weight:800;letter-spacing:.02em}.bj-prepa-card input{width:48px;min-width:48px;text-align:center;font-weight:900;border:0;background:rgba(127,127,127,.08);border-radius:7px;padding:6px}.bj-editing-sheet .editing-top{margin-bottom:8px}@media(max-width:700px){.bj-prepa-card-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.bj-prepa-card{padding:7px}.bj-prepa-card span{font-size:9px}.bj-prepa-card input{width:38px;min-width:38px}}
+
+/* V49.83 — MOBILE HEADER HARDENING: keep TYPE clear of live/ticker content */
+@media (max-width:600px){
+  .flight-head{overflow:visible!important;}
+  .flight-head .headcell:nth-child(1){min-height:245px!important;position:relative!important;z-index:1!important;}
+  .flight-head .headcell:nth-child(4),
+  .flight-head .headcell:nth-child(5){min-height:138px!important;overflow:visible!important;position:relative!important;}
+  .flight-head .headcell:nth-child(5){z-index:3!important;background:#fff!important;padding-top:15px!important;padding-bottom:15px!important;}
+  .flight-head .headcell:nth-child(5) .head-label{margin-bottom:12px!important;position:relative!important;z-index:4!important;}
+  .flight-head .headcell:nth-child(5) .aircraft-select{display:block!important;position:relative!important;z-index:4!important;height:38px!important;min-height:38px!important;background:#fff!important;border:1px solid #d8e2ee!important;border-radius:8px!important;padding:0 4px!important;}
+  .live-strip{position:relative!important;z-index:1!important;max-width:100%!important;overflow:visible!important;}
+  .auto-refresh-chip{position:static!important;max-width:100%!important;white-space:nowrap!important;}
+}
 </style>
 </head>
 <body>
@@ -7966,7 +7979,8 @@ function twPrintHtml(s){
  <tr><th colspan="4">JOB ASSIGN</th><th colspan="4">BAG / L-L / AHL / DPR / OHD</th></tr>
  <tr><td colspan="4" class="mid">${f('twJob')}</td><td colspan="4" class="mid">${f('twBag')}</td></tr>
  <tr><th colspan="8">SSR / TICKET / CONSIGNES</th></tr><tr><td colspan="8" class="mid">${f('twSsr')}</td></tr>
- </table><script>window.onload=()=>setTimeout(()=>window.print(),150)<\/script></body></html>`;
+ </table><script>window.onload=()=>setTimeout(()=>window.print(),150)<\/script><!-- V49.83: silent multi-device auto-sync 0.5s selected / 1.5s global; TK cards view-only; mobile TYPE header hardened. -->
+</body></html>`;
 }
 function ozPrintHtml(s){
  const {x,data}=s,e=data.extra||{},f=k=>escHtml(e[k]||'');
@@ -7979,7 +7993,8 @@ function ozPrintHtml(s){
  <tr><th colspan="4">OUTBOUND CONNECTION</th><th colspan="4">INBOUND CONNECTION</th></tr>
  <tr><td colspan="4" class="mid">${f('ozOutbound')}</td><td colspan="4" class="mid">${f('ozInbound')}</td></tr>
  <tr><th colspan="8">DUTY / CONTACTS</th></tr><tr><td colspan="8" class="mid">${Object.keys(e).filter(k=>k.startsWith('ozDuty')).map(k=>escHtml(e[k])).filter(Boolean).join(' · ')}</td></tr>
- </table><script>window.onload=()=>setTimeout(()=>window.print(),150)<\/script></body></html>`;
+ </table><script>window.onload=()=>setTimeout(()=>window.print(),150)<\/script><!-- V49.83: silent multi-device auto-sync 0.5s selected / 1.5s global; TK cards view-only; mobile TYPE header hardened. -->
+</body></html>`;
 }
 
 
@@ -8032,7 +8047,8 @@ function sbPrintHtml(s){
   ${['INFT BSCT','INFT','WCHC','WCHR','WCHS','STFF R1 J','STFF R2 Y','STFF N2 Y'].map((lab,i)=>`<tr><th>${lab}</th><td>${f('sbPart'+i+'Qty')}</td><td>${f('sbPart'+i+'Info')}</td></tr>`).join('')}
   <tr><th>ATTN SERVICE PASSAGE</th><td colspan="2">${f('sbPassage')}</td></tr>
  </table>
- <script>window.onload=()=>setTimeout(()=>window.print(),150)<\/script></body></html>`;
+ <script>window.onload=()=>setTimeout(()=>window.print(),150)<\/script><!-- V49.83: silent multi-device auto-sync 0.5s selected / 1.5s global; TK cards view-only; mobile TYPE header hardened. -->
+</body></html>`;
 }
 
 function prepaPrintHtml(s){
@@ -8279,11 +8295,13 @@ function prepaPrintHtml(s){
    </div>
  </div>
  <div class="print-note">ALYZIA OPS · ${escHtml(x.flight)} · ${escHtml(data.date)}</div>
- </div><script>window.onload=()=>setTimeout(()=>window.print(),180)<\/script></body></html>`;
+ </div><script>window.onload=()=>setTimeout(()=>window.print(),180)<\/script><!-- V49.83: silent multi-device auto-sync 0.5s selected / 1.5s global; TK cards view-only; mobile TYPE header hardened. -->
+</body></html>`;
 }
 function printPrepaEditing(){const s=editingSnapshot();if(!s)return;const w=window.open('','_blank','width=900,height=1100');if(!w){editingFeedback('AUTORISE LES POP-UPS POUR IMPRIMER.','warn');return}w.document.open();w.document.write(prepaPrintHtml(s));w.document.close()}
 function printCurrentFlightPrepa(){const x=f(),date=currentFlightDate(),d=getEditingData(x,date),s={x,data:{flight:d.flight,date:d.date,reg:d.reg,std:d.std,sta:d.sta,parking:d.parking,gate:d.gate,type:d.type,config:d.config||{},booking:d.booking||{},meals:d.meals||{},particularities:d.particularities||{},comments:d.comments||{},extra:d.extra||{}},classes:orderedClasses(x)},w=window.open('','_blank','width=900,height=1100');if(!w)return;w.document.open();w.document.write(prepaPrintHtml(s));w.document.close()}
-function printFlightList(){const rows=FLIGHTS.map((x,i)=>({...x,_index:i})).filter(x=>!x.date||x.date===HOME_DATE).sort(sortByDeparture),body=rows.map(x=>{const cap=sum(x.config),booked=sum(x.booked),nok=(x.inopSeats||[]).filter(r=>r.status==='NOK').length,avail=cap-booked-nok,info=getPrepaInfo(x,HOME_DATE);return `<tr><td>${escHtml(x.std)}</td><td><b>${escHtml(x.flight)}</b></td><td>${escHtml(x.dep)} → ${escHtml(x.dest)}</td><td>${escHtml(x.aircraft)}</td><td>${escHtml(x.gate)}</td><td>${booked} / ${cap}</td><td>${avail}</td><td>${info?.state?.ok?'PREPA OK':'PREPA NOK'} ${info?formatDateShort(info.state?.prepaDate||info.prepaDate):''}</td></tr>`}).join(''),w=window.open('','_blank','width=1200,height=800');if(!w)return;w.document.write(`<!doctype html><html><head><style>@page{size:A4 landscape;margin:7mm}body{font-family:Arial}table{width:100%;border-collapse:collapse;font-size:10px}th,td{border:1px solid #ccd6df;padding:7px}th{background:#eef3f8}</style></head><body><h2>ALYZIA OPS · ${formatDateLong(HOME_DATE)}</h2><table><tr><th>STD</th><th>VOL</th><th>ROUTE</th><th>TYPE A/C</th><th>GATE</th><th>BOOKED/CAP</th><th>AVAILABLE</th><th>PREPA</th></tr>${body}</table><script>window.onload=()=>setTimeout(()=>window.print(),120)<\/script></body></html>`);w.document.close()}
+function printFlightList(){const rows=FLIGHTS.map((x,i)=>({...x,_index:i})).filter(x=>!x.date||x.date===HOME_DATE).sort(sortByDeparture),body=rows.map(x=>{const cap=sum(x.config),booked=sum(x.booked),nok=(x.inopSeats||[]).filter(r=>r.status==='NOK').length,avail=cap-booked-nok,info=getPrepaInfo(x,HOME_DATE);return `<tr><td>${escHtml(x.std)}</td><td><b>${escHtml(x.flight)}</b></td><td>${escHtml(x.dep)} → ${escHtml(x.dest)}</td><td>${escHtml(x.aircraft)}</td><td>${escHtml(x.gate)}</td><td>${booked} / ${cap}</td><td>${avail}</td><td>${info?.state?.ok?'PREPA OK':'PREPA NOK'} ${info?formatDateShort(info.state?.prepaDate||info.prepaDate):''}</td></tr>`}).join(''),w=window.open('','_blank','width=1200,height=800');if(!w)return;w.document.write(`<!doctype html><html><head><style>@page{size:A4 landscape;margin:7mm}body{font-family:Arial}table{width:100%;border-collapse:collapse;font-size:10px}th,td{border:1px solid #ccd6df;padding:7px}th{background:#eef3f8}</style></head><body><h2>ALYZIA OPS · ${formatDateLong(HOME_DATE)}</h2><table><tr><th>STD</th><th>VOL</th><th>ROUTE</th><th>TYPE A/C</th><th>GATE</th><th>BOOKED/CAP</th><th>AVAILABLE</th><th>PREPA</th></tr>${body}</table><script>window.onload=()=>setTimeout(()=>window.print(),120)<\/script><!-- V49.83: silent multi-device auto-sync 0.5s selected / 1.5s global; TK cards view-only; mobile TYPE header hardened. -->
+</body></html>`);w.document.close()}
 
 
 function extraVal(d,key,fallback=''){return d?.extra?.[key]??fallback}
@@ -11988,7 +12006,7 @@ function applyPrepaValues(values,overwriteSelectors=null){
 
 
 /* =========================================================
-   V49.82 — D1 PER-FLIGHT VERIFIED SYNC
+   V49.83 — REALTIME MULTI-DEVICE + MOBILE TK
    Synchronization only. Airline parsing/rendering rules unchanged.
    ========================================================= */
 function opsFlightSyncSignature(x){
@@ -12029,7 +12047,7 @@ async function persistOneFlightVerifiedToD1(x,{label='VOL'}={}){
      server=await getOneFlightFromCloud(identity);
    }
    if(!server || !opsFlightSyncSignatureMatches(x,server)){
-     console.warn('V49.82 D1 PER-FLIGHT VERIFY FAILED',identity,opsFlightSyncSignature(x),server&&opsFlightSyncSignature(server));
+     console.warn('V49.83 D1 PER-FLIGHT VERIFY FAILED',identity,opsFlightSyncSignature(x),server&&opsFlightSyncSignature(server));
      setOpsCloudState(false,`${label} · D1 INCOMPLET`);
      return false;
    }
@@ -12040,7 +12058,7 @@ async function persistOneFlightVerifiedToD1(x,{label='VOL'}={}){
    setOpsCloudState(true);
    return true;
  }catch(e){
-   console.warn('V49.82 PER-FLIGHT SYNC',e);
+   console.warn('V49.83 PER-FLIGHT SYNC',e);
    setOpsCloudState(false,`${label} · MODE LOCAL`);
    return false;
  }finally{endOpsCloudWrite();}
@@ -12072,7 +12090,7 @@ async function finalizePrepaAutomaticImport(result,context=null){
 
  await cacheFlightsLocallyOnly(FLIGHTS).catch(()=>false);
  const d1Ok=await persistOneFlightVerifiedToD1(fx,{label:'IMPORT PREPA'});
- if(!d1Ok)console.warn('V49.82 PREPA RESTE EN CACHE LOCAL — D1 NON CONFIRMÉ',flightImportIdentity(fx));
+ if(!d1Ok)console.warn('V49.83 PREPA RESTE EN CACHE LOCAL — D1 NON CONFIRMÉ',flightImportIdentity(fx));
 
  PREPA_PENDING_CONTEXT=null;
  closeAllModals();
@@ -14763,21 +14781,22 @@ function openGroupModal(){
 function companyParticularityCard(def){
  const x=f();
  const n=particularityCountByDef(x,def);
+ const tkViewOnly=String(x?.airline||'').toUpperCase()==='TK';
 
  if(def.special==='meal')return mealSummaryTile();
  if(def.special==='positioning')return positioningTile();
  if(def.special==='quickRamp')return quickRampTile();
  if(def.special==='group'){
-   return `<div class="common-item company-part-card group"><div class="common-name">GROUP</div><div class="common-count"><span class="ico">◉</span>${groupCountDistinct(x)}</div><div class="particularity-actions"><button class="part-minus" onclick="removeCompanyParticularityManual('${def.id}')">−</button><button class="view-list" onclick="openGroupModal()">VOIR LES GROUPES</button><button class="part-plus" onclick="openCompanyParticularityAdd('${def.id}')">＋</button></div></div>`;
+   return `<div class="common-item company-part-card group"><div class="common-name">GROUP</div><div class="common-count"><span class="ico">◉</span>${groupCountDistinct(x)}</div><div class="particularity-actions ${tkViewOnly?'grouped-only':''}">${tkViewOnly?'':`<button class="part-minus" onclick="removeCompanyParticularityManual('${def.id}')">−</button>`}<button class="view-list ${tkViewOnly?'wide-view':''}" onclick="openGroupModal()">VOIR LES GROUPES</button>${tkViewOnly?'':`<button class="part-plus" onclick="openCompanyParticularityAdd('${def.id}')">＋</button>`}</div></div>`;
  }
  if(['staff','pet','police'].includes(def.special)){
    return `<div class="common-item company-part-card ${String(def.id).toLowerCase()}">
      <div class="common-name">${def.label}</div>
      <div class="common-count"><span class="ico">${def.icon}</span>${particularityCountByDef(x,def)}</div>
-     <div class="particularity-actions">
-       <button class="part-minus" onclick="adjustGroupedOperationalCount('${def.id}',-1)">−</button>
-       <button class="view-list" onclick="openGroupedOperationalCard('${def.id}')">VOIR LA LISTE</button>
-       <button class="part-plus" onclick="adjustGroupedOperationalCount('${def.id}',1)">＋</button>
+     <div class="particularity-actions ${tkViewOnly?'grouped-only':''}">
+       ${tkViewOnly?'':`<button class="part-minus" onclick="adjustGroupedOperationalCount('${def.id}',-1)">−</button>`}
+       <button class="view-list ${tkViewOnly?'wide-view':''}" onclick="openGroupedOperationalCard('${def.id}')">VOIR LA LISTE</button>
+       ${tkViewOnly?'':`<button class="part-plus" onclick="adjustGroupedOperationalCount('${def.id}',1)">＋</button>`}
      </div>
    </div>`;
  }
@@ -14785,10 +14804,10 @@ function companyParticularityCard(def){
  return `<div class="common-item company-part-card ${String(def.id).toLowerCase()}">
    <div class="common-name">${def.label}</div>
    <div class="common-count"><span class="ico">${def.icon||'•'}</span>${n}</div>
-   <div class="particularity-actions">
-     <button class="part-minus" onclick="removeCompanyParticularityManual('${def.id}')">−</button>
-     <button class="view-list" onclick="openPrepaSpecificityCard('${def.id}')">VOIR LA LISTE</button>
-     <button class="part-plus" onclick="openCompanyParticularityAdd('${def.id}')">＋</button>
+   <div class="particularity-actions ${tkViewOnly?'grouped-only':''}">
+     ${tkViewOnly?'':`<button class="part-minus" onclick="removeCompanyParticularityManual('${def.id}')">−</button>`}
+     <button class="view-list ${tkViewOnly?'wide-view':''}" onclick="openPrepaSpecificityCard('${def.id}')">VOIR LA LISTE</button>
+     ${tkViewOnly?'':`<button class="part-plus" onclick="openCompanyParticularityAdd('${def.id}')">＋</button>`}
    </div>
  </div>`;
 }
@@ -15499,14 +15518,14 @@ function positioningCount(x=f()){
 }
 
 function positioningTile(){
- const n=positioningCount();
+ const n=positioningCount(),tkViewOnly=String(f()?.airline||'').toUpperCase()==='TK';
  return `<div class="common-item">
    <div class="common-name">POSITIONING</div>
    <div class="common-count"><span class="ico">👨‍✈️</span>${n}</div>
-   <div class="particularity-actions">
-     <button class="part-minus" onclick="removeLastPositioning()">−</button>
-     <button class="view-list" onclick="openPositioningModal()">EXTRA CREWS</button>
-     <button class="part-plus" onclick="openAddPositioning()">＋</button>
+   <div class="particularity-actions ${tkViewOnly?'grouped-only':''}">
+     ${tkViewOnly?'':`<button class="part-minus" onclick="removeLastPositioning()">−</button>`}
+     <button class="view-list ${tkViewOnly?'wide-view':''}" onclick="openPositioningModal()">EXTRA CREWS</button>
+     ${tkViewOnly?'':`<button class="part-plus" onclick="openAddPositioning()">＋</button>`}
    </div>
  </div>`;
 }
@@ -16198,8 +16217,8 @@ async function confirmClearAllFlights(){await confirmFullReset()}
    V49.46 — SYNCHRONISATION SILENCIEUSE MULTI-POSTES
    ========================================================= */
 /* V49.81 — TK ETKT/FQTV/STF/PETC corrections + D1 read-after-write verification. SQ/BJ LOCKED. */
-const OPS_REALTIME_INTERVAL_VISIBLE=2500;
-const OPS_REALTIME_INTERVAL_HIDDEN=8000;
+const OPS_REALTIME_INTERVAL_VISIBLE=1500;
+const OPS_REALTIME_INTERVAL_HIDDEN=4000;
 let OPS_REALTIME_TIMER=null;
 let OPS_REALTIME_RUNNING=false;
 let OPS_REALTIME_LAST_HASH='';
@@ -16370,7 +16389,7 @@ async function silentCloudRefresh({forceRender=false}={}){
 }
 
 
-const OPS_SELECTED_FLIGHT_INTERVAL=800;
+const OPS_SELECTED_FLIGHT_INTERVAL=500;
 let OPS_SELECTED_FLIGHT_TIMER=null;
 let OPS_SELECTED_FLIGHT_RUNNING=false;
 
@@ -16499,7 +16518,7 @@ function openTools(){
    <button class="tool-card" onclick="openSariaApp()"><span class="tool-icon">✈</span><b>SARIA</b><span>OUVRIR DIRECTEMENT L’OUTIL SARIA CABIN / SEATMAP.</span></button>
    <div class="ops-cloud-card">
      <div id="opsCloudStatusBox" class="ops-cloud-status ${OPS_CLOUD_ONLINE?'ok':'warn'}">${OPS_CLOUD_ONLINE?'☁ SYNC MULTI-POSTES ACTIVE':'☁ SYNC MULTI-POSTES'}</div>
-     <div class="ops-cloud-help">D1 PARTAGÉ · FICHE OUVERTE ~0,8 S · SYNCHRO GLOBALE ~2,5 S · PC, TABLETTE ET TÉLÉPHONE.<br><b style="color:#087749">V49.82 · D1 PER-FLIGHT VERIFIED SYNC</b></div>
+     <div class="ops-cloud-help">D1 PARTAGÉ · FICHE OUVERTE ~0,5 S · SYNCHRO GLOBALE ~1,5 S · PC, TABLETTE ET TÉLÉPHONE.<br><b style="color:#087749">V49.83 · REALTIME MULTI-DEVICE + MOBILE TK</b></div>
      <button class="live-refresh" onclick="manualCloudRefresh()">↻ SYNCHRONISER MAINTENANT</button>
    </div>
    <div class="adb-usage-card"><div id="adbUsageBox"><button class="live-refresh" onclick="loadAeroUsage()">CHARGER COMPTEUR AERODATABOX</button></div></div>
@@ -16882,7 +16901,7 @@ function openFlightInfo(){
 }
 
 
-console.info('ALYZIA OPS V49.82 · D1 PER-FLIGHT VERIFIED SYNC');
+console.info('ALYZIA OPS V49.83 · REALTIME MULTI-DEVICE + MOBILE TK');
 const SARIA_DIRECT_URL="https://saria-seatmap.alyzia-cdg2.workers.dev";
 const SARIA_BRIDGE_BASE=(location.protocol==='http:'||location.protocol==='https:')
   ? `${location.origin}/api/saria`
@@ -17651,7 +17670,7 @@ async function bootstrapAlyziaOps(){
    const localBeforeCloud=await loadImportedFlightsPersistent();
    const rawFilteredCloud=cloudFlights.filter(x=>String(x.airline||'').toUpperCase()!=='KL');
    let filteredCloud=rawFilteredCloud; // D1 normally authoritative
-   // V49.82 recovery: if D1 has an obvious empty shell while this device owns a richer cached copy,
+   // V49.83 recovery: if D1 has an obvious empty shell while this device owns a richer cached copy,
    // repair that single D1 record before replacing local memory. This cannot create data on a new device;
    // it only rescues a previously imported detailed flight from the PC that still has it.
    if(Array.isArray(localBeforeCloud)&&localBeforeCloud.length){
@@ -17739,6 +17758,7 @@ window.addEventListener('focus',()=>wakeRealtimeSync());
   <button data-mobile-nav="admin"><span>●</span><small>ADMIN</small></button>
 </nav>
 
+<!-- V49.83: silent multi-device auto-sync 0.5s selected / 1.5s global; TK cards view-only; mobile TYPE header hardened. -->
 </body></html>
 <!-- V49.82: synchronization-only hardening: per-flight D1 verified PREPA write, truthful manual sync status, detailed read-back verification. SQ/TK/BJ parser logic unchanged. -->
 
