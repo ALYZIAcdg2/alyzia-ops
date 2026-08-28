@@ -6,7 +6,7 @@
   <meta http-equiv="Expires" content="0">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V49.84 · MOBILE HEADER + VERSION FIX · SQ/TK/BJ LOCKED</title>
+<title>ALYZIA OPS - V49.85 · KPI STANDBY LIST + MOBILE · SQ/TK/BJ LOCKED</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -6700,17 +6700,56 @@ html,body{
 }
 
 </style>
+
+<style>
+/* V49.85 — KPI WEB / STANDBY / AVAILABLE + named standby list */
+.wsa-label-short{display:none}
+.wsa-main-title{font-size:14px!important;letter-spacing:.2px}
+.wsa-cell{overflow:hidden}
+.wsa-cell-title span:last-child{min-width:0}
+.wsa-standby-cell .wsa-cell-value{margin-top:6px}
+.wsa-chip{max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.standby-name-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:16px 0 8px;padding:10px 12px;border:1px solid #dbe5ef;border-radius:10px;background:#f8fbff;color:#0f2139}
+.standby-name-head b{font-size:12px}.standby-name-head span{font-size:11px;font-weight:900;color:#0b67cb}
+.standby-no-names{margin-top:14px;padding:18px;border:1px dashed #ccd9e6;border-radius:12px;text-align:center;color:#60758a;font-size:12px;font-weight:800;line-height:1.45;background:#fbfdff}
+@media(max-width:700px){
+ .wsa-kpi{padding:12px 10px!important}
+ .wsa-main-title{font-size:12px!important;text-align:center!important;margin-bottom:8px!important}
+ .wsa-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:5px!important}
+ .wsa-cell{padding:9px 5px 8px!important;min-height:150px!important;border-radius:12px!important}
+ .wsa-cell-title{font-size:8.5px!important;gap:3px!important;white-space:nowrap;margin-bottom:6px!important;letter-spacing:0!important}
+ .wsa-cell-title .purple,.wsa-cell-title .cyan,.wsa-cell-title .orange{font-size:12px!important}
+ .wsa-label-full{display:none!important}.wsa-label-short{display:inline!important}
+ .wsa-cell-value{min-height:34px!important;margin-bottom:5px!important}
+ .wsa-cell-value .ico{display:none!important}
+ .wsa-cell-value b{font-size:28px!important;line-height:1!important}
+ .wsa-mini-classes{gap:4px!important}
+ .wsa-mini-row{grid-template-columns:14px minmax(0,1fr)!important;gap:2px!important;font-size:9px!important}
+ .wsa-mini-row button{width:100%!important;min-width:0!important;height:31px!important;padding:0 3px!important;font-size:12px!important;border-radius:9px!important}
+ .wsa-foot{margin-top:6px!important;gap:3px!important}
+ .wsa-foot .gauge{height:7px!important;min-width:0!important}
+ .wsa-foot>b{font-size:11px!important}
+ .wsa-chip{font-size:8px!important;padding:5px 5px!important;gap:3px!important;justify-content:center;width:100%;box-sizing:border-box}
+ .standby-class-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media(max-width:390px){
+ .wsa-cell{padding-left:4px!important;padding-right:4px!important}
+ .wsa-cell-title{font-size:8px!important}
+ .wsa-cell-value b{font-size:25px!important}
+ .wsa-mini-row button{font-size:11px!important}
+}
+</style>
 </head>
 <body>
 <script>
 /* V49.75 — BJ KPI WEB SBY AVAILABLE. SQ/TK frozen. */
-const ALYZIA_APP_VERSION='V49.84';
+const ALYZIA_APP_VERSION='V49.85';
 const ALYZIA_SQ_LOCK_VERSION='V49.64';
 const ALYZIA_TK_LOCK_VERSION='V49.69';
 const ALYZIA_APP_BUILD='2026-08-28-84';
 </script>
 <header class="topbar">
- <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V49.84</span></div>
+ <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V49.85</span></div>
  <nav class="nav">
    <button class="home-nav" onclick="renderHome()" title="Accueil vols">⌂</button>
    <button onclick="renderHome()">VOLS</button><button onclick="openFlightSearch()">RECHERCHE</button><button onclick="renderPrepa()">PRÉPA</button><button onclick="openTools()">OUTILS</button><button>ADMIN</button>
@@ -8106,6 +8145,7 @@ function twPrintHtml(s){
  <tr><td colspan="4" class="mid">${f('twJob')}</td><td colspan="4" class="mid">${f('twBag')}</td></tr>
  <tr><th colspan="8">SSR / TICKET / CONSIGNES</th></tr><tr><td colspan="8" class="mid">${f('twSsr')}</td></tr>
  </table><script>window.onload=()=>setTimeout(()=>window.print(),150)<\/script><!-- V49.83: silent multi-device auto-sync 0.5s selected / 1.5s global; TK cards view-only; mobile TYPE header hardened. -->
+<!-- V49.85: compact mobile WSA KPI; named standby list when an explicit TK standby report is available. -->
 </body></html>`;
 }
 function ozPrintHtml(s){
@@ -10573,6 +10613,22 @@ function parseTkFqtvCategories(rawOriginal){
  return [...records.values()].map(({_fqPriority,...p})=>p);
 }
 
+function parseTkStandbyPassengers(rawOriginal){
+ const raw=String(rawOriginal||'').replace(/\r/g,'');
+ // Only explicit named standby sections are accepted. Never invent names from ON SBY counters.
+ const headings=[
+   'STANDBY PAX','STANDBY PASSENGERS','PAX ON SBY','PAX ON STANDBY',
+   'ON SBY PAX','ON SBY PASSENGERS','STANDBY LIST'
+ ];
+ const out=[];
+ headings.forEach(h=>{
+   const sec=tkSection(rawOriginal,h);
+   if(!sec)return;
+   parseTkPassengerRows(sec,{ticketMode:true}).forEach(p=>out.push({...p,specific:'STANDBY',ssr:[...new Set([...(p.ssr||[]),'STANDBY'])]}));
+ });
+ return tkUniquePassengerList(out);
+}
+
 function parseTkStandby(rawOriginal){
  const raw=String(rawOriginal||'').replace(/\r/g,'').toUpperCase();
  // Use the destination IST row: BOOKED / ACCEPTED / ON SBY.
@@ -10840,6 +10896,7 @@ function tkAllPaxSpecialPassengers(masterPassengers,type){
 function prepareTkImportManifest(rawOriginal){
  const hv=parseTkHeaderValues(rawOriginal);
  const standby=parseTkStandby(rawOriginal);
+ let standbyPax=parseTkStandbyPassengers(rawOriginal);
 
  const inf=parseTkPassengerRows(tkSection(rawOriginal,'PASSENGERS WITH INFANTS'));
  const specialMeals=parseTkSpecialMeals(rawOriginal);
@@ -10879,6 +10936,7 @@ function prepareTkImportManifest(rawOriginal){
  group=enrichTkPassengerList(group,masterMaps);
  fqtv=enrichTkPassengerList(fqtv,masterMaps);
  webPax=enrichTkPassengerList(webPax,masterMaps);
+ standbyPax=enrichTkPassengerList(standbyPax,masterMaps);
  specialMeals.passengers=enrichTkPassengerList(specialMeals.passengers,masterMaps);
  Object.keys(specialMeals.lists).forEach(k=>specialMeals.lists[k]=enrichTkPassengerList(specialMeals.lists[k],masterMaps));
  Object.keys(commented).forEach(k=>commented[k]=enrichTkPassengerList(commented[k],masterMaps));
@@ -10951,6 +11009,7 @@ function prepareTkImportManifest(rawOriginal){
    FQTV:fqtv,
    MEAL:specialMeals.passengers,
    WEB:webPax,
+   STANDBY:standbyPax,
    UPGR:commented.UPGR||[]
  };
 
@@ -11015,6 +11074,7 @@ function prepareTkImportManifest(rawOriginal){
  enrichMasterFromList(commonLists.EXST,'EXST');
  enrichMasterFromList(commonLists.CBBG,'CBBG');
  enrichMasterFromList(commonLists.FQTV);
+ enrichMasterFromList(commonLists.STANDBY,'STANDBY');
  enrichMasterFromList(commonLists.MEAL);
  enrichMasterFromList(commonLists.UPGR,'UPGR');
 
@@ -11110,7 +11170,8 @@ function prepareTkImportManifest(rawOriginal){
      MEAL:specialMeals.passengers.length,
      WEB:webPax.length,
      UPGR:(commented.UPGR||[]).length,
-     SBY:standby.total
+     SBY:standby.total,
+     STANDBY_NAMED:standbyPax.length
    },
    hasMainManifest:
      etk.length>0||emd.length>0||inf.length>0||onward.length>0||
@@ -11171,6 +11232,7 @@ function applyTkManifestToFlight(manifest,context=null){
  }
  setList('MEAL',manifest.commonLists?.MEAL||[],manifest.counts?.MEAL||0);
  setList('WEB',manifest.commonLists?.WEB||[],manifest.counts?.WEB||0);
+ setList('STANDBY',manifest.commonLists?.STANDBY||[],manifest.counts?.STANDBY_NAMED||0);
  setList('UPGR',manifest.commonLists?.UPGR||[],manifest.counts?.UPGR||0);
  x.meal_lists=x.meal_lists||{};
  Object.entries(manifest.mealLists||{}).forEach(([code,list])=>x.meal_lists[code]=list);
@@ -14192,13 +14254,14 @@ function webStandbyAvailableKpi(webVisible,availableVisible,standbyVisible,webTo
    cells.push(`<div class="wsa-cell clickable" id="${ids.web}" title="OUVRIR WEB"><div class="wsa-cell-title"><span class="purple">${icons.web}</span><span>WEB</span></div><div class="wsa-cell-value"><b>${webTotal}</b></div>${classesHtml}<div class="wsa-foot"><div class="gauge"><span style="width:${Math.min(100,webPct)}%"></span></div><b>${webPct}%</b></div></div>`);
  }
  if(standbyVisible){
-   cells.push(`<div class="wsa-cell clickable" id="${ids.standby}" title="OUVRIR STANDBY"><div class="wsa-cell-title"><span class="cyan">${icons.standby}</span><span>STANDBY</span></div><div class="wsa-cell-value"><span class="ico cyan">${icons.standby}</span><b>${standby||0}</b></div><div class="wsa-foot standby-foot"><div class="wsa-chip"><span class="cyan">${icons.standby}</span><span>ON SBY</span></div></div></div>`);
+   const namedSby=Array.isArray(x.common_lists?.STANDBY)?x.common_lists.STANDBY.length:0;
+   cells.push(`<div class="wsa-cell wsa-standby-cell clickable" id="${ids.standby}" title="OUVRIR STANDBY"><div class="wsa-cell-title"><span class="cyan">${icons.standby}</span><span class="wsa-label-full">STANDBY</span><span class="wsa-label-short">SBY</span></div><div class="wsa-cell-value"><b>${standby||0}</b></div><div class="wsa-foot standby-foot"><div class="wsa-chip"><span class="cyan">${icons.standby}</span><span>${namedSby?`VOIR ${namedSby} NOM${namedSby>1?'S':''}`:'ON SBY'}</span></div></div></div>`);
  }
  if(availableVisible){
    const availClasses=`<div class="wsa-mini-classes">${ordered.map(k=>{ const v=classAvailableValue(k); const st=v<0?'neg':(v===0?'zero':'pos'); return `<div class="wsa-mini-row ${st}"><span>${k}</span><button type="button" onclick="event.stopPropagation();openAvailable()">${v}</button></div>`; }).join('')}</div>`;
-   cells.push(`<div class="wsa-cell clickable" id="${ids.avail}" title="OUVRIR AVAILABLE"><div class="wsa-cell-title"><span class="orange">${icons.available}</span><span>AVAILABLE</span></div><div class="wsa-cell-value"><b class="${avail<0?'red':''}">${avail}</b></div>${availClasses}<div class="wsa-foot"><div class="gauge"><span style="width:${Math.min(100,pct)}%"></span></div></div></div>`);
+   cells.push(`<div class="wsa-cell clickable" id="${ids.avail}" title="OUVRIR AVAILABLE"><div class="wsa-cell-title"><span class="orange">${icons.available}</span><span class="wsa-label-full">AVAILABLE</span><span class="wsa-label-short">DISPO</span></div><div class="wsa-cell-value"><b class="${avail<0?'red':''}">${avail}</b></div>${availClasses}<div class="wsa-foot"><div class="gauge"><span style="width:${Math.min(100,pct)}%"></span></div></div></div>`);
  }
- return `<div class="kpi wsa-kpi"><div class="kpi-title">WEB / STANDBY / AVAILABLE</div><div class="wsa-grid" style="grid-template-columns:repeat(${Math.max(cells.length,1)},minmax(0,1fr))">${cells.join('')}</div></div>`;
+ return `<div class="kpi wsa-kpi"><div class="kpi-title wsa-main-title">WEB / STANDBY / AVAILABLE</div><div class="wsa-grid" style="grid-template-columns:repeat(${Math.max(cells.length,1)},minmax(0,1fr))">${cells.join('')}</div></div>`;
 }
 
 function classAvailableValue(cls){
@@ -15983,16 +16046,21 @@ function openBooked(sort='name',classFilter='ALL',groupFilter='ALL',dir='asc'){
 function openStandbyDetail(){
  const x=f();
  const s=x.standbyByClass||{F:0,C:0,Y:Number(x.standby||0),total:Number(x.standby||0)};
- showModal('STANDBY · ON SBY',x.flight,`
-  <div class="standby-explain">
+ const named=tkUniquePassengerList(Array.isArray(x.common_lists?.STANDBY)?x.common_lists.STANDBY:[]).map(p=>resolvePassengerForDisplay(p,x));
+ PAX_MODAL_SOURCE=named.slice();
+ PAX_MODAL_ITEMS=named.slice();
+ const summary=`<div class="standby-explain">
    <div class="standby-total"><small>TOTAL ON SBY</small><b>${Number((s.total??x.standby)||0)}</b></div>
    <div class="standby-class-grid">
     <div><small>F</small><b>${Number(s.F||0)}</b></div>
     <div><small>C</small><b>${Number(s.C||0)}</b></div>
     <div><small>Y</small><b>${Number(s.Y||0)}</b></div>
    </div>
-   <p>VALEUR ISSUE UNIQUEMENT DE LA COLONNE <b>ON SBY</b> DE LA LIGNE DESTINATION IST. LES VALEURS DE LA LIGNE CDG « AVAILABLE EX » NE SONT PAS DU STANDBY.</p>
-  </div>`);
+  </div>`;
+ const list=named.length
+   ? `<div class="standby-name-head"><b>PASSAGERS STANDBY</b><span>${named.length} NOM${named.length>1?'S':''}</span></div>${paxRows(named,named.length)}`
+   : `<div class="standby-no-names">${Number((s.total??x.standby)||0)>0?'LE RAPPORT DONNE LE NOMBRE ON SBY, MAIS AUCUNE LISTE NOMINATIVE STANDBY N\'A ÉTÉ IMPORTÉE.':'AUCUN PASSAGER STANDBY.'}</div>`;
+ showModal('STANDBY · ON SBY',x.flight,summary+list,true);
 }
 
 function openAvailable(){
