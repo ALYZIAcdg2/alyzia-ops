@@ -6555,6 +6555,33 @@ html,body{
 .fqtv-cat.white:hover,.fqtv-table-row.white:hover{background:#f8fafc!important}
 
 </style>
+<style>
+.imports-main-card{border:1px solid #d8e3ee;background:#fff;border-radius:14px;padding:14px;cursor:pointer;text-align:left;width:100%;box-shadow:0 7px 20px rgba(15,39,68,.06);transition:.16s ease;color:#18283a}
+.imports-main-card:hover{transform:translateY(-1px);border-color:#9bbfe5;box-shadow:0 10px 26px rgba(7,95,211,.10)}
+.imports-main-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.imports-main-icon{width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;background:#eef6ff;border:1px solid #cfe0f2;color:#075fc8;font-size:20px;font-weight:950}
+.imports-main-state{font-size:8px;font-weight:950;padding:5px 8px;border-radius:999px;background:#edf8f2;border:1px solid #b6dfc6;color:#08784b}
+.imports-main-card h3{margin:11px 0 4px;font-size:14px;color:#183b5c}.imports-main-card p{margin:0;color:#708297;font-size:9px;line-height:1.45}
+.imports-main-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:12px}
+.imports-main-stat{border:1px solid #e1e9f0;background:#f9fbfd;border-radius:9px;padding:8px}.imports-main-stat b{display:block;font-size:15px;color:#173a5d}.imports-main-stat span{display:block;margin-top:4px;font-size:7px;font-weight:950;color:#75879a}
+.imports-dash{display:grid;gap:12px}.imports-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.imports-summary-card{border:1px solid #dde6ee;background:#f8fbfe;border-radius:10px;padding:10px}.imports-summary-card b{display:block;font-size:18px;color:#173a5d}.imports-summary-card span{display:block;margin-top:4px;font-size:7px;font-weight:950;color:#738599}
+.imports-company-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.imports-company-card{border:1px solid #dce6ef;background:#fff;border-radius:12px;padding:13px;text-align:left;cursor:pointer;color:#17283a;box-shadow:0 5px 15px rgba(15,39,68,.04)}
+.imports-company-card:hover{border-color:#95bce4;box-shadow:0 8px 22px rgba(7,95,211,.08)}.imports-company-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.imports-company-logo{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:950;border:1px solid #d6e2ee;background:#f1f6fb;color:#0a5cab}
+.imports-company-card[data-c="BJ"] .imports-company-logo{background:#fff6e9;color:#a55a00}.imports-company-card[data-c="TK"] .imports-company-logo{background:#fff0f2;color:#be2934}
+.imports-company-card h4{margin:10px 0 4px;font-size:13px}.imports-company-card p{margin:0;font-size:8px;color:#718398;line-height:1.4}
+.imports-company-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:10px}.imports-company-metric{border:1px solid #e5ecf2;background:#fafcfe;border-radius:8px;padding:7px}
+.imports-company-metric b{display:block;font-size:13px;color:#173a5d}.imports-company-metric span{display:block;margin-top:3px;font-size:7px;color:#7a8a9b;font-weight:900}
+.imports-company-last{margin-top:9px;padding-top:8px;border-top:1px solid #edf1f5;font-size:8px;color:#6e8093;display:flex;justify-content:space-between;gap:8px}.imports-company-open{margin-top:9px;border:1px solid #bfd1e4;background:#f7fbff;color:#075fc8;border-radius:8px;padding:7px;text-align:center;font-size:8px;font-weight:950}
+.imports-flight-list{display:grid;gap:8px}.imports-flight-row{display:grid;grid-template-columns:minmax(120px,.8fr) minmax(110px,.7fr) minmax(110px,.7fr) minmax(120px,.8fr) auto;gap:8px;align-items:center;border:1px solid #e0e8ef;background:#fff;border-radius:10px;padding:9px 10px}
+.imports-flight-id b{display:block;font-size:12px;color:#173a5d}.imports-flight-id span{display:block;margin-top:2px;font-size:8px;color:#74869a}.imports-flight-meta{font-size:8px;color:#6d7f92;font-weight:850}
+.imports-flight-status{justify-self:start;font-size:8px;font-weight:950;padding:5px 7px;border-radius:999px}.imports-flight-status.ok{background:#edf8f2;border:1px solid #b6dfc6;color:#08784b}.imports-flight-status.wait{background:#fff8e9;border:1px solid #eed08d;color:#906000}.imports-flight-status.err{background:#fff0f1;border:1px solid #efb8bd;color:#ba2833}
+.imports-flight-actions{display:flex;gap:5px;justify-content:flex-end}.imports-flight-actions button{border:1px solid #b8cee4;background:#fff;color:#075fc8;border-radius:7px;padding:6px 7px;font-size:7px;font-weight:950;cursor:pointer}.imports-flight-actions button.primary{background:#075fc8;color:#fff;border-color:#075fc8}.imports-flight-actions button:disabled{opacity:.35;cursor:not-allowed}
+.imports-unidentified{border:1px solid #eed195;background:#fff9ed;color:#76520e;border-radius:10px;padding:10px 12px;font-size:9px}
+@media(max-width:800px){.imports-summary{grid-template-columns:repeat(2,1fr)}.imports-company-grid{grid-template-columns:1fr}.imports-flight-row{grid-template-columns:1fr auto}.imports-flight-meta{grid-column:1/2}.imports-flight-actions{grid-column:1/-1;justify-content:flex-start}}
+</style>
+
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -6743,10 +6770,10 @@ html,body{
 <body>
 <script>
 /* V49.75 — BJ KPI WEB SBY AVAILABLE. SQ/TK frozen. */
-const ALYZIA_APP_VERSION='V49.89';
+const ALYZIA_APP_VERSION='V49.90';
 const ALYZIA_SQ_LOCK_VERSION='V49.64';
 const ALYZIA_TK_LOCK_VERSION='V49.69';
-const ALYZIA_APP_BUILD='2026-08-28-89';
+const ALYZIA_APP_BUILD='2026-08-28-90';
 </script>
 <header class="topbar">
  <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V49.89</span></div>
@@ -16759,12 +16786,10 @@ async function openTools(){
    <button class="tool-card" onclick="openSariaApp()"><span class="tool-icon">✈</span><b>SARIA</b><span>OUVRIR DIRECTEMENT L’OUTIL SARIA CABIN / SEATMAP.</span></button>
    <div class="ops-cloud-card">
      <div id="opsCloudStatusBox" class="ops-cloud-status ${OPS_CLOUD_ONLINE?'ok':'warn'}">${OPS_CLOUD_ONLINE?'☁ SYNC MULTI-POSTES ACTIVE':'☁ SYNC MULTI-POSTES'}</div>
-     <div class="ops-cloud-help">D1 PARTAGÉ · FICHE OUVERTE ~0,5 S · SYNCHRO GLOBALE ~1,5 S · PC, TABLETTE ET TÉLÉPHONE.<br><b style="color:#087749">V49.89 · IMPORTS GMAIL PAR COMPAGNIE</b></div>
+     <div class="ops-cloud-help">D1 PARTAGÉ · FICHE OUVERTE ~0,5 S · SYNCHRO GLOBALE ~1,5 S · PC, TABLETTE ET TÉLÉPHONE.<br><b style="color:#087749">V49.90 · CARTE IMPORTS</b></div>
      <button class="live-refresh" onclick="manualCloudRefresh()">↻ SYNCHRONISER MAINTENANT</button>
    </div>
-   <div id="prepaAutoImportsHost">
-     ${renderPrepaImportsAutoPanel()}
-   </div>
+   ${renderImportsMainCard()}
    <div class="adb-usage-card"><div id="adbUsageBox"><button class="live-refresh" onclick="loadAeroUsage()">CHARGER COMPTEUR AERODATABOX</button></div></div>
    <button class="clear-all-flights-btn" onclick="openFullReset()">🗑 REMETTRE TOUT À ZÉRO</button>
  </div>`);
@@ -17145,7 +17170,7 @@ function openFlightInfo(){
 }
 
 
-console.info('ALYZIA OPS V49.89 · IMPORTS GMAIL PAR COMPAGNIE');
+console.info('ALYZIA OPS V49.90 · CARTE IMPORTS');
 const SARIA_DIRECT_URL="https://saria-seatmap.alyzia-cdg2.workers.dev";
 const SARIA_BRIDGE_BASE=(location.protocol==='http:'||location.protocol==='https:')
   ? `${location.origin}/api/saria`
@@ -18132,202 +18157,80 @@ function startPrepaInboxAutoImport(){
 
 
 /* =========================================================
-   V49.89 — IMPORTS GMAIL PAR COMPAGNIE
+   V49.90 — CARTE IMPORTS -> COMPAGNIES -> VOLS
    ========================================================= */
 let PREPA_IMPORTS_UI_ITEMS=[];
-let PREPA_IMPORTS_COMPANY_FILTER='ALL';
 
-async function fetchRecentPrepaImports(limit=80){
+async function fetchRecentPrepaImports(limit=180){
  try{
-  const r=await fetch('/api/prepa',{method:'GET',cache:'no-store',headers:{'Accept':'application/json'}});
+  const r=await fetch('/api/prepa',{method:'GET',cache:'no-store',headers:{Accept:'application/json'}});
   if(!r.ok)throw new Error(`HTTP ${r.status}`);
   const j=await r.json();
-  const items=Array.isArray(j?.items)?j.items:[];
-  PREPA_IMPORTS_UI_ITEMS=items.slice(0,Math.max(1,Number(limit)||80));
+  PREPA_IMPORTS_UI_ITEMS=(Array.isArray(j?.items)?j.items:[]).slice(0,Math.max(1,Number(limit)||180));
   return PREPA_IMPORTS_UI_ITEMS;
- }catch(e){
-  console.warn('V49.89 IMPORTS UI',e);
-  PREPA_IMPORTS_UI_ITEMS=[];
-  return [];
- }
+ }catch(e){console.warn('V49.90 IMPORTS',e);PREPA_IMPORTS_UI_ITEMS=[];return []}
 }
-
-function formatPrepaImportStatus(status){
- const s=String(status||'PENDING').toUpperCase();
- if(s==='PROCESSED')return {label:'INJECTÉ',cls:'ok'};
- if(s==='PROCESSING')return {label:'EN COURS',cls:'run'};
- if(s==='ERROR')return {label:'ERREUR',cls:'err'};
- if(s==='UNIDENTIFIED')return {label:'À IDENTIFIER',cls:'wait'};
- return {label:'EN ATTENTE',cls:'wait'};
+function impCompany(it){const a=String(it?.airline||'').trim().toUpperCase();return ['SQ','BJ','TK'].includes(a)?a:'AUTRE'}
+function impAttachCount(it){return Array.isArray(it?.attachments)?it.attachments.length:0}
+function impStatus(s){const v=String(s||'PENDING').toUpperCase();if(v==='PROCESSED')return {label:'INJECTÉ',cls:'ok',rank:0};if(v==='ERROR')return {label:'ERREUR',cls:'err',rank:3};if(v==='UNIDENTIFIED')return {label:'À IDENTIFIER',cls:'wait',rank:2};return {label:v==='PROCESSING'?'EN COURS':'EN ATTENTE',cls:'wait',rank:1}}
+function impDate(v){const s=String(v||'');const m=s.match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?`${m[3]}/${m[2]}/${m[1]}`:s}
+function impItems(c){return PREPA_IMPORTS_UI_ITEMS.filter(x=>impCompany(x)===c)}
+function impFlights(c){
+ const map=new Map();
+ impItems(c).forEach(it=>{
+  const f=String(it?.flightNumber||'').trim().toUpperCase(),d=String(it?.flightDate||'').trim();
+  if(!f||!d)return;
+  const key=`${d}|${f}`;let row=map.get(key);
+  if(!row){row={key,company:c,flightNumber:f,flightDate:d,messages:0,files:0,status:'PROCESSED'};map.set(key,row)}
+  row.messages++;row.files+=impAttachCount(it);
+  const a=impStatus(it?.status),b=impStatus(row.status);if(a.rank>b.rank)row.status=String(it?.status||'PENDING').toUpperCase();
+ });
+ return [...map.values()].sort((a,b)=>b.flightDate.localeCompare(a.flightDate)||a.flightNumber.localeCompare(b.flightNumber));
 }
-
-function formatPrepaImportDateTime(v){
- const d=new Date(v||'');
- if(Number.isNaN(d.getTime()))return '';
- try{
-  return new Intl.DateTimeFormat('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).format(d);
- }catch(e){return ''}
+function impStats(c){
+ const items=impItems(c),flights=impFlights(c);
+ return {files:items.reduce((n,x)=>n+impAttachCount(x),0),flights:flights.length,injected:flights.filter(x=>String(x.status).toUpperCase()==='PROCESSED').length,pending:flights.filter(x=>['PENDING','PROCESSING'].includes(String(x.status).toUpperCase())).length,errors:flights.filter(x=>String(x.status).toUpperCase()==='ERROR').length,last:flights[0]||null};
 }
-
-function formatPrepaFlightDate(v){
- const s=String(v||'');
- const m=s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
- return m?`${m[3]}/${m[2]}/${m[1]}`:s;
+function impGlobal(){
+ const stats=['SQ','BJ','TK'].map(impStats);
+ const unidentified=PREPA_IMPORTS_UI_ITEMS.filter(x=>impCompany(x)==='AUTRE'||String(x?.status||'').toUpperCase()==='UNIDENTIFIED').length;
+ return {files:stats.reduce((n,s)=>n+s.files,0),flights:stats.reduce((n,s)=>n+s.flights,0),injected:stats.reduce((n,s)=>n+s.injected,0),pending:stats.reduce((n,s)=>n+s.pending,0),errors:stats.reduce((n,s)=>n+s.errors,0),unidentified};
 }
-
-function prepaImportCompany(it){
- const a=String(it?.airline||'').trim().toUpperCase();
- if(['SQ','BJ','TK'].includes(a))return a;
- return 'AUTRE';
+function renderImportsMainCard(){
+ const g=impGlobal();
+ return `<button class="imports-main-card" onclick="openImportsDashboard()">
+  <div class="imports-main-top"><span class="imports-main-icon">⇩</span><span class="imports-main-state">${g.errors?'À VÉRIFIER':'ACTIF'}</span></div>
+  <h3>IMPORTS GMAIL</h3><p>SQ · BJ · TK — fichiers reçus, analysés et injectés dans PRÉPA + FICHE VOL.</p>
+  <div class="imports-main-stats"><div class="imports-main-stat"><b>${g.files}</b><span>FICHIERS</span></div><div class="imports-main-stat"><b>${g.injected}/${g.flights}</b><span>VOLS INJECTÉS</span></div><div class="imports-main-stat"><b>${g.unidentified}</b><span>À IDENTIFIER</span></div></div>
+ </button>`;
 }
-
-function prepaImportSourceLabel(it){
- const src=String(it?.source||'').toUpperCase();
- const gid=String(it?.gmailMessageId||'').toUpperCase();
- if(src.includes('HISTOR')||gid.startsWith('HISTO_PREPASQ_'))return 'HISTORIQUE SQ';
- if(src.includes('UNIDENTIFIED'))return 'À IDENTIFIER';
- return 'GMAIL';
+async function openImportsDashboard(){
+ await fetchRecentPrepaImports().catch(()=>{});
+ const g=impGlobal();
+ const cards=['SQ','BJ','TK'].map(c=>{const s=impStats(c),last=s.last?`${s.last.flightNumber} · ${impDate(s.last.flightDate)}`:'AUCUN VOL';return `
+  <button class="imports-company-card" data-c="${c}" onclick="openImportsCompany('${c}')">
+   <div class="imports-company-head"><span class="imports-company-logo">${c}</span><span class="imports-main-state">${s.errors?'À VÉRIFIER':'SYNC'}</span></div>
+   <h4>${c} · IMPORTS</h4><p>Fichiers reçus et données injectées dans PRÉPA + FICHE VOL.</p>
+   <div class="imports-company-metrics"><div class="imports-company-metric"><b>${s.files}</b><span>FICHIERS</span></div><div class="imports-company-metric"><b>${s.flights}</b><span>VOLS</span></div><div class="imports-company-metric"><b>${s.injected}</b><span>INJECTÉS</span></div></div>
+   <div class="imports-company-last"><span>DERNIER VOL</span><b>${escapeHtml(last)}</b></div><div class="imports-company-open">VOIR LES VOLS →</div>
+  </button>`}).join('');
+ showModal('IMPORTS GMAIL','SQ · BJ · TK',`<div class="imports-dash">
+  <div class="imports-summary"><div class="imports-summary-card"><b>${g.files}</b><span>FICHIERS REÇUS</span></div><div class="imports-summary-card"><b>${g.flights}</b><span>VOLS DÉTECTÉS</span></div><div class="imports-summary-card"><b>${g.injected}</b><span>VOLS INJECTÉS</span></div><div class="imports-summary-card"><b>${g.pending+g.errors}</b><span>À TRAITER / ERREURS</span></div></div>
+  <div class="imports-company-grid">${cards}</div>${g.unidentified?`<div class="imports-unidentified"><b>${g.unidentified} IMPORT${g.unidentified>1?'S':''} À IDENTIFIER</b> — PDF reçus sans rattachement complet à un vol.</div>`:''}
+ </div>`);
 }
-
-function prepaImportAttachmentCount(it){
- return Array.isArray(it?.attachments)?it.attachments.length:0;
+function findImpFlightIndex(row){return FLIGHTS.findIndex(x=>String(x?.flight||'').toUpperCase()===row.flightNumber&&String(x?.airline||'').toUpperCase()===row.company&&String(x?.date||'')===row.flightDate)}
+function getImpRow(c,key){return impFlights(c).find(x=>x.key===key)||null}
+function openImpPrepa(c,key){const row=getImpRow(c,key);if(!row)return;const idx=findImpFlightIndex(row);if(idx<0){alert(`VOL ${row.flightNumber} DU ${impDate(row.flightDate)} ABSENT DE LA LISTE DES VOLS.`);return}closeAllModals();setTimeout(()=>{if(c==='SQ')openSqPrepaForDate(row.flightNumber,row.flightDate);else openPrepaEditing(idx,row.flightDate)},25)}
+function openImpFlight(c,key){const row=getImpRow(c,key);if(!row)return;const idx=findImpFlightIndex(row);if(idx<0){alert(`VOL ${row.flightNumber} DU ${impDate(row.flightDate)} ABSENT DE LA LISTE DES VOLS.`);return}closeAllModals();setTimeout(()=>openFlightFromPrepa(idx),25)}
+function openImportsCompany(c){
+ const s=impStats(c),flights=impFlights(c);
+ const rows=flights.map(row=>{const st=impStatus(row.status),idx=findImpFlightIndex(row),canOpen=idx>=0&&String(row.status).toUpperCase()==='PROCESSED';return `<div class="imports-flight-row">
+  <div class="imports-flight-id"><b>${escapeHtml(row.flightNumber)}</b><span>${escapeHtml(impDate(row.flightDate))}</span></div><div class="imports-flight-meta">${row.files} FICHIER${row.files>1?'S':''}</div><div class="imports-flight-meta">${row.messages} MAIL${row.messages>1?'S':''}</div><div class="imports-flight-status ${st.cls}">${st.label}</div>
+  <div class="imports-flight-actions"><button ${canOpen?'':'disabled'} onclick="openImpPrepa('${c}','${row.key}')">PRÉPA</button><button class="primary" ${canOpen?'':'disabled'} onclick="openImpFlight('${c}','${row.key}')">FICHE VOL</button></div></div>`}).join('');
+ showModal(`IMPORTS ${c}`,`${s.flights} VOLS · ${s.files} FICHIERS`,`<div class="imports-dash"><div class="imports-summary"><div class="imports-summary-card"><b>${s.files}</b><span>FICHIERS</span></div><div class="imports-summary-card"><b>${s.flights}</b><span>VOLS</span></div><div class="imports-summary-card"><b>${s.injected}</b><span>INJECTÉS</span></div><div class="imports-summary-card"><b>${s.pending+s.errors}</b><span>À TRAITER</span></div></div><div class="imports-flight-list">${rows||`<div class="import-status">AUCUN VOL IMPORTÉ POUR ${c}.</div>`}</div></div>`);
 }
-
-function getPrepaInboxUiItem(id){
- return (PREPA_IMPORTS_UI_ITEMS||[]).find(x=>String(x?.id)===String(id))||null;
-}
-
-function findImportedFlightIndex(it){
- return findFlightIndexForInbox(it);
-}
-
-function openImportedPrepaRecord(id){
- const it=getPrepaInboxUiItem(id);
- if(!it)return;
- const idx=findImportedFlightIndex(it);
- if(idx<0){alert(`VOL ${String(it.flightNumber||'').toUpperCase()} ABSENT DE LA LISTE DES VOLS.`);return}
- const depDate=String(it.flightDate||FLIGHTS[idx]?.date||'');
- closeAllModals();
- setTimeout(()=>{
-  if(String(it.airline||'').toUpperCase()==='SQ'){
-   openSqPrepaForDate(String(it.flightNumber||FLIGHTS[idx]?.flight||''),depDate);
-  }else{
-   openPrepaEditing(idx,depDate);
-  }
- },25);
-}
-
-function openImportedFlightRecord(id){
- const it=getPrepaInboxUiItem(id);
- if(!it)return;
- const idx=findImportedFlightIndex(it);
- if(idx<0){alert(`VOL ${String(it.flightNumber||'').toUpperCase()} ABSENT DE LA LISTE DES VOLS.`);return}
- closeAllModals();
- setTimeout(()=>openFlightFromPrepa(idx),25);
-}
-
-function setPrepaImportsCompanyFilter(company){
- PREPA_IMPORTS_COMPANY_FILTER=String(company||'ALL').toUpperCase();
- const host=document.getElementById('prepaAutoImportsHost');
- if(host)host.innerHTML=renderPrepaImportsAutoPanel();
-}
-
-function renderPrepaImportsAutoPanel(){
- const all=PREPA_IMPORTS_UI_ITEMS||[];
- const counts={
-  total:all.length,
-  processed:all.filter(x=>String(x?.status||'').toUpperCase()==='PROCESSED').length,
-  pending:all.filter(x=>['PENDING','PROCESSING'].includes(String(x?.status||'').toUpperCase())).length,
-  error:all.filter(x=>String(x?.status||'').toUpperCase()==='ERROR').length
- };
- const active=PREPA_IMPORTS_COMPANY_FILTER||'ALL';
- const grouped={SQ:[],BJ:[],TK:[],AUTRE:[]};
- all.forEach(it=>{const c=prepaImportCompany(it);(grouped[c]||(grouped[c]=[])).push(it)});
- const sectionCompanies=active==='ALL'?['SQ','BJ','TK']:[active];
- const companySections=sectionCompanies.map(company=>{
-  const items=grouped[company]||[];
-  if(!items.length)return '';
-  return `
-   <div class="prepa-company-section">
-    <div class="prepa-company-head">
-     <span class="prepa-company-name">${company} · VOLS IMPORTÉS</span>
-     <span class="prepa-company-count">${items.length} IMPORT${items.length>1?'S':''}</span>
-    </div>
-    <div class="prepa-auto-list">
-     ${items.map(it=>{
-       const st=formatPrepaImportStatus(it.status);
-       const dt=formatPrepaImportDateTime(it.processedAt||it.updatedAt||it.receivedAt);
-       const flight=String(it.flightNumber||'VOL À IDENTIFIER').toUpperCase();
-       const flightDate=formatPrepaFlightDate(it.flightDate);
-       const docs=prepaImportAttachmentCount(it);
-       const source=prepaImportSourceLabel(it);
-       const err=String(it.errorMessage||'').trim();
-       const idx=findImportedFlightIndex(it);
-       const canOpen=idx>=0 && String(it.status||'').toUpperCase()==='PROCESSED';
-       return `
-        <div class="prepa-auto-row">
-         <div class="prepa-auto-main">
-          <span class="prepa-auto-flight">${escapeHtml(flight)}</span>
-          <span class="prepa-auto-date">${escapeHtml(flightDate||'DATE À IDENTIFIER')}</span>
-         </div>
-         <div class="prepa-auto-meta">
-          <span class="prepa-auto-source">${escapeHtml(source)}</span>
-          <span>${docs} PDF/PJ</span>
-          ${dt?`<span>${escapeHtml(dt)}</span>`:''}
-         </div>
-         <div class="prepa-auto-status ${st.cls}">${st.label}</div>
-         <div class="prepa-auto-actions">
-          <button class="prepa-auto-open" ${canOpen?'':'disabled'} onclick="openImportedPrepaRecord('${String(it.id)}')">PRÉPA</button>
-          <button class="prepa-auto-open flight" ${canOpen?'':'disabled'} onclick="openImportedFlightRecord('${String(it.id)}')">FICHE VOL</button>
-         </div>
-         ${err?`<div class="prepa-auto-error">${escapeHtml(err)}</div>`:''}
-        </div>`;
-     }).join('')}
-    </div>
-   </div>`;
- }).join('');
-
- return `
-  <section class="prepa-auto-panel" id="prepaAutoImportsPanel">
-   <div class="prepa-auto-head">
-    <div>
-     <div class="prepa-auto-title">VOLS IMPORTÉS DEPUIS GMAIL</div>
-     <div class="prepa-auto-sub">SQ · BJ · TK → D1 → PRÉPA + FICHE VOL</div>
-    </div>
-    <button class="prepa-auto-refresh" type="button" onclick="refreshPrepaImportsAutoPanel()">↻ ACTUALISER</button>
-   </div>
-   <div class="prepa-auto-kpis">
-    <div class="prepa-auto-kpi"><b>${counts.total}</b><span>REÇUS</span></div>
-    <div class="prepa-auto-kpi"><b>${counts.processed}</b><span>INJECTÉS</span></div>
-    <div class="prepa-auto-kpi"><b>${counts.pending}</b><span>EN ATTENTE</span></div>
-    <div class="prepa-auto-kpi"><b>${counts.error}</b><span>ERREURS</span></div>
-   </div>
-   <div class="prepa-company-tabs">
-    ${['ALL','SQ','BJ','TK'].map(c=>{
-      const label=c==='ALL'?'TOUS':c;
-      const n=c==='ALL'?all.length:(grouped[c]||[]).length;
-      return `<button class="prepa-company-tab ${active===c?'active':''}" onclick="setPrepaImportsCompanyFilter('${c}')">${label} · ${n}</button>`;
-    }).join('')}
-   </div>
-   ${companySections||`<div class="prepa-auto-empty">AUCUN IMPORT POUR CETTE COMPAGNIE.</div>`}
-  </section>`;
-}
-
-async function refreshPrepaImportsAutoPanel(){
- await fetchRecentPrepaImports();
- const host=document.getElementById('prepaAutoImportsHost');
- if(host)host.innerHTML=renderPrepaImportsAutoPanel();
-}
-
-function ensurePrepaImportsAutoPanel(){
- const host=document.getElementById('prepaAutoImportsHost');
- if(host)host.innerHTML=renderPrepaImportsAutoPanel();
-}
-
-setInterval(()=>{
- if(document.hidden)return;
- refreshPrepaImportsAutoPanel().catch(()=>{});
-},10000);
+setInterval(()=>{if(!document.hidden)fetchRecentPrepaImports().catch(()=>{})},10000);
 
 
 async function bootstrapAlyziaOps(){
