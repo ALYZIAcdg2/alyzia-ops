@@ -12,7 +12,7 @@ function json(data,status=200,extraHeaders={}){
       "Content-Type":"application/json; charset=UTF-8",
       "Access-Control-Allow-Origin":"*",
       "Access-Control-Allow-Methods":"GET,POST,PUT,PATCH,DELETE,OPTIONS",
-      "Access-Control-Allow-Headers":"Content-Type",
+      "Access-Control-Allow-Headers":"Content-Type, Authorization",
       "Cache-Control":"no-store",
       ...extraHeaders
     }
@@ -731,6 +731,11 @@ export default {
 
       if(url.pathname.startsWith("/api/flights")){
         const result=await handleFlights(request,env,url);
+        if(result)return result;
+      }
+
+      if(url.pathname.startsWith("/api/prepa")){
+        const result=await handlePrepa(request,env,url);
         if(result)return result;
       }
 
