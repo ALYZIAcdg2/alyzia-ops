@@ -6,7 +6,7 @@
   <meta http-equiv="Expires" content="0">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V49.80 · D1 MULTI-DEVICE SYNC · SQ + TK + BJ LOCKED</title>
+<title>ALYZIA OPS - V49.81 · TK ETKT/FQTV/STAFF/PETC + D1 VERIFY · SQ + BJ LOCKED</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -8563,7 +8563,7 @@ function openFlightFromPrepa(flightIndex){
 }
 
 
-/* V49.80 — D1 multi-device sync hardening. SQ/TK/BJ business logic LOCKED. */
+/* V49.81 — D1 read-after-write verification. SQ/BJ locked; TK scoped corrections only. */
 const BJ_PREPA_CARDS=['WCH','UMNR','MAAS','PETC / AVIH','DEAF / BLND','INF','CHLD','STAFF','WEB','PBOR / PCIN','MEAL','EMD','FQTV'];
 function bjNorm(v){return String(v||'').toUpperCase().replace(/[^A-Z0-9]/g,'')}
 function bjSeat(v){const m=String(v||'').toUpperCase().match(/\b\d{1,2}[A-K]\b/);return m?m[0]:''}
@@ -10178,6 +10178,7 @@ function parseTkPassengerRows(section,{ticketMode=false,emdMode=false,connection
    const genderMatch=rest.match(/\b\d{2}[A-K]-([MFCI])\b/i);
    const groupMatch=rest.match(/(?:^|\s)([A-Z]{1,2}\d{1,2})(?=\s+\d{2}[A-K](?:-[A-Z])?\b|\s+\d{3}\b)/i);
    const rebateCode=(rest.match(/\b(R\d+[A-Z]?)\b/i)||[])[1]?.toUpperCase()||'';
+   const dutyCode=(rest.match(/\b(S\d+[A-Z]?)\b/i)||[])[1]?.toUpperCase()||'';
    const p={
      id:`TK-${idx}-${name.replace(/[^A-Z0-9]/g,'')}`,
      name,
@@ -10194,7 +10195,8 @@ function parseTkPassengerRows(section,{ticketMode=false,emdMode=false,connection
      note:'',
      ssr:[],
      connections:[],
-     rebateCode
+     rebateCode,
+     dutyCode
    };
    if(ticketMode){
      const t=(rest.match(/\b(\d{13})C\d+\b/)||[])[1]||'';
@@ -10298,7 +10300,7 @@ function parseTkCommentedCategories(rawOriginal){
    const bang=new RegExp(`!${code}!`,'i'),bm=t.match(bang);
    if(bm)t=t.slice((bm.index||0)+bm[0].length);
    else {
-     const plain=new RegExp(`\b${code}\b`,'i'),pm=t.match(plain);
+     const plain=new RegExp(`\\b${code}\\b`,'i'),pm=t.match(plain);
      if(pm)t=t.slice((pm.index||0)+pm[0].length);else return '';
    }
    t=t.replace(/^[\s·:;\-/]+|[\s·:;\-/]+$/g,'').replace(/\s{2,}/g,' ').trim();
@@ -10346,33 +10348,50 @@ function parseTkExplicitDutyStaff(rawOriginal){
  // Never copy REBATE and never derive from CRW B.
  const raw=String(rawOriginal||'').replace(/\r/g,'');
  const m=raw.match(/TK\s*\d{3,4}\s+\d{1,2}[A-Z]{3}\s+CDG\s+(?:DUTY STAFF|DUTY PAX)[\s\S]*?END NAMES/i);
- return m?parseTkPassengerRows(m[0]).map(p=>({...p,specific:'DUTY STAFF'})):[];
+ return m?parseTkPassengerRows(m[0]).map(p=>({...p,specific:`DUTY STAFF${p.dutyCode?` · ${p.dutyCode}`:''}`})):[];
 }
 
 
 function parseTkFqtvCategories(rawOriginal){
  const raw=String(rawOriginal||'').replace(/\r/g,'');
- const output=[];
- const seen=new Set();
+ const records=new Map();
  const normCat=(carrier,code)=>{
    carrier=String(carrier||'').toUpperCase();code=String(code||'').toUpperCase();
    return (carrier!=='TK'&&(code==='GOLD'||code==='SILVER'))?`${code}_OTHER`:code;
  };
- const add=(p,carrier,code,number='')=>{
+ const norm=v=>String(v||'').replace(/[^A-Z0-9]/gi,'').toUpperCase();
+ const identity=(p,cat)=>{
+   const etkt=String(p?.etkt||'').trim();
+   if(etkt)return `${cat}|E:${etkt}`;
+   const seat=String(p?.seat||'').toUpperCase(),cls=String(p?.class||'').toUpperCase();
+   if(seat)return `${cat}|S:${seat}|${cls}`;
+   return `${cat}|N:${norm(p?.name||p?.fullName)}`;
+ };
+ const add=(p,carrier,code,number='',priority=1)=>{
    if(!p||!code)return;
+   carrier=String(carrier||'').toUpperCase();
    const cat=normCat(carrier,code);
-   const key=`${cat}|${String(p.name||'').toUpperCase()}|${String(p.seat||'').toUpperCase()}|${String(number||'')}`;
-   if(seen.has(key))return;
-   seen.add(key);
-   output.push({...p,specific:cat,fqtv:{code:cat,status:carrier==='TK'?code:`${carrier} ${code}`,number:String(number||''),carrier}});
+   const key=identity(p,cat);
+   const next={...p,specific:cat,fqtv:{code:cat,status:carrier==='TK'?String(code).toUpperCase():`${carrier} ${String(code).toUpperCase()}`,number:String(number||''),carrier},_fqPriority:priority};
+   const prev=records.get(key);
+   if(!prev){records.set(key,next);return;}
+   // Same named passenger/category from FQTV CARD NUMBERS + ALL PAX: ONE passenger only.
+   // Prefer the canonical ALL PAX identity and the longest/full membership number.
+   const prevNum=String(prev?.fqtv?.number||''),nextNum=String(next?.fqtv?.number||'');
+   const base=(priority>=Number(prev._fqPriority||0))?{...prev,...next}:{...next,...prev};
+   const bestNum=nextNum.length>prevNum.length?nextNum:prevNum;
+   base.fqtv={...(priority>=Number(prev._fqPriority||0)?prev.fqtv:next.fqtv),...(priority>=Number(prev._fqPriority||0)?next.fqtv:prev.fqtv),number:bestNum};
+   base._fqPriority=Math.max(priority,Number(prev._fqPriority||0));
+   records.set(key,base);
  };
 
- // Primary source: explicit FQTV passenger/card sections. Keep the actual number.
+ // Primary list: FQTV CARD NUMBERS / named FQTV report determines WHO is counted.
  const blockRe=/TK\s*\d{3,4}\s+\d{1,2}[A-Z]{3}\s+CDG\s+([^\n\r]+)[\s\S]*?END NAMES/gi;
- let bm;
+ let bm,hasExplicit=false;
  while((bm=blockRe.exec(raw))){
    const block=bm[0],heading=String(bm[1]||'').toUpperCase();
    if(!/(FQTV CARD NUMBERS|ELITE CLUB MEMBER|CLASSIC CLUB MEMBER|ELITE PLUS|CLASSIC PLUS|GOLD|SILVER)/.test(heading))continue;
+   hasExplicit=true;
    const rows=parseTkPassengerRows(block);
    const bySeat=new Map(rows.map(p=>[`${String(p.seat||'').toUpperCase()}|${String(p.class||'').toUpperCase()}`,p]));
    String(block).split('\n').forEach(line=>{
@@ -10382,14 +10401,32 @@ function parseTkFqtvCategories(rawOriginal){
      const sm=rest.match(/\b(\d{2}[A-K])(?:-[A-Z])?\b/i)||rest.match(/\b(\d{3})\b/);
      const seat=sm?sm[1].toUpperCase():'',cls=m[2].toUpperCase();
      const p=bySeat.get(`${seat}|${cls}`)||{name:tkNormalizeName(m[1]),seat,class:cls,pnr:'',etkt:'',emd:'',ssr:[]};
-     add(p,fq[1].toUpperCase(),fq[2].toUpperCase(),fq[3]||'');
+     add(p,fq[1],fq[2],fq[3]||'',1);
    });
  }
 
- // Secondary source: ALL PAX continuation lines (TK /CLSCTK..., UA /GOLD...).
- const rows=parseTkPassengerRows(tkSection(rawOriginal,'ALL PAX'),{ticketMode:true});
- rows.filter(p=>p.fqtv).forEach(p=>add(p,p.fqtv.carrier||'TK',String(p.fqtv.code||'').replace(/_OTHER$/,''),p.fqtv.number||''));
- return output;
+ // ALL PAX supplies canonical identity/full FQTV number. If an explicit FQTV report exists,
+ // it ENRICHES those same members only and must never double the 57 named rows.
+ const allRows=parseTkPassengerRows(tkSection(rawOriginal,'ALL PAX'),{ticketMode:true}).filter(p=>p.fqtv);
+ if(hasExplicit){
+   const existing=[...records.values()];
+   const findExplicit=p=>{
+     const cat=String(p?.fqtv?.code||'').toUpperCase();
+     const et=String(p?.etkt||''); if(et){const q=existing.find(r=>String(r?.fqtv?.code||'').toUpperCase()===cat&&String(r.etkt||'')===et);if(q)return q;}
+     const seat=String(p?.seat||'').toUpperCase(),cls=String(p?.class||'').toUpperCase();
+     if(seat){const q=existing.find(r=>String(r?.fqtv?.code||'').toUpperCase()===cat&&String(r.seat||'').toUpperCase()===seat&&String(r.class||'').toUpperCase()===cls);if(q)return q;}
+     const n=norm(p?.name||p?.fullName);return existing.find(r=>String(r?.fqtv?.code||'').toUpperCase()===cat&&norm(r?.name||r?.fullName)===n)||null;
+   };
+   allRows.forEach(p=>{
+     const q=findExplicit(p);if(!q)return;
+     const cat=String(p.fqtv.code||'').toUpperCase();
+     const oldKey=identity(q,cat);records.delete(oldKey);
+     add({...q,...p,ssr:[...new Set([...(q.ssr||[]),...(p.ssr||[])])]},p.fqtv.carrier||'TK',String(p.fqtv.code||'').replace(/_OTHER$/,''),p.fqtv.number||q.fqtv?.number||'',2);
+   });
+ }else{
+   allRows.forEach(p=>add(p,p.fqtv.carrier||'TK',String(p.fqtv.code||'').replace(/_OTHER$/,''),p.fqtv.number||'',2));
+ }
+ return [...records.values()].map(({_fqPriority,...p})=>p);
 }
 
 function parseTkStandby(rawOriginal){
@@ -10757,7 +10794,7 @@ function prepareTkImportManifest(rawOriginal){
    PET_AV:commented.PETC||[],
    VIP:vipNamed,
    GROUP:group,
-   ETK:masterPassengers.filter(p=>p.etkt),
+   ETK:etk,
    EMD:emd,
    REBATE_STAFF:rebateEnriched,
    DUTY_STAFF:dutyEnriched,
@@ -12891,6 +12928,26 @@ async function publishCompanyConfigToCloud(){
  }
 }
 
+function cloudPatchApplied(patch,cloud){
+ if(!patch||!cloud)return false;
+ return Object.keys(patch).filter(k=>!['_serverUpdatedAt','updated_at','updatedAt'].includes(k)).every(k=>{
+   try{return JSON.stringify(cloud?.[k])===JSON.stringify(patch?.[k])}catch(e){return cloud?.[k]===patch?.[k]}
+ });
+}
+async function verifyFlightWriteInD1(identity,patch,localFlight,merged){
+ // Read-after-write: another device must be able to GET exactly the fields just written.
+ let server=await getOneFlightFromCloud(identity);
+ if(server&&cloudPatchApplied(patch,server))return server;
+ console.warn('V49.81 D1 VERIFY: patch absent/incomplete, retrying full UPSERT',identity);
+ const ok=await upsertFlightToCloud(localFlight);
+ if(!ok)return merged||null;
+ server=await getOneFlightFromCloud(identity);
+ if(server&&cloudPatchApplied(patch,server))return server;
+ console.warn('V49.81 D1 VERIFY FAILED',identity);
+ setOpsCloudState(false,'D1 NON CONFIRMÉ · RÉESSAYER SYNC');
+ return server||merged||null;
+}
+
 function persistFlightAction(reason='ACTION FICHE VOL',immediate=false){
  clearTimeout(__flightPersistTimer);
 
@@ -12920,6 +12977,10 @@ function persistFlightAction(reason='ACTION FICHE VOL',immediate=false){
        if(!ok)return false;
        merged=JSON.parse(JSON.stringify(x));
      }
+
+     // V49.81: a successful HTTP response is not enough. Re-read D1 and verify
+     // the fields just written before considering the action synchronized.
+     merged=(await verifyFlightWriteInD1(identity,patch,x,merged))||merged;
 
      OPS_CLOUD_SNAPSHOT.set(identity,JSON.parse(JSON.stringify(merged)));
 
@@ -14349,8 +14410,13 @@ async function adjustGroupedOperationalCount(defId,delta){
  await persistFlightAction(`AJUSTEMENT ${def.label}`,true);
 }
 
+function tkStaffCodeSort(list,kind){
+ const prop=kind==='DUTY'?'dutyCode':'rebateCode';
+ const parse=v=>{const m=String(v||'').toUpperCase().match(/^([RS])(\d+)([A-Z]?)$/);return m?{n:Number(m[2]),s:m[3]||'',raw:m[0]}:{n:999,s:'Z',raw:String(v||'')}};
+ return (Array.isArray(list)?list:[]).slice().sort((a,b)=>{const A=parse(a?.[prop]||String(a?.specific||'').match(/\b[RS]\d+[A-Z]?\b/i)?.[0]),B=parse(b?.[prop]||String(b?.specific||'').match(/\b[RS]\d+[A-Z]?\b/i)?.[0]);return A.n-B.n||A.s.localeCompare(B.s)||String(a?.name||'').localeCompare(String(b?.name||''));});
+}
 function groupedOperationalSections(defId,x=f()){
- if(defId==='STAFF_GROUP')return [['REBATE STAFF',operationalPaxList('REBATE_STAFF',x)],['DUTY STAFF',operationalPaxList('DUTY_STAFF',x)]];
+ if(defId==='STAFF_GROUP')return [['REBATE STAFF',x?.airline==='TK'?tkStaffCodeSort(operationalPaxList('REBATE_STAFF',x),'REBATE'):operationalPaxList('REBATE_STAFF',x)],['DUTY STAFF',x?.airline==='TK'?tkStaffCodeSort(operationalPaxList('DUTY_STAFF',x),'DUTY'):operationalPaxList('DUTY_STAFF',x)]];
  if(defId==='PET_GROUP')return [['AVIH 🦮',operationalPaxList('PET_AV',x).filter(p=>/\bAVIH\b/.test(String(p.specific||p.ssr||p.note||'').toUpperCase()))],['PETC 🐾',operationalPaxList('PET_AV',x).filter(p=>/\bPETC\b/.test(String(p.specific||p.ssr||p.note||'').toUpperCase()))]];
  if(defId==='POLICE_GROUP')return [['INAD',operationalPaxList('INAD',x)],['DEPU',operationalPaxList('DEPU',x)],['DEPA',operationalPaxList('DEPA',x)],['ESCORT',operationalPaxList('ESCORT',x)]];
  return [];
@@ -16070,7 +16136,7 @@ async function confirmClearAllFlights(){await confirmFullReset()}
 /* =========================================================
    V49.46 — SYNCHRONISATION SILENCIEUSE MULTI-POSTES
    ========================================================= */
-/* V49.80 — TK INF contextual SSR + TK CHLD/FQTV dedupe + D1 fast-sync authoritative. SQ/BJ LOCKED. */
+/* V49.81 — TK ETKT/FQTV/STF/PETC corrections + D1 read-after-write verification. SQ/BJ LOCKED. */
 const OPS_REALTIME_INTERVAL_VISIBLE=2500;
 const OPS_REALTIME_INTERVAL_HIDDEN=8000;
 let OPS_REALTIME_TIMER=null;
@@ -16367,7 +16433,7 @@ function openTools(){
    <button class="tool-card" onclick="openSariaApp()"><span class="tool-icon">✈</span><b>SARIA</b><span>OUVRIR DIRECTEMENT L’OUTIL SARIA CABIN / SEATMAP.</span></button>
    <div class="ops-cloud-card">
      <div id="opsCloudStatusBox" class="ops-cloud-status ${OPS_CLOUD_ONLINE?'ok':'warn'}">${OPS_CLOUD_ONLINE?'☁ SYNC MULTI-POSTES ACTIVE':'☁ SYNC MULTI-POSTES'}</div>
-     <div class="ops-cloud-help">D1 PARTAGÉ · FICHE OUVERTE ~0,8 S · SYNCHRO GLOBALE ~2,5 S · PC, TABLETTE ET TÉLÉPHONE.<br><b style="color:#087749">V49.55 · VISUAL FINISH</b></div>
+     <div class="ops-cloud-help">D1 PARTAGÉ · FICHE OUVERTE ~0,8 S · SYNCHRO GLOBALE ~2,5 S · PC, TABLETTE ET TÉLÉPHONE.<br><b style="color:#087749">V49.81 · D1 VERIFIED SYNC</b></div>
      <button class="live-refresh" onclick="manualCloudRefresh()">↻ SYNCHRONISER MAINTENANT</button>
    </div>
    <div class="adb-usage-card"><div id="adbUsageBox"><button class="live-refresh" onclick="loadAeroUsage()">CHARGER COMPTEUR AERODATABOX</button></div></div>
@@ -16750,7 +16816,7 @@ function openFlightInfo(){
 }
 
 
-console.info('ALYZIA OPS V49.55 · VISUAL FINISH');
+console.info('ALYZIA OPS V49.81 · D1 VERIFIED SYNC');
 const SARIA_DIRECT_URL="https://saria-seatmap.alyzia-cdg2.workers.dev";
 const SARIA_BRIDGE_BASE=(location.protocol==='http:'||location.protocol==='https:')
   ? `${location.origin}/api/saria`
@@ -17591,3 +17657,4 @@ window.addEventListener('focus',()=>wakeRealtimeSync());
 </nav>
 
 </body></html>
+<!-- V49.81: TK scoped fixes: ETKT uses E-TKT report (ALL PAX still master), FQTV identity dedupe/full-number enrichment, PETC detail, STAFF code sort, D1 write verification. SQ/BJ unchanged. -->
