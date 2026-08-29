@@ -1,4 +1,4 @@
-// ALYZIA OPS V49.90 · Worker PREPA + resource-limit fix
+// ALYZIA OPS V50.1 · Worker GENERIC + airline profiles + Notes/R2
 // - Assets statiques public/
 // - API vols partagée D1
 // - Bridge interne vers SARIA
@@ -72,6 +72,7 @@ async function upsertFlight(env,x){
   if(!validFlight(x))return false;
 
   const identity=flightIdentity(x);
+
   await env.OPS_DB.prepare(`
     INSERT INTO flights
       (identity, flight_date, airline, flight_number, std, data_json, updated_at)
@@ -105,10 +106,15 @@ function deepMerge(base,patch){
   if(!isPlainObject(patch))return patch;
 
   const out=isPlainObject(base)?{...base}:{};
+
   for(const [k,v] of Object.entries(patch)){
-    if(isPlainObject(v) && isPlainObject(out[k]))out[k]=deepMerge(out[k],v);
-    else out[k]=v;
+    if(isPlainObject(v) && isPlainObject(out[k])){
+      out[k]=deepMerge(out[k],v);
+    }else{
+      out[k]=v;
+    }
   }
+
   return out;
 }
 
@@ -121,6 +127,7 @@ async function getFlightByIdentity(env,identity){
   `).bind(identity).first();
 
   if(!row)return null;
+
   try{
     const x=JSON.parse(row.data_json);
     x._serverUpdatedAt=row.updated_at||"";
@@ -132,21 +139,24 @@ async function getFlightByIdentity(env,identity){
 
 async function patchFlight(env,identity,patch){
   const current=await getFlightByIdentity(env,identity);
+
   if(!current)return null;
 
-  // Identity fields are server authoritative for PATCH.
   const safePatch={...(patch||{})};
+
   delete safePatch.date;
   delete safePatch.airline;
   delete safePatch.flight;
   delete safePatch._serverUpdatedAt;
 
   const merged=deepMerge(current,safePatch);
+
   merged.date=current.date;
   merged.airline=current.airline;
   merged.flight=current.flight;
 
   await upsertFlight(env,merged);
+
   return await getFlightByIdentity(env,identity);
 }
 
@@ -156,846 +166,929 @@ async function syncFlights(env,flights){
 
   for(const x of Array.isArray(flights)?flights:[]){
     if(!validFlight(x))continue;
+
     const id=flightIdentity(x);
+
     if(seen.has(id))continue;
+
     seen.add(id);
     clean.push(x);
   }
 
-  // Batch par blocs pour rester robuste même avec un mois complet.
   const CHUNK=40;
+
   for(let i=0;i<clean.length;i+=CHUNK){
-    const statements=clean.slice(i,i+CHUNK).map(x=>
-      env.OPS_DB.prepare(`
-        INSERT INTO flights
-          (identity, flight_date, airline, flight_number, std, data_json, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-        ON CONFLICT(identity) DO UPDATE SET
-          flight_date=excluded.flight_date,
-          airline=excluded.airline,
-          flight_number=excluded.flight_number,
-          std=excluded.std,
-          data_json=excluded.data_json,
-          updated_at=CURRENT_TIMESTAMP
-      `).bind(
-        flightIdentity(x),
-        String(x.date||""),
-        String(x.airline||"").toUpperCase(),
-        String(x.flight||"").toUpperCase(),
-        String(x.std||""),
-        JSON.stringify(x)
-      )
-    );
-    if(statements.length)await env.OPS_DB.batch(statements);
+    const statements=clean
+      .slice(i,i+CHUNK)
+      .map(x=>
+        env.OPS_DB.prepare(`
+          INSERT INTO flights
+            (
+              identity,
+              flight_date,
+              airline,
+              flight_number,
+              std,
+              data_json,
+              updated_at
+            )
+          VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+
+          ON CONFLICT(identity) DO UPDATE SET
+            flight_date=excluded.flight_date,
+            airline=excluded.airline,
+            flight_number=excluded.flight_number,
+            std=excluded.std,
+            data_json=excluded.data_json,
+            updated_at=CURRENT_TIMESTAMP
+        `).bind(
+          flightIdentity(x),
+          String(x.date||""),
+          String(x.airline||"").toUpperCase(),
+          String(x.flight||"").toUpperCase(),
+          String(x.std||""),
+          JSON.stringify(x)
+        )
+      );
+
+    if(statements.length){
+      await env.OPS_DB.batch(statements);
+    }
   }
 
   return clean.length;
 }
 
 async function handleFlights(request,env,url){
-  if(request.method==="OPTIONS")return json({ok:true});
+  if(request.method==="OPTIONS"){
+    return json({ok:true});
+  }
 
-  if(url.pathname==="/api/flights" && request.method==="GET"){
-    const identity=String(url.searchParams.get("identity")||"").trim();
+  if(
+    url.pathname==="/api/flights" &&
+    request.method==="GET"
+  ){
+    const identity=String(
+      url.searchParams.get("identity")||""
+    ).trim();
+
     if(identity){
-      const flight=await getFlightByIdentity(env,identity);
-      if(!flight)return json({ok:false,error:"VOL INTROUVABLE"},404);
-      return json({ok:true,flight});
+      const flight=await getFlightByIdentity(
+        env,
+        identity
+      );
+
+      if(!flight){
+        return json({
+          ok:false,
+          error:"VOL INTROUVABLE"
+        },404);
+      }
+
+      return json({
+        ok:true,
+        flight
+      });
     }
 
     return await getFlightsResponse(env);
   }
 
-  if(url.pathname==="/api/flights" && request.method==="POST"){
-    const body=await request.json().catch(()=>null);
-    if(!validFlight(body?.flight))return json({ok:false,error:"VOL INVALIDE"},400);
-    await upsertFlight(env,body.flight);
-    const identity=flightIdentity(body.flight);
-    const flight=await getFlightByIdentity(env,identity);
-    return json({ok:true,identity,flight});
-  }
 
-  if(url.pathname==="/api/flights" && request.method==="PATCH"){
-    const body=await request.json().catch(()=>null);
-    const identity=String(body?.identity||"").trim();
-    const patch=body?.patch;
-    if(!identity || !patch || typeof patch!=="object"){
-      return json({ok:false,error:"IDENTITY OU PATCH MANQUANT"},400);
+  if(
+    url.pathname==="/api/flights" &&
+    request.method==="POST"
+  ){
+    const body=await request
+      .json()
+      .catch(()=>null);
+
+    if(!validFlight(body?.flight)){
+      return json({
+        ok:false,
+        error:"VOL INVALIDE"
+      },400);
     }
 
-    const flight=await patchFlight(env,identity,patch);
-    if(!flight)return json({ok:false,error:"VOL INTROUVABLE"},404);
-    return json({ok:true,identity,flight});
+    await upsertFlight(
+      env,
+      body.flight
+    );
+
+    const identity=
+      flightIdentity(body.flight);
+
+    const flight=
+      await getFlightByIdentity(
+        env,
+        identity
+      );
+
+    return json({
+      ok:true,
+      identity,
+      flight
+    });
   }
 
-  if(url.pathname==="/api/flights/sync" && request.method==="POST"){
-    const body=await request.json().catch(()=>null);
-    if(!Array.isArray(body?.flights))return json({ok:false,error:"LISTE VOLS MANQUANTE"},400);
-    const count=await syncFlights(env,body.flights);
-    return json({ok:true,count});
+
+  if(
+    url.pathname==="/api/flights" &&
+    request.method==="PATCH"
+  ){
+    const body=await request
+      .json()
+      .catch(()=>null);
+
+    const identity=
+      String(body?.identity||"").trim();
+
+    const patch=
+      body?.patch;
+
+    if(
+      !identity ||
+      !patch ||
+      typeof patch!=="object"
+    ){
+      return json({
+        ok:false,
+        error:"IDENTITY OU PATCH MANQUANT"
+      },400);
+    }
+
+    const flight=
+      await patchFlight(
+        env,
+        identity,
+        patch
+      );
+
+    if(!flight){
+      return json({
+        ok:false,
+        error:"VOL INTROUVABLE"
+      },404);
+    }
+
+    return json({
+      ok:true,
+      identity,
+      flight
+    });
   }
 
-  if(url.pathname==="/api/flights" && request.method==="DELETE"){
-    await env.OPS_DB.prepare("DELETE FROM flights").run();
-    return json({ok:true,cleared:true});
+
+  if(
+    url.pathname==="/api/flights/sync" &&
+    request.method==="POST"
+  ){
+    const body=await request
+      .json()
+      .catch(()=>null);
+
+    if(!Array.isArray(body?.flights)){
+      return json({
+        ok:false,
+        error:"LISTE VOLS MANQUANTE"
+      },400);
+    }
+
+    const count=
+      await syncFlights(
+        env,
+        body.flights
+      );
+
+    return json({
+      ok:true,
+      count
+    });
+  }
+
+
+  if(
+    url.pathname==="/api/flights" &&
+    request.method==="DELETE"
+  ){
+    await env.OPS_DB.prepare(
+      "DELETE FROM flights"
+    ).run();
+
+    return json({
+      ok:true,
+      cleared:true
+    });
   }
 
   return null;
 }
 
-function isAuthorizedPrepa(request, env) {
-  const expected = String(env.ALYZIA_API_SECRET || "").trim();
 
-  if (!expected) return false;
-
-  const auth = String(
-    request.headers.get("Authorization") || ""
+function isAuthorizedPrepa(request,env){
+  const expected=String(
+    env.ALYZIA_API_SECRET||""
   ).trim();
 
-  if (!auth.startsWith("Bearer ")) return false;
+  if(!expected){
+    return false;
+  }
 
-  const supplied = auth.slice(7).trim();
+  const auth=String(
+    request.headers.get("Authorization")||""
+  ).trim();
 
-  return supplied === expected;
+  if(!auth.startsWith("Bearer ")){
+    return false;
+  }
+
+  const supplied=
+    auth.slice(7).trim();
+
+  return supplied===expected;
 }
 
 
-function normalizePrepaPayload(body) {
-  if (!body || typeof body !== "object") return null;
+function normalizePrepaPayload(body){
+  if(
+    !body ||
+    typeof body!=="object"
+  ){
+    return null;
+  }
 
-  const gmail = body.gmail || {};
-  const flight = body.flight || {};
-  const email = body.email || {};
-  const drive = body.drive || {};
-  const detection = body.detection || {};
+  const gmail=
+    body.gmail||{};
 
-  const gmailMessageId =
-    String(gmail.messageId || "").trim();
+  const flight=
+    body.flight||{};
 
-  if (!gmailMessageId) return null;
+  const email=
+    body.email||{};
 
-  const source =
-    String(body.source || "GMAIL")
+  const drive=
+    body.drive||{};
+
+  const detection=
+    body.detection||{};
+
+
+  const gmailMessageId=
+    String(
+      gmail.messageId||""
+    ).trim();
+
+  if(!gmailMessageId){
+    return null;
+  }
+
+
+  const source=
+    String(
+      body.source||"GMAIL"
+    )
       .trim()
       .toUpperCase();
 
-  const airline =
-    String(flight.airline || "")
+
+  const airline=
+    String(
+      flight.airline||""
+    )
       .trim()
       .toUpperCase();
 
-  const flightNumber =
-    String(flight.flightNumber || "")
+
+  const flightNumber=
+    String(
+      flight.flightNumber||""
+    )
       .trim()
       .toUpperCase();
 
-  const flightDate =
-    String(flight.date || "").trim();
 
-  const detectionStatus =
-    String(detection.status || "")
+  const flightDate=
+    String(
+      flight.date||""
+    ).trim();
+
+
+  const detectionStatus=
+    String(
+      detection.status||""
+    )
       .trim()
       .toUpperCase();
 
-  const attachments =
+
+  const attachments=
     Array.isArray(body.attachments)
       ? body.attachments
       : [];
 
+
   /*
-   * IMPORT IDENTIFIÉ :
-   * compagnie + vol + date obligatoires.
+   * IMPORT IDENTIFIÉ V50
+   *
+   * Toute compagnie est acceptée
+   * dès lors que nous avons :
+   *
+   * compagnie
+   * numéro de vol
+   * date
+   *
+   * Le profil déterminera ensuite
+   * GENERIC ou SPECIFIC.
    */
-  const identified =
+  const identified=
     !!airline &&
     !!flightNumber &&
-    !!flightDate &&
-    ["TK", "SQ", "BJ"].includes(airline);
+    !!flightDate;
+
 
   /*
-   * IMPORT NON IDENTIFIÉ :
-   * accepté uniquement si le script central l'annonce
-   * explicitement ET s'il existe au moins une pièce jointe.
-   *
-   * Cela évite qu'un mail banal sans vol soit injecté.
+   * IMPORT NON IDENTIFIÉ
    */
-  const unidentified =
+  const unidentified=
     !identified &&
     (
-      detectionStatus === "UNIDENTIFIED" ||
-      source === "GMAIL_UNIDENTIFIED"
+      detectionStatus==="UNIDENTIFIED" ||
+      source==="GMAIL_UNIDENTIFIED"
     ) &&
-    attachments.length > 0;
+    attachments.length>0;
 
-  if (!identified && !unidentified) {
+
+  if(
+    !identified &&
+    !unidentified
+  ){
     return null;
   }
+
 
   return {
     gmailMessageId,
 
     gmailThreadId:
-      String(gmail.threadId || "").trim(),
+      String(
+        gmail.threadId||""
+      ).trim(),
 
     source:
-      source || "GMAIL",
+      source||"GMAIL",
 
     detectionStatus:
-      identified ? "IDENTIFIED" : "UNIDENTIFIED",
+      identified
+        ? "IDENTIFIED"
+        : "UNIDENTIFIED",
 
     airline:
-      identified ? airline : "",
+      identified
+        ? airline
+        : "",
 
     flightNumber:
-      identified ? flightNumber : "",
+      identified
+        ? flightNumber
+        : "",
 
     flightDate:
-      identified ? flightDate : "",
+      identified
+        ? flightDate
+        : "",
 
     subject:
-      String(gmail.subject || ""),
+      String(
+        gmail.subject||""
+      ),
 
     sender:
-      String(gmail.from || ""),
+      String(
+        gmail.from||""
+      ),
 
     receivedAt:
-      String(gmail.receivedAt || ""),
+      String(
+        gmail.receivedAt||""
+      ),
 
     bodyText:
-      String(email.plainText || ""),
+      String(
+        email.plainText||""
+      ),
 
     driveFolderId:
-      String(drive.folderId || ""),
+      String(
+        drive.folderId||""
+      ),
 
     driveEmailPdfId:
-      String(drive.emailPdfId || ""),
+      String(
+        drive.emailPdfId||""
+      ),
 
     attachments
   };
 }
 
-async function savePrepaInbox(env, item) {
 
-  const attachmentsJson =
-    JSON.stringify(item.attachments || []);
-
-  const initialStatus =
-    item.detectionStatus === "UNIDENTIFIED"
-      ? "UNIDENTIFIED"
-      : "PENDING";
-
-  await env.OPS_DB.prepare(`
-    INSERT INTO prepa_inbox (
-      gmail_message_id,
-      gmail_thread_id,
-
-      source,
-
-      airline,
-      flight_number,
-      flight_date,
-
-      subject,
-      sender,
-      received_at,
-
-      body_text,
-
-      drive_folder_id,
-      drive_email_pdf_id,
-
-      attachments_json,
-
-      status,
-      error_message,
-      updated_at
-    )
-
-    VALUES (
-      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '',
-      CURRENT_TIMESTAMP
-    )
-
-    ON CONFLICT(gmail_message_id)
-    DO UPDATE SET
-
-      gmail_thread_id=excluded.gmail_thread_id,
-
-      source=excluded.source,
-
-      airline=excluded.airline,
-      flight_number=excluded.flight_number,
-      flight_date=excluded.flight_date,
-
-      subject=excluded.subject,
-      sender=excluded.sender,
-      received_at=excluded.received_at,
-
-      body_text=excluded.body_text,
-
-      drive_folder_id=excluded.drive_folder_id,
-      drive_email_pdf_id=excluded.drive_email_pdf_id,
-
-      attachments_json=excluded.attachments_json,
-
-      /*
-       * Ne jamais remettre à PENDING un import déjà finalisé.
-       * En revanche un ancien UNIDENTIFIED peut devenir PENDING
-       * si le même message est renvoyé ensuite avec vol/date trouvés.
-       */
-      status=
-        CASE
-          WHEN prepa_inbox.status='PROCESSED'
-            THEN 'PROCESSED'
-          WHEN excluded.status='PENDING'
-            THEN 'PENDING'
-          ELSE excluded.status
-        END,
-
-      error_message=
-        CASE
-          WHEN excluded.status='PENDING'
-            THEN ''
-          ELSE prepa_inbox.error_message
-        END,
-
-      updated_at=CURRENT_TIMESTAMP
-  `).bind(
-    item.gmailMessageId,
-    item.gmailThreadId,
-
-    item.source,
-
-    item.airline,
-    item.flightNumber,
-    item.flightDate,
-
-    item.subject,
-    item.sender,
-    item.receivedAt,
-
-    item.bodyText,
-
-    item.driveFolderId,
-    item.driveEmailPdfId,
-
-    attachmentsJson,
-
-    initialStatus
-  ).run();
-
-  return initialStatus;
-}
-
-async function getPrepaInbox(env, url) {
-
-  const status =
-    String(
-      url.searchParams.get("status") || ""
-    )
-      .trim()
-      .toUpperCase();
-
-  const airline =
-    String(
-      url.searchParams.get("airline") || ""
-    )
-      .trim()
-      .toUpperCase();
-
-  const flightNumber =
-    String(
-      url.searchParams.get("flight") || ""
-    )
-      .trim()
-      .toUpperCase();
-
-
-  let sql = `
-    SELECT
-      id,
-      gmail_message_id,
-      gmail_thread_id,
-
-      source,
-
-      airline,
-      flight_number,
-      flight_date,
-
-      subject,
-      sender,
-      received_at,
-
-      body_text,
-
-      drive_folder_id,
-      drive_email_pdf_id,
-
-      attachments_json,
-
-      status,
-      error_message,
-
-      created_at,
-      updated_at,
-      processed_at
-
-    FROM prepa_inbox
-
-    WHERE 1=1
-  `;
-
-  const binds = [];
-
-
-  if (status) {
-    sql += ` AND status=?`;
-    binds.push(status);
-  }
-
-
-  if (airline) {
-    sql += ` AND airline=?`;
-    binds.push(airline);
-  }
-
-
-  if (flightNumber) {
-    sql += ` AND flight_number=?`;
-    binds.push(flightNumber);
-  }
-
-
-  sql += `
-    ORDER BY received_at DESC, id DESC
-    LIMIT 120
-  `;
-
-
-  const statement =
-    env.OPS_DB.prepare(sql);
-
-  const result =
-    binds.length
-      ? await statement.bind(...binds).all()
-      : await statement.all();
-
-
-  const rows =
-    Array.isArray(result.results)
-      ? result.results
-      : [];
-
-
-  const items =
-    rows.map(row => {
-
-      let attachments = [];
-
-      try {
-        const parsed =
-          JSON.parse(
-            row.attachments_json || "[]"
-          );
-
-        const needsPayload =
-          status === "PENDING" ||
-          status === "PROCESSING" ||
-          status === "UNIDENTIFIED";
-
-        attachments =
-          Array.isArray(parsed)
-            ? parsed.map(att => {
-                if (needsPayload) return att;
-
-                /*
-                 * Vue OUTILS / historique :
-                 * on ne renvoie pas les PDF base64.
-                 * Seulement les métadonnées nécessaires à l'interface.
-                 */
-                return {
-                  name: String(att?.name || ""),
-                  mimeType: String(att?.mimeType || ""),
-                  size: Number(att?.size || 0),
-                  driveId: String(att?.driveId || "")
-                };
-              })
-            : [];
-      } catch (e) {}
-
-
-      return {
-        id: row.id,
-
-        gmailMessageId:
-          row.gmail_message_id,
-
-        gmailThreadId:
-          row.gmail_thread_id,
-
-        source:
-          row.source ||
-          (
-            String(row.gmail_message_id || "")
-              .startsWith("HISTO_PREPASQ_")
-              ? "HISTORIQUE_PREPASQ"
-              : "GMAIL"
-          ),
-
-        airline:
-          row.airline,
-
-        flightNumber:
-          row.flight_number,
-
-        flightDate:
-          row.flight_date,
-
-        subject:
-          row.subject,
-
-        sender:
-          row.sender,
-
-        receivedAt:
-          row.received_at,
-
-        bodyText:
-          row.body_text,
-
-        driveFolderId:
-          row.drive_folder_id,
-
-        driveEmailPdfId:
-          row.drive_email_pdf_id,
-
-        attachments,
-
-        status:
-          row.status,
-
-        errorMessage:
-          row.error_message,
-
-        createdAt:
-          row.created_at,
-
-        updatedAt:
-          row.updated_at,
-
-        processedAt:
-          row.processed_at
-      };
-
-    });
-
-
-  return items;
+/* =========================================================
+   PROFILS COMPAGNIES V50
+   ========================================================= */
+
+function defaultImportModeForAirline(airline){
+  const code=String(
+    airline||""
+  )
+    .trim()
+    .toUpperCase();
+
+  return [
+    "SQ",
+    "TK",
+    "BJ"
+  ].includes(code)
+    ? "SPECIFIC"
+    : "GENERIC";
 }
 
 
-async function handlePrepa(request, env, url) {
+async function ensureAirlineProfile(
+  env,
+  airline
+){
+  const code=String(
+    airline||""
+  )
+    .trim()
+    .toUpperCase();
 
-  if (!url.pathname.startsWith("/api/prepa")) {
+  if(!code){
     return null;
   }
 
 
-  if (request.method === "OPTIONS") {
-    return json({ ok: true });
+  const mode=
+    defaultImportModeForAirline(code);
+
+
+  await env.OPS_DB.prepare(`
+    INSERT OR IGNORE INTO airline_profiles
+      (
+        airline,
+        import_mode,
+        visible_kpis_json,
+        visible_cards_json,
+        notes_enabled,
+        attachments_enabled,
+        updated_at
+      )
+
+    VALUES (
+      ?,
+      ?,
+      '{}',
+      '{}',
+      1,
+      1,
+      CURRENT_TIMESTAMP
+    )
+  `)
+  .bind(
+    code,
+    mode
+  )
+  .run();
+
+
+  return await env.OPS_DB.prepare(`
+    SELECT
+      airline,
+      import_mode,
+      visible_kpis_json,
+      visible_cards_json,
+      notes_enabled,
+      attachments_enabled,
+      updated_at
+
+    FROM airline_profiles
+
+    WHERE airline=?
+
+    LIMIT 1
+  `)
+  .bind(code)
+  .first();
+}
+
+
+function safeJsonParse(
+  value,
+  fallback
+){
+  try{
+    return JSON.parse(
+      String(value??"")
+    );
+  }catch(e){
+    return fallback;
+  }
+}
+
+
+async function getAirlineProfiles(env){
+  const {
+    results=[]
+  }=await env.OPS_DB.prepare(`
+    SELECT
+      airline,
+      import_mode,
+      visible_kpis_json,
+      visible_cards_json,
+      notes_enabled,
+      attachments_enabled,
+      updated_at
+
+    FROM airline_profiles
+
+    ORDER BY airline
+  `).all();
+
+
+  return results.map(row=>({
+    airline:
+      String(
+        row.airline||""
+      ).toUpperCase(),
+
+    importMode:
+      String(
+        row.import_mode||
+        "GENERIC"
+      ).toUpperCase(),
+
+    visibleKpis:
+      safeJsonParse(
+        row.visible_kpis_json,
+        {}
+      ),
+
+    visibleCards:
+      safeJsonParse(
+        row.visible_cards_json,
+        {}
+      ),
+
+    notesEnabled:
+      Number(
+        row.notes_enabled
+      )!==0,
+
+    attachmentsEnabled:
+      Number(
+        row.attachments_enabled
+      )!==0,
+
+    updatedAt:
+      row.updated_at||""
+  }));
+}
+
+
+async function handleAirlineProfiles(
+  request,
+  env,
+  url
+){
+  if(
+    !url.pathname.startsWith(
+      "/api/airline-profiles"
+    )
+  ){
+    return null;
+  }
+
+
+  if(request.method==="OPTIONS"){
+    return json({ok:true});
   }
 
 
   /*
-   * GOOGLE APPS SCRIPT -> ALYZIA
+   * LECTURE PROFILS
    */
-  if (
-    url.pathname === "/api/prepa/import" &&
-    request.method === "POST"
-  ) {
+  if(
+    url.pathname==="/api/airline-profiles" &&
+    request.method==="GET"
+  ){
+    const airline=String(
+      url.searchParams.get("airline")||""
+    )
+      .trim()
+      .toUpperCase();
 
-    if (!isAuthorizedPrepa(request, env)) {
+
+    if(airline){
+      const row=
+        await ensureAirlineProfile(
+          env,
+          airline
+        );
+
+
+      if(!row){
+        return json({
+          ok:false,
+          error:"COMPAGNIE INVALIDE"
+        },400);
+      }
+
 
       return json({
-        ok: false,
-        error: "NON AUTORISE"
-      }, 401);
+        ok:true,
 
+        profile:{
+          airline:
+            String(
+              row.airline||""
+            ).toUpperCase(),
+
+          importMode:
+            String(
+              row.import_mode||
+              "GENERIC"
+            ).toUpperCase(),
+
+          visibleKpis:
+            safeJsonParse(
+              row.visible_kpis_json,
+              {}
+            ),
+
+          visibleCards:
+            safeJsonParse(
+              row.visible_cards_json,
+              {}
+            ),
+
+          notesEnabled:
+            Number(
+              row.notes_enabled
+            )!==0,
+
+          attachmentsEnabled:
+            Number(
+              row.attachments_enabled
+            )!==0,
+
+          updatedAt:
+            row.updated_at||""
+        }
+      });
     }
 
 
-    const body =
-      await request.json()
-        .catch(() => null);
-
-
-    const item =
-      normalizePrepaPayload(body);
-
-
-    if (!item) {
-
-      return json({
-        ok: false,
-        error: "PREPA INVALIDE"
-      }, 400);
-
-    }
-
-
-    const savedStatus =
-      await savePrepaInbox(
-        env,
-        item
-      );
+    const profiles=
+      await getAirlineProfiles(env);
 
 
     return json({
-      ok: true,
-
-      accepted: true,
-
-      gmailMessageId:
-        item.gmailMessageId,
-
-      airline:
-        item.airline,
-
-      flightNumber:
-        item.flightNumber,
-
-      flightDate:
-        item.flightDate,
-
-      status:
-        savedStatus
+      ok:true,
+      count:profiles.length,
+      profiles
     });
   }
 
 
-
   /*
-   * ALYZIA OPS -> résultat du traitement d'une PREPA
-   * Autorise uniquement PENDING / PROCESSING / PROCESSED / ERROR.
+   * MODIFICATION PROFIL
+   *
+   * Protection temporaire par
+   * ALYZIA_API_SECRET.
+   *
+   * Les rôles utilisateurs arriveront
+   * à l'étape AUTH.
    */
-  if (
-    url.pathname === "/api/prepa/status" &&
-    request.method === "PATCH"
-  ) {
+  if(
+    url.pathname==="/api/airline-profiles" &&
+    request.method==="PATCH"
+  ){
+    if(
+      !isAuthorizedPrepa(
+        request,
+        env
+      )
+    ){
+      return json({
+        ok:false,
+        error:"NON AUTORISE"
+      },401);
+    }
 
-    const body =
-      await request.json()
-        .catch(() => null);
 
-    const id =
-      Number(body?.id);
+    const body=
+      await request
+        .json()
+        .catch(()=>null);
 
-    const gmailMessageId =
-      String(body?.gmailMessageId || "").trim();
 
-    const status =
-      String(body?.status || "")
+    const airline=
+      String(
+        body?.airline||""
+      )
         .trim()
         .toUpperCase();
 
-    const errorMessage =
-      String(body?.errorMessage || "").trim();
 
-    const allowed =
-      new Set([
-        "PENDING",
-        "UNIDENTIFIED",
-        "PROCESSING",
-        "PROCESSED",
-        "ERROR"
-      ]);
-
-    if (
-      !Number.isFinite(id) ||
-      id <= 0 ||
-      !gmailMessageId ||
-      !allowed.has(status)
-    ) {
+    if(!airline){
       return json({
-        ok: false,
-        error: "STATUT PREPA INVALIDE"
-      }, 400);
+        ok:false,
+        error:"COMPAGNIE MANQUANTE"
+      },400);
     }
 
-    const existing =
-      await env.OPS_DB.prepare(`
-        SELECT
-          id,
-          gmail_message_id,
-          status
-        FROM prepa_inbox
-        WHERE id=?
-          AND gmail_message_id=?
-        LIMIT 1
-      `)
-      .bind(id, gmailMessageId)
-      .first();
 
-    if (!existing) {
-      return json({
-        ok: false,
-        error: "PREPA INTROUVABLE"
-      }, 404);
+    await ensureAirlineProfile(
+      env,
+      airline
+    );
+
+
+    const sets=[];
+    const binds=[];
+
+
+    if(
+      body?.importMode!==undefined
+    ){
+      const mode=
+        String(
+          body.importMode||""
+        )
+          .trim()
+          .toUpperCase();
+
+
+      if(
+        ![
+          "GENERIC",
+          "SPECIFIC"
+        ].includes(mode)
+      ){
+        return json({
+          ok:false,
+          error:"MODE IMPORT INVALIDE"
+        },400);
+      }
+
+
+      sets.push(
+        "import_mode=?"
+      );
+
+      binds.push(mode);
     }
+
+
+    if(
+      body?.visibleKpis!==undefined
+    ){
+      sets.push(
+        "visible_kpis_json=?"
+      );
+
+      binds.push(
+        JSON.stringify(
+          body.visibleKpis||{}
+        )
+      );
+    }
+
+
+    if(
+      body?.visibleCards!==undefined
+    ){
+      sets.push(
+        "visible_cards_json=?"
+      );
+
+      binds.push(
+        JSON.stringify(
+          body.visibleCards||{}
+        )
+      );
+    }
+
+
+    if(
+      body?.notesEnabled!==undefined
+    ){
+      sets.push(
+        "notes_enabled=?"
+      );
+
+      binds.push(
+        body.notesEnabled
+          ? 1
+          : 0
+      );
+    }
+
+
+    if(
+      body?.attachmentsEnabled!==undefined
+    ){
+      sets.push(
+        "attachments_enabled=?"
+      );
+
+      binds.push(
+        body.attachmentsEnabled
+          ? 1
+          : 0
+      );
+    }
+
+
+    if(!sets.length){
+      return json({
+        ok:false,
+        error:"AUCUNE MODIFICATION"
+      },400);
+    }
+
+
+    sets.push(
+      "updated_at=CURRENT_TIMESTAMP"
+    );
+
+    binds.push(airline);
+
 
     await env.OPS_DB.prepare(`
-      UPDATE prepa_inbox
-      SET
-        status=?,
-        error_message=?,
-        processed_at=
-          CASE
-            WHEN ?='PROCESSED'
-              THEN CURRENT_TIMESTAMP
-            ELSE processed_at
-          END,
-        updated_at=CURRENT_TIMESTAMP
-      WHERE id=?
-        AND gmail_message_id=?
+      UPDATE airline_profiles
+
+      SET ${sets.join(", ")}
+
+      WHERE airline=?
     `)
-    .bind(
-      status,
-      status === "ERROR"
-        ? errorMessage
-        : "",
-      status,
-      id,
-      gmailMessageId
-    )
+    .bind(...binds)
     .run();
 
-    return json({
-      ok: true,
-      id,
-      gmailMessageId,
-      status
-    });
-  }
 
-
-  /*
-   * ALYZIA OPS -> lecture boîte PRÉPA
-   */
-  if (
-    url.pathname === "/api/prepa" &&
-    request.method === "GET"
-  ) {
-
-    const items =
-      await getPrepaInbox(
+    const row=
+      await ensureAirlineProfile(
         env,
-        url
+        airline
       );
 
 
     return json({
-      ok: true,
-      count: items.length,
-      items
+      ok:true,
+
+      profile:{
+        airline:
+          String(
+            row.airline||""
+          ).toUpperCase(),
+
+        importMode:
+          String(
+            row.import_mode||
+            "GENERIC"
+          ).toUpperCase(),
+
+        visibleKpis:
+          safeJsonParse(
+            row.visible_kpis_json,
+            {}
+          ),
+
+        visibleCards:
+          safeJsonParse(
+            row.visible_cards_json,
+            {}
+          ),
+
+        notesEnabled:
+          Number(
+            row.notes_enabled
+          )!==0,
+
+        attachmentsEnabled:
+          Number(
+            row.attachments_enabled
+          )!==0,
+
+        updatedAt:
+          row.updated_at||""
+      }
     });
   }
 
 
   return json({
-    ok: false,
-    error: "ROUTE PREPA INTROUVABLE"
-  }, 404);
+    ok:false,
+    error:"ROUTE PROFIL COMPAGNIE INTROUVABLE"
+  },404);
 }
-
-async function handleSariaBridge(request,env,url){
-  if(!url.pathname.startsWith("/api/saria/"))return null;
-
-  const subpath=url.pathname.replace(/^\/api\/saria/,"/api");
-  const headers=new Headers(request.headers);
-  headers.delete("host");
-
-  let response;
-
-  if(env.SARIA && typeof env.SARIA.fetch==="function"){
-    const internal=new URL(request.url);
-    internal.protocol="https:";
-    internal.hostname="saria.internal";
-    internal.pathname=subpath;
-
-    response=await env.SARIA.fetch(new Request(internal.toString(),{
-      method:request.method,
-      headers,
-      body:["GET","HEAD"].includes(request.method)?undefined:request.body
-    }));
-  }else{
-    const target=new URL(subpath+url.search,SARIA_PUBLIC_ORIGIN);
-    response=await fetch(target.toString(),{
-      method:request.method,
-      headers,
-      body:["GET","HEAD"].includes(request.method)?undefined:request.body
-    });
-  }
-
-  const outHeaders=new Headers(response.headers);
-  outHeaders.set("Access-Control-Allow-Origin","*");
-  outHeaders.set("X-ALYZIA-SARIA-BRIDGE",env.SARIA?"SERVICE-BINDING":"PUBLIC-FALLBACK");
-
-  if(request.method==="GET"){
-    outHeaders.set(
-      "Cache-Control",
-      subpath.includes("/layout")?"public, max-age=3600":"public, max-age=300"
-    );
-  }
-
-  return new Response(response.body,{
-    status:response.status,
-    statusText:response.statusText,
-    headers:outHeaders
-  });
-}
-
-export default {
-  async fetch(request,env){
-    const url=new URL(request.url);
-
-    try{
-      if(request.method==="OPTIONS")return json({ok:true});
-
-      if(url.pathname.startsWith("/api/flights")){
-        const result=await handleFlights(request,env,url);
-        if(result)return result;
-      }
-
-      if(url.pathname.startsWith("/api/prepa")){
-        const result=await handlePrepa(request,env,url);
-        if(result)return result;
-      }
-
-      if(url.pathname.startsWith("/api/saria/")){
-        const result=await handleSariaBridge(request,env,url);
-        if(result)return result;
-      }
-
-      const assetResponse=await env.ASSETS.fetch(request);
-    const headers=new Headers(assetResponse.headers);
-    if(url.pathname==="/" || url.pathname.endsWith(".html")){
-      headers.set("Cache-Control","no-store, no-cache, must-revalidate, max-age=0");
-      headers.set("Pragma","no-cache");
-      headers.set("Expires","0");
-    }
-    return new Response(assetResponse.body,{
-      status:assetResponse.status,
-      statusText:assetResponse.statusText,
-      headers
-    });
-
-    }catch(err){
-      console.error("ALYZIA OPS V49.90",err);
-      return json({
-        ok:false,
-        error:err?.message||String(err)
-      },500);
-    }
-  }
-};
