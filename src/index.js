@@ -1092,3 +1092,1862 @@ async function handleAirlineProfiles(
     error:"ROUTE PROFIL COMPAGNIE INTROUVABLE"
   },404);
 }
+function sanitizeR2Segment(value){
+  return String(value||"")
+    .replace(/[^A-Za-z0-9._-]+/g,"_")
+    .replace(/^_+|_+$/g,"")
+    .slice(0,120) || "file";
+}
+
+function decodeBase64ToUint8Array(base64){
+  const binary=atob(String(base64||""));
+  const bytes=new Uint8Array(binary.length);
+
+  for(let i=0;i<binary.length;i++){
+    bytes[i]=binary.charCodeAt(i);
+  }
+
+  return bytes;
+}
+
+
+async function handleFlightNotes(
+  request,
+  env,
+  url
+){
+  if(
+    !url.pathname.startsWith("/api/flight-notes") &&
+    !url.pathname.startsWith("/api/flight-attachments")
+  ){
+    return null;
+  }
+
+
+  if(request.method==="OPTIONS"){
+    return json({ok:true});
+  }
+
+
+  /*
+   * Lecture libre pour l'instant
+   * comme le reste de V49.x.
+   *
+   * Les restrictions par rôle
+   * arriveront à l'étape AUTH.
+   */
+  if(
+    url.pathname==="/api/flight-notes" &&
+    request.method==="GET"
+  ){
+    const identity=
+      String(
+        url.searchParams.get("identity")||""
+      ).trim();
+
+
+    if(!identity){
+      return json({
+        ok:false,
+        error:"IDENTITY MANQUANTE"
+      },400);
+    }
+
+
+    const {
+      results=[]
+    }=await env.OPS_DB.prepare(`
+      SELECT
+        id,
+        flight_identity,
+        airline,
+        note_type,
+        content,
+        created_by,
+        created_at,
+        updated_at
+
+      FROM flight_notes
+
+      WHERE flight_identity=?
+
+      ORDER BY
+        created_at DESC,
+        id DESC
+    `)
+    .bind(identity)
+    .all();
+
+
+    return json({
+      ok:true,
+      count:results.length,
+      notes:results
+    });
+  }
+
+
+  /*
+   * AJOUT NOTE
+   */
+  if(
+    url.pathname==="/api/flight-notes" &&
+    request.method==="POST"
+  ){
+    if(
+      !isAuthorizedPrepa(
+        request,
+        env
+      )
+    ){
+      return json({
+        ok:false,
+        error:"NON AUTORISE"
+      },401);
+    }
+
+
+    const body=
+      await request
+        .json()
+        .catch(()=>null);
+
+
+    const identity=
+      String(
+        body?.flightIdentity||""
+      ).trim();
+
+
+    const airline=
+      String(
+        body?.airline||""
+      )
+        .trim()
+        .toUpperCase();
+
+
+    const content=
+      String(
+        body?.content||""
+      ).trim();
+
+
+    const noteType=
+      String(
+        body?.noteType||"COMPANY"
+      )
+        .trim()
+        .toUpperCase();
+
+
+    const createdBy=
+      String(
+        body?.createdBy||""
+      ).trim();
+
+
+    if(
+      !identity ||
+      !airline ||
+      !content
+    ){
+      return json({
+        ok:false,
+        error:"NOTE INVALIDE"
+      },400);
+    }
+
+
+    const result=
+      await env.OPS_DB.prepare(`
+        INSERT INTO flight_notes
+          (
+            flight_identity,
+            airline,
+            note_type,
+            content,
+            created_by,
+            created_at,
+            updated_at
+          )
+
+        VALUES (
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
+          CURRENT_TIMESTAMP,
+          CURRENT_TIMESTAMP
+        )
+      `)
+      .bind(
+        identity,
+        airline,
+        noteType,
+        content,
+        createdBy
+      )
+      .run();
+
+
+    return json({
+      ok:true,
+      id:Number(
+        result.meta?.last_row_id||0
+      )
+    });
+  }
+
+
+  /*
+   * LISTE DES PIECES JOINTES
+   */
+  if(
+    url.pathname==="/api/flight-attachments" &&
+    request.method==="GET"
+  ){
+    const identity=
+      String(
+        url.searchParams.get("identity")||""
+      ).trim();
+
+
+    if(!identity){
+      return json({
+        ok:false,
+        error:"IDENTITY MANQUANTE"
+      },400);
+    }
+
+
+    const {
+      results=[]
+    }=await env.OPS_DB.prepare(`
+      SELECT
+        id,
+        flight_identity,
+        airline,
+        note_id,
+        file_name,
+        original_file_name,
+        mime_type,
+        file_size,
+        r2_key,
+        uploaded_by,
+        created_at
+
+      FROM flight_attachments
+
+      WHERE flight_identity=?
+
+      ORDER BY
+        created_at DESC,
+        id DESC
+    `)
+    .bind(identity)
+    .all();
+
+
+    return json({
+      ok:true,
+      count:results.length,
+      attachments:results
+    });
+  }
+
+
+  /*
+   * UPLOAD VERS R2
+   */
+  if(
+    url.pathname==="/api/flight-attachments" &&
+    request.method==="POST"
+  ){
+    if(
+      !isAuthorizedPrepa(
+        request,
+        env
+      )
+    ){
+      return json({
+        ok:false,
+        error:"NON AUTORISE"
+      },401);
+    }
+
+
+    if(!env.OPS_FILES){
+      return json({
+        ok:false,
+        error:"BINDING R2 OPS_FILES ABSENT"
+      },500);
+    }
+
+
+    const body=
+      await request
+        .json()
+        .catch(()=>null);
+
+
+    const identity=
+      String(
+        body?.flightIdentity||""
+      ).trim();
+
+
+    const airline=
+      String(
+        body?.airline||""
+      )
+        .trim()
+        .toUpperCase();
+
+
+    const originalFileName=
+      String(
+        body?.fileName||""
+      ).trim();
+
+
+    const mimeType=
+      String(
+        body?.mimeType||
+        "application/octet-stream"
+      ).trim();
+
+
+    const base64=
+      String(
+        body?.base64||""
+      );
+
+
+    const uploadedBy=
+      String(
+        body?.uploadedBy||""
+      ).trim();
+
+
+    const noteId=
+      body?.noteId===null ||
+      body?.noteId===undefined
+        ? null
+        : Number(body.noteId);
+
+
+    if(
+      !identity ||
+      !airline ||
+      !originalFileName ||
+      !base64
+    ){
+      return json({
+        ok:false,
+        error:"PIECE JOINTE INVALIDE"
+      },400);
+    }
+
+
+    const bytes=
+      decodeBase64ToUint8Array(
+        base64
+      );
+
+
+    const MAX_BYTES=
+      12*1024*1024;
+
+
+    if(
+      bytes.byteLength>
+      MAX_BYTES
+    ){
+      return json({
+        ok:false,
+        error:"FICHIER TROP VOLUMINEUX (MAX 12 MB)"
+      },413);
+    }
+
+
+    const allowedMime=
+      new Set([
+        "application/pdf",
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      ]);
+
+
+    if(
+      !allowedMime.has(
+        mimeType
+      )
+    ){
+      return json({
+        ok:false,
+        error:"TYPE DE FICHIER NON AUTORISE"
+      },415);
+    }
+
+
+    const datePart=
+      new Date()
+        .toISOString()
+        .slice(0,10);
+
+
+    const unique=
+      crypto.randomUUID();
+
+
+    const safeName=
+      sanitizeR2Segment(
+        originalFileName
+      );
+
+
+    const safeIdentity=
+      sanitizeR2Segment(
+        identity
+      );
+
+
+    const r2Key=
+      `flights/${safeIdentity}/notes/${datePart}/${unique}_${safeName}`;
+
+
+    await env.OPS_FILES.put(
+      r2Key,
+      bytes,
+      {
+        httpMetadata:{
+          contentType:mimeType
+        },
+
+        customMetadata:{
+          airline,
+
+          flightIdentity:
+            identity,
+
+          uploadedBy:
+            uploadedBy.slice(
+              0,
+              120
+            )
+        }
+      }
+    );
+
+
+    const result=
+      await env.OPS_DB.prepare(`
+        INSERT INTO flight_attachments
+          (
+            flight_identity,
+            airline,
+            note_id,
+            file_name,
+            original_file_name,
+            mime_type,
+            file_size,
+            r2_key,
+            uploaded_by,
+            created_at
+          )
+
+        VALUES (
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
+          CURRENT_TIMESTAMP
+        )
+      `)
+      .bind(
+        identity,
+        airline,
+
+        Number.isFinite(noteId)
+          ? noteId
+          : null,
+
+        safeName,
+        originalFileName,
+        mimeType,
+        bytes.byteLength,
+        r2Key,
+        uploadedBy
+      )
+      .run();
+
+
+    return json({
+      ok:true,
+
+      id:Number(
+        result.meta?.last_row_id||0
+      ),
+
+      r2Key,
+
+      fileName:
+        originalFileName,
+
+      size:
+        bytes.byteLength
+    });
+  }
+
+
+  /*
+   * GET /api/flight-attachments/:id
+   */
+  const attachmentMatch=
+    url.pathname.match(
+      /^\/api\/flight-attachments\/(\d+)$/
+    );
+
+
+  if(
+    attachmentMatch &&
+    request.method==="GET"
+  ){
+    const id=
+      Number(
+        attachmentMatch[1]
+      );
+
+
+    const row=
+      await env.OPS_DB.prepare(`
+        SELECT
+          id,
+          file_name,
+          original_file_name,
+          mime_type,
+          r2_key
+
+        FROM flight_attachments
+
+        WHERE id=?
+
+        LIMIT 1
+      `)
+      .bind(id)
+      .first();
+
+
+    if(!row){
+      return json({
+        ok:false,
+        error:"PIECE JOINTE INTROUVABLE"
+      },404);
+    }
+
+
+    if(!env.OPS_FILES){
+      return json({
+        ok:false,
+        error:"BINDING R2 OPS_FILES ABSENT"
+      },500);
+    }
+
+
+    const object=
+      await env.OPS_FILES.get(
+        row.r2_key
+      );
+
+
+    if(!object){
+      return json({
+        ok:false,
+        error:"FICHIER R2 INTROUVABLE"
+      },404);
+    }
+
+
+    const headers=
+      new Headers();
+
+
+    headers.set(
+      "Content-Type",
+
+      row.mime_type ||
+      object.httpMetadata?.contentType ||
+      "application/octet-stream"
+    );
+
+
+    headers.set(
+      "Content-Disposition",
+
+      `inline; filename="${
+        String(
+          row.original_file_name ||
+          row.file_name ||
+          "file"
+        )
+        .replace(/"/g,"")
+      }"`
+    );
+
+
+    headers.set(
+      "Cache-Control",
+      "private, no-store"
+    );
+
+
+    headers.set(
+      "Access-Control-Allow-Origin",
+      "*"
+    );
+
+
+    return new Response(
+      object.body,
+      {
+        status:200,
+        headers
+      }
+    );
+  }
+
+
+  /*
+   * DELETE /api/flight-attachments/:id
+   */
+  if(
+    attachmentMatch &&
+    request.method==="DELETE"
+  ){
+    if(
+      !isAuthorizedPrepa(
+        request,
+        env
+      )
+    ){
+      return json({
+        ok:false,
+        error:"NON AUTORISE"
+      },401);
+    }
+
+
+    const id=
+      Number(
+        attachmentMatch[1]
+      );
+
+
+    const row=
+      await env.OPS_DB.prepare(`
+        SELECT
+          id,
+          r2_key
+
+        FROM flight_attachments
+
+        WHERE id=?
+
+        LIMIT 1
+      `)
+      .bind(id)
+      .first();
+
+
+    if(!row){
+      return json({
+        ok:false,
+        error:"PIECE JOINTE INTROUVABLE"
+      },404);
+    }
+
+
+    if(env.OPS_FILES){
+      await env.OPS_FILES.delete(
+        row.r2_key
+      );
+    }
+
+
+    await env.OPS_DB.prepare(`
+      DELETE FROM flight_attachments
+      WHERE id=?
+    `)
+    .bind(id)
+    .run();
+
+
+    return json({
+      ok:true,
+      deleted:true,
+      id
+    });
+  }
+
+
+  return json({
+    ok:false,
+    error:"ROUTE NOTES/PIECES JOINTES INTROUVABLE"
+  },404);
+}
+
+
+/* =========================================================
+   BOITE PREPA GMAIL
+   ========================================================= */
+
+async function savePrepaInbox(
+  env,
+  item
+){
+
+  /*
+   * Dès qu'une compagnie identifiée arrive,
+   * V50 s'assure qu'elle possède un profil.
+   *
+   * SQ/TK/BJ -> SPECIFIC
+   * autres   -> GENERIC
+   */
+  if(item?.airline){
+    await ensureAirlineProfile(
+      env,
+      item.airline
+    );
+  }
+
+
+  const attachmentsJson=
+    JSON.stringify(
+      item.attachments||[]
+    );
+
+
+  const initialStatus=
+    item.detectionStatus==="UNIDENTIFIED"
+      ? "UNIDENTIFIED"
+      : "PENDING";
+
+
+  await env.OPS_DB.prepare(`
+    INSERT INTO prepa_inbox (
+      gmail_message_id,
+      gmail_thread_id,
+
+      source,
+
+      airline,
+      flight_number,
+      flight_date,
+
+      subject,
+      sender,
+      received_at,
+
+      body_text,
+
+      drive_folder_id,
+      drive_email_pdf_id,
+
+      attachments_json,
+
+      status,
+      error_message,
+      updated_at
+    )
+
+    VALUES (
+      ?,
+      ?,
+      ?,
+      ?,
+      ?,
+      ?,
+      ?,
+      ?,
+      ?,
+      ?,
+      ?,
+      ?,
+      ?,
+      ?,
+      '',
+      CURRENT_TIMESTAMP
+    )
+
+    ON CONFLICT(
+      gmail_message_id
+    )
+
+    DO UPDATE SET
+
+      gmail_thread_id=
+        excluded.gmail_thread_id,
+
+      source=
+        excluded.source,
+
+      airline=
+        excluded.airline,
+
+      flight_number=
+        excluded.flight_number,
+
+      flight_date=
+        excluded.flight_date,
+
+      subject=
+        excluded.subject,
+
+      sender=
+        excluded.sender,
+
+      received_at=
+        excluded.received_at,
+
+      body_text=
+        excluded.body_text,
+
+      drive_folder_id=
+        excluded.drive_folder_id,
+
+      drive_email_pdf_id=
+        excluded.drive_email_pdf_id,
+
+      attachments_json=
+        excluded.attachments_json,
+
+
+      /*
+       * Ne jamais remettre à PENDING
+       * un import déjà finalisé.
+       *
+       * En revanche un ancien
+       * UNIDENTIFIED peut devenir
+       * PENDING si le même message
+       * est renvoyé ensuite avec
+       * vol/date trouvés.
+       */
+      status=
+        CASE
+
+          WHEN prepa_inbox.status='PROCESSED'
+            THEN 'PROCESSED'
+
+          WHEN excluded.status='PENDING'
+            THEN 'PENDING'
+
+          ELSE excluded.status
+
+        END,
+
+
+      error_message=
+        CASE
+
+          WHEN excluded.status='PENDING'
+            THEN ''
+
+          ELSE
+            prepa_inbox.error_message
+
+        END,
+
+
+      updated_at=
+        CURRENT_TIMESTAMP
+  `)
+  .bind(
+    item.gmailMessageId,
+    item.gmailThreadId,
+
+    item.source,
+
+    item.airline,
+    item.flightNumber,
+    item.flightDate,
+
+    item.subject,
+    item.sender,
+    item.receivedAt,
+
+    item.bodyText,
+
+    item.driveFolderId,
+    item.driveEmailPdfId,
+
+    attachmentsJson,
+
+    initialStatus
+  )
+  .run();
+
+
+  return initialStatus;
+}
+
+
+async function getPrepaInbox(
+  env,
+  url
+){
+
+  const status=
+    String(
+      url.searchParams.get("status")||""
+    )
+      .trim()
+      .toUpperCase();
+
+
+  const airline=
+    String(
+      url.searchParams.get("airline")||""
+    )
+      .trim()
+      .toUpperCase();
+
+
+  const flightNumber=
+    String(
+      url.searchParams.get("flight")||""
+    )
+      .trim()
+      .toUpperCase();
+
+
+  let sql=`
+    SELECT
+      id,
+
+      gmail_message_id,
+      gmail_thread_id,
+
+      source,
+
+      airline,
+      flight_number,
+      flight_date,
+
+      subject,
+      sender,
+      received_at,
+
+      body_text,
+
+      drive_folder_id,
+      drive_email_pdf_id,
+
+      attachments_json,
+
+      status,
+      error_message,
+
+      created_at,
+      updated_at,
+      processed_at
+
+    FROM prepa_inbox
+
+    WHERE 1=1
+  `;
+
+
+  const binds=[];
+
+
+  if(status){
+    sql+=`
+      AND status=?
+    `;
+
+    binds.push(
+      status
+    );
+  }
+
+
+  if(airline){
+    sql+=`
+      AND airline=?
+    `;
+
+    binds.push(
+      airline
+    );
+  }
+
+
+  if(flightNumber){
+    sql+=`
+      AND flight_number=?
+    `;
+
+    binds.push(
+      flightNumber
+    );
+  }
+
+
+  sql+=`
+    ORDER BY
+      received_at DESC,
+      id DESC
+
+    LIMIT 120
+  `;
+
+
+  const statement=
+    env.OPS_DB.prepare(
+      sql
+    );
+
+
+  const result=
+    binds.length
+      ? await statement
+          .bind(...binds)
+          .all()
+
+      : await statement
+          .all();
+
+
+  const rows=
+    Array.isArray(
+      result.results
+    )
+      ? result.results
+      : [];
+
+
+  const items=
+    rows.map(row=>{
+
+      let attachments=[];
+
+
+      try{
+
+        const parsed=
+          JSON.parse(
+            row.attachments_json||
+            "[]"
+          );
+
+
+        const needsPayload=
+          status==="PENDING" ||
+          status==="PROCESSING" ||
+          status==="UNIDENTIFIED";
+
+
+        attachments=
+          Array.isArray(parsed)
+
+            ? parsed.map(att=>{
+
+                if(needsPayload){
+                  return att;
+                }
+
+
+                /*
+                 * Vue OUTILS / historique :
+                 *
+                 * ne renvoie pas les PDF
+                 * en base64.
+                 *
+                 * uniquement les métadonnées.
+                 */
+                return {
+                  name:
+                    String(
+                      att?.name||""
+                    ),
+
+                  mimeType:
+                    String(
+                      att?.mimeType||""
+                    ),
+
+                  size:
+                    Number(
+                      att?.size||0
+                    ),
+
+                  driveId:
+                    String(
+                      att?.driveId||""
+                    )
+                };
+              })
+
+            : [];
+
+      }catch(e){}
+
+
+      return {
+        id:
+          row.id,
+
+        gmailMessageId:
+          row.gmail_message_id,
+
+        gmailThreadId:
+          row.gmail_thread_id,
+
+        source:
+          row.source ||
+          (
+            String(
+              row.gmail_message_id||""
+            )
+            .startsWith(
+              "HISTO_PREPASQ_"
+            )
+
+              ? "HISTORIQUE_PREPASQ"
+              : "GMAIL"
+          ),
+
+        airline:
+          row.airline,
+
+        flightNumber:
+          row.flight_number,
+
+        flightDate:
+          row.flight_date,
+
+        subject:
+          row.subject,
+
+        sender:
+          row.sender,
+
+        receivedAt:
+          row.received_at,
+
+        bodyText:
+          row.body_text,
+
+        driveFolderId:
+          row.drive_folder_id,
+
+        driveEmailPdfId:
+          row.drive_email_pdf_id,
+
+        attachments,
+
+        status:
+          row.status,
+
+        errorMessage:
+          row.error_message,
+
+        createdAt:
+          row.created_at,
+
+        updatedAt:
+          row.updated_at,
+
+        processedAt:
+          row.processed_at
+      };
+    });
+
+
+  return items;
+}
+async function handlePrepa(
+  request,
+  env,
+  url
+){
+
+  if(
+    !url.pathname.startsWith(
+      "/api/prepa"
+    )
+  ){
+    return null;
+  }
+
+
+  if(request.method==="OPTIONS"){
+    return json({ok:true});
+  }
+
+
+  /*
+   * GOOGLE APPS SCRIPT
+   * -> ALYZIA OPS
+   */
+  if(
+    url.pathname==="/api/prepa/import" &&
+    request.method==="POST"
+  ){
+
+    if(
+      !isAuthorizedPrepa(
+        request,
+        env
+      )
+    ){
+
+      return json({
+        ok:false,
+        error:"NON AUTORISE"
+      },401);
+
+    }
+
+
+    const body=
+      await request
+        .json()
+        .catch(()=>null);
+
+
+    const item=
+      normalizePrepaPayload(
+        body
+      );
+
+
+    if(!item){
+
+      return json({
+        ok:false,
+        error:"PREPA INVALIDE"
+      },400);
+
+    }
+
+
+    const savedStatus=
+      await savePrepaInbox(
+        env,
+        item
+      );
+
+
+    return json({
+      ok:true,
+
+      accepted:true,
+
+      gmailMessageId:
+        item.gmailMessageId,
+
+      airline:
+        item.airline,
+
+      flightNumber:
+        item.flightNumber,
+
+      flightDate:
+        item.flightDate,
+
+      status:
+        savedStatus
+    });
+  }
+
+
+  /*
+   * ALYZIA OPS
+   * -> STATUT D'UNE PREPA
+   */
+  if(
+    url.pathname==="/api/prepa/status" &&
+    request.method==="PATCH"
+  ){
+
+    const body=
+      await request
+        .json()
+        .catch(()=>null);
+
+
+    const id=
+      Number(
+        body?.id
+      );
+
+
+    const gmailMessageId=
+      String(
+        body?.gmailMessageId||""
+      ).trim();
+
+
+    const status=
+      String(
+        body?.status||""
+      )
+        .trim()
+        .toUpperCase();
+
+
+    const errorMessage=
+      String(
+        body?.errorMessage||""
+      ).trim();
+
+
+    const allowed=
+      new Set([
+        "PENDING",
+        "UNIDENTIFIED",
+        "PROCESSING",
+        "PROCESSED",
+        "ERROR"
+      ]);
+
+
+    if(
+      !Number.isFinite(id) ||
+      id<=0 ||
+      !gmailMessageId ||
+      !allowed.has(status)
+    ){
+
+      return json({
+        ok:false,
+        error:"STATUT PREPA INVALIDE"
+      },400);
+
+    }
+
+
+    const existing=
+      await env.OPS_DB.prepare(`
+        SELECT
+          id,
+          gmail_message_id,
+          status
+
+        FROM prepa_inbox
+
+        WHERE id=?
+          AND gmail_message_id=?
+
+        LIMIT 1
+      `)
+      .bind(
+        id,
+        gmailMessageId
+      )
+      .first();
+
+
+    if(!existing){
+
+      return json({
+        ok:false,
+        error:"PREPA INTROUVABLE"
+      },404);
+
+    }
+
+
+    await env.OPS_DB.prepare(`
+      UPDATE prepa_inbox
+
+      SET
+        status=?,
+
+        error_message=?,
+
+        processed_at=
+          CASE
+            WHEN ?='PROCESSED'
+              THEN CURRENT_TIMESTAMP
+
+            ELSE processed_at
+          END,
+
+        updated_at=
+          CURRENT_TIMESTAMP
+
+      WHERE id=?
+        AND gmail_message_id=?
+    `)
+    .bind(
+      status,
+
+      status==="ERROR"
+        ? errorMessage
+        : "",
+
+      status,
+
+      id,
+
+      gmailMessageId
+    )
+    .run();
+
+
+    return json({
+      ok:true,
+      id,
+      gmailMessageId,
+      status
+    });
+  }
+
+
+  /*
+   * ALYZIA OPS
+   * -> LECTURE BOITE PREPA
+   */
+  if(
+    url.pathname==="/api/prepa" &&
+    request.method==="GET"
+  ){
+
+    const items=
+      await getPrepaInbox(
+        env,
+        url
+      );
+
+
+    return json({
+      ok:true,
+      count:items.length,
+      items
+    });
+  }
+
+
+  return json({
+    ok:false,
+    error:"ROUTE PREPA INTROUVABLE"
+  },404);
+}
+
+
+/* =========================================================
+   SARIA BRIDGE
+   ========================================================= */
+
+async function handleSariaBridge(
+  request,
+  env,
+  url
+){
+
+  if(
+    !url.pathname.startsWith(
+      "/api/saria/"
+    )
+  ){
+    return null;
+  }
+
+
+  const subpath=
+    url.pathname.replace(
+      /^\/api\/saria/,
+      "/api"
+    );
+
+
+  const headers=
+    new Headers(
+      request.headers
+    );
+
+
+  headers.delete("host");
+
+
+  let response;
+
+
+  /*
+   * SERVICE BINDING
+   */
+  if(
+    env.SARIA &&
+    typeof env.SARIA.fetch==="function"
+  ){
+
+    const internal=
+      new URL(
+        request.url
+      );
+
+
+    internal.protocol=
+      "https:";
+
+
+    internal.hostname=
+      "saria.internal";
+
+
+    internal.pathname=
+      subpath;
+
+
+    response=
+      await env.SARIA.fetch(
+        new Request(
+          internal.toString(),
+          {
+            method:
+              request.method,
+
+            headers,
+
+            body:
+              ["GET","HEAD"]
+                .includes(
+                  request.method
+                )
+
+                ? undefined
+
+                : request.body
+          }
+        )
+      );
+
+  }else{
+
+    /*
+     * FALLBACK PUBLIC
+     */
+    const target=
+      new URL(
+        subpath+url.search,
+        SARIA_PUBLIC_ORIGIN
+      );
+
+
+    response=
+      await fetch(
+        target.toString(),
+        {
+          method:
+            request.method,
+
+          headers,
+
+          body:
+            ["GET","HEAD"]
+              .includes(
+                request.method
+              )
+
+              ? undefined
+
+              : request.body
+        }
+      );
+  }
+
+
+  const outHeaders=
+    new Headers(
+      response.headers
+    );
+
+
+  outHeaders.set(
+    "Access-Control-Allow-Origin",
+    "*"
+  );
+
+
+  outHeaders.set(
+    "X-ALYZIA-SARIA-BRIDGE",
+
+    env.SARIA
+      ? "SERVICE-BINDING"
+      : "PUBLIC-FALLBACK"
+  );
+
+
+  if(
+    request.method==="GET"
+  ){
+
+    outHeaders.set(
+      "Cache-Control",
+
+      subpath.includes(
+        "/layout"
+      )
+        ? "public, max-age=3600"
+        : "public, max-age=300"
+    );
+
+  }
+
+
+  return new Response(
+    response.body,
+    {
+      status:
+        response.status,
+
+      statusText:
+        response.statusText,
+
+      headers:
+        outHeaders
+    }
+  );
+}
+
+
+/* =========================================================
+   WORKER PRINCIPAL
+   ========================================================= */
+
+export default {
+
+  async fetch(
+    request,
+    env
+  ){
+
+    const url=
+      new URL(
+        request.url
+      );
+
+
+    try{
+
+      /*
+       * PREFLIGHT CORS
+       */
+      if(
+        request.method==="OPTIONS"
+      ){
+        return json({
+          ok:true
+        });
+      }
+
+
+      /*
+       * API FLIGHTS
+       */
+      if(
+        url.pathname.startsWith(
+          "/api/flights"
+        )
+      ){
+
+        const result=
+          await handleFlights(
+            request,
+            env,
+            url
+          );
+
+
+        if(result){
+          return result;
+        }
+      }
+
+
+      /*
+       * V50
+       * PROFILS COMPAGNIES
+       */
+      if(
+        url.pathname.startsWith(
+          "/api/airline-profiles"
+        )
+      ){
+
+        const result=
+          await handleAirlineProfiles(
+            request,
+            env,
+            url
+          );
+
+
+        if(result){
+          return result;
+        }
+      }
+
+
+      /*
+       * V50
+       * NOTES + PIECES JOINTES R2
+       */
+      if(
+        url.pathname.startsWith(
+          "/api/flight-notes"
+        ) ||
+        url.pathname.startsWith(
+          "/api/flight-attachments"
+        )
+      ){
+
+        const result=
+          await handleFlightNotes(
+            request,
+            env,
+            url
+          );
+
+
+        if(result){
+          return result;
+        }
+      }
+
+
+      /*
+       * PREPA GMAIL
+       */
+      if(
+        url.pathname.startsWith(
+          "/api/prepa"
+        )
+      ){
+
+        const result=
+          await handlePrepa(
+            request,
+            env,
+            url
+          );
+
+
+        if(result){
+          return result;
+        }
+      }
+
+
+      /*
+       * SARIA
+       */
+      if(
+        url.pathname.startsWith(
+          "/api/saria/"
+        )
+      ){
+
+        const result=
+          await handleSariaBridge(
+            request,
+            env,
+            url
+          );
+
+
+        if(result){
+          return result;
+        }
+      }
+
+
+      /*
+       * ASSETS STATIQUES
+       */
+      const assetResponse=
+        await env.ASSETS.fetch(
+          request
+        );
+
+
+      const headers=
+        new Headers(
+          assetResponse.headers
+        );
+
+
+      /*
+       * Empêche la mise en cache
+       * de l'application HTML.
+       */
+      if(
+        url.pathname==="/" ||
+        url.pathname.endsWith(
+          ".html"
+        )
+      ){
+
+        headers.set(
+          "Cache-Control",
+          "no-store, no-cache, must-revalidate, max-age=0"
+        );
+
+        headers.set(
+          "Pragma",
+          "no-cache"
+        );
+
+        headers.set(
+          "Expires",
+          "0"
+        );
+      }
+
+
+      return new Response(
+        assetResponse.body,
+        {
+          status:
+            assetResponse.status,
+
+          statusText:
+            assetResponse.statusText,
+
+          headers
+        }
+      );
+
+
+    }catch(err){
+
+      console.error(
+        "ALYZIA OPS V50.1",
+        err
+      );
+
+
+      return json({
+        ok:false,
+
+        error:
+          err?.message ||
+          String(err)
+
+      },500);
+
+    }
+  }
+};
