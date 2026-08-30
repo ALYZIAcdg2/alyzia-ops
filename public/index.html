@@ -6,7 +6,7 @@
   <meta http-equiv="Expires" content="0">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V50.03 · CLOUD STABLE + MULTI-COMPAGNIES + AUTO-CREATE + PENDING RECOVERY</title>
+<title>ALYZIA OPS - V50.04 · GENERIC MASTER + REINJECTION + CLOUD IMPORTS STABLE</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -6780,7 +6780,7 @@ html,body{
 <body>
 <script>
 /* V49.75 — BJ KPI WEB SBY AVAILABLE. SQ/TK frozen. */
-const ALYZIA_APP_VERSION='V50.03';
+const ALYZIA_APP_VERSION='V50.04';
 const ALYZIA_SQ_LOCK_VERSION='V49.64';
 const ALYZIA_TK_LOCK_VERSION='V49.69';
 const ALYZIA_APP_BUILD='2026-08-30-93';
@@ -6927,7 +6927,7 @@ async function loadFlightsFromCloud({attempts=3}={}){
      throw new Error('RÉPONSE CLOUD INVALIDE');
    }catch(e){
      lastError=e;
-     console.warn(`V50.03 CLOUD LOAD ATTEMPT ${attempt}/${attempts}`,e);
+     console.warn(`V50.04 CLOUD LOAD ATTEMPT ${attempt}/${attempts}`,e);
      if(attempt<attempts){
        await new Promise(resolve=>setTimeout(resolve,attempt===1?1000:2000));
      }
@@ -6935,7 +6935,7 @@ async function loadFlightsFromCloud({attempts=3}={}){
  }
  OPS_CLOUD_CONSECUTIVE_FAILURES=OPS_CLOUD_FAILURES_BEFORE_LOCAL;
  setOpsCloudState(false,'RECONNEXION AUTOMATIQUE');
- console.warn('V50.03 CLOUD LOAD FAILED',lastError);
+ console.warn('V50.04 CLOUD LOAD FAILED',lastError);
  return null;
 }
 
@@ -12301,11 +12301,86 @@ function v5002LegStripHtml(x){
  return `<div class="v5002-leg-strip"><span class="route-all">VOL COMPLET · ${escapeHtml(route)}</span>${legs.map(l=>`<span class="v5002-leg"><b>LEG ${l.leg}</b>${escapeHtml(l.origin)} → ${escapeHtml(l.destination)}</span>`).join('')}</div>`;
 }
 
+/* =========================================================
+   V50.04 — MASTER LIST GÉNÉRIQUE
+   ALL CUSTOMERS est une source BOOKED autoritaire.
+   Les autres listes (ETKT / SSR / EMD / ONC...) enrichissent seulement.
+   ========================================================= */
+function v5004CleanPassengerName(v){
+ return String(v||'')
+  .replace(/\s+(?:MR|MRS|MS|MISS|MSTR)\s*$/i,'')
+  .replace(/\s+/g,' ')
+  .trim();
+}
+function v5004ParseGenericMasterList(rawOriginal){
+ const raw=String(rawOriginal||'').replace(/\u00a0/g,' ');
+ const lines=raw.split(/\r?\n/);
+ const passengers=[];
+ const booked={};
+ let totalExplicit=null;
+ let found=false;
+
+ for(let i=0;i<lines.length;i++){
+  const header=String(lines[i]||'');
+  if(!/\bLIST\s+OF\s*:\s*ALL\s+CUSTOMERS\b/i.test(header))continue;
+  found=true;
+
+  // Compteurs autoritaires du header, ex. C1 W0 Y51 TOTAL 52.
+  const tail=header.replace(/^.*?ALL\s+CUSTOMERS/i,'');
+  for(const m of tail.matchAll(/\b([FJCWSY])\s*(\d{1,3})\b/gi)){
+   const cabin=String(m[1]).toUpperCase();
+   booked[cabin]=Math.max(Number(booked[cabin]||0),Number(m[2]||0));
+  }
+  const tm=tail.match(/\bTOTAL\s*(\d{1,4})\b/i);
+  if(tm)totalExplicit=Math.max(Number(totalExplicit||0),Number(tm[1]||0));
+
+  // Lit uniquement le bloc de cette liste jusqu'au prochain LIST OF / séparateur fichier.
+  for(let j=i+1;j<lines.length;j++){
+   const line=String(lines[j]||'').trim();
+   if(!line)continue;
+   if(j>i+1 && (/^=====\s*(?:FICHIER|MESSAGE GMAIL)/i.test(line)||/\bLIST\s+OF\s*:/i.test(line)))break;
+   if(/^[A-Z0-9]{2}\d{2,4}\s+\d{1,2}[A-Z]{3}\b/i.test(line))continue;
+   if(/FLIGHT RELATED COMMENTS EXIST|^REPORT CONTENT$/i.test(line))continue;
+
+   // Ex: 1.ABBOUB/ABDELILLAH MR M CDG ALG YN
+   //     17.BELOUASSA/LEILA F CDG ALG CC
+   // Le type pax (M/F/C/A/I) est juste avant ORG/DST.
+   const m=line.match(/^\s*(\d{1,4})\.\s*(.*?)\s+([MFCAI])\s+([A-Z]{3})\s+([A-Z]{3})\s+([FJCWSY])([A-Z])(?:\s+(?:A\s+)?(\d{1,3}[A-K]?))?(?:\s+(.*))?$/i);
+   if(!m)continue;
+   const p={
+    masterIndex:Number(m[1]),
+    name:v5004CleanPassengerName(m[2]),
+    passengerType:String(m[3]).toUpperCase(),
+    from:String(m[4]).toUpperCase(),
+    to:String(m[5]).toUpperCase(),
+    class:String(m[6]).toUpperCase(),
+    bookingClass:String(m[7]).toUpperCase(),
+    status:'BOOKED',
+    source:'GENERIC ALL CUSTOMERS'
+   };
+   if(m[8])p.seat=String(m[8]).replace(/^0+(?=\d)/,'').toUpperCase();
+   if(m[9])p.rawExtra=String(m[9]).trim().slice(0,240);
+   passengers.push(p);
+  }
+ }
+
+ if(!found)return {found:false,passengers:[],booked:{},total:null};
+
+ // Si le header est présent mais qu'une classe n'a pas été répétée dans plusieurs blocs,
+ // conserve le maximum explicite. Ne déduit jamais BOOKED d'une liste auxiliaire.
+ if(!Object.keys(booked).length && passengers.length){
+  for(const p of passengers)booked[p.class]=Number(booked[p.class]||0)+1;
+ }
+ const total=totalExplicit!=null?totalExplicit:Object.values(booked).reduce((a,b)=>a+Number(b||0),0);
+ return {found:true,passengers,booked,total};
+}
+
 function prepareGenericImportManifest(rawOriginal,airline){
  const raw=String(rawOriginal||'');
  const upper=raw.toUpperCase().replace(/\u00A0/g,' ');
  const lines=raw.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
  const code=v50NormalizeAirline(airline);
+ const master=v5004ParseGenericMasterList(rawOriginal);
 
  const commonLists={
   INF:[],CHLD:[],WCH:[],INAD:[],DEPA:[],DEPU:[],
@@ -12427,12 +12502,16 @@ function prepareGenericImportManifest(rawOriginal,airline){
  if(outbound.length)owned.OUTBOUND=true;
 
  const legs=v5002DetectLegs(raw,normalizeInboxFlightNumber((upper.match(/\b([A-Z0-9]{2}\s*\d{2,4})\b/)||[])[1]||''),'CDG');
- const hasAny=Object.keys(counts).length>0||inbound.length>0||outbound.length>0||legs.length>0;
+ const hasAny=master.found||Object.keys(counts).length>0||inbound.length>0||outbound.length>0||legs.length>0;
 
  return {
   airline:code,
   mode:'GENERIC',
   hasMainManifest:hasAny,
+  hasMasterList:master.found,
+  passengers:master.passengers,
+  booked:master.booked,
+  bookedTotal:master.total,
   hasFqtv:!!counts.FQTV,
   counts,
   commonLists,
@@ -12472,6 +12551,21 @@ function applyGenericManifestToFlight(manifest,ctx){
  x.common_lists=x.common_lists||{};
  x.prepaSpecificities=x.prepaSpecificities||{};
 
+ // V50.04 : ALL CUSTOMERS remplit BOOKED + la master passenger list.
+ if(manifest.hasMasterList){
+  x.booked=x.booked||{};
+  for(const [c,n] of Object.entries(manifest.booked||{}))x.booked[c]=Number(n||0);
+  if(Array.isArray(manifest.passengers)&&manifest.passengers.length){
+   // Master = autoritaire pour la présence des passagers, puis enrichissement conservé par nom/route.
+   const previous=Array.isArray(x.passengers)?x.passengers:[];
+   x.passengers=manifest.passengers.map((p,pi)=>{
+    const old=previous.find(q=>String(q?.name||'').toUpperCase()===String(p?.name||'').toUpperCase() && String(q?.from||q?.origin||'').toUpperCase()===String(p?.from||'').toUpperCase() && String(q?.to||q?.destination||'').toUpperCase()===String(p?.to||'').toUpperCase());
+    return {...(old||{}),...p,masterIndex:p.masterIndex||pi+1};
+   });
+  }
+  x.genericMaster={type:'ALL CUSTOMERS',bookedTotal:Number(manifest.bookedTotal||0),updatedAt:new Date().toISOString()};
+ }
+
  const keys=['INF','CHLD','WCH','INAD','DEPA','DEPU','FQTV','STAFF','EMD','ETK','MEAL','UMNR','MAAS','EXBG','TKNE','DOOR','UPRQ','EXMO','OTHER'];
 
  for(const key of keys){
@@ -12499,7 +12593,9 @@ function applyGenericManifestToFlight(manifest,ctx){
   mode:'GENERIC',
   airline:v50NormalizeAirline(x.airline),
   updatedAt:new Date().toISOString(),
-  detected:Object.keys(manifest.counts||{})
+  detected:Object.keys(manifest.counts||{}),
+  masterList:!!manifest.hasMasterList,
+  bookedTotal:Number(manifest.bookedTotal||0)
  };
 
  return true;
@@ -17368,7 +17464,7 @@ async function openTools(){
    <button class="tool-card" onclick="openSariaApp()"><span class="tool-icon">✈</span><b>SARIA</b><span>OUVRIR DIRECTEMENT L’OUTIL SARIA CABIN / SEATMAP.</span></button>
    <div class="ops-cloud-card">
      ${(()=>{const st=opsCloudStatusMarkup();return `<div id="opsCloudStatusBox" class="ops-cloud-status ${st.cls}">${st.text}</div>`})()}
-     <div class="ops-cloud-help">D1 PARTAGÉ · 3 TENTATIVES AU DÉMARRAGE · RECONNEXION AUTOMATIQUE · PC, TABLETTE ET TÉLÉPHONE.<br><b style="color:#087749">V50.03 · CLOUD STABLE + IMPORTS MULTI-COMPAGNIES</b></div>
+     <div class="ops-cloud-help">D1 PARTAGÉ · 3 TENTATIVES AU DÉMARRAGE · RECONNEXION AUTOMATIQUE · PC, TABLETTE ET TÉLÉPHONE.<br><b style="color:#087749">V50.04 · MASTER GENERIC + RÉINJECTION IMPORTS</b></div>
      <button class="live-refresh" onclick="manualCloudRefresh()">↻ SYNCHRONISER MAINTENANT</button>
    </div>
    ${renderImportsMainCard()}
@@ -18664,7 +18760,7 @@ async function applyInboxRawWithExistingParser(item,idx,raw){
   }
 
   if(typeof markPrepaFields==='function'){
-   if(sum(x.booked)>0)markPrepaFields(x,'booked','Import PREPA Gmail');
+   if(sum(x.booked)>0)markPrepaFields(x,'booked',PREPA_PENDING_MANIFEST?.hasMasterList?'ALL CUSTOMERS · PREPA Gmail':'Import PREPA Gmail');
    if(x.std)markPrepaFields(x,'std','Import PREPA Gmail');
    if(x.sta)markPrepaFields(x,'sta','Import PREPA Gmail');
   }
@@ -18796,7 +18892,7 @@ async function processOnePendingPrepaInbox(){
    await setPrepaInboxGroupStatus(claimed,'PROCESSED');
    try{await fetchRecentPrepaImports()}catch(e){}setTimeout(()=>wakeRealtimeSync(),150);return true;
   }catch(e){
-   console.error('V50.02 PREPA GROUPE ERROR',master?.flightNumber,master?.flightDate,e);
+   console.error('V50.04 PREPA GROUPE ERROR',master?.flightNumber,master?.flightDate,e);
    await setPrepaInboxGroupStatus(claimed,'ERROR',String(e?.message||e));return false;
   }
  }finally{PREPA_INBOX_BUSY=false}
@@ -18828,7 +18924,7 @@ async function fetchRecentPrepaImports(limit=180){
   const j=await r.json();
   PREPA_IMPORTS_UI_ITEMS=(Array.isArray(j?.items)?j.items:[]).slice(0,Math.max(1,Number(limit)||180));
   return PREPA_IMPORTS_UI_ITEMS;
- }catch(e){console.warn('V49.90 IMPORTS',e);PREPA_IMPORTS_UI_ITEMS=[];return []}
+ }catch(e){console.warn('V50.04 IMPORTS',e);return PREPA_IMPORTS_UI_ITEMS}
 }
 function impCompany(it){const a=String(it?.airline||'').trim().toUpperCase();return a||'A_IDENTIFIER'}
 function impAttachCount(it){return Array.isArray(it?.attachments)?it.attachments.length:0}
@@ -18861,14 +18957,46 @@ function getImpRow(c,key){return impFlights(c).find(x=>x.key===key)||null}
 function openImpPrepa(c,key){const row=getImpRow(c,key);if(!row)return;const idx=findImpFlightIndex(row);if(idx<0){alert(`VOL ${row.flightNumber} DU ${impDate(row.flightDate)} EN ATTENTE DE CRÉATION AUTOMATIQUE.`);return}closeAllModals();setTimeout(()=>{if(c==='SQ')openSqPrepaForDate(row.flightNumber,row.flightDate);else openPrepaEditing(idx,row.flightDate)},25)}
 function openImpFlight(c,key){const row=getImpRow(c,key);if(!row)return;const idx=findImpFlightIndex(row);if(idx<0){alert(`VOL ${row.flightNumber} DU ${impDate(row.flightDate)} EN ATTENTE DE CRÉATION AUTOMATIQUE.`);return}closeAllModals();setTimeout(()=>openFlightFromPrepa(idx),25)}
 async function resumeImpFlight(c,key){
- const row=getImpRow(c,key);if(!row)return;const candidates=(row.items||[]).filter(it=>['ERROR','PROCESSING'].includes(String(it?.status||'').toUpperCase()));if(!candidates.length)return;
- for(const it of candidates)await setPrepaInboxStatus(it,'PENDING','');await fetchRecentPrepaImports();openImportsCompany(c);setTimeout(()=>processOnePendingPrepaInbox(),120);
+ const row=getImpRow(c,key);if(!row)return;
+ // V50.04 : permet aussi de réinjecter un groupe déjà PROCESSED si sa fiche générique est restée vide/incomplète.
+ const candidates=(row.items||[]).filter(it=>['ERROR','PROCESSING','PROCESSED'].includes(String(it?.status||'').toUpperCase()));if(!candidates.length)return;
+ for(const it of candidates)await setPrepaInboxStatus(it,'PENDING','');
+ try{localStorage.removeItem(`v5004_recovery_${row.company}|${row.flightNumber}|${row.flightDate}`)}catch(e){}
+ await fetchRecentPrepaImports();openImportsCompany(c);setTimeout(()=>processOnePendingPrepaInbox(),120);
 }
 function openImportsCompany(c){
- const s=impStats(c),flights=impFlights(c);const rows=flights.map(row=>{const st=impRowState(row),idx=findImpFlightIndex(row),canOpen=idx>=0&&String(row.status).toUpperCase()==='PROCESSED',canResume=['ERROR','PROCESSING'].includes(String(row.status).toUpperCase());return `<div class="imports-flight-row"><div class="imports-flight-id"><b>${escapeHtml(row.flightNumber)}</b><span>${escapeHtml(impDate(row.flightDate))}</span></div><div class="imports-flight-meta">${row.files} FICHIER${row.files>1?'S':''}</div><div class="imports-flight-meta">${row.messages} MAIL${row.messages>1?'S':''}</div><div class="imports-flight-status ${st.cls}">${st.label}</div><div class="imports-flight-actions">${canResume?`<button class="v5002-resume-btn" onclick="resumeImpFlight('${c}','${row.key}')">REPRENDRE</button>`:''}<button ${canOpen?'':'disabled'} onclick="openImpPrepa('${c}','${row.key}')">PRÉPA</button><button class="primary" ${canOpen?'':'disabled'} onclick="openImpFlight('${c}','${row.key}')">FICHE VOL</button></div></div>`}).join('');
+ const s=impStats(c),flights=impFlights(c);const rows=flights.map(row=>{const st=impRowState(row),idx=findImpFlightIndex(row),canOpen=idx>=0&&String(row.status).toUpperCase()==='PROCESSED',canResume=['ERROR','PROCESSING'].includes(String(row.status).toUpperCase())||(String(row.status).toUpperCase()==='PROCESSED'&&isGenericAirlineV50(c)&&idx>=0&&sum(FLIGHTS[idx]?.booked||{})===0);return `<div class="imports-flight-row"><div class="imports-flight-id"><b>${escapeHtml(row.flightNumber)}</b><span>${escapeHtml(impDate(row.flightDate))}</span></div><div class="imports-flight-meta">${row.files} FICHIER${row.files>1?'S':''}</div><div class="imports-flight-meta">${row.messages} MAIL${row.messages>1?'S':''}</div><div class="imports-flight-status ${st.cls}">${st.label}</div><div class="imports-flight-actions">${canResume?`<button class="v5002-resume-btn" onclick="resumeImpFlight('${c}','${row.key}')">${String(row.status).toUpperCase()==='PROCESSED'?'RÉINJECTER':'REPRENDRE'}</button>`:''}<button ${canOpen?'':'disabled'} onclick="openImpPrepa('${c}','${row.key}')">PRÉPA</button><button class="primary" ${canOpen?'':'disabled'} onclick="openImpFlight('${c}','${row.key}')">FICHE VOL</button></div></div>`}).join('');
  showModal(`IMPORTS ${c}`,`${s.flights} VOLS · ${s.files} FICHIERS`,`<div class="imports-dash"><div class="imports-summary"><div class="imports-summary-card"><b>${s.files}</b><span>FICHIERS</span></div><div class="imports-summary-card"><b>${s.flights}</b><span>VOLS</span></div><div class="imports-summary-card"><b>${s.injected}</b><span>INJECTÉS</span></div><div class="imports-summary-card"><b>${s.toCreate+s.pending+s.errors}</b><span>À TRAITER</span></div></div><div class="imports-flight-list">${rows||`<div class="import-status">AUCUN VOL IMPORTÉ POUR ${c}.</div>`}</div></div>`)
 }
-setInterval(()=>{if(!document.hidden)fetchRecentPrepaImports().catch(()=>{})},10000);
+let V5004_RECOVERY_BUSY=false;
+function v5004GenericNeedsRecovery(row){
+ if(!row||!isGenericAirlineV50(row.company)||String(row.status||'').toUpperCase()!=='PROCESSED')return false;
+ const idx=findImpFlightIndex(row);if(idx<0)return true;
+ const x=FLIGHTS[idx];
+ // Cas AH1013 observé : des SSR peuvent avoir été injectés alors que la master ALL CUSTOMERS ne l'a pas été.
+ return sum(x?.booked||{})===0 && !x?.genericMaster?.type;
+}
+async function v5004AutoRecoverProcessedGenericShells(){
+ if(V5004_RECOVERY_BUSY||!navigator.onLine)return false;
+ V5004_RECOVERY_BUSY=true;
+ try{
+  const rows=impCompanies().flatMap(c=>impFlights(c)).filter(v5004GenericNeedsRecovery);
+  let changed=0;
+  for(const row of rows){
+   const marker=`v5004_recovery_${row.company}|${row.flightNumber}|${row.flightDate}`;
+   try{if(localStorage.getItem(marker)==='1')continue}catch(e){}
+   const processed=(row.items||[]).filter(it=>String(it?.status||'').toUpperCase()==='PROCESSED');
+   if(!processed.length)continue;
+   let ok=true;
+   for(const it of processed){const r=await setPrepaInboxStatus(it,'PENDING','');if(!r?.ok)ok=false}
+   if(ok){changed++;try{localStorage.setItem(marker,'1')}catch(e){}}
+  }
+  if(changed){setTimeout(()=>processOnePendingPrepaInbox(),180);return true}
+  return false;
+ }finally{V5004_RECOVERY_BUSY=false}
+}
+
+setInterval(()=>{if(!document.hidden)fetchRecentPrepaImports().then(()=>v5004AutoRecoverProcessedGenericShells()).catch(()=>{})},10000);
 setInterval(()=>{if(!document.hidden)loadAirlineProfilesV50().then(ok=>{if(ok&&currentView==='detail')render()}).catch(()=>{})},30000);
 
 
@@ -18952,7 +19080,7 @@ async function bootstrapAlyziaOps(){
  OPS_REALTIME_LAST_HASH=stableCloudHash(FLIGHTS);
  startRealtimeSync();
  startPrepaInboxAutoImport();
- fetchRecentPrepaImports().then(()=>ensurePrepaImportsAutoPanel()).catch(()=>{});
+ fetchRecentPrepaImports().then(()=>v5004AutoRecoverProcessedGenericShells()).catch(()=>{});
  loadSariaCatalog().then(()=>{if(currentView==='detail')render();}).catch(()=>{});
 }
 bootstrapAlyziaOps();
