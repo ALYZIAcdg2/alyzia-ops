@@ -6,7 +6,7 @@
   <meta http-equiv="Expires" content="0">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V49.88 · GMAIL PREPA AUTO + KPI STANDBY + MOBILE · SQ/TK/BJ LOCKED</title>
+<title>ALYZIA OPS - V50.0 · GENERIC AIRLINES ENGINE · SQ/TK/BJ LOCKED</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -6770,7 +6770,7 @@ html,body{
 <body>
 <script>
 /* V49.75 — BJ KPI WEB SBY AVAILABLE. SQ/TK frozen. */
-const ALYZIA_APP_VERSION='V49.91';
+const ALYZIA_APP_VERSION='V50.0';
 const ALYZIA_SQ_LOCK_VERSION='V49.64';
 const ALYZIA_TK_LOCK_VERSION='V49.69';
 const ALYZIA_APP_BUILD='2026-08-28-91';
@@ -11976,6 +11976,356 @@ function openV4920EngineDiagnostic(){
  `);
 }
 
+/* =========================================================
+   V50.0 — PROFILS COMPAGNIES + MOTEUR PREPA GÉNÉRIQUE
+   SQ / TK / BJ restent strictement sur leurs moteurs dédiés.
+   Toute autre compagnie utilise GENERIC, sans effacement par absence.
+   ========================================================= */
+
+const V50_AIRLINE_PROFILES=new Map();
+
+function v50NormalizeAirline(v){
+ return String(v||'').trim().toUpperCase();
+}
+
+function v50DefaultImportMode(airline){
+ return ['SQ','TK','BJ'].includes(v50NormalizeAirline(airline))?'SPECIFIC':'GENERIC';
+}
+
+function v50AirlineProfile(airline){
+ const code=v50NormalizeAirline(airline);
+ return V50_AIRLINE_PROFILES.get(code)||{
+  airline:code,
+  importMode:v50DefaultImportMode(code),
+  visibleKpis:{},
+  visibleCards:{},
+  notesEnabled:true,
+  attachmentsEnabled:true
+ };
+}
+
+function isGenericAirlineV50(airline){
+ return String(v50AirlineProfile(airline)?.importMode||v50DefaultImportMode(airline)).toUpperCase()==='GENERIC';
+}
+
+async function loadAirlineProfilesV50(){
+ try{
+  const r=await fetch('/api/airline-profiles',{method:'GET',cache:'no-store',headers:{Accept:'application/json'}});
+  if(!r.ok)throw new Error(`HTTP ${r.status}`);
+  const j=await r.json();
+  const rows=Array.isArray(j?.profiles)?j.profiles:[];
+  rows.forEach(p=>{
+   const code=v50NormalizeAirline(p?.airline);
+   if(code)V50_AIRLINE_PROFILES.set(code,{
+    airline:code,
+    importMode:String(p?.importMode||v50DefaultImportMode(code)).toUpperCase(),
+    visibleKpis:(p?.visibleKpis&&typeof p.visibleKpis==='object')?p.visibleKpis:{},
+    visibleCards:(p?.visibleCards&&typeof p.visibleCards==='object')?p.visibleCards:{},
+    notesEnabled:p?.notesEnabled!==false,
+    attachmentsEnabled:p?.attachmentsEnabled!==false,
+    updatedAt:p?.updatedAt||''
+   });
+  });
+  return true;
+ }catch(e){
+  console.warn('V50 AIRLINE PROFILES',e);
+  return false;
+ }
+}
+
+function v50GenericCardVisible(x,key){
+ const profile=v50AirlineProfile(x?.airline);
+ const cfg=profile?.visibleCards||{};
+ if(!Object.keys(cfg).length)return true;
+ if(Object.prototype.hasOwnProperty.call(cfg,key))return cfg[key]!==false;
+ if(key==='ETK'&&Object.prototype.hasOwnProperty.call(cfg,'ETKT'))return cfg.ETKT!==false;
+ return true;
+}
+
+function v50GenericKpiVisible(x,key){
+ const profile=v50AirlineProfile(x?.airline);
+ const cfg=profile?.visibleKpis||{};
+ if(!Object.keys(cfg).length)return true;
+ return cfg[key]!==false;
+}
+
+function v50GenericUniquePush(list,item){
+ if(!item)return;
+ const key=[
+  String(item.name||'').toUpperCase().replace(/\s+/g,' ').trim(),
+  String(item.pnr||'').toUpperCase(),
+  String(item.seat||'').toUpperCase(),
+  String(item.etkt||''),
+  String(item.emd||''),
+  String(item.specific||'').toUpperCase(),
+  String(item.note||'').toUpperCase().replace(/\s+/g,' ').trim()
+ ].join('|');
+ if(!list.some(p=>[
+  String(p.name||'').toUpperCase().replace(/\s+/g,' ').trim(),
+  String(p.pnr||'').toUpperCase(),
+  String(p.seat||'').toUpperCase(),
+  String(p.etkt||''),
+  String(p.emd||''),
+  String(p.specific||'').toUpperCase(),
+  String(p.note||'').toUpperCase().replace(/\s+/g,' ').trim()
+ ].join('|')===key))list.push(item);
+}
+
+function v50GenericPassengerFromLine(line,code){
+ const raw=String(line||'').replace(/\s+/g,' ').trim();
+ if(!raw)return null;
+
+ // Conserve uniquement ce qui est explicitement présent sur la ligne.
+ const seat=(raw.match(/\b(\d{1,2}[A-K])\b/i)||[])[1]||'';
+ const pnr=(raw.match(/\bPNR\s*[:#-]?\s*([A-Z0-9]{5,7})\b/i)||[])[1]||'';
+ const etkt=(raw.match(/\b(?:ETKT|E-?TKT|TICKET)?\s*[:#-]?\s*(\d{13})\b/i)||[])[1]||'';
+
+ let before=raw.split(new RegExp(`\\b${String(code).replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}\\b`,'i'))[0]||'';
+ before=before
+  .replace(/^\s*(?:SSR|PAX|PASSENGER|NAME|NOM)\s*[:#-]?\s*/i,'')
+  .replace(/\b[A-Z0-9]{2,3}\d{1,4}\b/g,' ')
+  .replace(/\b\d{1,2}[A-K]\b/ig,' ')
+  .replace(/\b[A-Z0-9]{5,7}\b/g,' ')
+  .replace(/\s+/g,' ')
+  .trim();
+
+ const name=/[A-ZÀ-ÖØ-Ý]{2,}[\/\s][A-ZÀ-ÖØ-Ý]{2,}/i.test(before)
+  ?before.slice(0,80)
+  :'';
+
+ return {
+  name,
+  seat,
+  pnr,
+  etkt,
+  specific:String(code||'').toUpperCase(),
+  note:raw.slice(0,220),
+  source:'GENERIC'
+ };
+}
+
+function v50ExplicitCount(raw,code){
+ const esc=String(code).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+ const patterns=[
+  new RegExp(`\\b${esc}\\b\\s*[:=#-]\\s*(\\d{1,3})\\b`,'i'),
+  new RegExp(`\\b${esc}\\b\\s+(\\d{1,3})\\s*(?:PAX|PASSENGERS?)\\b`,'i'),
+  new RegExp(`\\b(\\d{1,3})\\s+(?:PAX\\s+)?${esc}\\b`,'i')
+ ];
+ for(const re of patterns){
+  const m=String(raw||'').match(re);
+  if(m)return Number(m[1]||0);
+ }
+ return null;
+}
+
+function prepareGenericImportManifest(rawOriginal,airline){
+ const raw=String(rawOriginal||'');
+ const upper=raw.toUpperCase().replace(/\u00A0/g,' ');
+ const lines=raw.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+ const code=v50NormalizeAirline(airline);
+
+ const commonLists={
+  INF:[],CHLD:[],WCH:[],INAD:[],DEPA:[],DEPU:[],
+  FQTV:[],EMD:[],ETK:[],MEAL:[],UMNR:[],MAAS:[],OTHER:[]
+ };
+ const counts={};
+ const owned={};
+
+ const definitions=[
+  {key:'INF',codes:['INF','INFANT']},
+  {key:'CHLD',codes:['CHLD','CHILD']},
+  {key:'WCH',codes:['WCHR','WCHS','WCHC','WCMP','WCBD','WCLB','WCH']},
+  {key:'INAD',codes:['INAD']},
+  {key:'DEPA',codes:['DEPA']},
+  {key:'DEPU',codes:['DEPU']},
+  {key:'UMNR',codes:['UMNR']},
+  {key:'MAAS',codes:['MAAS']},
+  {key:'FQTV',codes:['FQTV','FFN','FREQUENT FLYER']},
+  {key:'EMD',codes:['EMD']},
+  {key:'ETK',codes:['ETKT','E-TKT','E TKT','TICKET']},
+  {key:'MEAL',codes:[
+   'SPML','CHML','BBML','AVML','VGML','VLML','VJML','HNML','MOML','KSML',
+   'LFML','LSML','DBML','GFML','NLML','FPML','SFML','BLML','MLML','PRML'
+  ]}
+ ];
+
+ for(const def of definitions){
+  let occurrenceCount=0;
+  let explicit=null;
+
+  for(const c of def.codes){
+   const ec=v50ExplicitCount(upper,c);
+   if(ec!==null)explicit=Math.max(explicit??0,ec);
+
+   const esc=c.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+   const re=new RegExp(`\\b${esc}\\b`,'i');
+
+   for(const line of lines){
+    if(!re.test(line))continue;
+    occurrenceCount++;
+    const p=v50GenericPassengerFromLine(line,c);
+    if(p && (p.name||p.seat||p.pnr||p.etkt)){
+      if(def.key==='EMD'){
+       const emd=(line.match(/\b(\d{13}(?:C\d+)?)\b/i)||[])[1]||'';
+       if(emd)p.emd=emd;
+      }
+      v50GenericUniquePush(commonLists[def.key],p);
+    }
+   }
+  }
+
+  let next=Math.max(commonLists[def.key].length,explicit??0);
+  // Sans compteur explicite ni ligne exploitable, une occurrence de libellé peut être un titre.
+  // On ne la transforme donc pas automatiquement en quantité.
+  if(next>0){
+   counts[def.key]=next;
+   owned[def.key]=true;
+  }
+ }
+
+ // ETKT explicites : uniquement numéros 13 chiffres présents dans la source.
+ const allTickets=[...upper.matchAll(/\b(\d{13})\b/g)].map(m=>m[1]);
+ if(allTickets.length){
+  const unique=[...new Set(allTickets)];
+  // Si la ligne mentionne clairement EMD, elle n'est pas ajoutée comme ETKT.
+  const etkOnly=unique.filter(n=>!lines.some(line=>line.includes(n)&&/\bEMD\b/i.test(line)));
+  etkOnly.forEach(n=>v50GenericUniquePush(commonLists.ETK,{
+   name:'',etkt:n,specific:`ETKT ${n}`,note:`ETKT ${n}`,source:'GENERIC'
+  }));
+  if(commonLists.ETK.length){
+   counts.ETK=Math.max(counts.ETK||0,commonLists.ETK.length);
+   owned.ETK=true;
+  }
+ }
+
+ // OTHER : codes SSR explicites non couverts.
+ const knownCodes=new Set(definitions.flatMap(d=>d.codes.map(c=>c.replace(/\s+/g,'').toUpperCase())));
+ for(const line of lines){
+  if(!/\bSSR\b/i.test(line))continue;
+  const codes=[...line.toUpperCase().matchAll(/\b([A-Z]{4})\b/g)].map(m=>m[1]);
+  for(const ssr of codes){
+   if(knownCodes.has(ssr))continue;
+   if(['FROM','THIS','WITH','LIST','PASS','NAME','SEAT','CLASS','TOTAL'].includes(ssr))continue;
+   const p=v50GenericPassengerFromLine(line,ssr);
+   v50GenericUniquePush(commonLists.OTHER,p||{name:'',specific:ssr,note:line.slice(0,220),source:'GENERIC'});
+  }
+ }
+ if(commonLists.OTHER.length){
+  counts.OTHER=commonLists.OTHER.length;
+  owned.OTHER=true;
+ }
+
+ const parseConnections=(direction)=>{
+  const out=[];
+  const regex=direction==='INBOUND'
+   ?/\b(?:INBOUND|INBD|ARRIVING\s+FROM)\b[\s:=-]*([A-Z0-9]{2,3}\s*\d{1,4})\b(?:[\s\S]{0,45}?\b(?:FROM|ORIGIN|PROVENANCE)\s*[:=-]?\s*([A-Z]{3}))?/ig
+   :/\b(?:OUTBOUND|ONWARD|CONX|CONNECTION)\b[\s:=-]*([A-Z0-9]{2,3}\s*\d{1,4})\b(?:[\s\S]{0,45}?\b(?:TO|DEST|DESTINATION)\s*[:=-]?\s*([A-Z]{3}))?/ig;
+  let m;
+  while((m=regex.exec(upper))){
+   const fl=String(m[1]||'').replace(/\s+/g,'');
+   const apt=String(m[2]||'');
+   const row=direction==='INBOUND'
+    ?{flight:fl,from:apt||'',to:'CDG',time:'',source:'GENERIC'}
+    :{flight:fl,from:'CDG',to:apt||'',time:'',source:'GENERIC'};
+   if(!out.some(r=>r.flight===row.flight&&r.from===row.from&&r.to===row.to))out.push(row);
+  }
+  return out;
+ };
+
+ const inbound=parseConnections('INBOUND');
+ const outbound=parseConnections('OUTBOUND');
+ if(inbound.length)owned.INBOUND=true;
+ if(outbound.length)owned.OUTBOUND=true;
+
+ const hasAny=Object.keys(counts).length>0||inbound.length>0||outbound.length>0;
+
+ return {
+  airline:code,
+  mode:'GENERIC',
+  hasMainManifest:hasAny,
+  hasFqtv:!!counts.FQTV,
+  counts,
+  commonLists,
+  inbound,
+  outbound,
+  owned,
+  sourceCount:1,
+  batchMode:false
+ };
+}
+
+function mergeGenericOperationalList(existing,incoming){
+ const out=Array.isArray(existing)?existing.map(x=>({...x})):[];
+ for(const row of Array.isArray(incoming)?incoming:[]){
+  v50GenericUniquePush(out,{...row});
+ }
+ return out;
+}
+
+function mergeGenericConnections(existing,incoming){
+ const out=Array.isArray(existing)?existing.map(x=>({...x})):[];
+ for(const r of Array.isArray(incoming)?incoming:[]){
+  const key=[String(r.flight||'').toUpperCase(),String(r.from||'').toUpperCase(),String(r.to||'').toUpperCase(),String(r.time||'')].join('|');
+  if(!out.some(x=>[String(x.flight||'').toUpperCase(),String(x.from||'').toUpperCase(),String(x.to||'').toUpperCase(),String(x.time||'')].join('|')===key)){
+   out.push({...r});
+  }
+ }
+ return out;
+}
+
+function applyGenericManifestToFlight(manifest,ctx){
+ const x=FLIGHTS[Number(ctx?.idx)];
+ if(!x||!manifest)return false;
+
+ x.common=x.common||{};
+ x.common_lists=x.common_lists||{};
+ x.prepaSpecificities=x.prepaSpecificities||{};
+
+ const keys=['INF','CHLD','WCH','INAD','DEPA','DEPU','FQTV','EMD','ETK','MEAL','UMNR','MAAS','OTHER'];
+
+ for(const key of keys){
+  if(!manifest.owned?.[key])continue;
+
+  const incoming=manifest.commonLists?.[key]||[];
+  x.common_lists[key]=mergeGenericOperationalList(x.common_lists[key]||[],incoming);
+
+  const incomingCount=Number(manifest.counts?.[key]||0);
+  x.common[key]=Math.max(
+   Number(x.common[key]||0),
+   incomingCount,
+   x.common_lists[key].length
+  );
+ }
+
+ if(manifest.owned?.ETK)x.etk=Math.max(Number(x.etk||0),Number(x.common.ETK||0));
+ if(manifest.owned?.EMD)x.emd=Math.max(Number(x.emd||0),Number(x.common.EMD||0));
+
+ if(manifest.owned?.INBOUND)x.inbound=mergeGenericConnections(x.inbound||[],manifest.inbound||[]);
+ if(manifest.owned?.OUTBOUND)x.outbound=mergeGenericConnections(x.outbound||[],manifest.outbound||[]);
+
+ x.genericImport={
+  mode:'GENERIC',
+  airline:v50NormalizeAirline(x.airline),
+  updatedAt:new Date().toISOString(),
+  detected:Object.keys(manifest.counts||{})
+ };
+
+ return true;
+}
+
+function renderGenericParticularitiesV50(x){
+ const defs=[
+  ['INF','INF'],['CHLD','CHLD'],['WCH','WCH'],
+  ['INAD','INAD'],['DEPA','DEPA'],['DEPU','DEPU'],
+  ['FQTV','FQTV'],['EMD','EMD'],['ETK','ETKT'],
+  ['MEAL','MEAL'],['UMNR','UMNR'],['MAAS','MAAS'],['OTHER','OTHER']
+ ];
+ return defs
+  .filter(([key])=>v50GenericCardVisible(x,key))
+  .map(([key,label])=>commonTile(key,label))
+  .join('')+passengerSearchTile();
+}
+
 function collectPrepaImport(rawOriginal,airline){
  const raw=String(rawOriginal||'').toUpperCase().replace(/\u00A0/g,' ');
  const rawNoCodeshare=raw.replace(/^.*\bCODESHARE\s+FLIGHT\b.*$/gmi,' ');
@@ -12336,7 +12686,8 @@ async function finalizePrepaAutomaticImport(result,context=null){
  if(PREPA_PENDING_MANIFEST){
    if(PREPA_PENDING_MANIFEST.airline==='BJ')applyBjManifestToFlight(PREPA_PENDING_MANIFEST,ctx);
    else if(PREPA_PENDING_MANIFEST.airline==='TK')applyTkManifestToFlight(PREPA_PENDING_MANIFEST,ctx);
-   else applySqManifestToFlight(PREPA_PENDING_MANIFEST,ctx);
+   else if(PREPA_PENDING_MANIFEST.airline==='SQ')applySqManifestToFlight(PREPA_PENDING_MANIFEST,ctx);
+   else applyGenericManifestToFlight(PREPA_PENDING_MANIFEST,ctx);
    PREPA_PENDING_MANIFEST=null;
  }
 
@@ -12475,7 +12826,8 @@ async function deleteCurrentPrepaImport(){
  x.common=x.common||{};
  [
    'WCH','DEAF_BLND','EXST_CBBG','PET_AV','INF','CHLD','UMNR','MAAS',
-   'BSCT','MEAL','GROUP','VIP','EMD','ETK','FQTV','STAFF'
+   'BSCT','MEAL','GROUP','VIP','EMD','ETK','FQTV','STAFF',
+   'INAD','DEPA','DEPU','OTHER'
  ].forEach(k=>x.common[k]=0);
 
  x.emd=0;
@@ -12485,7 +12837,8 @@ async function deleteCurrentPrepaImport(){
  x.common_lists=x.common_lists||{};
  [
    'WCH','DEAF_BLND','EXST_CBBG','PET_AV','INF','CHLD','UMNR','MAAS',
-   'BSCT','MEAL','GROUP','VIP','EMD','ETK','FQTV','STAFF'
+   'BSCT','MEAL','GROUP','VIP','EMD','ETK','FQTV','STAFF',
+   'INAD','DEPA','DEPU','OTHER'
  ].forEach(k=>x.common_lists[k]=[]);
 
  x.meal_lists={CHML:[],BBML:[],AVML:[],MOML:[],LFML:[],FPML:[],NLML:[],SPML:[]};
@@ -12587,6 +12940,14 @@ function prepaManifestPreviewRows(manifest,ctx){
    if(own.INBOUND)add('INBOUND',Array.isArray(x.inbound)?x.inbound.length:0,manifest.inbound?.length||0);
    if(own.OUTBOUND)add('OUTBOUND',Array.isArray(x.outbound)?x.outbound.length:0,manifest.outbound?.length||0);
  }
+ if(!['SQ','TK','BJ'].includes(String(manifest.airline||'').toUpperCase())){
+   const labels={INF:'INF',CHLD:'CHLD',WCH:'WCH',INAD:'INAD',DEPA:'DEPA',DEPU:'DEPU',FQTV:'FQTV',EMD:'EMD',ETK:'ETKT',MEAL:'MEAL',UMNR:'UMNR',MAAS:'MAAS',OTHER:'OTHER'};
+   Object.entries(labels).forEach(([key,label])=>{
+     if(manifest.owned?.[key])add(label,cur(key),Number(manifest.counts?.[key]||manifest.commonLists?.[key]?.length||0));
+   });
+   if(manifest.owned?.INBOUND)add('INBOUND',Array.isArray(x.inbound)?x.inbound.length:0,manifest.inbound?.length||0);
+   if(manifest.owned?.OUTBOUND)add('OUTBOUND',Array.isArray(x.outbound)?x.outbound.length:0,manifest.outbound?.length||0);
+ }
  if(manifest.airline==='TK'){
    add('INFANT(S)',cur('INF'),c.INF);
    add("CHLD / TOY'S",cur('CHLD'),c.CHLD_TOYS);
@@ -12622,6 +12983,20 @@ function filterManifestForSelectedImport(manifest,labels){
  if(!manifest||!labels)return manifest;
  const m=JSON.parse(JSON.stringify(manifest)),has=(...names)=>names.some(n=>labels.has(n));
 
+ if(!['SQ','TK','BJ'].includes(String(m.airline||'').toUpperCase())){
+   const map={INF:'INF',CHLD:'CHLD',WCH:'WCH',INAD:'INAD',DEPA:'DEPA',DEPU:'DEPU',FQTV:'FQTV',EMD:'EMD',ETK:'ETKT',MEAL:'MEAL',UMNR:'UMNR',MAAS:'MAAS',OTHER:'OTHER'};
+   Object.entries(map).forEach(([key,label])=>{
+     if(!labels.has(label)){
+       if(m.commonLists)m.commonLists[key]=[];
+       if(m.counts)delete m.counts[key];
+       if(m.owned)m.owned[key]=false;
+     }
+   });
+   if(!labels.has('INBOUND')){m.inbound=[];if(m.owned)m.owned.INBOUND=false}
+   if(!labels.has('OUTBOUND')){m.outbound=[];if(m.owned)m.owned.OUTBOUND=false}
+   m.hasMainManifest=Object.values(m.owned||{}).some(Boolean);
+   return m;
+ }
  // V49.68 — TK selection uses the locked TK EDITING card labels.
  // The generic branch below is SQ-oriented (CHLD/KID + individual FQTV tiers) and
  // previously cleared valid TK CHLD/TOY'S, FQTV and SPECIAL MEAL passenger lists.
@@ -12773,7 +13148,10 @@ function injectPrepaRawText(airline){
     :(importAirline==='SQ'||/\bSQ\s*\d{2,4}\b/i.test(rawOriginal))
       ?prepareSqImportManifest(rawOriginal)
       :(importAirline==='TK'||/\bTK\s*\d{3,4}\b/i.test(rawOriginal)||looksLikeTkPriorityPassengerList(rawOriginal))
-        ?prepareTkImportManifest(rawOriginal):null;
+        ?prepareTkImportManifest(rawOriginal)
+        :isGenericAirlineV50(importAirline)
+          ?prepareGenericImportManifest(rawOriginal,importAirline)
+          :null;
 
   // V49.46: independent read-only engine runs in parallel.
   v4920FinalizeShadowComparison(rawOriginal,importAirline,values,PREPA_PENDING_MANIFEST);
@@ -15143,6 +15521,9 @@ function openBjEmdCategories(){
  showModal(`EMD · ${rows.length}`,x.flight,`<div class="bj-category-summary">${cats.map(([k,v])=>`<button onclick="openBjEmdCategory('${k}')">${k} · ${v}</button>`).join('')}</div>${paxRows(items,items.length)}`,true);
 }
 function renderCompanyParticularities(x){
+ if(isGenericAirlineV50(x?.airline)){
+   return renderGenericParticularitiesV50(x);
+ }
  if(String(x?.airline||'').toUpperCase()==='BJ'){
    return [
      commonTile('WCH','WCH'),commonTile('UMNR','UMNR'),commonTile('MAAS','MAAS'),commonTile('PET_AV','PETC / AVIH'),commonTile('DEAF_BLND','DEAF / BLND'),
@@ -17949,7 +18330,7 @@ async function fetchPendingPrepaInbox(){
   const j=await r.json();
   return Array.isArray(j?.items)?j.items:[];
  }catch(e){
-  console.warn('V49.91 PREPA INBOX GET',e);
+  console.warn('V50.0 PREPA INBOX GET',e);
   return [];
  }
 }
@@ -17970,7 +18351,7 @@ async function setPrepaInboxStatus(item,status,errorMessage=''){
   if(!r.ok)throw new Error(`HTTP ${r.status}`);
   return await r.json();
  }catch(e){
-  console.warn('V49.91 PREPA INBOX STATUS',status,e);
+  console.warn('V50.0 PREPA INBOX STATUS',status,e);
   return null;
  }
 }
@@ -18027,7 +18408,7 @@ async function buildRawPrepaInboxText(item){
     blocks.push(`===== FICHIER : ${String(att?.name||'').toUpperCase()} =====\n${String(raw).trim()}`);
    }
   }catch(e){
-   console.warn('V49.91 ATTACHMENT PREPA',att?.name,e);
+   console.warn('V50.0 ATTACHMENT PREPA',att?.name,e);
   }
  }
  return blocks.join('\n\n');
@@ -18061,7 +18442,8 @@ async function applyInboxRawWithExistingParser(item,idx,raw){
   PREPA_PENDING_MANIFEST=
    airline==='BJ'?prepareBjImportManifest(raw):
    airline==='SQ'?prepareSqImportManifest(raw):
-   airline==='TK'?prepareTkImportManifest(raw):null;
+   airline==='TK'?prepareTkImportManifest(raw):
+   isGenericAirlineV50(airline)?prepareGenericImportManifest(raw,airline):null;
 
   try{v4920FinalizeShadowComparison(raw,airline,values,PREPA_PENDING_MANIFEST)}catch(e){}
 
@@ -18074,7 +18456,8 @@ async function applyInboxRawWithExistingParser(item,idx,raw){
   if(PREPA_PENDING_MANIFEST){
    if(PREPA_PENDING_MANIFEST.airline==='BJ')applyBjManifestToFlight(PREPA_PENDING_MANIFEST,ctx);
    else if(PREPA_PENDING_MANIFEST.airline==='TK')applyTkManifestToFlight(PREPA_PENDING_MANIFEST,ctx);
-   else applySqManifestToFlight(PREPA_PENDING_MANIFEST,ctx);
+   else if(PREPA_PENDING_MANIFEST.airline==='SQ')applySqManifestToFlight(PREPA_PENDING_MANIFEST,ctx);
+   else applyGenericManifestToFlight(PREPA_PENDING_MANIFEST,ctx);
   }
 
   if(typeof markPrepaFields==='function'){
@@ -18208,7 +18591,7 @@ async function processOnePendingPrepaInbox(){
   if(!group){
    const first=groups[0]?.[0];
    console.info(
-    'V49.91 PREPA — AUCUN GROUPE TRAITABLE POUR LE MOMENT',
+    'V50.0 PREPA — AUCUN GROUPE TRAITABLE POUR LE MOMENT',
     first?.flightNumber,
     first?.flightDate
    );
@@ -18257,7 +18640,7 @@ async function processOnePendingPrepaInbox(){
    );
 
    console.info(
-    'V49.91 PREPA GROUPE INJECTÉ',
+    'V50.0 PREPA GROUPE INJECTÉ',
     master?.airline,
     master?.flightNumber,
     master?.flightDate,
@@ -18274,7 +18657,7 @@ async function processOnePendingPrepaInbox(){
 
   }catch(e){
    console.error(
-    'V49.91 PREPA GROUPE ERROR',
+    'V50.0 PREPA GROUPE ERROR',
     master?.flightNumber,
     master?.flightDate,
     e
@@ -18383,6 +18766,7 @@ function openImportsCompany(c){
  showModal(`IMPORTS ${c}`,`${s.flights} VOLS · ${s.files} FICHIERS`,`<div class="imports-dash"><div class="imports-summary"><div class="imports-summary-card"><b>${s.files}</b><span>FICHIERS</span></div><div class="imports-summary-card"><b>${s.flights}</b><span>VOLS</span></div><div class="imports-summary-card"><b>${s.injected}</b><span>INJECTÉS</span></div><div class="imports-summary-card"><b>${s.pending+s.errors}</b><span>À TRAITER</span></div></div><div class="imports-flight-list">${rows||`<div class="import-status">AUCUN VOL IMPORTÉ POUR ${c}.</div>`}</div></div>`);
 }
 setInterval(()=>{if(!document.hidden)fetchRecentPrepaImports().catch(()=>{})},10000);
+setInterval(()=>{if(!document.hidden)loadAirlineProfilesV50().then(ok=>{if(ok&&currentView==='detail')render()}).catch(()=>{})},30000);
 
 
 async function bootstrapAlyziaOps(){
@@ -18459,6 +18843,7 @@ async function bootstrapAlyziaOps(){
  FLIGHTS.forEach(seedEnrichmentSources);
  restoreManualMeals();
  restoreSariaFlightSelections();
+ await loadAirlineProfilesV50();
  renderHome();
  updateClocks();
  OPS_REALTIME_LAST_HASH=stableCloudHash(FLIGHTS);
@@ -18485,6 +18870,7 @@ window.addEventListener('focus',()=>{wakeRealtimeSync();schedulePrepaInboxAutoIm
 
 <!-- V49.83: silent multi-device auto-sync 0.5s selected / 1.5s global; TK cards view-only; mobile TYPE header hardened. -->
 </body></html>
+<!-- V50.0: generic airline PREPA engine + airline profiles; SQ/TK/BJ parser semantics unchanged. -->
 <!-- V49.82: synchronization-only hardening: per-flight D1 verified PREPA write, truthful manual sync status, detailed read-back verification. SQ/TK/BJ parser logic unchanged. -->
 
 <!-- V49.82 D1 per-flight verified sync. Manual sync status is truthful. PREPA writes one flight and verifies counts/lists after GET. -->
