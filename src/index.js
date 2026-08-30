@@ -1,4 +1,4 @@
-// ALYZIA OPS V50.2 · Worker GENERIC + suppression unitaire vol/import + Notes/R2
+// ALYZIA OPS V50.3 · Worker GENERIC + suppression unitaire vol/import + Notes/R2
 // - Assets statiques public/
 // - API vols partagée D1
 // - Bridge interne vers SARIA
@@ -1275,9 +1275,9 @@ async function handlePrepa(request, env, url) {
 
 
   /*
-   * V50.2 — suppression totale d'un vol importé.
-   * Supprime la fiche D1, les imports PREPA, les notes et les pièces jointes R2 ALYZIA.
-   * Les archives Google Drive restent volontairement intactes.
+   * V50.3 — suppression totale d'un vol importé.
+   * - supprime fiche D1 / PREPA / Notes / R2
+   * - si deleteDrive=true, appelle le bridge Apps Script DRIVE_DELETE_URL AVANT la suppression D1.
    */
   if (
     url.pathname === "/api/prepa/flight" &&
@@ -1287,9 +1287,55 @@ async function handlePrepa(request, env, url) {
     const airline=String(body?.airline||"").trim().toUpperCase();
     const flightNumber=String(body?.flightNumber||"").replace(/\s+/g,"").trim().toUpperCase();
     const flightDate=String(body?.flightDate||"").trim();
+    const deleteDrive=body?.deleteDrive===true;
 
     if(!airline||!flightNumber||!flightDate){
       return json({ok:false,error:"AIRLINE / FLIGHT / DATE MANQUANTS"},400);
+    }
+
+    const prepaRows=(await env.OPS_DB.prepare(`
+      SELECT id,drive_folder_id,gmail_message_id
+      FROM prepa_inbox
+      WHERE UPPER(airline)=?
+        AND UPPER(REPLACE(flight_number,' ',''))=?
+        AND flight_date=?
+    `).bind(airline,flightNumber,flightDate).all()).results||[];
+
+    const driveFolderIds=[...new Set(prepaRows.map(r=>String(r.drive_folder_id||"").trim()).filter(Boolean))];
+    const driveDeleteConfigured=!!String(env.DRIVE_DELETE_URL||"").trim();
+    let driveDeleteResult=null;
+
+    if(deleteDrive){
+      if(!driveDeleteConfigured){
+        return json({
+          ok:false,
+          error:"SUPPRESSION DRIVE NON CONFIGURÉE : AJOUTER DRIVE_DELETE_URL AU WORKER",
+          driveDeleteConfigured:false
+        },409);
+      }
+
+      const resp=await fetch(String(env.DRIVE_DELETE_URL),{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({
+          action:"DELETE_FLIGHT_ARCHIVE",
+          secret:String(env.PREPA_IMPORT_SECRET||""),
+          airline,
+          flightNumber,
+          flightDate,
+          driveFolderIds
+        })
+      });
+
+      driveDeleteResult=await resp.json().catch(()=>({ok:false,error:`HTTP ${resp.status}`}));
+      if(!resp.ok||!driveDeleteResult?.ok){
+        return json({
+          ok:false,
+          error:driveDeleteResult?.error||`SUPPRESSION DRIVE HTTP ${resp.status}`,
+          driveDeleteConfigured:true,
+          driveDeleteResult
+        },502);
+      }
     }
 
     const flightRows=(await env.OPS_DB.prepare(`
@@ -1318,7 +1364,6 @@ async function handlePrepa(request, env, url) {
           }
         }
       }
-
       await env.OPS_DB.prepare("DELETE FROM flight_attachments WHERE flight_identity=?").bind(identity).run();
       await env.OPS_DB.prepare("DELETE FROM flight_notes WHERE flight_identity=?").bind(identity).run();
     }
@@ -1343,6 +1388,9 @@ async function handlePrepa(request, env, url) {
       airline,
       flightNumber,
       flightDate,
+      driveDeleteConfigured,
+      driveDeleteResult,
+      driveFolderIds,
       flightsDeleted:Number(fdel.meta?.changes||0),
       prepaDeleted:Number(pdel.meta?.changes||0),
       r2Deleted:deletedR2,
