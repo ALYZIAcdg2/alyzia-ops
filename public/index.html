@@ -6,7 +6,7 @@
   <meta http-equiv="Expires" content="0">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V50.02 · MULTI-COMPAGNIES + AUTO-CREATE + PENDING RECOVERY + TW SPECIFIC + MULTI-LEG</title>
+<title>ALYZIA OPS - V50.03 · CLOUD STABLE + MULTI-COMPAGNIES + AUTO-CREATE + PENDING RECOVERY</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -3639,6 +3639,7 @@ body{
 }
 .ops-cloud-status.ok{border-color:#9bd6b3;background:#edf9f2;color:#087a4c}
 .ops-cloud-status.warn{border-color:#efc278;background:#fff8e8;color:#a76300}
+.ops-cloud-status.connecting{border-color:#93b4e8;background:#eef5ff;color:#225da8}
 .ops-cloud-help{font-size:8px;line-height:1.4;color:#62758a;font-weight:850;text-align:center}
 
 
@@ -6779,10 +6780,10 @@ html,body{
 <body>
 <script>
 /* V49.75 — BJ KPI WEB SBY AVAILABLE. SQ/TK frozen. */
-const ALYZIA_APP_VERSION='V50.02';
+const ALYZIA_APP_VERSION='V50.03';
 const ALYZIA_SQ_LOCK_VERSION='V49.64';
 const ALYZIA_TK_LOCK_VERSION='V49.69';
-const ALYZIA_APP_BUILD='2026-08-28-91';
+const ALYZIA_APP_BUILD='2026-08-30-93';
 </script>
 <header class="topbar">
  <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V49.89</span></div>
@@ -6820,7 +6821,10 @@ function opsApiUrl(path){
  return `${OPS_API_ORIGIN}${path}`;
 }
 let OPS_CLOUD_ONLINE=false;
+let OPS_CLOUD_CONNECTING=true;
 let OPS_CLOUD_LAST_SYNC=null;
+let OPS_CLOUD_CONSECUTIVE_FAILURES=0;
+const OPS_CLOUD_FAILURES_BEFORE_LOCAL=3;
 
 
 function normalizeLegacyImportedDurations(list){
@@ -6844,16 +6848,45 @@ function normalizeLegacyImportedDurations(list){
  return changed;
 }
 
+function setOpsCloudConnecting(label='CONNEXION AU CLOUD…'){
+ OPS_CLOUD_CONNECTING=true;
+ const el=document.getElementById('opsCloudStatusBox');
+ if(el){
+   el.className='ops-cloud-status connecting';
+   el.textContent=`🔄 ${label}`;
+ }
+}
+
 function setOpsCloudState(ok,label=''){
  OPS_CLOUD_ONLINE=!!ok;
- if(ok)OPS_CLOUD_LAST_SYNC=new Date();
+ OPS_CLOUD_CONNECTING=false;
+ if(ok){
+   OPS_CLOUD_LAST_SYNC=new Date();
+   OPS_CLOUD_CONSECUTIVE_FAILURES=0;
+ }
  const el=document.getElementById('opsCloudStatusBox');
  if(el){
    el.className='ops-cloud-status '+(ok?'ok':'warn');
    el.innerHTML=ok
-    ? `☁ SYNC MULTI-POSTES ACTIVE${OPS_CLOUD_LAST_SYNC?` · ${OPS_CLOUD_LAST_SYNC.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}`:''}`
-    : `⚠ MODE LOCAL${label?` · ${label}`:''}`;
+    ? `☁ CLOUD CONNECTÉ${OPS_CLOUD_LAST_SYNC?` · ${OPS_CLOUD_LAST_SYNC.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}`:''}`
+    : `⚠ HORS LIGNE · MODE LOCAL${label?` · ${label}`:''}`;
  }
+}
+
+function noteOpsCloudFailure(label='RECONNEXION AUTOMATIQUE'){
+ OPS_CLOUD_CONSECUTIVE_FAILURES++;
+ if(OPS_CLOUD_ONLINE && OPS_CLOUD_CONSECUTIVE_FAILURES<OPS_CLOUD_FAILURES_BEFORE_LOCAL)return;
+ if(!OPS_CLOUD_ONLINE && OPS_CLOUD_CONSECUTIVE_FAILURES<OPS_CLOUD_FAILURES_BEFORE_LOCAL){
+   setOpsCloudConnecting(`CONNEXION AU CLOUD · TENTATIVE ${OPS_CLOUD_CONSECUTIVE_FAILURES+1}/${OPS_CLOUD_FAILURES_BEFORE_LOCAL}`);
+   return;
+ }
+ setOpsCloudState(false,label);
+}
+
+function opsCloudStatusMarkup(){
+ if(OPS_CLOUD_CONNECTING)return {cls:'connecting',text:'🔄 CONNEXION AU CLOUD…'};
+ if(OPS_CLOUD_ONLINE)return {cls:'ok',text:'☁ CLOUD CONNECTÉ'};
+ return {cls:'warn',text:'⚠ HORS LIGNE · MODE LOCAL'};
 }
 
 async function cloudRequest(url,options={},timeout=5000){
@@ -6874,25 +6907,36 @@ async function cloudRequest(url,options={},timeout=5000){
  }
 }
 
-async function loadFlightsFromCloud(){
- try{
-   const data=await cloudRequest(`${OPS_CLOUD_API}?_=${Date.now()}`,{method:'GET',cache:'no-store'},5000);
-   if(data?.ok && Array.isArray(data.flights)){
-     syncCompanyConfigFromFlights(data.flights);
-     const {flights}=splitCloudRecords(data.flights);
-     const changed=normalizeLegacyImportedDurations(flights);
-     rebuildCloudSnapshot(flights);
-     setOpsCloudState(true);
-     // Corrige automatiquement les anciens imports D1 comportant le faux 03:00.
-     if(changed)setTimeout(()=>syncFlightsToCloud(flights),50);
-     return flights;
+async function loadFlightsFromCloud({attempts=3}={}){
+ setOpsCloudConnecting('CONNEXION AU CLOUD…');
+ let lastError=null;
+ for(let attempt=1;attempt<=attempts;attempt++){
+   try{
+     if(attempt>1)setOpsCloudConnecting(`CONNEXION AU CLOUD · TENTATIVE ${attempt}/${attempts}`);
+     const data=await cloudRequest(`${OPS_CLOUD_API}?_=${Date.now()}`,{method:'GET',cache:'no-store'},4000);
+     if(data?.ok && Array.isArray(data.flights)){
+       syncCompanyConfigFromFlights(data.flights);
+       const {flights}=splitCloudRecords(data.flights);
+       const changed=normalizeLegacyImportedDurations(flights);
+       rebuildCloudSnapshot(flights);
+       setOpsCloudState(true);
+       // Corrige automatiquement les anciens imports D1 comportant le faux 03:00.
+       if(changed)setTimeout(()=>syncFlightsToCloud(flights),50);
+       return flights;
+     }
+     throw new Error('RÉPONSE CLOUD INVALIDE');
+   }catch(e){
+     lastError=e;
+     console.warn(`V50.03 CLOUD LOAD ATTEMPT ${attempt}/${attempts}`,e);
+     if(attempt<attempts){
+       await new Promise(resolve=>setTimeout(resolve,attempt===1?1000:2000));
+     }
    }
-   throw new Error('RÉPONSE CLOUD INVALIDE');
- }catch(e){
-   console.warn('V47 CLOUD LOAD',e);
-   setOpsCloudState(false,'D1 INDISPONIBLE');
-   return null;
  }
+ OPS_CLOUD_CONSECUTIVE_FAILURES=OPS_CLOUD_FAILURES_BEFORE_LOCAL;
+ setOpsCloudState(false,'RECONNEXION AUTOMATIQUE');
+ console.warn('V50.03 CLOUD LOAD FAILED',lastError);
+ return null;
 }
 
 async function syncFlightsToCloud(flights){
@@ -17183,7 +17227,7 @@ async function silentCloudRefresh({forceRender=false}={}){
    return changed;
  }catch(e){
    console.warn('SILENT CLOUD REFRESH',e);
-   setOpsCloudState(false,'MODE LOCAL · RECONNEXION AUTOMATIQUE');
+   noteOpsCloudFailure('RECONNEXION AUTOMATIQUE');
    return false;
  }finally{
    OPS_REALTIME_RUNNING=false;
@@ -17290,15 +17334,18 @@ async function manualCloudRefreshTop(){
 
 async function manualCloudRefresh(){
  const el=document.getElementById('opsCloudStatusBox');
- if(el){el.className='ops-cloud-status';el.textContent='☁ SYNCHRONISATION…'}
+ setOpsCloudConnecting('SYNCHRONISATION…');
  const changed=await silentCloudRefresh({forceRender:true});
  if(el){
    if(OPS_CLOUD_ONLINE){
      el.className='ops-cloud-status ok';
-     el.textContent=`☁ SYNCHRONISÉ${changed?' · NOUVELLES DONNÉES':''}`;
+     el.textContent=`☁ CLOUD CONNECTÉ${changed?' · NOUVELLES DONNÉES':''}`;
+   }else if(OPS_CLOUD_CONNECTING){
+     el.className='ops-cloud-status connecting';
+     el.textContent='🔄 RECONNEXION AU CLOUD…';
    }else{
      el.className='ops-cloud-status warn';
-     el.textContent='⚠ MODE LOCAL · D1 NON JOIGNABLE / NON CONFIRMÉ';
+     el.textContent='⚠ HORS LIGNE · MODE LOCAL · RECONNEXION AUTOMATIQUE';
    }
  }
 }
@@ -17320,8 +17367,8 @@ async function openTools(){
    <button class="tool-card" onclick="openSeatmap()"><span class="tool-icon">▦</span><b>SEATMAP</b><span>OUVRIR LE PLAN CABINE DU VOL ACTUEL.</span></button>
    <button class="tool-card" onclick="openSariaApp()"><span class="tool-icon">✈</span><b>SARIA</b><span>OUVRIR DIRECTEMENT L’OUTIL SARIA CABIN / SEATMAP.</span></button>
    <div class="ops-cloud-card">
-     <div id="opsCloudStatusBox" class="ops-cloud-status ${OPS_CLOUD_ONLINE?'ok':'warn'}">${OPS_CLOUD_ONLINE?'☁ SYNC MULTI-POSTES ACTIVE':'☁ SYNC MULTI-POSTES'}</div>
-     <div class="ops-cloud-help">D1 PARTAGÉ · FICHE OUVERTE ~0,5 S · SYNCHRO GLOBALE ~1,5 S · PC, TABLETTE ET TÉLÉPHONE.<br><b style="color:#087749">V49.91 · IMPORTS GROUPÉS PAR VOL</b></div>
+     ${(()=>{const st=opsCloudStatusMarkup();return `<div id="opsCloudStatusBox" class="ops-cloud-status ${st.cls}">${st.text}</div>`})()}
+     <div class="ops-cloud-help">D1 PARTAGÉ · 3 TENTATIVES AU DÉMARRAGE · RECONNEXION AUTOMATIQUE · PC, TABLETTE ET TÉLÉPHONE.<br><b style="color:#087749">V50.03 · CLOUD STABLE + IMPORTS MULTI-COMPAGNIES</b></div>
      <button class="live-refresh" onclick="manualCloudRefresh()">↻ SYNCHRONISER MAINTENANT</button>
    </div>
    ${renderImportsMainCard()}
@@ -18909,8 +18956,8 @@ async function bootstrapAlyziaOps(){
  loadSariaCatalog().then(()=>{if(currentView==='detail')render();}).catch(()=>{});
 }
 bootstrapAlyziaOps();
-window.addEventListener('online',()=>{setTimeout(()=>{wakeRealtimeSync();schedulePrepaInboxAutoImport(700)},300)});
-window.addEventListener('offline',()=>setOpsCloudState(false,'HORS-LIGNE'));
+window.addEventListener('online',()=>{OPS_CLOUD_CONSECUTIVE_FAILURES=0;setOpsCloudConnecting('RECONNEXION AU CLOUD…');setTimeout(()=>{wakeRealtimeSync();schedulePrepaInboxAutoImport(700)},300)});
+window.addEventListener('offline',()=>{OPS_CLOUD_CONSECUTIVE_FAILURES=OPS_CLOUD_FAILURES_BEFORE_LOCAL;setOpsCloudState(false,'CONNEXION RÉSEAU ABSENTE')});
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)wakeRealtimeSync();else scheduleRealtimeSync()});
 window.addEventListener('focus',()=>{wakeRealtimeSync();schedulePrepaInboxAutoImport(700)});
 
@@ -18926,7 +18973,7 @@ window.addEventListener('focus',()=>{wakeRealtimeSync();schedulePrepaInboxAutoIm
 
 <!-- V49.83: silent multi-device auto-sync 0.5s selected / 1.5s global; TK cards view-only; mobile TYPE header hardened. -->
 </body></html>
-<!-- V50.02: local HTML now connects to public Worker for flights/prepa/profiles; generic engine unchanged. -->
+<!-- V50.03: cloud status is debounced; 3 startup retries; transient sync failures no longer force immediate local mode. -->
 <!-- V50.0: generic airline PREPA engine + airline profiles; SQ/TK/BJ parser semantics unchanged. -->
 <!-- V49.82: synchronization-only hardening: per-flight D1 verified PREPA write, truthful manual sync status, detailed read-back verification. SQ/TK/BJ parser logic unchanged. -->
 
