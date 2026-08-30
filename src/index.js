@@ -1720,7 +1720,7 @@ async function handlePrepa(request, env, url) {
   /*
    * V50.5 — suppression totale d'un vol importé.
    * - supprime fiche D1 / PREPA / Notes / R2
-   * - si deleteDrive=true, appelle le bridge Apps Script DRIVE_DELETE_URL AVANT la suppression D1.
+   * - si deleteDrive=true, supprime directement le dossier Drive via OAuth Google avant la suppression D1.
    */
   if (
     url.pathname === "/api/prepa/flight" &&
