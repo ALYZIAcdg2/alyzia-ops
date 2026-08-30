@@ -6935,6 +6935,43 @@ html,body{
 }
 </style>
 
+
+<style id="v5013-build107-direct-drive-css">
+.app-build-header{
+  display:inline-flex;align-items:center;height:24px;padding:0 9px;border-radius:999px;
+  border:1px solid #c8d8e8;background:#f6f9fc;color:#526b84;
+  font-size:8px;font-weight:950;letter-spacing:.04em;white-space:nowrap
+}
+.v5013-admin-strip{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
+.v5013-admin-btn{
+  border:1px solid #bad3ef;background:#f4f9ff;color:#095faf;border-radius:10px;
+  min-height:38px;padding:0 12px;font-size:9px;font-weight:950;cursor:pointer
+}
+.v5013-admin-btn.repair{border-color:#8fd3a2;background:#f1fbf4;color:#176d34}
+.v5013-admin-btn.drive.ok{border-color:#8fd3a2;background:#f1fbf4;color:#176d34}
+.v5013-admin-btn.drive.bad{border-color:#f0c27c;background:#fff8e8;color:#8c5a00}
+.v5013-native-message{
+  border-radius:14px;padding:14px 16px;border:1px solid #cfe0ef;background:#f8fbff;
+  font-size:11px;line-height:1.45;color:#183957;font-weight:800
+}
+.v5013-native-message.error{border-color:#efb3b3;background:#fff4f4;color:#9b2525}
+.v5013-native-message.success{border-color:#a9dcb7;background:#f1fbf4;color:#176d34}
+.v5013-repair-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.v5013-repair-card{
+  border:1px solid #d6e4f1;background:#fff;border-radius:14px;padding:15px;cursor:pointer;
+  min-height:110px;text-align:left
+}
+.v5013-repair-card:hover{border-color:#62a8ef;background:#f7fbff}
+.v5013-repair-card b{display:block;font-size:15px;color:#0f2c4a;margin-bottom:5px}
+.v5013-repair-card span{font-size:9px;color:#60768d;font-weight:800}
+.v5013-select{width:100%;height:42px;border:1px solid #cddbea;border-radius:10px;padding:0 10px;background:#fff;font-weight:800}
+@media(max-width:700px){
+ .app-build-header{height:20px;font-size:6.5px;padding:0 6px}
+ .brand{gap:6px!important}
+ .v5013-repair-grid{grid-template-columns:1fr}
+}
+</style>
+
 </head>
 <body>
 <script>
@@ -6945,7 +6982,7 @@ const ALYZIA_TK_LOCK_VERSION='V49.69';
 const ALYZIA_APP_BUILD='2026-08-30-107';
 </script>
 <header class="topbar">
- <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V50.13</span></div>
+ <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V50.13</span><span class="app-build-header">BUILD 2026-08-30-107</span></div>
  <nav class="nav">
    <button class="home-nav" onclick="renderHome()" title="Accueil vols">⌂</button>
    <button onclick="renderHome()">VOLS</button><button onclick="openFlightSearch()">RECHERCHE</button><button onclick="renderPrepa()">PRÉPA</button><button onclick="openTools()">OUTILS</button><button>ADMIN</button>
@@ -21259,6 +21296,309 @@ openImportFlightDiagnostics=function(c,key){
 try{
   document.querySelectorAll('.brand-version,.app-version-badge')
     .forEach(el=>el.textContent='V50.13');
+}catch(e){}
+
+
+
+/* =========================================================
+   V50.13 BUILD 2026-08-30-107
+   DIRECT GOOGLE DRIVE + NEUTRALISATION + REPAIR
+   ========================================================= */
+
+function v5013NativeMessage(title,message,type='info',backFn=''){
+  showModal(
+    title,
+    'ALYZIA OPS',
+    `<div class="v5013-native-message ${type}">
+      ${escapeHtml(String(message||''))}
+    </div>
+    <div class="modal-actions" style="margin-top:12px">
+      <button class="primary" onclick="${backFn||'modalBack()'}">OK</button>
+    </div>`
+  );
+}
+
+async function v5013GetDriveStatus(){
+  try{
+    const r=await fetch(opsApiUrl('/api/prepa/google-drive/status'),{
+      cache:'no-store',
+      headers:{Accept:'application/json'}
+    });
+    const j=await r.json().catch(()=>({}));
+    return r.ok&&j?.ok?j:{configured:false,oauthClientConfigured:false,error:j?.error||`HTTP ${r.status}`};
+  }catch(e){
+    return {configured:false,oauthClientConfigured:false,error:String(e?.message||e)};
+  }
+}
+
+async function v5013ConfigureDrive(){
+  const st=await v5013GetDriveStatus();
+
+  if(st.configured){
+    v5013NativeMessage(
+      'GOOGLE DRIVE',
+      st.connectedEmail
+        ? `Google Drive est déjà connecté à ${st.connectedEmail}.`
+        : 'Google Drive est déjà connecté.',
+      'success'
+    );
+    return;
+  }
+
+  if(!st.oauthClientConfigured){
+    showModal(
+      'CONFIGURER GOOGLE DRIVE',
+      'CONNEXION DIRECTE · SANS APPS SCRIPT',
+      `<div class="v5013-native-message error">
+        LE WORKER N'A PAS ENCORE SES IDENTIFIANTS OAUTH GOOGLE.<br><br>
+        AJOUTER DANS CLOUDFLARE WORKER :<br>
+        <b>GOOGLE_CLIENT_ID</b><br>
+        <b>GOOGLE_CLIENT_SECRET</b><br><br>
+        ENSUITE REVENIR ICI ET APPUYER SUR « AUTORISER GOOGLE DRIVE ».
+      </div>
+      <div class="modal-actions"><button onclick="modalBack()">RETOUR</button></div>`
+    );
+    return;
+  }
+
+  showModal(
+    'CONFIGURER GOOGLE DRIVE',
+    'CONNEXION DIRECTE · SANS APPS SCRIPT',
+    `<div class="v5013-native-message">
+      Cette autorisation est faite une seule fois. Ensuite le bouton SUPPRIMER
+      mettra automatiquement le dossier Drive du vol à la corbeille,
+      supprimera la fiche D1/R2 et neutralisera les mails Gmail pour qu'ils
+      ne soient jamais réinjectés.
+    </div>
+    <div class="modal-actions">
+      <button onclick="modalBack()">ANNULER</button>
+      <button class="primary" onclick="v5013StartDriveOauth()">AUTORISER GOOGLE DRIVE</button>
+    </div>`
+  );
+}
+
+async function v5013StartDriveOauth(){
+  const btn=window.event?.currentTarget;
+  if(btn){btn.disabled=true;btn.textContent='CONNEXION…'}
+  try{
+    const r=await fetch(opsApiUrl('/api/prepa/google-drive/oauth/start'),{
+      method:'POST',
+      cache:'no-store',
+      headers:{'Content-Type':'application/json'}
+    });
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok||!j?.ok||!j?.authorizationUrl){
+      throw new Error(j?.error||`HTTP ${r.status}`);
+    }
+    window.location.href=j.authorizationUrl;
+  }catch(e){
+    v5013NativeMessage('GOOGLE DRIVE',String(e?.message||e),'error');
+  }
+}
+
+async function v5013DeleteNowBuild107(c,key){
+  const row=getImpRow(c,key);if(!row)return;
+  v5011SetActionState(c,key,'delete','SUPPRESSION DRIVE + DB EN COURS',true);
+
+  try{
+    const r=await fetch(opsApiUrl('/api/prepa/flight'),{
+      method:'DELETE',
+      cache:'no-store',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        airline:row.company,
+        flightNumber:row.flightNumber,
+        flightDate:row.flightDate,
+        deleteDrive:true
+      })
+    });
+
+    const j=await r.json().catch(()=>({}));
+
+    if(r.status===409 && j?.googleDrive && j.googleDrive.configured===false){
+      V5011_ACTION_STATE.delete(`${c}|${key}`);
+      showModal(
+        'GOOGLE DRIVE NON CONFIGURÉ',
+        `${row.flightNumber} · ${impDate(row.flightDate)}`,
+        `<div class="v5013-native-message error">
+          La suppression n'a pas été exécutée. Configure Google Drive directement
+          dans ALYZIA OPS, puis relance SUPPRIMER.
+        </div>
+        <div class="modal-actions">
+          <button onclick="openImportsCompany('${c}')">RETOUR</button>
+          <button class="primary" onclick="v5013ConfigureDrive()">CONFIGURER GOOGLE DRIVE</button>
+        </div>`
+      );
+      return;
+    }
+
+    if(!r.ok||!j?.ok)throw new Error(j?.error||`HTTP ${r.status}`);
+
+    V5011_ACTION_STATE.delete(`${c}|${key}`);
+    await fetchRecentPrepaImports().catch(()=>{});
+
+    showModal(
+      'SUPPRESSION TERMINÉE',
+      `${row.flightNumber} · ${impDate(row.flightDate)}`,
+      `<div class="v5013-native-message success">
+        VOL SUPPRIMÉ DE D1/R2 ET ARCHIVE DRIVE MISE À LA CORBEILLE.<br><br>
+        LES MAILS RESTENT DANS GMAIL MAIS SONT MAINTENANT NEUTRALISÉS :
+        ILS NE POURRONT PLUS ÊTRE RÉINJECTÉS DANS ALYZIA OPS.
+      </div>
+      <div class="modal-actions">
+        <button class="primary" onclick="closeAllModals();setTimeout(()=>openImportsDashboard(),30)">OK</button>
+      </div>`
+    );
+
+  }catch(e){
+    V5011_ACTION_STATE.delete(`${c}|${key}`);
+    showModal(
+      'SUPPRESSION IMPOSSIBLE',
+      `${row.flightNumber} · ${impDate(row.flightDate)}`,
+      `<div class="v5013-native-message error">${escapeHtml(String(e?.message||e))}</div>
+      <div class="modal-actions"><button class="primary" onclick="openImportsCompany('${c}')">OK</button></div>`
+    );
+  }
+}
+v5011DeleteNow=v5013DeleteNowBuild107;
+
+function v5013OpenRepair(){
+  showModal(
+    'REPAIR IMPORTS',
+    'RÉINJECTION CONTRÔLÉE',
+    `<div class="v5013-repair-grid">
+      <button class="v5013-repair-card" onclick="v5013RepairFlightPicker()">
+        <b>REPAIR UN VOL</b>
+        <span>Remet à PENDING tous les mails du vol sélectionné.</span>
+      </button>
+      <button class="v5013-repair-card" onclick="v5013RepairAirlinePicker()">
+        <b>REPAIR UNE COMPAGNIE</b>
+        <span>Relance tous les imports de la compagnie sélectionnée.</span>
+      </button>
+      <button class="v5013-repair-card" onclick="v5013ConfirmRepairAll()">
+        <b>REPAIR TOUT</b>
+        <span>Relance tous les imports non neutralisés.</span>
+      </button>
+    </div>`
+  );
+}
+
+function v5013RepairFlightPicker(){
+  const rows=impCompanies().flatMap(c=>impFlights(c))
+    .slice()
+    .sort((a,b)=>String(a.flightDate).localeCompare(String(b.flightDate))||String(a.flightNumber).localeCompare(String(b.flightNumber)));
+
+  showModal(
+    'REPAIR UN VOL',
+    `${rows.length} VOLS DISPONIBLES`,
+    `<select id="v5013RepairFlight" class="v5013-select">
+      ${rows.map(r=>`<option value="${escapeHtml(`${r.company}|${r.flightNumber}|${r.flightDate}`)}">${escapeHtml(`${r.company} ${r.flightNumber} · ${impDate(r.flightDate)}`)}</option>`).join('')}
+    </select>
+    <div class="modal-actions">
+      <button onclick="modalBack()">ANNULER</button>
+      <button class="primary" onclick="v5013RunRepairFlight()">LANCER REPAIR</button>
+    </div>`
+  );
+}
+
+async function v5013RunRepairFlight(){
+  const [airline,flightNumber,flightDate]=String(document.getElementById('v5013RepairFlight')?.value||'').split('|');
+  await v5013RunRepair({scope:'FLIGHT',airline,flightNumber,flightDate});
+}
+
+function v5013RepairAirlinePicker(){
+  const companies=impCompanies().slice().sort();
+  showModal(
+    'REPAIR UNE COMPAGNIE',
+    `${companies.length} COMPAGNIES`,
+    `<select id="v5013RepairAirline" class="v5013-select">
+      ${companies.map(c=>`<option value="${escapeHtml(c)}">${airlineLogo(c)} ${escapeHtml(c)}</option>`).join('')}
+    </select>
+    <div class="modal-actions">
+      <button onclick="modalBack()">ANNULER</button>
+      <button class="primary" onclick="v5013RunRepairAirline()">LANCER REPAIR</button>
+    </div>`
+  );
+}
+
+async function v5013RunRepairAirline(){
+  const airline=String(document.getElementById('v5013RepairAirline')?.value||'');
+  await v5013RunRepair({scope:'AIRLINE',airline});
+}
+
+function v5013ConfirmRepairAll(){
+  showModal(
+    'REPAIR TOUT',
+    'CONFIRMATION',
+    `<div class="v5013-native-message">
+      Tous les imports non neutralisés seront remis à PENDING et retraités progressivement.
+      Les vols supprimés/neutralisés restent exclus.
+    </div>
+    <div class="modal-actions">
+      <button onclick="modalBack()">ANNULER</button>
+      <button class="primary" onclick="v5013RunRepair({scope:'ALL'})">LANCER REPAIR TOUT</button>
+    </div>`
+  );
+}
+
+async function v5013RunRepair(payload){
+  const btn=window.event?.currentTarget;
+  if(btn){btn.disabled=true;btn.innerHTML='<span class="v5009-spinner"></span> REPAIR…'}
+
+  try{
+    const r=await fetch(opsApiUrl('/api/prepa/repair'),{
+      method:'POST',
+      cache:'no-store',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(payload||{})
+    });
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok||!j?.ok)throw new Error(j?.error||`HTTP ${r.status}`);
+
+    await fetchRecentPrepaImports().catch(()=>{});
+    schedulePrepaInboxAutoImport(500);
+
+    showModal(
+      'REPAIR LANCÉ',
+      String(j.scope||''),
+      `<div class="v5013-native-message success">
+        ${Number(j.affected||0)} MESSAGE(S) REMIS À PENDING.<br><br>
+        LE TRAITEMENT CONTINUE EN ARRIÈRE-PLAN.
+      </div>
+      <div class="modal-actions">
+        <button class="primary" onclick="closeAllModals();setTimeout(()=>openImportsDashboard(),30)">OK</button>
+      </div>`
+    );
+  }catch(e){
+    v5013NativeMessage('REPAIR IMPOSSIBLE',String(e?.message||e),'error');
+  }
+}
+
+/* Enrichit IMPORTS GMAIL avec DRIVE + REPAIR sans modifier ses cartes existantes. */
+const v5013_build107_openImportsDashboard=openImportsDashboard;
+openImportsDashboard=async function(){
+  await v5013_build107_openImportsDashboard();
+
+  const body=document.getElementById('modalBody');
+  if(!body)return;
+
+  const drive=await v5013GetDriveStatus();
+  const strip=document.createElement('div');
+  strip.className='v5013-admin-strip';
+  strip.innerHTML=`
+    <button class="v5013-admin-btn repair" onclick="v5013OpenRepair()">↻ REPAIR</button>
+    <button class="v5013-admin-btn drive ${drive.configured?'ok':'bad'}" onclick="v5013ConfigureDrive()">
+      ${drive.configured?'✓ GOOGLE DRIVE DIRECT':'⚙ CONFIGURER GOOGLE DRIVE'}
+    </button>
+  `;
+
+  body.insertBefore(strip,body.firstChild);
+};
+
+/* Version + build toujours visibles dans l'en-tête. */
+try{
+  document.querySelectorAll('.brand-version,.app-version-badge').forEach(el=>el.textContent='V50.13');
+  document.querySelectorAll('.app-build-header').forEach(el=>el.textContent='BUILD 2026-08-30-107');
 }catch(e){}
 
 </script>
