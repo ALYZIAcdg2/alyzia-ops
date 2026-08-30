@@ -6972,6 +6972,26 @@ html,body{
 }
 </style>
 
+
+<style id="v5013-build112-force-css">
+/* Toujours masquer le build sur l'accueil, même si le header est recréé par render(). */
+.app-build-header{display:none!important}
+
+/* Toujours masquer l'ancien bloc VERSION dans OUTILS, quel que soit le renderer actif. */
+.tools-version-card{display:none!important}
+
+/* Boutons forcés dans OUTILS / IMPORTS */
+.v5013-force-actions{
+  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px
+}
+.v5013-force-strip{
+  display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px
+}
+@media(max-width:700px){
+  .v5013-force-actions{grid-template-columns:1fr}
+}
+</style>
+
 </head>
 <body>
 <script>
@@ -6979,10 +6999,10 @@ html,body{
 const ALYZIA_APP_VERSION='V50.13';
 const ALYZIA_SQ_LOCK_VERSION='V49.64';
 const ALYZIA_TK_LOCK_VERSION='V49.69';
-const ALYZIA_APP_BUILD='2026-08-30-111';
+const ALYZIA_APP_BUILD='2026-08-30-112';
 </script>
 <header class="topbar">
- <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V50.13</span><span class="app-build-header">BUILD 2026-08-30-111</span></div>
+ <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V50.13</span><span class="app-build-header">BUILD 2026-08-30-112</span></div>
  <nav class="nav">
    <button class="home-nav" onclick="renderHome()" title="Accueil vols">⌂</button>
    <button onclick="renderHome()">VOLS</button><button onclick="openFlightSearch()">RECHERCHE</button><button onclick="renderPrepa()">PRÉPA</button><button onclick="openTools()">OUTILS</button><button>ADMIN</button>
@@ -21301,7 +21321,7 @@ try{
 
 
 /* =========================================================
-   V50.13 BUILD 2026-08-30-111
+   V50.13 BUILD 2026-08-30-112
    DIRECT GOOGLE DRIVE + NEUTRALISATION + REPAIR
    ========================================================= */
 
@@ -21598,13 +21618,13 @@ openImportsDashboard=async function(){
 /* Version + build toujours visibles dans l'en-tête. */
 try{
   document.querySelectorAll('.brand-version,.app-version-badge').forEach(el=>el.textContent='V50.13');
-  document.querySelectorAll('.app-build-header').forEach(el=>el.textContent='BUILD 2026-08-30-111');
+  document.querySelectorAll('.app-build-header').forEach(el=>el.textContent='BUILD 2026-08-30-112');
 }catch(e){}
 
 
 
 /* =========================================================
-   V50.13 · BUILD 2026-08-30-111
+   V50.13 · BUILD 2026-08-30-112
    - retire la grosse carte VERSION des OUTILS
    - version + build sur la ligne ALYZIA OPS
    - boutons REPAIR / GOOGLE DRIVE visibles immédiatement
@@ -21731,7 +21751,7 @@ try{
 
 
 /* =========================================================
-   V50.13 · BUILD 2026-08-30-111
+   V50.13 · BUILD 2026-08-30-112
    FIX DÉFINITIF : boutons REPAIR + GOOGLE DRIVE rendus
    directement dans le HTML du modal IMPORTS GMAIL.
    ========================================================= */
@@ -21813,13 +21833,13 @@ openImportsDashboard=async function(){
 /* Version/build */
 try{
   document.querySelectorAll('.brand-version,.app-version-badge').forEach(el=>el.textContent='V50.13');
-  document.querySelectorAll('.app-build-header').forEach(el=>el.textContent='BUILD 2026-08-30-111');
+  document.querySelectorAll('.app-build-header').forEach(el=>el.textContent='BUILD 2026-08-30-112');
 }catch(e){}
 
 
 
 /* =========================================================
-   V50.13 · BUILD 2026-08-30-111
+   V50.13 · BUILD 2026-08-30-112
    FIX OUTILS : boutons visibles directement dans la carte IMPORTS GMAIL
    ========================================================= */
 
@@ -21887,13 +21907,13 @@ openTools=async function(){
 /* Version/build visible */
 try{
   document.querySelectorAll('.brand-version,.app-version-badge').forEach(el=>el.textContent='V50.13');
-  document.querySelectorAll('.app-build-header').forEach(el=>el.textContent='BUILD 2026-08-30-111');
+  document.querySelectorAll('.app-build-header').forEach(el=>el.textContent='BUILD 2026-08-30-112');
 }catch(e){}
 
 
 
 /* =========================================================
-   V50.13 · BUILD 2026-08-30-111
+   V50.13 · BUILD 2026-08-30-112
    - supprime le bloc VERSION dans OUTILS
    - affiche BUILD sous ALYZIA OPS dans OUTILS
    - retire le build de l'accueil principal
@@ -21963,6 +21983,123 @@ openTools=async function(){
 /* Accueil principal : retire uniquement le build, garde la version. */
 try{
   document.querySelectorAll('.app-build-header').forEach(el=>el.remove());
+  document.querySelectorAll('.brand-version,.app-version-badge').forEach(el=>el.textContent='V50.13');
+}catch(e){}
+
+
+
+/* =========================================================
+   V50.13 · BUILD 2026-08-30-112
+   CORRECTION FORCÉE UI — indépendante des anciens renderers
+   ========================================================= */
+
+function v5013Build112UpdateDriveButton(btn){
+  if(!btn)return;
+  v5013GetDriveStatus().then(drive=>{
+    if(!document.body.contains(btn))return;
+    btn.className=`v5013-admin-btn drive ${drive.configured?'ok':'bad'}`;
+    btn.textContent=drive.configured
+      ? `✓ GOOGLE DRIVE DIRECT${drive.connectedEmail?' · '+drive.connectedEmail:''}`
+      : (drive.oauthClientConfigured?'⚙ CONFIGURER GOOGLE DRIVE':'⚠ OAUTH GOOGLE À FINALISER');
+  }).catch(()=>{});
+}
+
+function v5013Build112FixTools(){
+  const title=document.getElementById('modalTitle');
+  if(!title || String(title.textContent||'').trim().toUpperCase()!=='OUTILS')return;
+
+  const sub=document.getElementById('modalSub');
+  if(sub){
+    sub.innerHTML=`ALYZIA OPS · V50.13 · <span style="font-weight:950;color:#075fc8">BUILD 2026-08-30-112</span>`;
+  }
+
+  const body=document.getElementById('modalBody');
+  if(!body)return;
+
+  /* Cache définitivement toute ancienne carte version. */
+  body.querySelectorAll('.tools-version-card').forEach(el=>el.style.display='none');
+
+  /* Cherche la carte IMPORTS GMAIL quelle que soit sa version. */
+  const cards=[...body.querySelectorAll('.tool-card')];
+  const importCard=cards.find(el=>/IMPORTS\s+GMAIL/i.test(el.textContent||''));
+  if(importCard && !importCard.querySelector('.v5013-force-actions')){
+    const actions=document.createElement('div');
+    actions.className='v5013-force-actions';
+    actions.innerHTML=`
+      <button class="v5013-admin-btn" type="button" onclick="openImportsDashboard()">VOIR IMPORTS</button>
+      <button class="v5013-admin-btn repair" type="button" onclick="v5013OpenRepair()">↻ REPAIR</button>
+      <button class="v5013-admin-btn drive bad" type="button" onclick="v5013ConfigureDrive()">⚙ CONFIGURER GOOGLE DRIVE</button>
+    `;
+    importCard.appendChild(actions);
+    v5013Build112UpdateDriveButton(actions.querySelector('.drive'));
+  }
+}
+
+function v5013Build112FixImports(){
+  const title=document.getElementById('modalTitle');
+  if(!title || !/^IMPORTS GMAIL$/i.test(String(title.textContent||'').trim()))return;
+
+  const body=document.getElementById('modalBody');
+  if(!body)return;
+
+  if(!body.querySelector('.v5013-force-strip')){
+    const strip=document.createElement('div');
+    strip.className='v5013-force-strip';
+    strip.innerHTML=`
+      <button class="v5013-admin-btn repair" type="button" onclick="v5013OpenRepair()">↻ REPAIR</button>
+      <button class="v5013-admin-btn drive bad" type="button" onclick="v5013ConfigureDrive()">⚙ CONFIGURER GOOGLE DRIVE</button>
+    `;
+    body.insertBefore(strip,body.firstChild);
+    v5013Build112UpdateDriveButton(strip.querySelector('.drive'));
+  }
+
+  /* Supprime le code compagnie répété après le logo. */
+  body.querySelectorAll('.imports-company-logo').forEach(el=>{
+    const hasVisual=!!el.querySelector('img,svg,picture');
+    if(!hasVisual)return;
+    [...el.childNodes].forEach(n=>{
+      if(n.nodeType===Node.TEXT_NODE)n.textContent='';
+    });
+  });
+}
+
+/* Remplace tout alert() navigateur par une modale ALYZIA OPS.
+   Cela élimine les popups Chrome/Google par défaut, y compris sur SUPPRIMER. */
+window.alert=function(message){
+  try{
+    showModal(
+      'INFORMATION',
+      'ALYZIA OPS',
+      `<div class="v5013-native-message error">${escapeHtml(String(message||''))}</div>
+       <div class="modal-actions"><button class="primary" onclick="modalBack()">OK</button></div>`
+    );
+  }catch(e){
+    console.error('ALYZIA ALERT',message);
+  }
+};
+
+/* MutationObserver : applique le correctif même si un ancien openTools /
+   openImportsDashboard reconstruit le contenu ensuite. */
+const v5013Build112Observer=new MutationObserver(()=>{
+  try{
+    document.querySelectorAll('.app-build-header').forEach(el=>el.remove());
+    v5013Build112FixTools();
+    v5013Build112FixImports();
+  }catch(e){}
+});
+v5013Build112Observer.observe(document.documentElement,{childList:true,subtree:true});
+
+/* Exécution immédiate + répétitions courtes pour les modales déjà ouvertes. */
+try{
+  document.querySelectorAll('.app-build-header').forEach(el=>el.remove());
+  v5013Build112FixTools();
+  v5013Build112FixImports();
+  setTimeout(()=>{v5013Build112FixTools();v5013Build112FixImports()},50);
+  setTimeout(()=>{v5013Build112FixTools();v5013Build112FixImports()},250);
+}catch(e){}
+
+/* Version/build. */
+try{
   document.querySelectorAll('.brand-version,.app-version-badge').forEach(el=>el.textContent='V50.13');
 }catch(e){}
 
