@@ -6,7 +6,7 @@
   <meta http-equiv="Expires" content="0">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V50.04 · GENERIC MASTER + REINJECTION + CLOUD IMPORTS STABLE</title>
+<title>ALYZIA OPS - V50.05 · GENERIC MASTER + REINJECTION + CLOUD IMPORTS STABLE</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -18968,13 +18968,171 @@ function openImportsCompany(c){
  const s=impStats(c),flights=impFlights(c);const rows=flights.map(row=>{const st=impRowState(row),idx=findImpFlightIndex(row),canOpen=idx>=0&&String(row.status).toUpperCase()==='PROCESSED',canResume=['ERROR','PROCESSING'].includes(String(row.status).toUpperCase())||(String(row.status).toUpperCase()==='PROCESSED'&&isGenericAirlineV50(c)&&idx>=0&&sum(FLIGHTS[idx]?.booked||{})===0);return `<div class="imports-flight-row"><div class="imports-flight-id"><b>${escapeHtml(row.flightNumber)}</b><span>${escapeHtml(impDate(row.flightDate))}</span></div><div class="imports-flight-meta">${row.files} FICHIER${row.files>1?'S':''}</div><div class="imports-flight-meta">${row.messages} MAIL${row.messages>1?'S':''}</div><div class="imports-flight-status ${st.cls}">${st.label}</div><div class="imports-flight-actions">${canResume?`<button class="v5002-resume-btn" onclick="resumeImpFlight('${c}','${row.key}')">${String(row.status).toUpperCase()==='PROCESSED'?'RÉINJECTER':'REPRENDRE'}</button>`:''}<button ${canOpen?'':'disabled'} onclick="openImpPrepa('${c}','${row.key}')">PRÉPA</button><button class="primary" ${canOpen?'':'disabled'} onclick="openImpFlight('${c}','${row.key}')">FICHE VOL</button></div></div>`}).join('');
  showModal(`IMPORTS ${c}`,`${s.flights} VOLS · ${s.files} FICHIERS`,`<div class="imports-dash"><div class="imports-summary"><div class="imports-summary-card"><b>${s.files}</b><span>FICHIERS</span></div><div class="imports-summary-card"><b>${s.flights}</b><span>VOLS</span></div><div class="imports-summary-card"><b>${s.injected}</b><span>INJECTÉS</span></div><div class="imports-summary-card"><b>${s.toCreate+s.pending+s.errors}</b><span>À TRAITER</span></div></div><div class="imports-flight-list">${rows||`<div class="import-status">AUCUN VOL IMPORTÉ POUR ${c}.</div>`}</div></div>`)
 }
+
+/* =========================================================
+   V50.05 — GENERIC STRUCTURED LISTS + IMPORT DIAGNOSTICS
+   - parse nominatif des rapports LIST OF
+   - ALL CUSTOMERS => BOOKED + passagers
+   - ETKT / EMD / INF / WCH / FQTV / STAFF / MEAL, etc. nominatif
+   - clic ERREUR => détail erreur + fichiers
+   - clic FICHIERS => liste des pièces jointes réellement reçues
+   ========================================================= */
+function v5005CleanTitleFromName(v){
+ return String(v||'').replace(/\s+(?:MR|MRS|MS|MISS|MSTR)\s*$/i,'').replace(/\s+/g,' ').trim();
+}
+function v5005ParsePaxLine(line){
+ const raw=String(line||'').replace(/\u00a0/g,' ').replace(/\s+/g,' ').trim();
+ const m=raw.match(/^\s*(\d{1,4})\.\s*(.*?)\s+([MFCAI])\s+([A-Z]{3})\s+([A-Z]{3})\s+([FJCWSY])([A-Z])(?:\s+(?:A\s+)?(\d{1,3}[A-K]?))?(?:\s+(.*))?$/i);
+ if(!m)return null;
+ return {
+  masterIndex:Number(m[1]),name:v5005CleanTitleFromName(m[2]),passengerType:String(m[3]).toUpperCase(),
+  from:String(m[4]).toUpperCase(),to:String(m[5]).toUpperCase(),class:String(m[6]).toUpperCase(),bookingClass:String(m[7]).toUpperCase(),
+  seat:m[8]?String(m[8]).replace(/^0+(?=\d)/,'').toUpperCase():'',rawExtra:String(m[9]||'').trim(),source:'GENERIC LIST OF'
+ };
+}
+function v5005ReportBlocks(rawOriginal){
+ const raw=String(rawOriginal||'').replace(/\u00a0/g,' '),lines=raw.split(/\r?\n/),blocks=[];
+ let current=null;
+ const push=()=>{if(current){blocks.push(current);current=null}};
+ for(const original of lines){
+  const line=String(original||'');
+  const hm=line.match(/\bLIST\s+OF\s*:\s*(.+)$/i);
+  if(hm){push();current={header:String(hm[1]||'').trim(),lines:[]};continue}
+  if(current){
+   if(/^=====\s*(?:FICHIER|MESSAGE GMAIL)/i.test(line)){push();continue}
+   current.lines.push(line);
+  }
+ }
+ push();return blocks;
+}
+function v5005HeaderInfo(header){
+ const h=String(header||'').trim(),counts={};
+ for(const m of h.matchAll(/\b([FJCWSY])\s*(\d{1,4})\b/gi))counts[String(m[1]).toUpperCase()]=Number(m[2]||0);
+ const total=(h.match(/\bTOTAL\s*(\d{1,4})\b/i)||[])[1];
+ const label=h.replace(/\b[FJCWSY]\s*\d{1,4}\b/gi,' ').replace(/\bTOTAL\s*\d{1,4}\b/gi,' ').replace(/\s+/g,' ').trim().toUpperCase();
+ return {label,counts,total:total==null?null:Number(total)};
+}
+function v5005MapListLabel(label){
+ const l=String(label||'').toUpperCase().trim();
+ if(/ALL\s+CUSTOMERS/.test(l))return 'MASTER';
+ if(/^(?:INF|INFANT)/.test(l))return 'INF';
+ if(/^(?:KID|CHLD|CHILD)/.test(l))return 'CHLD';
+ if(/^WCH/.test(l))return 'WCH';
+ if(/^(?:FQA|FQTV)/.test(l))return 'FQTV';
+ if(/^(?:STF|STAFF|BS-SA)/.test(l))return 'STAFF';
+ if(/^EMD/.test(l))return 'EMD';
+ if(/^(?:ETKT|E-?TKT)/.test(l))return 'ETK';
+ if(/^MEAL/.test(l))return 'MEAL';
+ if(/DEPA/.test(l))return 'DEPA';
+ if(/DEPU/.test(l))return 'DEPU';
+ if(/^UMNR/.test(l))return 'UMNR';
+ if(/^MAAS/.test(l))return 'MAAS';
+ if(/^INC/.test(l))return 'INBOUND';
+ if(/^ONC/.test(l))return 'OUTBOUND';
+ if(/^EXBG/.test(l))return 'EXBG';
+ if(/^TKNE/.test(l))return 'TKNE';
+ if(/^DOOR/.test(l))return 'DOOR';
+ if(/^UPRQ/.test(l))return 'UPRQ';
+ if(/^EXMO/.test(l))return 'EXMO';
+ return '';
+}
+function v5005SpecificFromExtra(key,extra){
+ const e=String(extra||'').toUpperCase();
+ if(key==='WCH')return (e.match(/\b(?:WCHR|WCHS|WCHC|WCMP|WCBD|WCLB|RWCH)\b/)||[])[0]||'WCH';
+ if(key==='MEAL')return (e.match(/\b(?:[A-Z]{2}ML(?:-[A-Z]+)?|MEAL\d*|MEALD|LHML\d*)\b/)||[])[0]||'MEAL';
+ if(key==='STAFF')return (e.match(/\b(?:STF-[A-Z]+|STAFF|BS-SA|TED)\b/)||[])[0]||'STAFF';
+ if(key==='FQTV')return (e.match(/\b(?:PLATINUM|GOLD|SAPPHIRE|SILVER|RUBY|EMERALD|BLUE|FQTV)\b/)||[])[0]||'FQTV';
+ return key;
+}
+function v5005EnhanceGenericManifest(rawOriginal,base,airline){
+ const out=base||{};out.commonLists=out.commonLists||{};out.counts=out.counts||{};out.owned=out.owned||{};
+ const structuredKeys=new Set();
+ for(const b of v5005ReportBlocks(rawOriginal)){
+  // PDF.js peut séparer le header et ses compteurs sur deux lignes :
+  // LIST OF: ALL CUSTOMERS / C1 W0 Y51 TOTAL 52.
+  const headerProbe=[b.header,...b.lines.slice(0,5)].join(' ');
+  const hi=v5005HeaderInfo(headerProbe),key=v5005MapListLabel(hi.label);if(!key)continue;
+  const rows=[];
+  // PDF.js coupe aussi fréquemment un passager sur 2 lignes :
+  // 1.ABBOUB/ABDELILLAH MR / M CDG ALG YN.
+  // On reconstruit donc chaque entrée numérotée jusqu'à la suivante.
+  const entries=[];let entry='';
+  for(const line0 of b.lines){
+   const line=String(line0||'').replace(/\u00a0/g,' ').trim();if(!line)continue;
+   if(/^\d{1,4}\./.test(line)){if(entry)entries.push(entry);entry=line;continue}
+   if(entry){entry+=' '+line}
+  }
+  if(entry)entries.push(entry);
+  for(const joined0 of entries){
+   const joined=String(joined0||'').replace(/FLIGHT RELATED COMMENTS EXIST/ig,' ').replace(/\*+/g,' ').replace(/\s+/g,' ').trim();
+   const p=v5005ParsePaxLine(joined);if(p)rows.push(p);
+  }
+  if(key==='MASTER'){
+   if(rows.length){out.passengers=rows.map(p=>({...p,status:'BOOKED',source:'GENERIC ALL CUSTOMERS'}));out.hasMasterList=true;out.hasMainManifest=true}
+   if(Object.keys(hi.counts).length){out.booked={...hi.counts};out.bookedTotal=hi.total??Object.values(hi.counts).reduce((a,n)=>a+Number(n||0),0);out.hasMasterList=true;out.hasMainManifest=true}
+   continue;
+  }
+  if(key==='INBOUND'||key==='OUTBOUND')continue;
+  const list=[];
+  for(const p0 of rows){
+   const p={...p0};const extra=String(p.rawExtra||'');
+   p.specific=v5005SpecificFromExtra(key,extra);p.note=extra||p.specific;p.source=`GENERIC ${hi.label}`;
+   if(key==='ETK'){
+    const n=(extra.match(/\b(\d{13})\b/)||[])[1]||'';if(n)p.etkt=n;
+   }
+   if(key==='EMD'){
+    const em=(extra.match(/(?:^|\s)(\d{13}(?:C\d+)?)\b/)||[])[1]||'';
+    const et=(extra.match(/\bETK[- :]?(\d{13})\b/i)||[])[1]||'';
+    if(et)p.etkt=et;if(em)p.emd=em;
+   }
+   v50GenericUniquePush(list,p);
+  }
+  // Une liste structurée présente remplace les entrées génériques mal parsées de cette même rubrique.
+  if(rows.length||hi.total!==null){
+   out.commonLists[key]=list;out.counts[key]=hi.total!==null?hi.total:Math.max(list.length,Object.values(hi.counts).reduce((a,n)=>a+Number(n||0),0));out.owned[key]=true;structuredKeys.add(key);out.hasMainManifest=true;
+  }
+ }
+ out.v5005StructuredKeys=[...structuredKeys];
+ return out;
+}
+const v5005_prepareGenericImportManifest_base=prepareGenericImportManifest;
+prepareGenericImportManifest=function(rawOriginal,airline){return v5005EnhanceGenericManifest(rawOriginal,v5005_prepareGenericImportManifest_base(rawOriginal,airline),airline)};
+
+const v5005_applyGenericManifestToFlight_base=applyGenericManifestToFlight;
+applyGenericManifestToFlight=function(manifest,ctx){
+ const x=FLIGHTS[Number(ctx?.idx)],structured=new Set(manifest?.v5005StructuredKeys||[]);
+ if(x&&structured.size){x.common_lists=x.common_lists||{};x.common=x.common||{};for(const k of structured){x.common_lists[k]=[];x.common[k]=0}}
+ const ok=v5005_applyGenericManifestToFlight_base(manifest,ctx);
+ if(x&&manifest?.hasMasterList&&Array.isArray(manifest.passengers)&&manifest.passengers.length){x.passengers=manifest.passengers.map((p,i)=>({...p,masterIndex:p.masterIndex||i+1}));}
+ return ok;
+};
+function v5005ImportItemFiles(item){
+ const arr=[];
+ for(const a of Array.isArray(item?.attachments)?item.attachments:[])arr.push({name:String(a?.name||'PIÈCE JOINTE'),mime:String(a?.mimeType||''),kind:'PIÈCE JOINTE'});
+ if(item?.emailPdfId)arr.push({name:String(item?.subject||'EMAIL')+' · PDF EMAIL',mime:'application/pdf',kind:'EMAIL PDF'});
+ return arr;
+}
+function openImportFlightDiagnostics(c,key){
+ const row=getImpRow(c,key);if(!row)return;
+ const blocks=(row.items||[]).map((it,ix)=>{
+  const files=v5005ImportItemFiles(it),status=String(it?.status||'PENDING').toUpperCase(),err=String(it?.errorMessage||it?.error_message||'').trim();
+  return `<div style="border:1px solid #d9e2ee;border-radius:14px;padding:14px;margin:10px 0;background:#fff"><div style="display:flex;justify-content:space-between;gap:12px;align-items:center"><b>MAIL ${ix+1} · ${escapeHtml(String(it?.subject||'SANS OBJET'))}</b><span class="imports-flight-status ${status==='ERROR'?'err':status==='PROCESSED'?'ok':'wait'}">${escapeHtml(status)}</span></div><div style="font-size:12px;color:#64748b;margin-top:6px">${escapeHtml(String(it?.receivedAt||it?.createdAt||''))}</div>${err?`<div style="margin-top:10px;padding:10px;border-radius:10px;background:#fff1f2;color:#b91c1c;font-weight:800">ERREUR : ${escapeHtml(err)}</div>`:''}<div style="margin-top:10px"><b>${files.length} FICHIER${files.length>1?'S':''}</b>${files.length?files.map(f=>`<div style="padding:7px 0;border-bottom:1px solid #eef2f7"><span style="font-weight:800">${escapeHtml(f.name)}</span><small style="display:block;color:#64748b">${escapeHtml(f.kind)}${f.mime?' · '+escapeHtml(f.mime):''}</small></div>`).join(''):'<div style="color:#94a3b8;padding-top:6px">AUCUNE PIÈCE JOINTE DISPONIBLE DANS LE PAYLOAD D1.</div>'}</div></div>`;
+ }).join('');
+ showModal(`DIAGNOSTIC IMPORT · ${row.flightNumber}`,impDate(row.flightDate),`<div style="max-height:68vh;overflow:auto;padding-right:4px">${blocks||'<div class="import-status">AUCUN DÉTAIL DISPONIBLE.</div>'}</div>`,true);
+}
+function openImportFlightFiles(c,key){openImportFlightDiagnostics(c,key)}
+function openImportsCompany(c){
+ const s=impStats(c),flights=impFlights(c);const rows=flights.map(row=>{const st=impRowState(row),idx=findImpFlightIndex(row),processed=String(row.status).toUpperCase()==='PROCESSED',canOpen=idx>=0&&processed,canResume=['ERROR','PROCESSING'].includes(String(row.status).toUpperCase())||(processed&&isGenericAirlineV50(c)&&idx>=0&&(sum(FLIGHTS[idx]?.booked||{})===0||!(FLIGHTS[idx]?.passengers||[]).length));return `<div class="imports-flight-row"><div class="imports-flight-id"><b>${escapeHtml(row.flightNumber)}</b><span>${escapeHtml(impDate(row.flightDate))}</span></div><button class="imports-flight-meta" style="background:transparent;border:0;cursor:pointer;text-decoration:underline;font:inherit" onclick="openImportFlightFiles('${c}','${row.key}')">${row.files} FICHIER${row.files>1?'S':''}</button><div class="imports-flight-meta">${row.messages} MAIL${row.messages>1?'S':''}</div><button class="imports-flight-status ${st.cls}" style="border:0;cursor:pointer" onclick="openImportFlightDiagnostics('${c}','${row.key}')">${st.label}</button><div class="imports-flight-actions">${canResume?`<button class="v5002-resume-btn" onclick="resumeImpFlight('${c}','${row.key}')">${processed?'RÉINJECTER':'REPRENDRE'}</button>`:''}<button ${canOpen?'':'disabled'} onclick="openImpPrepa('${c}','${row.key}')">PRÉPA</button><button class="primary" ${canOpen?'':'disabled'} onclick="openImpFlight('${c}','${row.key}')">FICHE VOL</button></div></div>`}).join('');
+ showModal(`IMPORTS ${c}`,`${s.flights} VOLS · ${s.files} FICHIERS`,`<div class="imports-dash"><div class="imports-summary"><div class="imports-summary-card"><b>${s.files}</b><span>FICHIERS</span></div><div class="imports-summary-card"><b>${s.flights}</b><span>VOLS</span></div><div class="imports-summary-card"><b>${s.injected}</b><span>INJECTÉS</span></div><div class="imports-summary-card"><b>${s.toCreate+s.pending+s.errors}</b><span>À TRAITER</span></div></div><div class="imports-flight-list">${rows||`<div class="import-status">AUCUN VOL IMPORTÉ POUR ${c}.</div>`}</div></div>`)
+}
+
 let V5004_RECOVERY_BUSY=false;
 function v5004GenericNeedsRecovery(row){
  if(!row||!isGenericAirlineV50(row.company)||String(row.status||'').toUpperCase()!=='PROCESSED')return false;
  const idx=findImpFlightIndex(row);if(idx<0)return true;
  const x=FLIGHTS[idx];
  // Cas AH1013 observé : des SSR peuvent avoir été injectés alors que la master ALL CUSTOMERS ne l'a pas été.
- return sum(x?.booked||{})===0 && !x?.genericMaster?.type;
+ return (sum(x?.booked||{})===0 && !x?.genericMaster?.type) || (sum(x?.booked||{})>0 && !(x?.passengers||[]).length);
 }
 async function v5004AutoRecoverProcessedGenericShells(){
  if(V5004_RECOVERY_BUSY||!navigator.onLine)return false;
