@@ -1,4 +1,4 @@
-// ALYZIA OPS V50.3 · Worker GENERIC + suppression unitaire vol/import + Notes/R2
+// ALYZIA OPS V50.4 · Worker GENERIC + suppression unitaire vol/import + Notes/R2
 // - Assets statiques public/
 // - API vols partagée D1
 // - Bridge interne vers SARIA
@@ -904,6 +904,14 @@ async function getPrepaInbox(env, url) {
       .trim()
       .toUpperCase();
 
+  /*
+   * V50.4 — sur demande explicite de l'interface, renvoyer aussi
+   * les payloads base64 des pièces jointes même si l'import est PROCESSED/ERROR.
+   * Utilisé uniquement pour REPRENDRE / RÉINJECTER.
+   */
+  const includePayload =
+    String(url.searchParams.get("includePayload") || "") === "1";
+
 
   let sql = `
     SELECT
@@ -994,6 +1002,7 @@ async function getPrepaInbox(env, url) {
           );
 
         const needsPayload =
+          includePayload ||
           status === "PENDING" ||
           status === "PROCESSING" ||
           status === "UNIDENTIFIED";
@@ -1275,7 +1284,7 @@ async function handlePrepa(request, env, url) {
 
 
   /*
-   * V50.3 — suppression totale d'un vol importé.
+   * V50.4 — suppression totale d'un vol importé.
    * - supprime fiche D1 / PREPA / Notes / R2
    * - si deleteDrive=true, appelle le bridge Apps Script DRIVE_DELETE_URL AVANT la suppression D1.
    */
