@@ -6979,10 +6979,10 @@ html,body{
 const ALYZIA_APP_VERSION='V50.13';
 const ALYZIA_SQ_LOCK_VERSION='V49.64';
 const ALYZIA_TK_LOCK_VERSION='V49.69';
-const ALYZIA_APP_BUILD='2026-08-30-107';
+const ALYZIA_APP_BUILD='2026-08-30-108';
 </script>
 <header class="topbar">
- <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V50.13</span><span class="app-build-header">BUILD 2026-08-30-107</span></div>
+ <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V50.13</span><span class="app-build-header">BUILD 2026-08-30-108</span></div>
  <nav class="nav">
    <button class="home-nav" onclick="renderHome()" title="Accueil vols">⌂</button>
    <button onclick="renderHome()">VOLS</button><button onclick="openFlightSearch()">RECHERCHE</button><button onclick="renderPrepa()">PRÉPA</button><button onclick="openTools()">OUTILS</button><button>ADMIN</button>
@@ -21301,7 +21301,7 @@ try{
 
 
 /* =========================================================
-   V50.13 BUILD 2026-08-30-107
+   V50.13 BUILD 2026-08-30-108
    DIRECT GOOGLE DRIVE + NEUTRALISATION + REPAIR
    ========================================================= */
 
@@ -21598,7 +21598,134 @@ openImportsDashboard=async function(){
 /* Version + build toujours visibles dans l'en-tête. */
 try{
   document.querySelectorAll('.brand-version,.app-version-badge').forEach(el=>el.textContent='V50.13');
-  document.querySelectorAll('.app-build-header').forEach(el=>el.textContent='BUILD 2026-08-30-107');
+  document.querySelectorAll('.app-build-header').forEach(el=>el.textContent='BUILD 2026-08-30-108');
+}catch(e){}
+
+
+
+/* =========================================================
+   V50.13 · BUILD 2026-08-30-108
+   - retire la grosse carte VERSION des OUTILS
+   - version + build sur la ligne ALYZIA OPS
+   - boutons REPAIR / GOOGLE DRIVE visibles immédiatement
+   - suppression : aucune popup navigateur pour ce cycle
+   ========================================================= */
+
+/* OUTILS : version/build uniquement dans le sous-titre. */
+const v5013_b108_openTools_original=openTools;
+openTools=async function(){
+  await fetchRecentPrepaImports().catch(()=>{});
+
+  const imports=prepaImportToolSummary();
+
+  showModal(
+    'OUTILS',
+    `ALYZIA OPS · ${ALYZIA_APP_VERSION} · BUILD ${ALYZIA_APP_BUILD}`,
+    `<div class="tools-grid">
+      <button class="tool-card tools-imports-featured" onclick="openImportsDashboard()">
+        <span class="tool-icon">⇩</span>
+        <b>IMPORTS GMAIL</b>
+        <span>MULTI-COMPAGNIES — DÉTECTION, CRÉATION DU VOL SI NÉCESSAIRE ET INJECTION AUTOMATIQUE.</span>
+        <div class="tool-kpi-row">
+          <div><strong>${imports.files}</strong><small>FICHIERS</small></div>
+          <div><strong>${imports.injected}/${imports.flights}</strong><small>VOLS INJECTÉS</small></div>
+          <div><strong>${imports.unidentified}</strong><small>À IDENTIFIER</small></div>
+        </div>
+      </button>
+
+      <button class="tool-card" onclick="openFlightImport()">
+        <span class="tool-icon">⇩</span><b>IMPORTER VOLS</b><span>EXCEL XLS / XLSX</span>
+      </button>
+
+      <button class="tool-card" onclick="openCreateFlight()">
+        <span class="tool-icon">＋</span><b>CRÉER VOL</b><span>AJOUT MANUEL</span>
+      </button>
+
+      <button class="tool-card company-config-tool" onclick="openCompanyConfig()">
+        <span class="tool-icon">⚙</span><b>CONFIG COMPAGNIE</b><span>CLASSES ET MODULES</span>
+      </button>
+
+      <button class="tool-card" onclick="openSeatmap()">
+        <span class="tool-icon">▦</span><b>SEATMAP</b><span>PLAN CABINE</span>
+      </button>
+
+      <button class="tool-card" onclick="openSaria()">
+        <span class="tool-icon">✈</span><b>SARIA</b><span>CABIN / SEATMAP</span>
+      </button>
+
+      ${opsCloudToolCardHtml()}
+    </div>`
+  );
+};
+
+/* IMPORTS GMAIL : construit le bandeau AVANT de demander le statut réseau.
+   Ainsi REPAIR et CONFIGURER DRIVE restent visibles même si le statut tarde. */
+const v5013_b108_openImportsDashboard_base=v5013_build107_openImportsDashboard;
+openImportsDashboard=async function(){
+  await v5013_b108_openImportsDashboard_base();
+
+  const body=document.getElementById('modalBody');
+  if(!body)return;
+
+  let strip=body.querySelector('.v5013-admin-strip');
+  if(!strip){
+    strip=document.createElement('div');
+    strip.className='v5013-admin-strip';
+    body.insertBefore(strip,body.firstChild);
+  }
+
+  strip.innerHTML=`
+    <button class="v5013-admin-btn repair" onclick="v5013OpenRepair()">↻ REPAIR</button>
+    <button id="v5013DriveDirectBtn" class="v5013-admin-btn drive bad" onclick="v5013ConfigureDrive()">
+      ⚙ CONFIGURER GOOGLE DRIVE
+    </button>
+  `;
+
+  /* Mise à jour du statut sans bloquer l'affichage du modal. */
+  v5013GetDriveStatus().then(drive=>{
+    const btn=document.getElementById('v5013DriveDirectBtn');
+    if(!btn)return;
+    btn.className=`v5013-admin-btn drive ${drive.configured?'ok':'bad'}`;
+    btn.textContent=drive.configured
+      ? `✓ GOOGLE DRIVE DIRECT${drive.connectedEmail?' · '+drive.connectedEmail:''}`
+      : '⚙ CONFIGURER GOOGLE DRIVE';
+  }).catch(()=>{});
+};
+
+/* Suppression : force explicitement le nouveau cycle natif.
+   Aucun appel à l'ancienne fonction qui utilisait alert(). */
+v5011AskDelete=function(c,key){
+  const row=getImpRow(c,key);
+  if(!row)return;
+
+  showModal(
+    'SUPPRIMER IMPORT',
+    `${row.flightNumber} · ${impDate(row.flightDate)}`,
+    `<div class="v5008-delete-warning">
+       <b>SUPPRIMER DRIVE + DB</b>
+       <p>La fiche ALYZIA, D1/R2 et le dossier Drive du vol seront supprimés.</p>
+       <p>Les mails restent dans Gmail mais seront neutralisés pour empêcher toute réinjection.</p>
+     </div>
+     <div class="modal-actions">
+       <button onclick="modalBack()">ANNULER</button>
+       <button class="danger"
+         onclick="modalBack();setTimeout(()=>v5013DeleteNowBuild107('${c}','${key}'),30)">
+         SUPPRIMER DRIVE + DB
+       </button>
+     </div>`
+  );
+};
+
+/* Bouton historique éventuel. */
+v5009DeleteDriveDb=v5011AskDelete;
+
+/* En-tête principal : synchro systématique version + build. */
+try{
+  document.querySelectorAll('.brand-version,.app-version-badge')
+    .forEach(el=>el.textContent=ALYZIA_APP_VERSION);
+
+  document.querySelectorAll('.app-build-header')
+    .forEach(el=>el.textContent=`BUILD ${ALYZIA_APP_BUILD}`);
 }catch(e){}
 
 </script>
