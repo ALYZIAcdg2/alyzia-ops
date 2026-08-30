@@ -6979,10 +6979,10 @@ html,body{
 const ALYZIA_APP_VERSION='V50.13';
 const ALYZIA_SQ_LOCK_VERSION='V49.64';
 const ALYZIA_TK_LOCK_VERSION='V49.69';
-const ALYZIA_APP_BUILD='2026-08-30-108';
+const ALYZIA_APP_BUILD='2026-08-30-109';
 </script>
 <header class="topbar">
- <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V50.13</span><span class="app-build-header">BUILD 2026-08-30-108</span></div>
+ <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V50.13</span><span class="app-build-header">BUILD 2026-08-30-109</span></div>
  <nav class="nav">
    <button class="home-nav" onclick="renderHome()" title="Accueil vols">⌂</button>
    <button onclick="renderHome()">VOLS</button><button onclick="openFlightSearch()">RECHERCHE</button><button onclick="renderPrepa()">PRÉPA</button><button onclick="openTools()">OUTILS</button><button>ADMIN</button>
@@ -21301,7 +21301,7 @@ try{
 
 
 /* =========================================================
-   V50.13 BUILD 2026-08-30-108
+   V50.13 BUILD 2026-08-30-109
    DIRECT GOOGLE DRIVE + NEUTRALISATION + REPAIR
    ========================================================= */
 
@@ -21598,13 +21598,13 @@ openImportsDashboard=async function(){
 /* Version + build toujours visibles dans l'en-tête. */
 try{
   document.querySelectorAll('.brand-version,.app-version-badge').forEach(el=>el.textContent='V50.13');
-  document.querySelectorAll('.app-build-header').forEach(el=>el.textContent='BUILD 2026-08-30-108');
+  document.querySelectorAll('.app-build-header').forEach(el=>el.textContent='BUILD 2026-08-30-109');
 }catch(e){}
 
 
 
 /* =========================================================
-   V50.13 · BUILD 2026-08-30-108
+   V50.13 · BUILD 2026-08-30-109
    - retire la grosse carte VERSION des OUTILS
    - version + build sur la ligne ALYZIA OPS
    - boutons REPAIR / GOOGLE DRIVE visibles immédiatement
@@ -21726,6 +21726,94 @@ try{
 
   document.querySelectorAll('.app-build-header')
     .forEach(el=>el.textContent=`BUILD ${ALYZIA_APP_BUILD}`);
+}catch(e){}
+
+
+
+/* =========================================================
+   V50.13 · BUILD 2026-08-30-109
+   FIX DÉFINITIF : boutons REPAIR + GOOGLE DRIVE rendus
+   directement dans le HTML du modal IMPORTS GMAIL.
+   ========================================================= */
+
+openImportsDashboard=async function(){
+  await fetchRecentPrepaImports().catch(()=>{});
+
+  const g=impGlobal();
+  const rows=v5009GlobalRows();
+  const todo=v5009ToTreatRows();
+  const injected=rows.filter(r=>
+    String(r.status||'').toUpperCase()==='PROCESSED' &&
+    !v5006GenericNeedsRecovery(r)
+  ).length;
+
+  const cards=g.companies.map(c=>{
+    const s=impStats(c);
+    const last=s.last
+      ? `${s.last.flightNumber} · ${impDate(s.last.flightDate)}`
+      : 'AUCUN VOL';
+
+    return `<button class="imports-company-card" onclick="openImportsCompany('${c}')">
+      <div class="imports-company-head">
+        <span class="imports-company-logo">${airlineLogo(c)} ${c}</span>
+        <span class="imports-main-state">${v50DefaultImportMode(c)==='SPECIFIC'?'SPECIFIC':'GENERIC'}</span>
+      </div>
+      <h4>${c} · IMPORTS</h4>
+      <p>${v50DefaultImportMode(c)==='SPECIFIC'?'Parser spécifique':'Moteur générique'}.</p>
+      <div class="imports-company-metrics">
+        <div class="imports-company-metric"><b>${s.files}</b><span>FICHIERS</span></div>
+        <div class="imports-company-metric"><b>${s.flights}</b><span>VOLS</span></div>
+        <div class="imports-company-metric"><b>${s.injected}</b><span>INJECTÉS</span></div>
+      </div>
+      <div class="imports-company-last"><span>DERNIER VOL</span><b>${escapeHtml(last)}</b></div>
+      <div class="imports-company-open">VOIR LES VOLS →</div>
+    </button>`;
+  }).join('');
+
+  showModal(
+    'IMPORTS GMAIL',
+    `${g.companies.length} COMPAGNIE${g.companies.length>1?'S':''} DÉTECTÉE${g.companies.length>1?'S':''}`,
+    `<div class="v5013-admin-strip" id="v5013ImportsAdminStrip">
+       <button class="v5013-admin-btn repair" onclick="v5013OpenRepair()">↻ REPAIR</button>
+       <button id="v5013DriveDirectBtn" class="v5013-admin-btn drive bad" onclick="v5013ConfigureDrive()">
+         ⚙ CONFIGURER GOOGLE DRIVE
+       </button>
+     </div>
+
+     <div class="imports-dash">
+       <div class="imports-summary">
+         <button class="v5009-summary-btn" onclick="v5009OpenAllFiles()"><b>${g.files}</b><span>FICHIERS REÇUS</span></button>
+         <button class="v5009-summary-btn" onclick="v5009OpenGlobalList('ALL')"><b>${rows.length}</b><span>VOLS DÉTECTÉS</span></button>
+         <button class="v5009-summary-btn" onclick="v5009OpenGlobalList('INJECTED')"><b>${injected}</b><span>VOLS INJECTÉS</span></button>
+         <button class="v5009-summary-btn" onclick="v5009OpenGlobalList('TODO')"><b>${todo.length}</b><span>À TRAITER</span></button>
+       </div>
+       <div class="imports-company-grid">${cards}</div>
+     </div>`
+  );
+
+  /* Le modal est déjà visible : le statut Drive est seulement un enrichissement. */
+  setTimeout(async()=>{
+    const btn=document.getElementById('v5013DriveDirectBtn');
+    if(!btn)return;
+
+    const drive=await v5013GetDriveStatus();
+
+    if(drive.configured){
+      btn.className='v5013-admin-btn drive ok';
+      btn.textContent=`✓ GOOGLE DRIVE DIRECT${drive.connectedEmail?' · '+drive.connectedEmail:''}`;
+    }else{
+      btn.className='v5013-admin-btn drive bad';
+      btn.textContent=drive.oauthClientConfigured
+        ? '⚙ CONFIGURER GOOGLE DRIVE'
+        : '⚠ OAUTH GOOGLE À FINALISER';
+    }
+  },0);
+};
+
+/* Version/build */
+try{
+  document.querySelectorAll('.brand-version,.app-version-badge').forEach(el=>el.textContent='V50.13');
+  document.querySelectorAll('.app-build-header').forEach(el=>el.textContent='BUILD 2026-08-30-109');
 }catch(e){}
 
 </script>
