@@ -6,7 +6,7 @@
   <meta http-equiv="Expires" content="0">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V50.11 · STABILISATION IMPORT / PREPA / UI</title>
+<title>ALYZIA OPS - V50.12 · STABILISATION IMPORT / PREPA / UI</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -6778,7 +6778,7 @@ html,body{
 </style>
 
 <style id="v5007-style">
-/* V50.11 — lisibilité / sticky desktop / import profiles */
+/* V50.12 — lisibilité / sticky desktop / import profiles */
 @media (min-width: 900px){
   .topbar{position:sticky!important;top:0!important;z-index:5000!important;background:#fff!important;box-shadow:0 2px 12px rgba(15,23,42,.08)!important}
 }
@@ -6809,7 +6809,7 @@ html,body{
 
 
 <style id="v5009-css">
-/* V50.11 — le header sticky ne doit jamais recouvrir un modal */
+/* V50.12 — le header sticky ne doit jamais recouvrir un modal */
 .modal{padding-top:88px!important;align-items:flex-start!important}
 .modalbox{max-height:calc(100dvh - 104px)!important}
 @media(max-width:700px){
@@ -6883,7 +6883,7 @@ html,body{
 
 
 <style id="v5011-css">
-/* V50.11 — fiche vol : 6 colonnes, INFOS VOL dans les actions du bloc identité */
+/* V50.12 — fiche vol : 6 colonnes, INFOS VOL dans les actions du bloc identité */
 .flight-head{
   grid-template-columns:minmax(300px,1.75fr) minmax(170px,1fr) minmax(170px,1fr) minmax(120px,.75fr) minmax(120px,.85fr) minmax(190px,1.05fr)!important;
 }
@@ -6939,13 +6939,13 @@ html,body{
 <body>
 <script>
 /* V49.75 — BJ KPI WEB SBY AVAILABLE. SQ/TK frozen. */
-const ALYZIA_APP_VERSION='V50.11';
+const ALYZIA_APP_VERSION='V50.12';
 const ALYZIA_SQ_LOCK_VERSION='V49.64';
 const ALYZIA_TK_LOCK_VERSION='V49.69';
 const ALYZIA_APP_BUILD='2026-08-30-107';
 </script>
 <header class="topbar">
- <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V50.11</span></div>
+ <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V50.12</span></div>
  <nav class="nav">
    <button class="home-nav" onclick="renderHome()" title="Accueil vols">⌂</button>
    <button onclick="renderHome()">VOLS</button><button onclick="openFlightSearch()">RECHERCHE</button><button onclick="renderPrepa()">PRÉPA</button><button onclick="openTools()">OUTILS</button><button>ADMIN</button>
@@ -8390,7 +8390,7 @@ function twPrintHtml(s){
  <tr><th colspan="8">SSR / TICKET / CONSIGNES</th></tr><tr><td colspan="8" class="mid">${f('twSsr')}</td></tr>
  </table><script>window.onload=()=>setTimeout(()=>window.print(),150)<\/script><!-- V49.83: silent multi-device auto-sync 0.5s selected / 1.5s global; TK cards view-only; mobile TYPE header hardened. -->
 <!-- V49.88: compact mobile WSA KPI; named standby list when an explicit TK standby report is available. -->
-<!-- V50.11: stabilisation imports nominative, PREPA dynamic generic/specific, sticky desktop nav, editable flight notes, A/C selector fix. -->
+<!-- V50.12: stabilisation imports nominative, PREPA dynamic generic/specific, sticky desktop nav, editable flight notes, A/C selector fix. -->
 </body></html>`;
 }
 function ozPrintHtml(s){
@@ -17625,7 +17625,7 @@ async function openTools(){
    <button class="tool-card" onclick="openSariaApp()"><span class="tool-icon">✈</span><b>SARIA</b><span>OUVRIR DIRECTEMENT L’OUTIL SARIA CABIN / SEATMAP.</span></button>
    <div class="ops-cloud-card">
      ${(()=>{const st=opsCloudStatusMarkup();return `<div id="opsCloudStatusBox" class="ops-cloud-status ${st.cls}">${st.text}</div>`})()}
-     <div class="ops-cloud-help">D1 PARTAGÉ · 3 TENTATIVES AU DÉMARRAGE · RECONNEXION AUTOMATIQUE · PC, TABLETTE ET TÉLÉPHONE.<br><b style="color:#087749">V50.11 · IMPORTS NOMINATIFS + PREPA DYNAMIQUE</b></div>
+     <div class="ops-cloud-help">D1 PARTAGÉ · 3 TENTATIVES AU DÉMARRAGE · RECONNEXION AUTOMATIQUE · PC, TABLETTE ET TÉLÉPHONE.<br><b style="color:#087749">V50.12 · IMPORTS NOMINATIFS + PREPA DYNAMIQUE</b></div>
      <button class="live-refresh" onclick="manualCloudRefresh()">↻ SYNCHRONISER MAINTENANT</button>
    </div>
    ${renderImportsMainCard()}
@@ -19449,7 +19449,7 @@ window.addEventListener('focus',()=>{wakeRealtimeSync();schedulePrepaInboxAutoIm
 
 
 /* =========================================================
-   V50.11 — STABILISATION IMPORT / PREPA / UI
+   V50.12 — STABILISATION IMPORT / PREPA / UI
    ========================================================= */
 function v5007ProfileMode(code){return ['SQ','TK','BJ','TW'].includes(v50NormalizeAirline(code))?'SPECIFIC':'GENERIC'}
 function v5007CompanyHeader(code){const c=v50NormalizeAirline(code),mode=v5007ProfileMode(c);return `<div class="v5007-company-head">${airlineLogo(c)}<b>${escapeHtml(c)}</b><span class="v5007-profile-badge ${mode==='SPECIFIC'?'spec':'gen'}">${mode}</span></div>`}
@@ -19504,12 +19504,12 @@ const v5007_openImportFlightDiagnostics_base=openImportFlightDiagnostics;
 openImportFlightDiagnostics=function(c,key){const row=getImpRow(c,key);if(!row)return;const idx=findImpFlightIndex(row),x=idx>=0?FLIGHTS[idx]:null;const parse=x?`<div style="border:1px solid #cfe0f4;border-radius:12px;padding:12px;margin-bottom:12px;background:#f8fbff"><b>ÉTAT INJECTION FICHE</b><div style="margin-top:7px;font-size:13px">BOOKED : ${sum(x.booked||{})} · NOMS MASTER : ${(x.passengers||[]).filter(p=>p&&(p.name||p.fullName)).length}</div>${v5007GenericCards(x).map(a=>`<div style="font-size:12px">${a.label} : ${a.n} · NOMS : ${a.named}</div>`).join('')}</div>`:'';const blocks=(row.items||[]).map((it,ix)=>{const files=v5005ImportItemFiles(it),status=String(it?.status||'PENDING').toUpperCase(),err=String(it?.errorMessage||it?.error_message||'').trim();return `<div style="border:1px solid #d9e2ee;border-radius:14px;padding:14px;margin:10px 0;background:#fff"><div style="display:flex;justify-content:space-between;gap:12px;align-items:center"><b>MAIL ${ix+1} · ${escapeHtml(String(it?.subject||'SANS OBJET'))}</b><span class="imports-flight-status ${status==='ERROR'?'err':status==='PROCESSED'?'ok':'wait'}">${escapeHtml(status)}</span></div><div style="font-size:12px;color:#64748b;margin-top:6px">${escapeHtml(String(it?.receivedAt||it?.createdAt||''))}</div>${err?`<div style="margin-top:10px;padding:10px;border-radius:10px;background:#fff1f2;color:#b91c1c;font-weight:800">ERREUR : ${escapeHtml(err)}</div>`:''}<div style="margin-top:10px"><b>${files.length} FICHIER${files.length>1?'S':''}</b>${files.length?files.map(f=>`<div style="padding:7px 0;border-bottom:1px solid #eef2f7"><span style="font-weight:800">${escapeHtml(f.name)}</span><small style="display:block;color:#64748b">${escapeHtml(f.kind)}${f.mime?' · '+escapeHtml(f.mime):''}</small></div>`).join(''):'<div style="color:#94a3b8;padding-top:6px">AUCUNE PIÈCE JOINTE DANS LE PAYLOAD D1 · LE CORPS DU MAIL PEUT NÉANMOINS ÊTRE PARSÉ.</div>'}</div></div>`}).join('');showModal(`DIAGNOSTIC IMPORT · ${row.flightNumber}`,impDate(row.flightDate),`${parse}<div style="max-height:62vh;overflow:auto;padding-right:4px">${blocks||'<div class="import-status">AUCUN DÉTAIL DISPONIBLE.</div>'}</div>`,true)};
 
 // Badge de version: sécurité contre d'anciens textes résiduels.
-document.querySelectorAll('.brand-version').forEach(el=>el.textContent='V50.11');
+document.querySelectorAll('.brand-version').forEach(el=>el.textContent='V50.12');
 
 
 
 /* =========================================================
-   V50.11 — IMPORT BACKGROUND + DELETE FLIGHT + PREPA ALL FLIGHTS
+   V50.12 — IMPORT BACKGROUND + DELETE FLIGHT + PREPA ALL FLIGHTS
    + GENERIC NOMINATIVE DIRECT APPLY + A/C CHOOSER + COMPACT TOOLS
    ========================================================= */
 
@@ -19621,7 +19621,7 @@ async function v5008RunImportRow(c,key){
     };
     return await waitSpecific();
   }catch(e){
-    console.error('V50.11 IMPORT BACKGROUND',company,key,e);
+    console.error('V50.12 IMPORT BACKGROUND',company,key,e);
     const row2=getImpRow(company,key)||row;
     const pending=(row2?.items||[]).filter(it=>['PROCESSING','PENDING'].includes(String(it?.status||'').toUpperCase()));
     if(pending.length) await setPrepaInboxGroupStatus(pending,'ERROR',String(e?.message||e));
@@ -19825,7 +19825,7 @@ async function v5008ChooseAircraft(enc){
 /* ---------- Compact tools modal, IMPORTS GMAIL near the top ---------- */
 async function openTools(){
  await fetchRecentPrepaImports().catch(()=>{});
- showModal('OUTILS',`ALYZIA OPS · V50.11`,`
+ showModal('OUTILS',`ALYZIA OPS · V50.12`,`
   <div class="v5008-tools-compact">
    <div class="v5008-tools-top">${renderImportsMainCard()}</div>
    <div class="tools-grid v5008-tools-grid">
@@ -19835,7 +19835,7 @@ async function openTools(){
     <button class="tool-card company-config-tool" onclick="openCompanyConfig()"><span class="tool-icon">⚙</span><b>CONFIG COMPAGNIE</b><span>Classes et modules</span></button>
     <button class="tool-card" onclick="openSeatmap()"><span class="tool-icon">▦</span><b>SEATMAP</b><span>Plan cabine</span></button>
     <button class="tool-card" onclick="openSariaApp()"><span class="tool-icon">✈</span><b>SARIA</b><span>Cabin / Seatmap</span></button>
-    <div class="ops-cloud-card">${(()=>{const st=opsCloudStatusMarkup();return `<div id="opsCloudStatusBox" class="ops-cloud-status ${st.cls}">${st.text}</div>`})()}<div class="ops-cloud-help"><b style="color:#087749">V50.11 · IMPORT BACKGROUND + PREPA MULTI-COMPAGNIES</b></div><button class="live-refresh" onclick="manualCloudRefresh()">↻ SYNCHRONISER</button></div>
+    <div class="ops-cloud-card">${(()=>{const st=opsCloudStatusMarkup();return `<div id="opsCloudStatusBox" class="ops-cloud-status ${st.cls}">${st.text}</div>`})()}<div class="ops-cloud-help"><b style="color:#087749">V50.12 · IMPORT BACKGROUND + PREPA MULTI-COMPAGNIES</b></div><button class="live-refresh" onclick="manualCloudRefresh()">↻ SYNCHRONISER</button></div>
     <div class="adb-usage-card"><div id="adbUsageBox"><button class="live-refresh" onclick="loadAeroUsage()">AERODATABOX</button></div></div>
     <button class="clear-all-flights-btn" onclick="openFullReset()">🗑 REMETTRE TOUT À ZÉRO</button>
    </div>
@@ -19844,14 +19844,14 @@ async function openTools(){
 
 /* ---------- Version safety ---------- */
 if(typeof ALYZIA_APP_VERSION!=='undefined'){
-  try{ ALYZIA_APP_VERSION='V50.11'; }catch(e){}
+  try{ ALYZIA_APP_VERSION='V50.12'; }catch(e){}
 }
-document.querySelectorAll('.brand-version,.app-version-badge').forEach(el=>el.textContent='V50.11');
+document.querySelectorAll('.brand-version,.app-version-badge').forEach(el=>el.textContent='V50.12');
 
 
 
 /* =========================================================
-   V50.11 — FIX NOMINATIF GENERIC + TW DIRECT + SPINNER
+   V50.12 — FIX NOMINATIF GENERIC + TW DIRECT + SPINNER
    + MODAL OFFSET + DELETE DRIVE/DB + MOBILE DETAILS
    ========================================================= */
 
@@ -20016,7 +20016,7 @@ async function v5009RunRow(c,key){
    await fetchRecentPrepaImports().catch(()=>{});
    wakeRealtimeSync();return true;
  }catch(e){
-   console.error('V50.11 IMPORT',company,key,e);
+   console.error('V50.12 IMPORT',company,key,e);
    await setPrepaInboxGroupStatus(candidates,'ERROR',String(e?.message||e));
    await fetchRecentPrepaImports().catch(()=>{});
    return false;
@@ -20144,12 +20144,12 @@ document.addEventListener('click',function(e){
 },true);
 
 /* ---------- version partout ---------- */
-try{document.querySelectorAll('.brand-version,.app-version-badge').forEach(el=>el.textContent='V50.11')}catch(e){}
+try{document.querySelectorAll('.brand-version,.app-version-badge').forEach(el=>el.textContent='V50.12')}catch(e){}
 
 
 
 /* =========================================================
-   V50.11 — GENERIC NOMINATIF COMPLET + LOADING ACTIONS
+   V50.12 — GENERIC NOMINATIF COMPLET + LOADING ACTIONS
    ========================================================= */
 
 /* Parser Altea robuste :
@@ -20373,7 +20373,7 @@ function v5011AskDelete(c,key){
 }
 v5009DeleteDriveDb=v5011AskDelete;
 
-/* Imports compagnie V50.11 : loader directement sous le vol concerné. */
+/* Imports compagnie V50.12 : loader directement sous le vol concerné. */
 openImportsCompany=function(c){
  const s=impStats(c),flights=impFlights(c);
  const rows=flights.map(row=>{
@@ -20418,7 +20418,163 @@ openImportFlightDiagnostics=function(c,key){
 };
 
 /* Version visible */
-try{document.querySelectorAll('.brand-version,.app-version-badge').forEach(el=>el.textContent='V50.11')}catch(e){}
+try{document.querySelectorAll('.brand-version,.app-version-badge').forEach(el=>el.textContent='V50.12')}catch(e){}
+
+
+
+/* =========================================================
+   V50.12 — RÉINJECTION : RECHARGE LE PAYLOAD PDF COMPLET
+   ========================================================= */
+
+/*
+ * Cause corrigée :
+ * /api/prepa normal masque le base64 lorsque l'import est déjà PROCESSED.
+ * Une réinjection d'un ancien vol ne disposait donc plus du contenu PDF :
+ * compteurs déjà stockés, mais aucun items[] nominatif à reconstruire.
+ *
+ * V50.12 demande explicitement includePayload=1 au Worker V50.4
+ * uniquement lors de REPRENDRE / RÉINJECTER.
+ */
+async function v5012FetchFlightPayloadItems(c,key){
+  const row=getImpRow(c,key);
+  if(!row)return [];
+
+  const airline=encodeURIComponent(String(row.company||'').toUpperCase());
+  const flight=encodeURIComponent(String(row.flightNumber||'').toUpperCase());
+
+  const r=await fetch(
+    opsApiUrl(`/api/prepa?airline=${airline}&flight=${flight}&includePayload=1`),
+    {method:'GET',cache:'no-store',headers:{Accept:'application/json'}}
+  );
+  if(!r.ok)throw new Error(`PAYLOAD PREPA HTTP ${r.status}`);
+
+  const j=await r.json().catch(()=>({}));
+  const items=Array.isArray(j?.items)?j.items:[];
+
+  return items.filter(it=>
+    String(it?.flightDate||'')===String(row.flightDate||'') &&
+    String(it?.flightNumber||'').toUpperCase()===String(row.flightNumber||'').toUpperCase() &&
+    String(it?.airline||'').toUpperCase()===String(row.company||'').toUpperCase()
+  );
+}
+
+function v5012HasAttachmentPayload(it){
+  return Array.isArray(it?.attachments) &&
+    it.attachments.some(a=>typeof a?.base64==='string' && a.base64.length>20);
+}
+
+async function v5012HydrateRowForReinject(c,key){
+  const row=getImpRow(c,key);if(!row)return [];
+  const rich=await v5012FetchFlightPayloadItems(c,key);
+
+  if(!rich.length)throw new Error('AUCUN MESSAGE PREPA TROUVÉ POUR CE VOL');
+
+  const byId=new Map(
+    rich.map(it=>[String(it?.gmailMessageId||it?.id||''),it])
+  );
+
+  const hydrated=(row.items||[]).map(old=>{
+    const id=String(old?.gmailMessageId||old?.id||'');
+    return byId.get(id)||old;
+  });
+
+  // Si le tableau UI ne contenait pas certains messages, on les ajoute.
+  for(const it of rich){
+    const id=String(it?.gmailMessageId||it?.id||'');
+    if(!hydrated.some(x=>String(x?.gmailMessageId||x?.id||'')===id))hydrated.push(it);
+  }
+
+  const pdfCount=hydrated.reduce((n,it)=>
+    n+(Array.isArray(it?.attachments)?it.attachments.length:0),0
+  );
+  const payloadCount=hydrated.reduce((n,it)=>
+    n+(Array.isArray(it?.attachments)?it.attachments.filter(a=>a?.base64).length:0),0
+  );
+
+  if(pdfCount>0 && payloadCount===0){
+    throw new Error('WORKER V50.4 REQUIS : PAYLOAD PDF NON RENVOYÉ');
+  }
+
+  return hydrated;
+}
+
+/*
+ * Traitement V50.12 : utilise les items hydratés et non plus les métadonnées
+ * allégées du tableau IMPORTS.
+ */
+async function v5012RunRowWithPayload(c,key){
+  const row=getImpRow(c,key);if(!row)return false;
+
+  const company=String(c||row.company||'').toUpperCase();
+  let candidates=[];
+
+  try{
+    candidates=await v5012HydrateRowForReinject(c,key);
+  }catch(e){
+    // Pour un import réellement PENDING, le payload normal peut déjà être présent.
+    candidates=(row.items||[]).slice();
+    if(!candidates.some(v5012HasAttachmentPayload))throw e;
+  }
+
+  if(!candidates.length)return false;
+
+  for(const it of candidates)await setPrepaInboxStatus(it,'PROCESSING','');
+  await fetchRecentPrepaImports().catch(()=>{});
+
+  try{
+    const raw=await buildGroupedPrepaInboxText(candidates);
+    if(!String(raw||'').trim())throw new Error('CONTENU DES PDF PREPA VIDE');
+
+    let idx=findFlightIndexForInbox(candidates[0]);
+    if(idx<0)idx=await v5002EnsureFlightFromInbox(candidates[0],raw,{allowSpecific:true});
+    if(idx<0)throw new Error('VOL NON CRÉÉ');
+
+    if(company==='TW'){
+      await v5009ApplyTwDirect(candidates[0],idx,raw);
+    }else if(isGenericAirlineV50(company)){
+      await v5008ApplyGenericRawDirect(candidates[0],idx,raw);
+      // Après injection, fusion finale nominative.
+      v5011MergeNamedSecondaryIntoMaster(FLIGHTS[idx]);
+      await cacheFlightsLocallyOnly(FLIGHTS).catch(()=>false);
+      const ok=await persistOneFlightVerifiedToD1(FLIGHTS[idx],{label:'GENERIC NOMINATIF V50.12'});
+      if(!ok)throw new Error('D1 NON CONFIRMÉ APRÈS INJECTION NOMINATIVE');
+    }else{
+      // SQ/TK/BJ restent sur leur moteur spécifique verrouillé.
+      await applyInboxRawWithExistingParser(candidates[0],idx,raw);
+    }
+
+    await setPrepaInboxGroupStatus(candidates,'PROCESSED');
+    await fetchRecentPrepaImports().catch(()=>{});
+    wakeRealtimeSync();
+    return true;
+  }catch(e){
+    console.error('V50.12 REINJECT',company,key,e);
+    await setPrepaInboxGroupStatus(candidates,'ERROR',String(e?.message||e));
+    await fetchRecentPrepaImports().catch(()=>{});
+    throw e;
+  }
+}
+
+/* Remplace le moteur utilisé par le loader vert. */
+v5011_run_row_base=v5012RunRowWithPayload;
+
+/*
+ * Diagnostic : indique si le payload PDF complet est disponible ou si
+ * l'interface ne voit que les métadonnées des fichiers.
+ */
+async function v5012PayloadDiagnostic(c,key){
+  try{
+    const items=await v5012FetchFlightPayloadItems(c,key);
+    const files=items.reduce((n,it)=>n+(it.attachments||[]).length,0);
+    const payloads=items.reduce((n,it)=>n+(it.attachments||[]).filter(a=>a?.base64).length,0);
+    return {ok:files===0||payloads===files,files,payloads};
+  }catch(e){
+    return {ok:false,files:0,payloads:0,error:String(e?.message||e)};
+  }
+}
+
+/* Version visible */
+try{document.querySelectorAll('.brand-version,.app-version-badge').forEach(el=>el.textContent='V50.12')}catch(e){}
 
 </script>
 
