@@ -7029,7 +7029,7 @@ html,body{
 const ALYZIA_APP_VERSION='V50.15';
 const ALYZIA_SQ_LOCK_VERSION='V49.64';
 const ALYZIA_TK_LOCK_VERSION='V49.69';
-const ALYZIA_APP_BUILD='2026-08-30-114';
+const ALYZIA_APP_BUILD='2026-08-30-150';
 </script>
 <header class="topbar">
  <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V50.15</span></div>
@@ -7133,6 +7133,14 @@ function opsCloudStatusMarkup(){
  if(OPS_CLOUD_CONNECTING)return {cls:'connecting',text:'🔄 CONNEXION AU CLOUD…'};
  if(OPS_CLOUD_ONLINE)return {cls:'ok',text:'☁ CLOUD CONNECTÉ'};
  return {cls:'warn',text:'⚠ HORS LIGNE · MODE LOCAL'};
+}
+// V50.15 FIX: appelée depuis openTools/openImportsDashboard (4 emplacements) mais
+// jamais définie -> ReferenceError qui empêchait showModal() d'être appelé du tout
+// pour OUTILS (l'erreur survenait pendant la construction du template, avant même
+// l'affichage de la modale).
+function opsCloudToolCardHtml(){
+ const st=opsCloudStatusMarkup();
+ return `<div class="ops-cloud-card"><div id="opsCloudStatusBox" class="ops-cloud-status ${st.cls}">${st.text}</div><div class="ops-cloud-help">D1 PARTAGÉ · 3 TENTATIVES AU DÉMARRAGE · RECONNEXION AUTOMATIQUE · PC, TABLETTE ET TÉLÉPHONE.<br><b style="color:#087749">${ALYZIA_APP_VERSION} · IMPORT BACKGROUND + PREPA MULTI-COMPAGNIES</b></div><button class="live-refresh" onclick="manualCloudRefresh()">↻ SYNCHRONISER MAINTENANT</button></div>`;
 }
 
 async function cloudRequest(url,options={},timeout=5000){
@@ -20417,7 +20425,14 @@ function v5011SetActionState(c,key,kind,label,on=true){
 function v5011StateFor(c,key){return V5011_ACTION_STATE.get(`${c}|${key}`)||null}
 
 /* Reprendre/Réinjecter : traitement asynchrone, modal toujours fermable/navigable. */
-const v5011_run_row_base=v5009RunRow;
+/* V50.15 FIX: cette variable est réassignée plus loin (v5012RunRowWithPayload,
+   v5013RunRow) — "const" provoquait un "Assignment to constant variable" qui
+   arrêtait TOUT le reste du script (plus aucune ligne après ce point ne
+   s'exécutait). C'était la cause racine des boutons IMPORTS GMAIL manquants,
+   du BUILD invisible dans OUTILS, et du doublon logo+code compagnie : tout le
+   code qui corrige ces trois points existe déjà plus bas dans le fichier mais
+   ne tournait jamais à cause de ce plantage silencieux. */
+let v5011_run_row_base=v5009RunRow;
 async function v5011ResumeImport(c,key){
   const row=getImpRow(c,key);if(!row)return;
   const processed=String(row.status||'').toUpperCase()==='PROCESSED';
@@ -21351,7 +21366,7 @@ try{
 
 
 /* =========================================================
-   V50.15 BUILD 2026-08-30-114
+   V50.15 BUILD 2026-08-30-150
    DIRECT GOOGLE DRIVE + NEUTRALISATION + REPAIR
    ========================================================= */
 
@@ -21648,13 +21663,13 @@ openImportsDashboard=async function(){
 /* Version + build toujours visibles dans l'en-tête. */
 try{
   document.querySelectorAll('.brand-version,.app-version-badge').forEach(el=>el.textContent='V50.15');
-  document.querySelectorAll('.app-build-header').forEach(el=>el.textContent='BUILD 2026-08-30-114');
+  document.querySelectorAll('.app-build-header').forEach(el=>el.textContent=`BUILD ${ALYZIA_APP_BUILD}`);
 }catch(e){}
 
 
 
 /* =========================================================
-   V50.15 · BUILD 2026-08-30-114
+   V50.15 · BUILD 2026-08-30-150
    - retire la grosse carte VERSION des OUTILS
    - version + build sur la ligne ALYZIA OPS
    - boutons REPAIR / GOOGLE DRIVE visibles immédiatement
@@ -21781,7 +21796,7 @@ try{
 
 
 /* =========================================================
-   V50.15 · BUILD 2026-08-30-114
+   V50.15 · BUILD 2026-08-30-150
    FIX DÉFINITIF : boutons REPAIR + GOOGLE DRIVE rendus
    directement dans le HTML du modal IMPORTS GMAIL.
    ========================================================= */
@@ -21863,13 +21878,13 @@ openImportsDashboard=async function(){
 /* Version/build */
 try{
   document.querySelectorAll('.brand-version,.app-version-badge').forEach(el=>el.textContent='V50.15');
-  document.querySelectorAll('.app-build-header').forEach(el=>el.textContent='BUILD 2026-08-30-114');
+  document.querySelectorAll('.app-build-header').forEach(el=>el.textContent=`BUILD ${ALYZIA_APP_BUILD}`);
 }catch(e){}
 
 
 
 /* =========================================================
-   V50.15 · BUILD 2026-08-30-114
+   V50.15 · BUILD 2026-08-30-150
    FIX OUTILS : boutons visibles directement dans la carte IMPORTS GMAIL
    ========================================================= */
 
@@ -21937,13 +21952,13 @@ openTools=async function(){
 /* Version/build visible */
 try{
   document.querySelectorAll('.brand-version,.app-version-badge').forEach(el=>el.textContent='V50.15');
-  document.querySelectorAll('.app-build-header').forEach(el=>el.textContent='BUILD 2026-08-30-114');
+  document.querySelectorAll('.app-build-header').forEach(el=>el.textContent=`BUILD ${ALYZIA_APP_BUILD}`);
 }catch(e){}
 
 
 
 /* =========================================================
-   V50.15 · BUILD 2026-08-30-114
+   V50.15 · BUILD 2026-08-30-150
    - supprime le bloc VERSION dans OUTILS
    - affiche BUILD sous ALYZIA OPS dans OUTILS
    - retire le build de l'accueil principal
@@ -22019,7 +22034,7 @@ try{
 
 
 /* =========================================================
-   V50.15 · BUILD 2026-08-30-114
+   V50.15 · BUILD 2026-08-30-150
    CORRECTION FORCÉE UI — indépendante des anciens renderers
    ========================================================= */
 
@@ -22040,7 +22055,7 @@ function v5013Build112FixTools(){
 
   const sub=document.getElementById('modalSub');
   if(sub){
-    sub.innerHTML=`ALYZIA OPS · V50.15 · <span style="font-weight:950;color:#075fc8">BUILD 2026-08-30-114</span>`;
+    sub.innerHTML=`ALYZIA OPS · V50.15 · <span style="font-weight:950;color:#075fc8">BUILD ${ALYZIA_APP_BUILD}</span>`;
   }
 
   const body=document.getElementById('modalBody');
@@ -22072,7 +22087,7 @@ function v5013Build112FixImports(){
   const body=document.getElementById('modalBody');
   if(!body)return;
 
-  if(!body.querySelector('.v5013-force-strip')){
+  if(!body.querySelector('.v5013-force-strip') && !body.querySelector('.v5014-import-strip')){
     const strip=document.createElement('div');
     strip.className='v5013-force-strip';
     strip.innerHTML=`
@@ -22136,11 +22151,11 @@ try{
 
 
 /* =========================================================
-   V50.15 · BUILD 2026-08-30-114
+   V50.15 · BUILD 2026-08-30-150
    UI CLEAN / IMPORTS / DRIVE
    ========================================================= */
 
-const V5014_BUILD='2026-08-30-114';
+const V5014_BUILD='2026-08-30-150';
 
 /* ---------- OUTILS ----------
    Rebuild complet : pas de bloc VERSION.
@@ -22423,151 +22438,6 @@ try{
 </nav>
 
 <!-- V49.83: silent multi-device auto-sync 0.5s selected / 1.5s global; TK cards view-only; mobile TYPE header hardened. -->
-
-<style id="v5015-build114-style">
-.app-build-header{display:none!important}
-.tools-version-card{display:none!important}
-.v5015-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px}
-.v5015-import-strip{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px}
-.v5015-action{min-height:39px;border:1px solid #b8d2ee;border-radius:10px;background:#f5f9ff;color:#075fae;padding:0 12px;font-size:9px;font-weight:950;cursor:pointer}
-.v5015-action.repair{border-color:#8fd3a2;background:#f1fbf4;color:#176d34}
-.v5015-action.drive{border-color:#efc27a;background:#fff8e8;color:#8b5900}
-.v5015-action.drive.ok{border-color:#8fd3a2;background:#f1fbf4;color:#176d34}
-@media(max-width:700px){.v5015-actions{grid-template-columns:1fr}}
-</style>
-
-
-<script id="v5015-build114-final">
-(function(){
-  'use strict';
-  const VERSION='V50.15';
-  const BUILD='2026-08-30-114';
-
-  function safe(fn,fallback){
-    try{return fn()}catch(e){console.error('[V50.15]',e);return fallback}
-  }
-
-  function updateDriveButton(btn){
-    if(!btn || typeof v5013GetDriveStatus!=='function')return;
-    Promise.resolve(v5013GetDriveStatus()).then(drive=>{
-      if(!btn.isConnected)return;
-      if(drive?.configured){
-        btn.className='v5015-action drive ok';
-        btn.textContent='✓ GOOGLE DRIVE DIRECT'+(drive.connectedEmail?' · '+drive.connectedEmail:'');
-      }else{
-        btn.className='v5015-action drive';
-        btn.textContent=drive?.oauthClientConfigured ? '⚙ CONFIGURER GOOGLE DRIVE' : '⚠ OAUTH GOOGLE À FINALISER';
-      }
-    }).catch(()=>{});
-  }
-
-  window.openTools=async function(){
-    if(typeof fetchRecentPrepaImports==='function') await fetchRecentPrepaImports().catch(()=>{});
-    const g=safe(()=>impGlobal(),{files:0,flights:0,injected:0,unidentified:0,errors:0});
-
-    showModal('OUTILS',`ALYZIA OPS · ${VERSION}`,
-      `<div class="tools-grid">
-        <div class="imports-main-card" style="cursor:default">
-          <div class="imports-main-top">
-            <span class="imports-main-icon">⇩</span>
-            <span class="imports-main-state">${g.errors?'À VÉRIFIER':'ACTIF'}</span>
-          </div>
-          <h3>IMPORTS GMAIL</h3>
-          <p>MULTI-COMPAGNIES — DÉTECTION, CRÉATION DU VOL SI NÉCESSAIRE ET INJECTION AUTOMATIQUE.</p>
-          <div class="imports-main-stats">
-            <div class="imports-main-stat"><b>${g.files||0}</b><span>FICHIERS</span></div>
-            <div class="imports-main-stat"><b>${g.injected||0}/${g.flights||0}</b><span>VOLS INJECTÉS</span></div>
-            <div class="imports-main-stat"><b>${g.unidentified||0}</b><span>À IDENTIFIER</span></div>
-          </div>
-          <div class="v5015-actions">
-            <button class="v5015-action" onclick="openImportsDashboard()">VOIR IMPORTS</button>
-            <button class="v5015-action repair" onclick="v5013OpenRepair()">↻ REPAIR</button>
-            <button id="v5015ToolsDrive" class="v5015-action drive" onclick="v5013ConfigureDrive()">⚙ CONFIGURER GOOGLE DRIVE</button>
-          </div>
-        </div>
-
-        <button class="tool-card" onclick="openFlightImport()"><span class="tool-icon">⇩</span><b>IMPORTER VOLS</b><span>EXCEL XLS / XLSX</span></button>
-        <button class="tool-card" onclick="openCreateFlight()"><span class="tool-icon">＋</span><b>CRÉER VOL</b><span>AJOUT MANUEL</span></button>
-        <button class="tool-card company-config-tool" onclick="openCompanyConfig()"><span class="tool-icon">⚙</span><b>CONFIG COMPAGNIE</b><span>CLASSES ET MODULES</span></button>
-        <button class="tool-card" onclick="openSeatmap()"><span class="tool-icon">▦</span><b>SEATMAP</b><span>PLAN CABINE</span></button>
-        <button class="tool-card" onclick="openSaria()"><span class="tool-icon">✈</span><b>SARIA</b><span>CABIN / SEATMAP</span></button>
-        ${safe(()=>opsCloudToolCardHtml(),'')}
-      </div>`
-    );
-
-    const sub=document.getElementById('modalSub');
-    if(sub) sub.innerHTML=`ALYZIA OPS · ${VERSION}<br><span style="font-size:9px;font-weight:950;color:#075fc8">BUILD ${BUILD}</span>`;
-    document.querySelectorAll('.tools-version-card').forEach(el=>el.remove());
-    updateDriveButton(document.getElementById('v5015ToolsDrive'));
-  };
-
-  window.openImportsDashboard=async function(){
-    if(typeof fetchRecentPrepaImports==='function') await fetchRecentPrepaImports().catch(()=>{});
-
-    const g=safe(()=>impGlobal(),{companies:[],files:0});
-    const rows=safe(()=>v5009GlobalRows(),[]);
-    const todo=safe(()=>v5009ToTreatRows(),[]);
-    const injected=rows.filter(r=>String(r?.status||'').toUpperCase()==='PROCESSED' &&
-      !(typeof v5006GenericNeedsRecovery==='function' && v5006GenericNeedsRecovery(r))).length;
-
-    const cards=(g.companies||[]).map(c=>{
-      const s=safe(()=>impStats(c),{files:0,flights:0,injected:0,last:null});
-      const last=s.last?`${s.last.flightNumber} · ${impDate(s.last.flightDate)}`:'AUCUN VOL';
-      const mode=safe(()=>v50DefaultImportMode(c),'GENERIC');
-      return `<button class="imports-company-card" onclick="openImportsCompany('${c}')">
-        <div class="imports-company-head">
-          <span class="imports-company-logo">${safe(()=>airlineLogo(c),'')}</span>
-          <span class="imports-main-state">${mode==='SPECIFIC'?'SPECIFIC':'GENERIC'}</span>
-        </div>
-        <h4>${c} · IMPORTS</h4>
-        <p>${mode==='SPECIFIC'?'PARSER SPÉCIFIQUE.':'MOTEUR GÉNÉRIQUE.'}</p>
-        <div class="imports-company-metrics">
-          <div class="imports-company-metric"><b>${s.files||0}</b><span>FICHIERS</span></div>
-          <div class="imports-company-metric"><b>${s.flights||0}</b><span>VOLS</span></div>
-          <div class="imports-company-metric"><b>${s.injected||0}</b><span>INJECTÉS</span></div>
-        </div>
-        <div class="imports-company-last"><span>DERNIER VOL</span><b>${escapeHtml(last)}</b></div>
-        <div class="imports-company-open">VOIR LES VOLS →</div>
-      </button>`;
-    }).join('');
-
-    showModal('IMPORTS GMAIL',
-      `${(g.companies||[]).length} COMPAGNIE${(g.companies||[]).length>1?'S':''} DÉTECTÉE${(g.companies||[]).length>1?'S':''}`,
-      `<div class="v5015-import-strip">
-         <button class="v5015-action repair" onclick="v5013OpenRepair()">↻ REPAIR</button>
-         <button id="v5015ImportsDrive" class="v5015-action drive" onclick="v5013ConfigureDrive()">⚙ CONFIGURER GOOGLE DRIVE</button>
-       </div>
-       <div class="imports-dash">
-         <div class="imports-summary">
-           <button class="v5009-summary-btn" onclick="v5009OpenAllFiles()"><b>${g.files||0}</b><span>FICHIERS REÇUS</span></button>
-           <button class="v5009-summary-btn" onclick="v5009OpenGlobalList('ALL')"><b>${rows.length}</b><span>VOLS DÉTECTÉS</span></button>
-           <button class="v5009-summary-btn" onclick="v5009OpenGlobalList('INJECTED')"><b>${injected}</b><span>VOLS INJECTÉS</span></button>
-           <button class="v5009-summary-btn" onclick="v5009OpenGlobalList('TODO')"><b>${todo.length}</b><span>À TRAITER</span></button>
-         </div>
-         <div class="imports-company-grid">${cards}</div>
-       </div>`
-    );
-
-    updateDriveButton(document.getElementById('v5015ImportsDrive'));
-  };
-
-  window.alert=function(message){
-    safe(()=>showModal('INFORMATION','ALYZIA OPS',
-      `<div class="v5013-native-message error">${escapeHtml(String(message||''))}</div>
-       <div class="modal-actions"><button class="primary" onclick="modalBack()">OK</button></div>`));
-  };
-
-  function cleanHomeBuild(){
-    document.querySelectorAll('.app-build-header').forEach(el=>el.remove());
-    document.querySelectorAll('.brand-version,.app-version-badge').forEach(el=>el.textContent=VERSION);
-  }
-  cleanHomeBuild();
-  new MutationObserver(cleanHomeBuild).observe(document.body,{childList:true,subtree:true});
-
-  console.log(`ALYZIA OPS ${VERSION} BUILD ${BUILD} — FINAL OVERRIDE LOADED`);
-})();
-</script>
-
 </body></html>
 <!-- V50.03: cloud status is debounced; 3 startup retries; transient sync failures no longer force immediate local mode. -->
 <!-- V50.0: generic airline PREPA engine + airline profiles; SQ/TK/BJ parser semantics unchanged. -->
