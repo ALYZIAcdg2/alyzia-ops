@@ -6,7 +6,7 @@
   <meta http-equiv="Expires" content="0">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V50.0 · GENERIC AIRLINES ENGINE · SQ/TK/BJ LOCKED</title>
+<title>ALYZIA OPS - V50.02 · MULTI-COMPAGNIES + AUTO-CREATE + PENDING RECOVERY + TW SPECIFIC + MULTI-LEG</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -6554,6 +6554,15 @@ html,body{
 .fqtv-cat.white,.fqtv-table-row.white,.pax-fqtv-banner.white{background:#fff!important;color:#10213a!important;border-color:#d7e1ec!important}
 .fqtv-cat.white:hover,.fqtv-table-row.white:hover{background:#f8fafc!important}
 
+
+/* V50.02 — multi-compagnies imports + generic auto-create + multi-leg */
+.v5002-leg-strip{margin:-2px 0 12px;display:flex;gap:7px;align-items:center;flex-wrap:wrap;padding:9px 12px;border:1px solid #dbe6f1;border-radius:12px;background:#f8fbff}
+.v5002-leg-strip .route-all{font-size:10px;font-weight:1000;color:#123a61;margin-right:3px}
+.v5002-leg{display:inline-flex;align-items:center;gap:6px;padding:6px 9px;border-radius:999px;border:1px solid #bcd1e7;background:#fff;color:#174b7d;font-size:8px;font-weight:1000}
+.v5002-leg b{color:#075fc8}.imports-company-card[data-c="TW"] .imports-company-logo{background:#d71920;color:#fff}.imports-company-card[data-c="SB"] .imports-company-logo{background:#153b72;color:#fff}.imports-company-card[data-c="AT"] .imports-company-logo{background:#c5162e;color:#fff}
+.imports-flight-status.create{background:#eef6ff;color:#075fc8;border:1px solid #b8d6f7}.imports-flight-status.identified{background:#f2f7ff;color:#315f91;border:1px solid #c8d9eb}
+.v5002-resume-btn{border:1px solid #d4ad5f!important;background:#fff7e8!important;color:#8b5b00!important}.imports-company-grid{align-items:stretch}
+@media(max-width:700px){.v5002-leg-strip{padding:7px 8px}.v5002-leg{font-size:7px;padding:5px 7px}}
 </style>
 <style>
 .imports-main-card{border:1px solid #d8e3ee;background:#fff;border-radius:14px;padding:14px;cursor:pointer;text-align:left;width:100%;box-shadow:0 7px 20px rgba(15,39,68,.06);transition:.16s ease;color:#18283a}
@@ -6770,7 +6779,7 @@ html,body{
 <body>
 <script>
 /* V49.75 — BJ KPI WEB SBY AVAILABLE. SQ/TK frozen. */
-const ALYZIA_APP_VERSION='V50.0';
+const ALYZIA_APP_VERSION='V50.02';
 const ALYZIA_SQ_LOCK_VERSION='V49.64';
 const ALYZIA_TK_LOCK_VERSION='V49.69';
 const ALYZIA_APP_BUILD='2026-08-28-91';
@@ -6804,7 +6813,12 @@ try{
    D1 devient la source partagée.
    IndexedDB/localStorage restent un cache de secours hors-ligne.
    ========================================================= */
-const OPS_CLOUD_API='/api/flights';
+const OPS_PUBLIC_ORIGIN='https://alyzia-ops.alyzia-cdg2.workers.dev';
+const OPS_API_ORIGIN=(location.protocol==='file:'?OPS_PUBLIC_ORIGIN:'');
+const OPS_CLOUD_API=`${OPS_API_ORIGIN}/api/flights`;
+function opsApiUrl(path){
+ return `${OPS_API_ORIGIN}${path}`;
+}
 let OPS_CLOUD_ONLINE=false;
 let OPS_CLOUD_LAST_SYNC=null;
 
@@ -11989,7 +12003,7 @@ function v50NormalizeAirline(v){
 }
 
 function v50DefaultImportMode(airline){
- return ['SQ','TK','BJ'].includes(v50NormalizeAirline(airline))?'SPECIFIC':'GENERIC';
+ return ['SQ','TK','BJ','TW'].includes(v50NormalizeAirline(airline))?'SPECIFIC':'GENERIC';
 }
 
 function v50AirlineProfile(airline){
@@ -12005,12 +12019,14 @@ function v50AirlineProfile(airline){
 }
 
 function isGenericAirlineV50(airline){
- return String(v50AirlineProfile(airline)?.importMode||v50DefaultImportMode(airline)).toUpperCase()==='GENERIC';
+ const code=v50NormalizeAirline(airline);
+ if(['SQ','TK','BJ','TW'].includes(code))return false;
+ return String(v50AirlineProfile(code)?.importMode||v50DefaultImportMode(code)).toUpperCase()==='GENERIC';
 }
 
 async function loadAirlineProfilesV50(){
  try{
-  const r=await fetch('/api/airline-profiles',{method:'GET',cache:'no-store',headers:{Accept:'application/json'}});
+  const r=await fetch(opsApiUrl('/api/airline-profiles'),{method:'GET',cache:'no-store',headers:{Accept:'application/json'}});
   if(!r.ok)throw new Error(`HTTP ${r.status}`);
   const j=await r.json();
   const rows=Array.isArray(j?.profiles)?j.profiles:[];
@@ -12118,6 +12134,129 @@ function v50ExplicitCount(raw,code){
  return null;
 }
 
+
+/* =========================================================
+   V50.02 — GENERIC FLIGHT AUTO-CREATE + TW SPECIFIC + LEGS
+   ========================================================= */
+function v5002PadTime(v){
+ const d=String(v||'').replace(/\D/g,'');
+ if(d.length!==4)return '';
+ return `${d.slice(0,2)}:${d.slice(2)}`;
+}
+function v5002DetectFlightBasics(raw,item={}){
+ const text=String(raw||'').replace(/\u00a0/g,' '), up=text.toUpperCase();
+ const airline=v50NormalizeAirline(item?.airline||((up.match(/\b([A-Z0-9]{2})\s*\d{2,4}\b/)||[])[1]||''));
+ const flight=normalizeInboxFlightNumber(item?.flightNumber||((up.match(/\b([A-Z0-9]{2}\s*\d{2,4})\b/)||[])[1]||''));
+ const date=String(item?.flightDate||'').trim();
+ let dep='CDG',dest='',std='';
+ let m=up.match(/\bROUTE\s*[:#=-]?\s*([A-Z]{3})\s*[-–>]\s*([A-Z]{3})\b/);
+ if(m){dep=m[1];dest=m[2]}
+ m=up.match(new RegExp(`\\b${flight.replace(/[.*+?^${}()|[\\]\\\\]/g,'\\\\$&')}\\s+\\d{1,2}[A-Z]{3}(?:\\d{2,4})?\\s+([A-Z]{3})\\s+STD(\\d{4})`,'i'));
+ if(m){dep=m[1]||dep;std=v5002PadTime(m[2])}
+ if(!std){m=up.match(/\bSTD\s*[:#=-]?\s*(\d{4}|\d{1,2}:\d{2})\b/);if(m)std=m[1].includes(':')?m[1]:v5002PadTime(m[1])}
+ if(!dest){
+  const counts={};
+  const re=/\b([A-Z]{3})\s+([A-Z]{3})\s+[JWCY][A-Z]{0,2}\b/g;let q;
+  while((q=re.exec(up))){if(q[1]===dep&&q[2]!==dep)counts[q[2]]=(counts[q[2]]||0)+1}
+  dest=Object.entries(counts).sort((a,b)=>b[1]-a[1])[0]?.[0]||'';
+ }
+ const classes={};
+ for(const h of up.matchAll(/LIST\s+OF\s*:[^\n\r]{0,120}/g)){
+  for(const c of h[0].matchAll(/\b([FJCWSY])\s*(\d{1,3})\b/g))classes[c[1]]=Math.max(classes[c[1]]||0,0);
+ }
+ return {airline,flight,date,dep,dest,std,classes};
+}
+async function v5002EnsureFlightFromInbox(item,raw,{allowSpecific=false}={}){
+ let idx=findFlightIndexForInbox(item);if(idx>=0)return idx;
+ const airline=v50NormalizeAirline(item?.airline),flight=normalizeInboxFlightNumber(item?.flightNumber),date=String(item?.flightDate||'').trim();
+ if(!airline||!flight||!date)return -1;
+ const generic=isGenericAirlineV50(airline);
+ if(!generic && !(allowSpecific&&airline==='TW'))return -1;
+ const b=v5002DetectFlightBasics(raw,item);
+ const created=defaultFlightObject(['',airline,flight,b.dest||'',b.std||'','', '',date]);
+ created.dep=b.dep||'CDG';created.dest=b.dest||'';created.std=b.std||'';created.duration=null;created.durationSource='PREPA_GMAIL';
+ created.genericCreated=generic;created.autoCreatedFromPrepa=true;created.importedAt=new Date().toISOString();
+ created.enrichment=created.enrichment||{fields:{},history:[]};created.enrichment.fields.auto_create={source:'PREPA_GMAIL',updated_at:new Date().toISOString()};
+ if(Object.keys(b.classes||{}).length){
+   created.config={};created.booked={};created.web={};created.meals={};
+   Object.keys(b.classes).forEach(k=>{created.config[k]=0;created.booked[k]=0;created.web[k]=0;created.meals[k]=0});
+ }
+ FLIGHTS.push(created);idx=FLIGHTS.length-1;
+ await cacheFlightsLocallyOnly(FLIGHTS).catch(()=>false);
+ const ok=await persistOneFlightVerifiedToD1(created,{label:'AUTO-CREATE PREPA'}).catch(()=>false);
+ if(!ok){FLIGHTS.splice(idx,1);return -1}
+ try{await v50EnsureAirlineProfile?.(airline)}catch(e){}
+ return findFlightIndexForInbox(item);
+}
+function v5002DetectLegs(raw,flight,dep='CDG'){
+ const up=String(raw||'').toUpperCase().replace(/\u00a0/g,' '), fl=normalizeInboxFlightNumber(flight), direct=new Map();
+ const paxRe=/\b([A-Z]{3})\s+([A-Z]{3})\s+[JWCY][A-Z]{0,2}\b/g;let m;
+ while((m=paxRe.exec(up))){if(m[1]===dep&&m[2]!==dep)direct.set(m[2],(direct.get(m[2])||0)+1)}
+ if(direct.size<2)return [];
+ const sameRe=new RegExp(`\\bO-${fl.replace(/[.*+?^${}()|[\\]\\\\]/g,'\\\\$&')}\\s+([A-Z]{3})\\b`,'g');
+ const onward=[];while((m=sameRe.exec(up)))if(!onward.includes(m[1]))onward.push(m[1]);
+ const dests=[...direct.keys()];const final=onward.find(d=>dests.includes(d));if(!final)return [];
+ const intermediate=dests.filter(d=>d!==final).sort((a,b)=>(direct.get(b)||0)-(direct.get(a)||0))[0];if(!intermediate)return [];
+ return [{leg:1,origin:dep,destination:intermediate},{leg:2,origin:intermediate,destination:final}];
+}
+function v5002PassengerLegRefs(p,legs){
+ if(!p||!Array.isArray(legs)||!legs.length)return [];
+ const from=String(p.from||p.origin||'').toUpperCase(),to=String(p.to||p.destination||'').toUpperCase();
+ if(legs.length===2){
+  if(from===legs[0].origin&&to===legs[1].destination)return [1,2];
+  if(from===legs[0].origin&&to===legs[0].destination)return [1];
+  if(from===legs[1].origin&&to===legs[1].destination)return [2];
+ }
+ return [];
+}
+function prepareTwImportManifest(rawOriginal){
+ const raw=String(rawOriginal||''),up=raw.toUpperCase().replace(/\u00a0/g,' ');
+ const values={},passengers=[],commonLists={WCH:[],MEAL:[],FQTV:[],STAFF:[],EXBG:[],TKNE:[],DOOR:[],UPRQ:[],EXMO:[]};
+ const put=(k,v)=>{if(v!==undefined&&v!==null&&String(v)!=='')values[k]=String(v)};
+ let m=up.match(/\bFLIGHT\s*#?\s*:\s*(TW\s*\d{2,4})\b/);if(m)put('#edFlight',m[1].replace(/\s+/g,''));
+ m=up.match(/\bSTD\s*:\s*(\d{2}:?\d{2})\b/);if(m)put('#edStd',m[1].includes(':')?m[1]:v5002PadTime(m[1]));
+ const cfg=up.match(/\bCONFIG\s*:\s*([^\n\r]+)/);if(cfg){for(const q of cfg[1].matchAll(/(\d{1,3})\s*([CY])/g))put(`[data-ed-config="${q[2]}"]`,q[1])}
+ const starts=[...up.matchAll(/(?:^|\s)(?:(?:WEBAPM|WEBAPI|KRAPP)\s*)?(\d{1,3})\s+([A-Z][A-Z' +.-]{1,80})\s*\/\s*([A-Z][A-Z' +.-]{1,100})/gm)];
+ const seen=new Set();
+ for(let i=0;i<starts.length;i++){
+  const a=starts[i],b=starts[i+1],segment=up.slice(a.index,b?b.index:Math.min(up.length,a.index+1400));
+  const num=Number(a[1]);if(!num||num>999)continue;
+  const name=`${a[2].trim()}/${a[3].trim()}`.replace(/\s+/g,' ');const key=`${num}|${name}`;if(seen.has(key))continue;
+  const cm=segment.match(/\b([CY])\s+([A-Z]{1,2})\s+HK(?:\s+(CK))?\s+([A-Z]{3})\s+([A-Z]{3})\b/);if(!cm)continue;
+  seen.add(key);
+  const p={name,class:cm[1],bookingClass:cm[2],status:'HK',checkedIn:!!cm[3],from:cm[4],to:cm[5],ssr:[],source:'TW MASTER'};
+  const seat=(segment.match(/\b(\d{1,2}[A-K])\b/)||[])[1]||'';if(seat)p.seat=seat;
+  const pnr=(segment.match(/\b\d+\/\d+\s+([A-Z0-9]{6})\b/)||[])[1]||'';if(pnr)p.pnr=pnr;
+  const seq=(segment.match(/(?:^|\s)(\d{1,3})\s+C\s+\d{1,3}\s+N\b/m)||[])[1]||'';if(seq){p.seq=Number(seq);p.checkedIn=true}
+  const ssr=[];
+  const add=(cat,code)=>{if(!ssr.includes(code))ssr.push(code);v50GenericUniquePush(commonLists[cat],{...p,specific:code,ssr:[code],source:'TW MASTER'})};
+  for(const code of ['WCHR','WCHS','WCHC','RWCH'])if(new RegExp(`\\b${code}\\b`).test(segment))add('WCH',code==='RWCH'?'RWCH':code);
+  for(const code of [...segment.matchAll(/\b(?:LHML\d|MEAL\d|MEALD|[A-Z]{2}ML(?:-[A-Z]+)?)\b/g)].map(x=>x[0]))add('MEAL',code);
+  for(const code of ['VTIAA','VTIAB'])if(new RegExp(`\\b${code}\\b`).test(segment))add('FQTV',code);
+  if(/\bTED\b/.test(segment))add('STAFF','TED');
+  for(const code of ['EXBG','TKNE','DOOR','UPRQ','EXMO'])if(new RegExp(`\\b${code}\\b`).test(segment))add(code,code);
+  p.ssr=ssr;passengers.push(p);
+ }
+ const booked={C:0,Y:0},checked={C:0,Y:0};passengers.forEach(p=>{if(booked[p.class]!=null)booked[p.class]++;if(p.checkedIn&&checked[p.class]!=null)checked[p.class]++});
+ const counts={};Object.keys(commonLists).forEach(k=>counts[k]=commonLists[k].length);
+ return {airline:'TW',mode:'SPECIFIC',hasMainManifest:passengers.length>0,values,passengers,booked,checked,commonLists,counts,owned:Object.fromEntries(Object.keys(commonLists).map(k=>[k,commonLists[k].length>0]))};
+}
+function applyTwManifestToFlight(manifest,ctx){
+ const x=FLIGHTS[Number(ctx?.idx)];if(!x||!manifest)return false;
+ x.config=x.config||{C:0,Y:0};x.booked=x.booked||{C:0,Y:0};x.web=x.web||{C:0,Y:0};x.common=x.common||{};x.common_lists=x.common_lists||{};
+ if(manifest.passengers?.length){
+  x.passengers=manifest.passengers.map(p=>({...p}));x.booked.C=Number(manifest.booked?.C||0);x.booked.Y=Number(manifest.booked?.Y||0);
+  x.checkedIn={C:Number(manifest.checked?.C||0),Y:Number(manifest.checked?.Y||0),total:Number(manifest.checked?.C||0)+Number(manifest.checked?.Y||0)};
+ }
+ for(const k of Object.keys(manifest.commonLists||{})){if(!manifest.owned?.[k])continue;x.common_lists[k]=mergeGenericOperationalList(x.common_lists[k]||[],manifest.commonLists[k]);x.common[k]=x.common_lists[k].length}
+ x.twSpecific={master:true,checkedRule:'CK_OR_SEQ',updatedAt:new Date().toISOString()};return true;
+}
+function v5002LegStripHtml(x){
+ const legs=Array.isArray(x?.legs)?x.legs:[];if(legs.length<2)return '';
+ const route=[legs[0].origin,...legs.map(l=>l.destination)].join(' → ');
+ return `<div class="v5002-leg-strip"><span class="route-all">VOL COMPLET · ${escapeHtml(route)}</span>${legs.map(l=>`<span class="v5002-leg"><b>LEG ${l.leg}</b>${escapeHtml(l.origin)} → ${escapeHtml(l.destination)}</span>`).join('')}</div>`;
+}
+
 function prepareGenericImportManifest(rawOriginal,airline){
  const raw=String(rawOriginal||'');
  const upper=raw.toUpperCase().replace(/\u00A0/g,' ');
@@ -12126,7 +12265,7 @@ function prepareGenericImportManifest(rawOriginal,airline){
 
  const commonLists={
   INF:[],CHLD:[],WCH:[],INAD:[],DEPA:[],DEPU:[],
-  FQTV:[],EMD:[],ETK:[],MEAL:[],UMNR:[],MAAS:[],OTHER:[]
+  FQTV:[],STAFF:[],EMD:[],ETK:[],MEAL:[],UMNR:[],MAAS:[],EXBG:[],TKNE:[],DOOR:[],UPRQ:[],EXMO:[],OTHER:[]
  };
  const counts={};
  const owned={};
@@ -12141,6 +12280,12 @@ function prepareGenericImportManifest(rawOriginal,airline){
   {key:'UMNR',codes:['UMNR']},
   {key:'MAAS',codes:['MAAS']},
   {key:'FQTV',codes:['FQTV','FFN','FREQUENT FLYER']},
+  {key:'STAFF',codes:['STAFF','STF','TED']},
+  {key:'EXBG',codes:['EXBG']},
+  {key:'TKNE',codes:['TKNE']},
+  {key:'DOOR',codes:['DOOR']},
+  {key:'UPRQ',codes:['UPRQ']},
+  {key:'EXMO',codes:['EXMO']},
   {key:'EMD',codes:['EMD']},
   {key:'ETK',codes:['ETKT','E-TKT','E TKT','TICKET']},
   {key:'MEAL',codes:[
@@ -12237,7 +12382,8 @@ function prepareGenericImportManifest(rawOriginal,airline){
  if(inbound.length)owned.INBOUND=true;
  if(outbound.length)owned.OUTBOUND=true;
 
- const hasAny=Object.keys(counts).length>0||inbound.length>0||outbound.length>0;
+ const legs=v5002DetectLegs(raw,normalizeInboxFlightNumber((upper.match(/\b([A-Z0-9]{2}\s*\d{2,4})\b/)||[])[1]||''),'CDG');
+ const hasAny=Object.keys(counts).length>0||inbound.length>0||outbound.length>0||legs.length>0;
 
  return {
   airline:code,
@@ -12248,6 +12394,7 @@ function prepareGenericImportManifest(rawOriginal,airline){
   commonLists,
   inbound,
   outbound,
+  legs,
   owned,
   sourceCount:1,
   batchMode:false
@@ -12281,7 +12428,7 @@ function applyGenericManifestToFlight(manifest,ctx){
  x.common_lists=x.common_lists||{};
  x.prepaSpecificities=x.prepaSpecificities||{};
 
- const keys=['INF','CHLD','WCH','INAD','DEPA','DEPU','FQTV','EMD','ETK','MEAL','UMNR','MAAS','OTHER'];
+ const keys=['INF','CHLD','WCH','INAD','DEPA','DEPU','FQTV','STAFF','EMD','ETK','MEAL','UMNR','MAAS','EXBG','TKNE','DOOR','UPRQ','EXMO','OTHER'];
 
  for(const key of keys){
   if(!manifest.owned?.[key])continue;
@@ -12302,6 +12449,7 @@ function applyGenericManifestToFlight(manifest,ctx){
 
  if(manifest.owned?.INBOUND)x.inbound=mergeGenericConnections(x.inbound||[],manifest.inbound||[]);
  if(manifest.owned?.OUTBOUND)x.outbound=mergeGenericConnections(x.outbound||[],manifest.outbound||[]);
+ if(Array.isArray(manifest.legs)&&manifest.legs.length){x.legs=manifest.legs.map(v=>({...v}));x.route=[x.legs[0].origin,...x.legs.map(v=>v.destination)];x.dep=x.legs[0].origin;x.dest=x.legs[x.legs.length-1].destination;(x.passengers||[]).forEach(p=>p.leg_refs=v5002PassengerLegRefs(p,x.legs));}
 
  x.genericImport={
   mode:'GENERIC',
@@ -12317,8 +12465,8 @@ function renderGenericParticularitiesV50(x){
  const defs=[
   ['INF','INF'],['CHLD','CHLD'],['WCH','WCH'],
   ['INAD','INAD'],['DEPA','DEPA'],['DEPU','DEPU'],
-  ['FQTV','FQTV'],['EMD','EMD'],['ETK','ETKT'],
-  ['MEAL','MEAL'],['UMNR','UMNR'],['MAAS','MAAS'],['OTHER','OTHER']
+  ['FQTV','FQTV'],['STAFF','STAFF'],['EMD','EMD'],['ETK','ETKT'],
+  ['MEAL','MEAL'],['UMNR','UMNR'],['MAAS','MAAS'],['EXBG','EXBG'],['TKNE','TKNE'],['DOOR','DOOR'],['UPRQ','UPRQ'],['EXMO','EXMO'],['OTHER','OTHER']
  ];
  return defs
   .filter(([key])=>v50GenericCardVisible(x,key))
@@ -12333,6 +12481,7 @@ function collectPrepaImport(rawOriginal,airline){
  const detectedAirline=String(airline||'').toUpperCase();
  if(detectedAirline==='BJ'||/\bBJ\d{2,4}\b/.test(raw))Object.assign(values,prepareBjImportManifest(rawOriginal).values||{});
  if(detectedAirline==='TK'||/\bTK\s*\d{3,4}\b/.test(raw))Object.assign(values,prepareTkImportManifest(rawOriginal).values||{});
+ if(detectedAirline==='TW'||/\bTW\s*\d{2,4}\b/.test(raw))Object.assign(values,prepareTwImportManifest(rawOriginal).values||{});
  if(String(airline||'').toUpperCase()==='SQ' || /\bSQ\s*\d{2,4}\b/.test(raw)){
    Object.assign(values,collectSqGenericReport(rawOriginal));
  }
@@ -12344,7 +12493,7 @@ function collectPrepaImport(rawOriginal,airline){
   for(const re of patterns){const m=raw.match(re);if(m)return m[1]}
   return null;
  };
- if(!['TK','SQ'].includes(detectedAirline)){
+ if(!['TK','SQ','TW'].includes(detectedAirline)){
   const firstNoCodeshare=(patterns)=>{
    for(const re of patterns){const m=rawNoCodeshare.match(re);if(m)return m[1]}
    return null;
@@ -12367,11 +12516,11 @@ function collectPrepaImport(rawOriginal,airline){
    const m=raw.match(new RegExp(`${section}[\\s\\S]{0,140}?\\b${esc}\\b\\s*[/=: -]?\\s*(\\d{1,3})`,'i'));
    return m?m[1]:null;
   };
-  if(!['TK','SQ'].includes(detectedAirline))put(`[data-ed-config="${k}"]`,findClass('CONFIG(?:URATION)?'));
+  if(!['TK','SQ','TW'].includes(detectedAirline))put(`[data-ed-config="${k}"]`,findClass('CONFIG(?:URATION)?'));
   const compactBooking=raw.match(new RegExp(`PDF-VBCPLIST[^\\n\\r]{0,180}?\\b${esc}\\s*(\\d{1,3})\\b`,'i'));
-  if(!['TK','SQ'].includes(detectedAirline))put(`[data-ed-booking="${k}"]`,compactBooking?compactBooking[1]:findClass('BOOKING|BOOKED'));
+  if(!['TK','SQ','TW'].includes(detectedAirline))put(`[data-ed-booking="${k}"]`,compactBooking?compactBooking[1]:findClass('BOOKING|BOOKED'));
   // TK "PAX WITH SPECIAL MEAL" is an SSR passenger list, NOT catering loaded-meal quantities.
-  if(!['TK','SQ'].includes(detectedAirline))put(`[data-ed-meal="${k}"]`,findClass('MEALS?'));
+  if(!['TK','SQ','TW'].includes(detectedAirline))put(`[data-ed-meal="${k}"]`,findClass('MEALS?'));
  });
 
  document.querySelectorAll('[data-ed-extra]').forEach(el=>{
@@ -12687,6 +12836,7 @@ async function finalizePrepaAutomaticImport(result,context=null){
    if(PREPA_PENDING_MANIFEST.airline==='BJ')applyBjManifestToFlight(PREPA_PENDING_MANIFEST,ctx);
    else if(PREPA_PENDING_MANIFEST.airline==='TK')applyTkManifestToFlight(PREPA_PENDING_MANIFEST,ctx);
    else if(PREPA_PENDING_MANIFEST.airline==='SQ')applySqManifestToFlight(PREPA_PENDING_MANIFEST,ctx);
+   else if(PREPA_PENDING_MANIFEST.airline==='TW')applyTwManifestToFlight(PREPA_PENDING_MANIFEST,ctx);
    else applyGenericManifestToFlight(PREPA_PENDING_MANIFEST,ctx);
    PREPA_PENDING_MANIFEST=null;
  }
@@ -14246,6 +14396,7 @@ function render(){
     <button class="info-button" onclick="openFlightInfo()">INFOS VOL ${passengerNotesForCurrentFlight().length?`<span class="note-bell active">🔔</span>`:""}</button>
    </div>
  </section>`:''}
+ ${v5002LegStripHtml(x)}
 
  <section class="card kpi-strip ${x.airline==='BJ'?'bj-kpi-strip':''}">
    ${companyModuleVisible(x,'config')?configCapacityKpi(classes,cap):''}
@@ -15521,6 +15672,9 @@ function openBjEmdCategories(){
  showModal(`EMD · ${rows.length}`,x.flight,`<div class="bj-category-summary">${cats.map(([k,v])=>`<button onclick="openBjEmdCategory('${k}')">${k} · ${v}</button>`).join('')}</div>${paxRows(items,items.length)}`,true);
 }
 function renderCompanyParticularities(x){
+ if(String(x?.airline||'').toUpperCase()==='TW'){
+   return ['WCH','MEAL','FQTV','STAFF','EXBG','TKNE','DOOR','UPRQ','EXMO'].map(k=>commonTile(k,k)).join('')+passengerSearchTile();
+ }
  if(isGenericAirlineV50(x?.airline)){
    return renderGenericParticularitiesV50(x);
  }
@@ -18325,7 +18479,7 @@ let PREPA_INBOX_BUSY=false;
 
 async function fetchPendingPrepaInbox(){
  try{
-  const r=await fetch('/api/prepa?status=PENDING',{method:'GET',cache:'no-store',headers:{'Accept':'application/json'}});
+  const r=await fetch(opsApiUrl('/api/prepa?status=PENDING'),{method:'GET',cache:'no-store',headers:{'Accept':'application/json'}});
   if(!r.ok)throw new Error(`HTTP ${r.status}`);
   const j=await r.json();
   return Array.isArray(j?.items)?j.items:[];
@@ -18337,7 +18491,7 @@ async function fetchPendingPrepaInbox(){
 
 async function setPrepaInboxStatus(item,status,errorMessage=''){
  try{
-  const r=await fetch('/api/prepa/status',{
+  const r=await fetch(opsApiUrl('/api/prepa/status'),{
    method:'PATCH',
    cache:'no-store',
    headers:{'Content-Type':'application/json'},
@@ -18443,6 +18597,7 @@ async function applyInboxRawWithExistingParser(item,idx,raw){
    airline==='BJ'?prepareBjImportManifest(raw):
    airline==='SQ'?prepareSqImportManifest(raw):
    airline==='TK'?prepareTkImportManifest(raw):
+   airline==='TW'?prepareTwImportManifest(raw):
    isGenericAirlineV50(airline)?prepareGenericImportManifest(raw,airline):null;
 
   try{v4920FinalizeShadowComparison(raw,airline,values,PREPA_PENDING_MANIFEST)}catch(e){}
@@ -18457,6 +18612,7 @@ async function applyInboxRawWithExistingParser(item,idx,raw){
    if(PREPA_PENDING_MANIFEST.airline==='BJ')applyBjManifestToFlight(PREPA_PENDING_MANIFEST,ctx);
    else if(PREPA_PENDING_MANIFEST.airline==='TK')applyTkManifestToFlight(PREPA_PENDING_MANIFEST,ctx);
    else if(PREPA_PENDING_MANIFEST.airline==='SQ')applySqManifestToFlight(PREPA_PENDING_MANIFEST,ctx);
+   else if(PREPA_PENDING_MANIFEST.airline==='TW')applyTwManifestToFlight(PREPA_PENDING_MANIFEST,ctx);
    else applyGenericManifestToFlight(PREPA_PENDING_MANIFEST,ctx);
   }
 
@@ -18569,112 +18725,34 @@ async function setPrepaInboxGroupStatus(group,status,errorMessage=''){
 async function processOnePendingPrepaInbox(){
  if(PREPA_INBOX_BUSY||document.hidden||!navigator.onLine)return false;
  if(typeof modalIsOpen==='function'&&modalIsOpen())return false;
-
  PREPA_INBOX_BUSY=true;
-
  try{
-  const items=await fetchPendingPrepaInbox();
-  if(!items.length)return false;
-
+  const items=await fetchPendingPrepaInbox();if(!items.length)return false;
   const groups=groupPendingPrepaInbox(items);
-
-  /*
-   * On cherche le PREMIER groupe traitable, au lieu de prendre
-   * systématiquement items[0].
-   *
-   * Exemple :
-   * SQ335 du 30/08 absent de FLIGHTS peut rester EN ATTENTE,
-   * tandis que SQ335 du 28/08 et SQ337 du 29/08 sont injectés.
-   */
-  const group=groups.find(g=>g.length&&findFlightIndexForInbox(g[0])>=0);
-
-  if(!group){
-   const first=groups[0]?.[0];
-   console.info(
-    'V50.0 PREPA — AUCUN GROUPE TRAITABLE POUR LE MOMENT',
-    first?.flightNumber,
-    first?.flightDate
-   );
-   return false;
-  }
-
-  const master=group[0];
-  const idx=findFlightIndexForInbox(master);
-
-  if(idx<0)return false;
-
-  /*
-   * Réservation de TOUT le groupe compagnie + vol + date.
-   * Si une ligne n'est pas réservée, on ne l'inclut pas dans
-   * l'import afin d'éviter les doubles traitements multi-postes.
-   */
-  const claimed=[];
-
-  for(const item of group){
-   const r=await setPrepaInboxStatus(item,'PROCESSING');
-   if(r?.ok)claimed.push(item);
-  }
-
+  // V50.02: un groupe identifié est traitable si le vol existe OU si GENERIC/TW peut être auto-créé.
+  const group=groups.find(g=>{
+   const it=g?.[0];if(!it)return false;
+   if(findFlightIndexForInbox(it)>=0)return true;
+   const a=v50NormalizeAirline(it?.airline),fl=normalizeInboxFlightNumber(it?.flightNumber),d=String(it?.flightDate||'').trim();
+   return !!(a&&fl&&d&&(isGenericAirlineV50(a)||a==='TW'));
+  });
+  if(!group)return false;
+  const master=group[0],claimed=[];
+  for(const item of group){const r=await setPrepaInboxStatus(item,'PROCESSING');if(r?.ok)claimed.push(item)}
   if(!claimed.length)return false;
-
   try{
-   /*
-    * Tous les mails/PDF du même vol sont assemblés puis envoyés
-    * UNE SEULE FOIS au parseur existant.
-    *
-    * Aucun parser SQ/BJ/TK n'est modifié.
-    * Les sections manquantes gardent donc leur logique existante
-    * de non-effacement.
-    */
-   const raw=await buildGroupedPrepaInboxText(claimed);
-
-   if(!String(raw||'').trim()){
-    throw new Error('SOURCES PREPA DU GROUPE VIDES');
-   }
-
+   const raw=await buildGroupedPrepaInboxText(claimed);if(!String(raw||'').trim())throw new Error('SOURCES PREPA DU GROUPE VIDES');
+   let idx=findFlightIndexForInbox(master);
+   if(idx<0)idx=await v5002EnsureFlightFromInbox(master,raw,{allowSpecific:true});
+   if(idx<0)throw new Error('VOL IDENTIFIÉ MAIS CRÉATION AUTOMATIQUE IMPOSSIBLE');
    await applyInboxRawWithExistingParser(master,idx,raw);
-
-   await setPrepaInboxGroupStatus(
-    claimed,
-    'PROCESSED'
-   );
-
-   console.info(
-    'V50.0 PREPA GROUPE INJECTÉ',
-    master?.airline,
-    master?.flightNumber,
-    master?.flightDate,
-    `${claimed.length} MAIL(S)`
-   );
-
-   /*
-    * Actualise immédiatement l'affichage OUTILS et les autres postes.
-    */
-   try{await fetchRecentPrepaImports()}catch(e){}
-   setTimeout(()=>wakeRealtimeSync(),150);
-
-   return true;
-
+   await setPrepaInboxGroupStatus(claimed,'PROCESSED');
+   try{await fetchRecentPrepaImports()}catch(e){}setTimeout(()=>wakeRealtimeSync(),150);return true;
   }catch(e){
-   console.error(
-    'V50.0 PREPA GROUPE ERROR',
-    master?.flightNumber,
-    master?.flightDate,
-    e
-   );
-
-   await setPrepaInboxGroupStatus(
-    claimed,
-    'ERROR',
-    String(e?.message||e)
-   );
-
-   return false;
+   console.error('V50.02 PREPA GROUPE ERROR',master?.flightNumber,master?.flightDate,e);
+   await setPrepaInboxGroupStatus(claimed,'ERROR',String(e?.message||e));return false;
   }
-
- }finally{
-  PREPA_INBOX_BUSY=false;
- }
+ }finally{PREPA_INBOX_BUSY=false}
 }
 
 function schedulePrepaInboxAutoImport(delay=PREPA_INBOX_POLL_MS){
@@ -18698,72 +18776,50 @@ let PREPA_IMPORTS_UI_ITEMS=[];
 
 async function fetchRecentPrepaImports(limit=180){
  try{
-  const r=await fetch('/api/prepa',{method:'GET',cache:'no-store',headers:{Accept:'application/json'}});
+  const r=await fetch(opsApiUrl('/api/prepa'),{method:'GET',cache:'no-store',headers:{Accept:'application/json'}});
   if(!r.ok)throw new Error(`HTTP ${r.status}`);
   const j=await r.json();
   PREPA_IMPORTS_UI_ITEMS=(Array.isArray(j?.items)?j.items:[]).slice(0,Math.max(1,Number(limit)||180));
   return PREPA_IMPORTS_UI_ITEMS;
  }catch(e){console.warn('V49.90 IMPORTS',e);PREPA_IMPORTS_UI_ITEMS=[];return []}
 }
-function impCompany(it){const a=String(it?.airline||'').trim().toUpperCase();return ['SQ','BJ','TK'].includes(a)?a:'AUTRE'}
+function impCompany(it){const a=String(it?.airline||'').trim().toUpperCase();return a||'A_IDENTIFIER'}
 function impAttachCount(it){return Array.isArray(it?.attachments)?it.attachments.length:0}
-function impStatus(s){const v=String(s||'PENDING').toUpperCase();if(v==='PROCESSED')return {label:'INJECTÉ',cls:'ok',rank:0};if(v==='ERROR')return {label:'ERREUR',cls:'err',rank:3};if(v==='UNIDENTIFIED')return {label:'À IDENTIFIER',cls:'wait',rank:2};return {label:v==='PROCESSING'?'EN COURS':'EN ATTENTE',cls:'wait',rank:1}}
+function impStatus(s){const v=String(s||'PENDING').toUpperCase();if(v==='PROCESSED')return {label:'INJECTÉ',cls:'ok',rank:0};if(v==='ERROR')return {label:'ERREUR',cls:'err',rank:4};if(v==='UNIDENTIFIED')return {label:'À IDENTIFIER',cls:'wait',rank:5};return {label:v==='PROCESSING'?'EN COURS':'EN ATTENTE',cls:'wait',rank:2}}
 function impDate(v){const s=String(v||'');const m=s.match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?`${m[3]}/${m[2]}/${m[1]}`:s}
+function impCompanies(){return [...new Set(PREPA_IMPORTS_UI_ITEMS.map(impCompany).filter(a=>a&&a!=='A_IDENTIFIER'))].sort((a,b)=>{const p=['SQ','TK','BJ','TW'];const ia=p.indexOf(a),ib=p.indexOf(b);if(ia>=0||ib>=0)return (ia<0?99:ia)-(ib<0?99:ib);return a.localeCompare(b)})}
 function impItems(c){return PREPA_IMPORTS_UI_ITEMS.filter(x=>impCompany(x)===c)}
 function impFlights(c){
- const map=new Map();
- impItems(c).forEach(it=>{
-  const f=String(it?.flightNumber||'').trim().toUpperCase(),d=String(it?.flightDate||'').trim();
-  if(!f||!d)return;
-  const key=`${d}|${f}`;let row=map.get(key);
-  if(!row){row={key,company:c,flightNumber:f,flightDate:d,messages:0,files:0,status:'PROCESSED'};map.set(key,row)}
-  row.messages++;row.files+=impAttachCount(it);
-  const a=impStatus(it?.status),b=impStatus(row.status);if(a.rank>b.rank)row.status=String(it?.status||'PENDING').toUpperCase();
- });
+ const map=new Map();impItems(c).forEach(it=>{const f=String(it?.flightNumber||'').trim().toUpperCase(),d=String(it?.flightDate||'').trim();if(!f||!d)return;const key=`${d}|${f}`;let row=map.get(key);if(!row){row={key,company:c,flightNumber:f,flightDate:d,messages:0,files:0,status:'PROCESSED',items:[]};map.set(key,row)}row.items.push(it);row.messages++;row.files+=impAttachCount(it);const a=impStatus(it?.status),b=impStatus(row.status);if(a.rank>b.rank)row.status=String(it?.status||'PENDING').toUpperCase()});
  return [...map.values()].sort((a,b)=>b.flightDate.localeCompare(a.flightDate)||a.flightNumber.localeCompare(b.flightNumber));
 }
-function impStats(c){
- const items=impItems(c),flights=impFlights(c);
- return {files:items.reduce((n,x)=>n+impAttachCount(x),0),flights:flights.length,injected:flights.filter(x=>String(x.status).toUpperCase()==='PROCESSED').length,pending:flights.filter(x=>['PENDING','PROCESSING'].includes(String(x.status).toUpperCase())).length,errors:flights.filter(x=>String(x.status).toUpperCase()==='ERROR').length,last:flights[0]||null};
+function impRowState(row){
+ const idx=findImpFlightIndex(row),st=String(row.status||'PENDING').toUpperCase();
+ if(st==='UNIDENTIFIED')return {label:'À IDENTIFIER',cls:'wait',rank:5};
+ if(st==='ERROR')return {label:'ERREUR',cls:'err',rank:4};
+ if(st==='PROCESSED')return {label:'INJECTÉ',cls:'ok',rank:0};
+ if(idx<0)return {label:(isGenericAirlineV50(row.company)||row.company==='TW')?'VOL À CRÉER':'VOL ABSENT',cls:'create',rank:3};
+ return {label:st==='PROCESSING'?'EN COURS':'EN ATTENTE',cls:'wait',rank:2};
 }
-function impGlobal(){
- const stats=['SQ','BJ','TK'].map(impStats);
- const unidentified=PREPA_IMPORTS_UI_ITEMS.filter(x=>impCompany(x)==='AUTRE'||String(x?.status||'').toUpperCase()==='UNIDENTIFIED').length;
- return {files:stats.reduce((n,s)=>n+s.files,0),flights:stats.reduce((n,s)=>n+s.flights,0),injected:stats.reduce((n,s)=>n+s.injected,0),pending:stats.reduce((n,s)=>n+s.pending,0),errors:stats.reduce((n,s)=>n+s.errors,0),unidentified};
-}
-function renderImportsMainCard(){
- const g=impGlobal();
- return `<button class="imports-main-card" onclick="openImportsDashboard()">
-  <div class="imports-main-top"><span class="imports-main-icon">⇩</span><span class="imports-main-state">${g.errors?'À VÉRIFIER':'ACTIF'}</span></div>
-  <h3>IMPORTS GMAIL</h3><p>SQ · BJ · TK — fichiers reçus, analysés et injectés dans PRÉPA + FICHE VOL.</p>
-  <div class="imports-main-stats"><div class="imports-main-stat"><b>${g.files}</b><span>FICHIERS</span></div><div class="imports-main-stat"><b>${g.injected}/${g.flights}</b><span>VOLS INJECTÉS</span></div><div class="imports-main-stat"><b>${g.unidentified}</b><span>À IDENTIFIER</span></div></div>
- </button>`;
-}
+function impStats(c){const items=impItems(c),flights=impFlights(c);return {files:items.reduce((n,x)=>n+impAttachCount(x),0),flights:flights.length,injected:flights.filter(x=>String(x.status).toUpperCase()==='PROCESSED').length,pending:flights.filter(x=>['PENDING','PROCESSING'].includes(String(x.status).toUpperCase())).length,errors:flights.filter(x=>String(x.status).toUpperCase()==='ERROR').length,toCreate:flights.filter(x=>findImpFlightIndex(x)<0&&['PENDING','PROCESSING'].includes(String(x.status).toUpperCase())).length,last:flights[0]||null}}
+function impGlobal(){const companies=impCompanies(),stats=companies.map(impStats);const unidentified=PREPA_IMPORTS_UI_ITEMS.filter(x=>impCompany(x)==='A_IDENTIFIER'||String(x?.status||'').toUpperCase()==='UNIDENTIFIED').length;return {companies,files:PREPA_IMPORTS_UI_ITEMS.reduce((n,x)=>n+impAttachCount(x),0),flights:stats.reduce((n,s)=>n+s.flights,0),injected:stats.reduce((n,s)=>n+s.injected,0),pending:stats.reduce((n,s)=>n+s.pending,0),errors:stats.reduce((n,s)=>n+s.errors,0),toCreate:stats.reduce((n,s)=>n+s.toCreate,0),unidentified}}
+function renderImportsMainCard(){const g=impGlobal();return `<button class="imports-main-card" onclick="openImportsDashboard()"><div class="imports-main-top"><span class="imports-main-icon">⇩</span><span class="imports-main-state">${g.errors?'À VÉRIFIER':'ACTIF'}</span></div><h3>IMPORTS GMAIL</h3><p>MULTI-COMPAGNIES — détection, création du vol si nécessaire et injection automatique.</p><div class="imports-main-stats"><div class="imports-main-stat"><b>${g.files}</b><span>FICHIERS</span></div><div class="imports-main-stat"><b>${g.injected}/${g.flights}</b><span>VOLS INJECTÉS</span></div><div class="imports-main-stat"><b>${g.unidentified}</b><span>À IDENTIFIER</span></div></div></button>`}
 async function openImportsDashboard(){
- await fetchRecentPrepaImports().catch(()=>{});
- const g=impGlobal();
- const cards=['SQ','BJ','TK'].map(c=>{const s=impStats(c),last=s.last?`${s.last.flightNumber} · ${impDate(s.last.flightDate)}`:'AUCUN VOL';return `
-  <button class="imports-company-card" data-c="${c}" onclick="openImportsCompany('${c}')">
-   <div class="imports-company-head"><span class="imports-company-logo">${c}</span><span class="imports-main-state">${s.errors?'À VÉRIFIER':'SYNC'}</span></div>
-   <h4>${c} · IMPORTS</h4><p>Fichiers reçus et données injectées dans PRÉPA + FICHE VOL.</p>
-   <div class="imports-company-metrics"><div class="imports-company-metric"><b>${s.files}</b><span>FICHIERS</span></div><div class="imports-company-metric"><b>${s.flights}</b><span>VOLS</span></div><div class="imports-company-metric"><b>${s.injected}</b><span>INJECTÉS</span></div></div>
-   <div class="imports-company-last"><span>DERNIER VOL</span><b>${escapeHtml(last)}</b></div><div class="imports-company-open">VOIR LES VOLS →</div>
-  </button>`}).join('');
- showModal('IMPORTS GMAIL','SQ · BJ · TK',`<div class="imports-dash">
-  <div class="imports-summary"><div class="imports-summary-card"><b>${g.files}</b><span>FICHIERS REÇUS</span></div><div class="imports-summary-card"><b>${g.flights}</b><span>VOLS DÉTECTÉS</span></div><div class="imports-summary-card"><b>${g.injected}</b><span>VOLS INJECTÉS</span></div><div class="imports-summary-card"><b>${g.pending+g.errors}</b><span>À TRAITER / ERREURS</span></div></div>
-  <div class="imports-company-grid">${cards}</div>${g.unidentified?`<div class="imports-unidentified"><b>${g.unidentified} IMPORT${g.unidentified>1?'S':''} À IDENTIFIER</b> — PDF reçus sans rattachement complet à un vol.</div>`:''}
- </div>`);
+ await fetchRecentPrepaImports().catch(()=>{});const g=impGlobal();
+ const cards=g.companies.map(c=>{const s=impStats(c),last=s.last?`${s.last.flightNumber} · ${impDate(s.last.flightDate)}`:'AUCUN VOL';return `<button class="imports-company-card" data-c="${c}" onclick="openImportsCompany('${c}')"><div class="imports-company-head"><span class="imports-company-logo">${c}</span><span class="imports-main-state">${s.errors?'À VÉRIFIER':(v50DefaultImportMode(c)==='SPECIFIC'?'SPECIFIC':'GENERIC')}</span></div><h4>${c} · IMPORTS</h4><p>${v50DefaultImportMode(c)==='SPECIFIC'?'Parser spécifique':'Moteur générique'} · ${s.toCreate?`${s.toCreate} vol(s) à créer`:'synchronisé'}.</p><div class="imports-company-metrics"><div class="imports-company-metric"><b>${s.files}</b><span>FICHIERS</span></div><div class="imports-company-metric"><b>${s.flights}</b><span>VOLS</span></div><div class="imports-company-metric"><b>${s.injected}</b><span>INJECTÉS</span></div></div><div class="imports-company-last"><span>DERNIER VOL</span><b>${escapeHtml(last)}</b></div><div class="imports-company-open">VOIR LES VOLS →</div></button>`}).join('');
+ showModal('IMPORTS GMAIL',`${g.companies.length} COMPAGNIE${g.companies.length>1?'S':''} DÉTECTÉE${g.companies.length>1?'S':''}`,`<div class="imports-dash"><div class="imports-summary"><div class="imports-summary-card"><b>${g.files}</b><span>FICHIERS REÇUS</span></div><div class="imports-summary-card"><b>${g.flights}</b><span>VOLS DÉTECTÉS</span></div><div class="imports-summary-card"><b>${g.injected}</b><span>VOLS INJECTÉS</span></div><div class="imports-summary-card"><b>${g.toCreate+g.pending+g.errors}</b><span>À TRAITER</span></div></div><div class="imports-company-grid">${cards||'<div class="import-status">AUCUNE COMPAGNIE IDENTIFIÉE.</div>'}</div>${g.unidentified?`<div class="imports-unidentified"><b>${g.unidentified} IMPORT${g.unidentified>1?'S':''} À IDENTIFIER</b> — aucune identité compagnie + vol + date exploitable.</div>`:''}</div>`)
 }
 function findImpFlightIndex(row){return FLIGHTS.findIndex(x=>String(x?.flight||'').toUpperCase()===row.flightNumber&&String(x?.airline||'').toUpperCase()===row.company&&String(x?.date||'')===row.flightDate)}
 function getImpRow(c,key){return impFlights(c).find(x=>x.key===key)||null}
-function openImpPrepa(c,key){const row=getImpRow(c,key);if(!row)return;const idx=findImpFlightIndex(row);if(idx<0){alert(`VOL ${row.flightNumber} DU ${impDate(row.flightDate)} ABSENT DE LA LISTE DES VOLS.`);return}closeAllModals();setTimeout(()=>{if(c==='SQ')openSqPrepaForDate(row.flightNumber,row.flightDate);else openPrepaEditing(idx,row.flightDate)},25)}
-function openImpFlight(c,key){const row=getImpRow(c,key);if(!row)return;const idx=findImpFlightIndex(row);if(idx<0){alert(`VOL ${row.flightNumber} DU ${impDate(row.flightDate)} ABSENT DE LA LISTE DES VOLS.`);return}closeAllModals();setTimeout(()=>openFlightFromPrepa(idx),25)}
+function openImpPrepa(c,key){const row=getImpRow(c,key);if(!row)return;const idx=findImpFlightIndex(row);if(idx<0){alert(`VOL ${row.flightNumber} DU ${impDate(row.flightDate)} EN ATTENTE DE CRÉATION AUTOMATIQUE.`);return}closeAllModals();setTimeout(()=>{if(c==='SQ')openSqPrepaForDate(row.flightNumber,row.flightDate);else openPrepaEditing(idx,row.flightDate)},25)}
+function openImpFlight(c,key){const row=getImpRow(c,key);if(!row)return;const idx=findImpFlightIndex(row);if(idx<0){alert(`VOL ${row.flightNumber} DU ${impDate(row.flightDate)} EN ATTENTE DE CRÉATION AUTOMATIQUE.`);return}closeAllModals();setTimeout(()=>openFlightFromPrepa(idx),25)}
+async function resumeImpFlight(c,key){
+ const row=getImpRow(c,key);if(!row)return;const candidates=(row.items||[]).filter(it=>['ERROR','PROCESSING'].includes(String(it?.status||'').toUpperCase()));if(!candidates.length)return;
+ for(const it of candidates)await setPrepaInboxStatus(it,'PENDING','');await fetchRecentPrepaImports();openImportsCompany(c);setTimeout(()=>processOnePendingPrepaInbox(),120);
+}
 function openImportsCompany(c){
- const s=impStats(c),flights=impFlights(c);
- const rows=flights.map(row=>{const st=impStatus(row.status),idx=findImpFlightIndex(row),canOpen=idx>=0&&String(row.status).toUpperCase()==='PROCESSED';return `<div class="imports-flight-row">
-  <div class="imports-flight-id"><b>${escapeHtml(row.flightNumber)}</b><span>${escapeHtml(impDate(row.flightDate))}</span></div><div class="imports-flight-meta">${row.files} FICHIER${row.files>1?'S':''}</div><div class="imports-flight-meta">${row.messages} MAIL${row.messages>1?'S':''}</div><div class="imports-flight-status ${st.cls}">${st.label}</div>
-  <div class="imports-flight-actions"><button ${canOpen?'':'disabled'} onclick="openImpPrepa('${c}','${row.key}')">PRÉPA</button><button class="primary" ${canOpen?'':'disabled'} onclick="openImpFlight('${c}','${row.key}')">FICHE VOL</button></div></div>`}).join('');
- showModal(`IMPORTS ${c}`,`${s.flights} VOLS · ${s.files} FICHIERS`,`<div class="imports-dash"><div class="imports-summary"><div class="imports-summary-card"><b>${s.files}</b><span>FICHIERS</span></div><div class="imports-summary-card"><b>${s.flights}</b><span>VOLS</span></div><div class="imports-summary-card"><b>${s.injected}</b><span>INJECTÉS</span></div><div class="imports-summary-card"><b>${s.pending+s.errors}</b><span>À TRAITER</span></div></div><div class="imports-flight-list">${rows||`<div class="import-status">AUCUN VOL IMPORTÉ POUR ${c}.</div>`}</div></div>`);
+ const s=impStats(c),flights=impFlights(c);const rows=flights.map(row=>{const st=impRowState(row),idx=findImpFlightIndex(row),canOpen=idx>=0&&String(row.status).toUpperCase()==='PROCESSED',canResume=['ERROR','PROCESSING'].includes(String(row.status).toUpperCase());return `<div class="imports-flight-row"><div class="imports-flight-id"><b>${escapeHtml(row.flightNumber)}</b><span>${escapeHtml(impDate(row.flightDate))}</span></div><div class="imports-flight-meta">${row.files} FICHIER${row.files>1?'S':''}</div><div class="imports-flight-meta">${row.messages} MAIL${row.messages>1?'S':''}</div><div class="imports-flight-status ${st.cls}">${st.label}</div><div class="imports-flight-actions">${canResume?`<button class="v5002-resume-btn" onclick="resumeImpFlight('${c}','${row.key}')">REPRENDRE</button>`:''}<button ${canOpen?'':'disabled'} onclick="openImpPrepa('${c}','${row.key}')">PRÉPA</button><button class="primary" ${canOpen?'':'disabled'} onclick="openImpFlight('${c}','${row.key}')">FICHE VOL</button></div></div>`}).join('');
+ showModal(`IMPORTS ${c}`,`${s.flights} VOLS · ${s.files} FICHIERS`,`<div class="imports-dash"><div class="imports-summary"><div class="imports-summary-card"><b>${s.files}</b><span>FICHIERS</span></div><div class="imports-summary-card"><b>${s.flights}</b><span>VOLS</span></div><div class="imports-summary-card"><b>${s.injected}</b><span>INJECTÉS</span></div><div class="imports-summary-card"><b>${s.toCreate+s.pending+s.errors}</b><span>À TRAITER</span></div></div><div class="imports-flight-list">${rows||`<div class="import-status">AUCUN VOL IMPORTÉ POUR ${c}.</div>`}</div></div>`)
 }
 setInterval(()=>{if(!document.hidden)fetchRecentPrepaImports().catch(()=>{})},10000);
 setInterval(()=>{if(!document.hidden)loadAirlineProfilesV50().then(ok=>{if(ok&&currentView==='detail')render()}).catch(()=>{})},30000);
@@ -18870,6 +18926,7 @@ window.addEventListener('focus',()=>{wakeRealtimeSync();schedulePrepaInboxAutoIm
 
 <!-- V49.83: silent multi-device auto-sync 0.5s selected / 1.5s global; TK cards view-only; mobile TYPE header hardened. -->
 </body></html>
+<!-- V50.02: local HTML now connects to public Worker for flights/prepa/profiles; generic engine unchanged. -->
 <!-- V50.0: generic airline PREPA engine + airline profiles; SQ/TK/BJ parser semantics unchanged. -->
 <!-- V49.82: synchronization-only hardening: per-flight D1 verified PREPA write, truthful manual sync status, detailed read-back verification. SQ/TK/BJ parser logic unchanged. -->
 
