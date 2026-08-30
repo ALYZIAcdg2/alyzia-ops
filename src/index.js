@@ -1,4 +1,4 @@
-// ALYZIA OPS V50.4 · Worker GENERIC + suppression unitaire vol/import + Notes/R2
+// ALYZIA OPS V50.5 · Worker GENERIC + suppression unitaire vol/import + Notes/R2
 // - Assets statiques public/
 // - API vols partagée D1
 // - Bridge interne vers SARIA
@@ -1098,6 +1098,290 @@ async function getPrepaInbox(env, url) {
 }
 
 
+
+/* =========================================================
+   V50.5 — GOOGLE DRIVE DIRECT + NEUTRALISATION + REPAIR
+   ========================================================= */
+
+async function ensurePrepaControlTables(env){
+  await env.OPS_DB.batch([
+    env.OPS_DB.prepare(`
+      CREATE TABLE IF NOT EXISTS app_integrations (
+        integration_key TEXT PRIMARY KEY,
+        value_json TEXT NOT NULL DEFAULT '{}',
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `),
+    env.OPS_DB.prepare(`
+      CREATE TABLE IF NOT EXISTS prepa_suppressed_flights (
+        airline TEXT NOT NULL,
+        flight_number TEXT NOT NULL,
+        flight_date TEXT NOT NULL,
+        reason TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (airline, flight_number, flight_date)
+      )
+    `),
+    env.OPS_DB.prepare(`
+      CREATE TABLE IF NOT EXISTS prepa_suppressed_messages (
+        gmail_message_id TEXT PRIMARY KEY,
+        airline TEXT,
+        flight_number TEXT,
+        flight_date TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `)
+  ]);
+}
+
+async function getIntegrationJson(env,key){
+  await ensurePrepaControlTables(env);
+  const row=await env.OPS_DB.prepare(`
+    SELECT value_json FROM app_integrations
+    WHERE integration_key=?
+    LIMIT 1
+  `).bind(key).first();
+  if(!row)return null;
+  try{return JSON.parse(row.value_json||"{}")}catch(e){return null}
+}
+
+async function setIntegrationJson(env,key,value){
+  await ensurePrepaControlTables(env);
+  await env.OPS_DB.prepare(`
+    INSERT INTO app_integrations
+      (integration_key,value_json,updated_at)
+    VALUES (?,?,CURRENT_TIMESTAMP)
+    ON CONFLICT(integration_key) DO UPDATE SET
+      value_json=excluded.value_json,
+      updated_at=CURRENT_TIMESTAMP
+  `).bind(key,JSON.stringify(value||{})).run();
+}
+
+function googleDriveRedirectUri(request){
+  const u=new URL(request.url);
+  return `${u.origin}/api/prepa/google-drive/oauth/callback`;
+}
+
+async function googleDriveStatus(env){
+  const cfg=await getIntegrationJson(env,"google_drive_oauth");
+  return {
+    configured:!!String(cfg?.refresh_token||"").trim(),
+    oauthClientConfigured:
+      !!String(env.GOOGLE_CLIENT_ID||"").trim() &&
+      !!String(env.GOOGLE_CLIENT_SECRET||"").trim(),
+    connectedEmail:String(cfg?.email||""),
+    connectedAt:String(cfg?.connected_at||"")
+  };
+}
+
+async function getGoogleDriveAccessToken(env){
+  const cfg=await getIntegrationJson(env,"google_drive_oauth");
+  const refreshToken=String(cfg?.refresh_token||"").trim();
+  const clientId=String(env.GOOGLE_CLIENT_ID||"").trim();
+  const clientSecret=String(env.GOOGLE_CLIENT_SECRET||"").trim();
+
+  if(!refreshToken||!clientId||!clientSecret){
+    throw new Error("GOOGLE DRIVE DIRECT NON CONFIGURÉ");
+  }
+
+  const form=new URLSearchParams({
+    client_id:clientId,
+    client_secret:clientSecret,
+    refresh_token:refreshToken,
+    grant_type:"refresh_token"
+  });
+
+  const resp=await fetch("https://oauth2.googleapis.com/token",{
+    method:"POST",
+    headers:{"Content-Type":"application/x-www-form-urlencoded"},
+    body:form.toString()
+  });
+
+  const data=await resp.json().catch(()=>({}));
+  if(!resp.ok||!data?.access_token){
+    throw new Error(data?.error_description||data?.error||`GOOGLE TOKEN HTTP ${resp.status}`);
+  }
+  return String(data.access_token);
+}
+
+async function trashDriveFoldersDirect(env,folderIds){
+  const ids=[...new Set((folderIds||[]).map(x=>String(x||"").trim()).filter(Boolean))];
+  if(!ids.length)return {ok:true,trashed:[],missing:[],errors:[]};
+
+  const accessToken=await getGoogleDriveAccessToken(env);
+  const trashed=[],missing=[],errors=[];
+
+  for(const id of ids){
+    const resp=await fetch(
+      `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}?supportsAllDrives=true`,
+      {
+        method:"PATCH",
+        headers:{
+          "Authorization":`Bearer ${accessToken}`,
+          "Content-Type":"application/json"
+        },
+        body:JSON.stringify({trashed:true})
+      }
+    );
+
+    if(resp.status===404){
+      missing.push(id);
+      continue;
+    }
+
+    if(!resp.ok){
+      const data=await resp.json().catch(()=>({}));
+      errors.push({
+        id,
+        status:resp.status,
+        error:data?.error?.message||`HTTP ${resp.status}`
+      });
+      continue;
+    }
+
+    trashed.push(id);
+  }
+
+  return {ok:errors.length===0,trashed,missing,errors};
+}
+
+async function isPrepaSuppressed(env,item){
+  await ensurePrepaControlTables(env);
+
+  const gmailMessageId=String(item?.gmailMessageId||"").trim();
+  if(gmailMessageId){
+    const m=await env.OPS_DB.prepare(`
+      SELECT gmail_message_id
+      FROM prepa_suppressed_messages
+      WHERE gmail_message_id=?
+      LIMIT 1
+    `).bind(gmailMessageId).first();
+    if(m)return {suppressed:true,reason:"MESSAGE"};
+  }
+
+  const airline=String(item?.airline||"").trim().toUpperCase();
+  const flightNumber=String(item?.flightNumber||"").replace(/\s+/g,"").trim().toUpperCase();
+  const flightDate=String(item?.flightDate||"").trim();
+
+  if(airline&&flightNumber&&flightDate){
+    const f=await env.OPS_DB.prepare(`
+      SELECT airline
+      FROM prepa_suppressed_flights
+      WHERE airline=? AND flight_number=? AND flight_date=?
+      LIMIT 1
+    `).bind(airline,flightNumber,flightDate).first();
+    if(f)return {suppressed:true,reason:"FLIGHT"};
+  }
+
+  return {suppressed:false};
+}
+
+async function suppressPrepaFlight(env,{airline,flightNumber,flightDate,prepaRows}){
+  await ensurePrepaControlTables(env);
+
+  await env.OPS_DB.prepare(`
+    INSERT INTO prepa_suppressed_flights
+      (airline,flight_number,flight_date,reason,created_at)
+    VALUES (?,?,?,'DELETE_FROM_ALYZIA',CURRENT_TIMESTAMP)
+    ON CONFLICT(airline,flight_number,flight_date) DO UPDATE SET
+      reason='DELETE_FROM_ALYZIA',
+      created_at=CURRENT_TIMESTAMP
+  `).bind(airline,flightNumber,flightDate).run();
+
+  for(const row of prepaRows||[]){
+    const msg=String(row?.gmail_message_id||"").trim();
+    if(!msg)continue;
+    await env.OPS_DB.prepare(`
+      INSERT INTO prepa_suppressed_messages
+        (gmail_message_id,airline,flight_number,flight_date,created_at)
+      VALUES (?,?,?,?,CURRENT_TIMESTAMP)
+      ON CONFLICT(gmail_message_id) DO UPDATE SET
+        airline=excluded.airline,
+        flight_number=excluded.flight_number,
+        flight_date=excluded.flight_date,
+        created_at=CURRENT_TIMESTAMP
+    `).bind(msg,airline,flightNumber,flightDate).run();
+  }
+}
+
+async function repairPrepaScope(env,body){
+  await ensurePrepaControlTables(env);
+
+  const scope=String(body?.scope||"").trim().toUpperCase();
+  const airline=String(body?.airline||"").trim().toUpperCase();
+  const flightNumber=String(body?.flightNumber||"").replace(/\s+/g,"").trim().toUpperCase();
+  const flightDate=String(body?.flightDate||"").trim();
+
+  let where="1=1";
+  const binds=[];
+
+  if(scope==="FLIGHT"){
+    if(!airline||!flightNumber||!flightDate)throw new Error("VOL / COMPAGNIE / DATE MANQUANTS");
+    where+=` AND UPPER(airline)=? AND UPPER(REPLACE(flight_number,' ',''))=? AND flight_date=?`;
+    binds.push(airline,flightNumber,flightDate);
+  }else if(scope==="AIRLINE"){
+    if(!airline)throw new Error("COMPAGNIE MANQUANTE");
+    where+=` AND UPPER(airline)=?`;
+    binds.push(airline);
+  }else if(scope!=="ALL"){
+    throw new Error("SCOPE REPAIR INVALIDE");
+  }
+
+  where+=`
+    AND NOT EXISTS (
+      SELECT 1
+      FROM prepa_suppressed_flights s
+      WHERE s.airline=UPPER(prepa_inbox.airline)
+        AND s.flight_number=UPPER(REPLACE(prepa_inbox.flight_number,' ',''))
+        AND s.flight_date=prepa_inbox.flight_date
+    )
+    AND NOT EXISTS (
+      SELECT 1
+      FROM prepa_suppressed_messages sm
+      WHERE sm.gmail_message_id=prepa_inbox.gmail_message_id
+    )
+  `;
+
+  const sql=`
+    UPDATE prepa_inbox
+    SET
+      status='PENDING',
+      error_message='',
+      processed_at=NULL,
+      updated_at=CURRENT_TIMESTAMP
+    WHERE ${where}
+  `;
+
+  const result=await env.OPS_DB.prepare(sql).bind(...binds).run();
+
+  return {
+    scope,
+    airline,
+    flightNumber,
+    flightDate,
+    affected:Number(result.meta?.changes||0)
+  };
+}
+
+function googleCallbackHtml(ok,message){
+  const safe=String(message||"").replace(/[&<>"]/g,c=>({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"
+  }[c]));
+  return new Response(`<!doctype html><html lang="fr"><head><meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>ALYZIA OPS · Google Drive</title>
+  <style>
+  body{font-family:Arial,sans-serif;background:#f4f7fb;color:#10213b;margin:0;display:grid;place-items:center;min-height:100vh}
+  .box{background:#fff;border:1px solid #dbe6f2;border-radius:20px;padding:28px;max-width:520px;box-shadow:0 18px 55px #1232}
+  h1{margin:0 0 10px;font-size:24px}.ok{color:#16803a}.err{color:#b42318}
+  a{display:inline-block;margin-top:18px;background:#0b73e0;color:#fff;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:800}
+  </style></head><body><div class="box"><h1 class="${ok?"ok":"err"}">${ok?"GOOGLE DRIVE CONNECTÉ":"CONNEXION DRIVE IMPOSSIBLE"}</h1><p>${safe}</p><a href="/">RETOUR À ALYZIA OPS</a></div></body></html>`,{
+    status:ok?200:400,
+    headers:{"Content-Type":"text/html; charset=UTF-8","Cache-Control":"no-store"}
+  });
+}
+
+
 async function handlePrepa(request, env, url) {
 
   if (!url.pathname.startsWith("/api/prepa")) {
@@ -1147,6 +1431,22 @@ async function handlePrepa(request, env, url) {
     }
 
 
+    const suppression=await isPrepaSuppressed(env,item);
+
+    if(suppression.suppressed){
+      return json({
+        ok:true,
+        accepted:false,
+        neutralized:true,
+        reason:suppression.reason,
+        gmailMessageId:item.gmailMessageId,
+        airline:item.airline,
+        flightNumber:item.flightNumber,
+        flightDate:item.flightDate,
+        status:"SUPPRESSED"
+      });
+    }
+
     const savedStatus =
       await savePrepaInbox(
         env,
@@ -1176,6 +1476,140 @@ async function handlePrepa(request, env, url) {
     });
   }
 
+
+
+  /*
+   * V50.5 — statut connexion Google Drive directe.
+   */
+  if(
+    url.pathname==="/api/prepa/google-drive/status" &&
+    request.method==="GET"
+  ){
+    return json({ok:true,...await googleDriveStatus(env)});
+  }
+
+  /*
+   * V50.5 — démarre l'autorisation Google Drive depuis ALYZIA OPS.
+   * Pas d'Apps Script.
+   */
+  if(
+    url.pathname==="/api/prepa/google-drive/oauth/start" &&
+    request.method==="POST"
+  ){
+    await ensurePrepaControlTables(env);
+
+    const clientId=String(env.GOOGLE_CLIENT_ID||"").trim();
+    const clientSecret=String(env.GOOGLE_CLIENT_SECRET||"").trim();
+
+    if(!clientId||!clientSecret){
+      return json({
+        ok:false,
+        error:"GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET MANQUANTS DANS LE WORKER"
+      },409);
+    }
+
+    const state=crypto.randomUUID();
+    await setIntegrationJson(env,"google_drive_oauth_state",{
+      state,
+      created_at:Date.now()
+    });
+
+    const auth=new URL("https://accounts.google.com/o/oauth2/v2/auth");
+    auth.searchParams.set("client_id",clientId);
+    auth.searchParams.set("redirect_uri",googleDriveRedirectUri(request));
+    auth.searchParams.set("response_type","code");
+    auth.searchParams.set("scope","https://www.googleapis.com/auth/drive");
+    auth.searchParams.set("access_type","offline");
+    auth.searchParams.set("prompt","consent");
+    auth.searchParams.set("state",state);
+
+    return json({ok:true,authorizationUrl:auth.toString()});
+  }
+
+  /*
+   * Callback OAuth Google Drive.
+   */
+  if(
+    url.pathname==="/api/prepa/google-drive/oauth/callback" &&
+    request.method==="GET"
+  ){
+    const code=String(url.searchParams.get("code")||"").trim();
+    const state=String(url.searchParams.get("state")||"").trim();
+    const err=String(url.searchParams.get("error")||"").trim();
+
+    if(err)return googleCallbackHtml(false,err);
+    if(!code||!state)return googleCallbackHtml(false,"CODE / STATE MANQUANT");
+
+    const savedState=await getIntegrationJson(env,"google_drive_oauth_state");
+    if(
+      !savedState ||
+      String(savedState.state||"")!==state ||
+      Date.now()-Number(savedState.created_at||0)>15*60*1000
+    ){
+      return googleCallbackHtml(false,"STATE OAUTH INVALIDE OU EXPIRÉ");
+    }
+
+    const form=new URLSearchParams({
+      code,
+      client_id:String(env.GOOGLE_CLIENT_ID||""),
+      client_secret:String(env.GOOGLE_CLIENT_SECRET||""),
+      redirect_uri:googleDriveRedirectUri(request),
+      grant_type:"authorization_code"
+    });
+
+    const resp=await fetch("https://oauth2.googleapis.com/token",{
+      method:"POST",
+      headers:{"Content-Type":"application/x-www-form-urlencoded"},
+      body:form.toString()
+    });
+
+    const token=await resp.json().catch(()=>({}));
+    if(!resp.ok||!token?.refresh_token){
+      return googleCallbackHtml(
+        false,
+        token?.error_description||token?.error||`TOKEN HTTP ${resp.status}`
+      );
+    }
+
+    // Récupère l'adresse du compte si possible.
+    let email="";
+    try{
+      const me=await fetch(
+        "https://www.googleapis.com/drive/v3/about?fields=user(emailAddress)",
+        {headers:{Authorization:`Bearer ${token.access_token}`}}
+      );
+      const mj=await me.json();
+      email=String(mj?.user?.emailAddress||"");
+    }catch(e){}
+
+    await setIntegrationJson(env,"google_drive_oauth",{
+      refresh_token:String(token.refresh_token),
+      email,
+      connected_at:new Date().toISOString()
+    });
+
+    return googleCallbackHtml(
+      true,
+      email ? `Compte connecté : ${email}` : "Google Drive est prêt."
+    );
+  }
+
+  /*
+   * V50.5 — REPAIR par VOL / COMPAGNIE / TOUT.
+   * Les vols neutralisés par suppression ne sont jamais remis à PENDING.
+   */
+  if(
+    url.pathname==="/api/prepa/repair" &&
+    request.method==="POST"
+  ){
+    const body=await request.json().catch(()=>null);
+    try{
+      const result=await repairPrepaScope(env,body||{});
+      return json({ok:true,...result});
+    }catch(e){
+      return json({ok:false,error:String(e?.message||e)},400);
+    }
+  }
 
 
   /*
@@ -1284,7 +1718,7 @@ async function handlePrepa(request, env, url) {
 
 
   /*
-   * V50.4 — suppression totale d'un vol importé.
+   * V50.5 — suppression totale d'un vol importé.
    * - supprime fiche D1 / PREPA / Notes / R2
    * - si deleteDrive=true, appelle le bridge Apps Script DRIVE_DELETE_URL AVANT la suppression D1.
    */
@@ -1311,41 +1745,42 @@ async function handlePrepa(request, env, url) {
     `).bind(airline,flightNumber,flightDate).all()).results||[];
 
     const driveFolderIds=[...new Set(prepaRows.map(r=>String(r.drive_folder_id||"").trim()).filter(Boolean))];
-    const driveDeleteConfigured=!!String(env.DRIVE_DELETE_URL||"").trim();
+    const driveStatus=await googleDriveStatus(env);
     let driveDeleteResult=null;
 
     if(deleteDrive){
-      if(!driveDeleteConfigured){
+      if(!driveStatus.configured){
         return json({
           ok:false,
-          error:"SUPPRESSION DRIVE NON CONFIGURÉE : AJOUTER DRIVE_DELETE_URL AU WORKER",
-          driveDeleteConfigured:false
+          error:"GOOGLE DRIVE DIRECT NON CONFIGURÉ",
+          driveDeleteConfigured:false,
+          googleDrive:driveStatus
         },409);
       }
 
-      const resp=await fetch(String(env.DRIVE_DELETE_URL),{
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({
-          action:"DELETE_FLIGHT_ARCHIVE",
-          secret:String(env.PREPA_IMPORT_SECRET||""),
-          airline,
-          flightNumber,
-          flightDate,
-          driveFolderIds
-        })
-      });
+      driveDeleteResult=await trashDriveFoldersDirect(env,driveFolderIds);
 
-      driveDeleteResult=await resp.json().catch(()=>({ok:false,error:`HTTP ${resp.status}`}));
-      if(!resp.ok||!driveDeleteResult?.ok){
+      if(!driveDeleteResult.ok){
         return json({
           ok:false,
-          error:driveDeleteResult?.error||`SUPPRESSION DRIVE HTTP ${resp.status}`,
+          error:"SUPPRESSION DRIVE INCOMPLÈTE",
           driveDeleteConfigured:true,
           driveDeleteResult
         },502);
       }
     }
+
+    /*
+     * Neutralisation AVANT suppression D1 :
+     * les messages restent dans Gmail, mais toute nouvelle remontée
+     * du Dispatcher sera ignorée par /api/prepa/import.
+     */
+    await suppressPrepaFlight(env,{
+      airline,
+      flightNumber,
+      flightDate,
+      prepaRows
+    });
 
     const flightRows=(await env.OPS_DB.prepare(`
       SELECT identity
@@ -1397,8 +1832,9 @@ async function handlePrepa(request, env, url) {
       airline,
       flightNumber,
       flightDate,
-      driveDeleteConfigured,
+      driveDeleteConfigured:driveStatus.configured,
       driveDeleteResult,
+      neutralized:true,
       driveFolderIds,
       flightsDeleted:Number(fdel.meta?.changes||0),
       prepaDeleted:Number(pdel.meta?.changes||0),
