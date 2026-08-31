@@ -1,4 +1,4 @@
-// ALYZIA OPS V50.22 · Passenger Dossier Enrichment
+// ALYZIA OPS V50.23 · Generic Passenger Clean Injection
 // - Assets statiques public/
 // - API vols partagée D1
 // - Bridge interne vers SARIA
@@ -2702,13 +2702,11 @@ function lot2SsrFromCard(cardKey,specific){
 
 function lot2ExtractPassengerItemsFromGenericList(text,listName,cardKey){
   /*
-   * V50.21 — extraction nominative générique.
-   * On lit uniquement les lignes numérotées des LIST OF.
-   * Exemple:
-   * 1.BELKADI/ALI MR M CDG ALG YN WCHS CTCE CTCM
-   * 1.BELABID/MANIL MR M CDG ALG YN DJURDJURA
-   *   AH718974373
-   *   ACCRUAL
+   * V50.23 — extraction nominative générique propre.
+   * - MASTER/ALL CUSTOMERS : ticket ou TKNE jamais en SSR.
+   * - FQTV : SSR=FQTV, catégorie=TAHAT/DJURDJURA, numéro carte séparé.
+   * - WCH : SSR=WCHR/WCHS/...
+   * - INC : noms liés au vol inbound réel.
    */
   const lines=String(text||"").replace(/\r/g,"\n").split(/\n+/);
   const items=[];
@@ -2729,33 +2727,47 @@ function lot2ExtractPassengerItemsFromGenericList(text,listName,cardKey){
     const destination=String(m[5]||"").toUpperCase();
     const cls=lot2PassengerClassFromCode(m[6]);
     const acceptance=String(m[6]||"").toUpperCase();
-    let rest=String(m[7]||"").trim();
+    const rest=String(m[7]||"").trim();
 
     const item={
       id:`${cKey||"GEN"}-${seq}-${name}`,
-      seq,
-      name,
-      title,
-      gender,
-      class:cls,
-      cabinClass:cls,
-      origin,
-      destination,
-      acceptance,
+      seq,name,title,gender,
+      class:cls,cabinClass:cls,
+      origin,destination,acceptance,
       specific:"",
-      note:rest,
+      note:"",
       listName,
       cardKey:cKey,
-      source:"GENERIC_LIST_OF"
+      source:"GENERIC_LIST_OF",
+      ssr:[]
     };
 
-    if(cKey==="WCH"){
+    if(cKey==="MASTER"){
+      const tk=(rest.match(/\b(\d{10,})\b/)||[])[1]||"";
+      if(tk)item.etkt=tk;
+      item.specific="";
+      item.note="";
+      item.ssr=[];
+    }else if(cKey==="ETKT"){
+      const tk=(rest.match(/\b(\d{10,})\b/)||[])[1]||"";
+      item.etkt=tk;
+      item.documentNumber=tk;
+      item.specific="";
+      item.ssr=[];
+    }else if(cKey==="EMD"){
+      const emd=(rest.match(/\b(\d{10,}[A-Z0-9]*)\b/)||[])[1]||"";
+      item.emd=emd;
+      item.documentNumber=emd;
+      item.specific="";
+      item.ssr=[];
+    }else if(cKey==="WCH"){
       const code=(rest.match(/\b(WCHR|WCHS|WCHC|WCMP|WCBD|WCLB)\b/i)||[])[1]||"WCH";
       item.specific=String(code).toUpperCase();
       item.category=item.specific;
+      item.ssr=[item.specific];
       item.codes=rest.split(/\s+/).filter(Boolean);
+      item.note=rest;
     }else if(cKey==="FQTV"){
-      // AH FQA: catégories visibles dans le fichier: DJURDJURA / TAHAT.
       const tokens=rest.split(/\s+/).filter(Boolean);
       const tier=tokens.find(t=>!/^(ACCRUAL|AH\d{6,})$/i.test(t))||"FQA";
       const next1=String(lines[i+1]||"").trim();
@@ -2763,10 +2775,11 @@ function lot2ExtractPassengerItemsFromGenericList(text,listName,cardKey){
       const ffid=(next1.match(/\b[A-Z]{2}\d{6,}\b/i)||[])[0]||"";
       item.specific=String(tier||"FQA").toUpperCase();
       item.category=item.specific;
-      item.fqtv={program:"",tier:item.specific,number:ffid,ffid};
-      item.note=[rest,ffid,next2 && /ACCRUAL/i.test(next2)?"ACCRUAL":""].filter(Boolean).join(" · ");
+      item.fqtv={program:"AH",tier:item.specific,number:ffid,ffid};
+      item.ssr=["FQTV"];
+      item.note=[ffid,next2 && /ACCRUAL/i.test(next2)?"ACCRUAL":""].filter(Boolean).join(" · ");
     }else if(cKey==="INBOUND" || cKey==="OUTBOUND"){
-      const conn=rest.match(/\b([IO])-([A-Z0-9]{2,4})\s+([A-Z]{3})\b/i);
+      const conn=rest.match(/\b([IO])-([A-Z0-9]{2,5})\s+([A-Z]{3})\b/i);
       if(conn){
         item.connection={
           direction:conn[1].toUpperCase()==="I"?"INBOUND":"OUTBOUND",
@@ -2775,14 +2788,24 @@ function lot2ExtractPassengerItemsFromGenericList(text,listName,cardKey){
         };
         item.specific=`${item.connection.direction} ${item.connection.flight} ${item.connection.airport}`;
       }else{
-        item.specific=rest;
+        item.specific="";
       }
+      item.ssr=[cKey];
+      item.note=rest;
+    }else if(cKey==="CHLD"){
+      item.ssr=["CHLD"];
+      item.specific="";
+      item.note=rest;
+    }else if(cKey==="INF"){
+      item.ssr=["INF"];
+      item.specific="";
+      item.note=rest;
     }else{
-      item.specific=rest || cKey || lName;
+      item.specific=rest;
+      item.ssr=lot2SsrFromCard(cKey,item.specific);
+      item.note=rest;
     }
 
-    item.ssr=lot2SsrFromCard(cKey,item.specific);
-    item.document=cKey==="ETKT"?"ETKT":cKey==="EMD"?"EMD":"";
     items.push(item);
   }
 
@@ -3024,7 +3047,7 @@ async function lot2ProcessOneJob(env,job){
       reason:extracted.reason,
       rules: parserMode==="SPECIFIC_LOCKED"
         ? "Parser spécifique verrouillé : aucune transformation Worker Lot 2."
-        : "GENERIC V50.22 : dossiers passagers enrichis, common_lists complètes, inbound noms, FQTV catégories.",
+        : "GENERIC V50.23 : nettoyage SSR MASTER/TKNE, dossiers propres, inbound noms sur vol réel.",
       mappingScope:listMapping.mappingScope,
       matchedListName:listMapping.matchedListName,
       operationalInfo: operationalInfo||null,
@@ -3252,7 +3275,32 @@ function lot3PaxKey(p){
   return String(p?.name||"").toUpperCase().replace(/[^A-Z0-9/]/g,"");
 }
 
+
+function lot3CleanImportedPassenger(p){
+  const x={...(p||{})};
+  const bad=/\b(?:MASTER|TKNE|AS)\b/i;
+
+  // MASTER / TKNE / AS ne sont pas des SSR à afficher dans les dossiers.
+  x.ssr=[...new Set((Array.isArray(x.ssr)?x.ssr:[])
+    .map(v=>String(v||"").trim().toUpperCase())
+    .filter(v=>v && !/^(MASTER|TKNE|AS)$/.test(v) && !/^\d{10,}/.test(v)))];
+
+  // La spécificité doit être une vraie catégorie opérationnelle, pas un numéro billet.
+  if(/^\d{10,}/.test(String(x.specific||"")) || bad.test(String(x.specific||"")) && !/^(TAHAT|DJURDJURA|WCHR|WCHS|WCHC|WCMP|WCBD|WCLB)$/i.test(String(x.specific||""))){
+    x.specific="";
+  }
+
+  if(/^\d{10,}/.test(String(x.note||"")) || /\bMASTER\b/i.test(String(x.note||""))){
+    x.note="";
+  }
+
+  delete x.document; // Colonne document inutile dans les listes génériques.
+  return x;
+}
+
 function lot3MergePassengerInfo(a,b){
+  a=lot3CleanImportedPassenger(a||{});
+  b=lot3CleanImportedPassenger(b||{});
   const out={...(a||{})};
   for(const [k,v] of Object.entries(b||{})){
     if(v==null || v==="")continue;
@@ -3280,13 +3328,29 @@ function lot3NormalizePassengerForUi(p,card){
   x.class=String(x.class||x.cabinClass||"").toUpperCase();
   x.title=String(x.title||"").toUpperCase();
   x.gender=String(x.gender||"").toUpperCase();
-  x.ssr=[...new Set([...(Array.isArray(x.ssr)?x.ssr:[]),...lot2SsrFromCard(c,x.specific)].filter(Boolean))];
-  if(c==="FQTV" && !x.fqtv)x.fqtv={tier:x.category||x.specific||"FQA",number:""};
-  if(c==="EMD" && !x.emd)x.emd=x.documentNumber||"";
-  if(c==="ETKT" && !x.etkt)x.etkt=x.documentNumber||"";
+
+  if(c==="WCH"){
+    x.ssr=[x.category||x.specific||"WCH"].filter(Boolean);
+  }else if(c==="FQTV"){
+    x.ssr=["FQTV"];
+    if(!x.fqtv)x.fqtv={tier:x.category||x.specific||"FQA",number:x.ffid||""};
+  }else if(c==="CHLD"){
+    x.ssr=["CHLD"];
+  }else if(c==="INF"){
+    x.ssr=["INF"];
+  }else if(c==="INBOUND"||c==="OUTBOUND"){
+    x.ssr=[c];
+  }else if(c==="EMD"||c==="ETKT"||c==="MASTER"){
+    x.ssr=Array.isArray(x.ssr)?x.ssr:[];
+  }else{
+    x.ssr=[c].filter(Boolean);
+  }
+
+  if(c==="EMD" && !x.emd)x.emd=x.documentNumber||x.emd||"";
+  if(c==="ETKT" && !x.etkt)x.etkt=x.documentNumber||x.etkt||"";
   x.sourceList=x.listName||card?.listName||"";
   x.imported=true;
-  return x;
+  return lot3CleanImportedPassenger(x);
 }
 
 function lot3UpsertPassengers(base,card){
@@ -3395,6 +3459,7 @@ function lot3MergeFlightData(current,row,card){
     base[dir]=Array.isArray(base[dir])?base[dir]:[];
     const rows=Array.isArray(card.connectionRows)?card.connectionRows:[];
     for(const r of rows){
+      if(!r.flight)continue;
       const row={flight:r.flight,from:r.from,to:r.to,time:r.time,classCounts:r.classCounts,passengers:[],sourceList:card.listName,conx:r.conx};
       const key=[row.flight,row.from,row.to,row.time,row.sourceList].join("|");
       if(!base[dir].some(x=>[x.flight,x.from,x.to,x.time,x.sourceList].join("|")===key))base[dir].push(row);
@@ -3403,9 +3468,23 @@ function lot3MergeFlightData(current,row,card){
       for(const p0 of card.passengerItems){
         const p=lot3NormalizePassengerForUi(p0,card);
         const conn=p.connection||{};
-        const row={flight:conn.flight||"",from:p.origin||"",to:p.destination||"",time:"",passenger:p.name,name:p.name,class:p.class,sourceList:card.listName,specific:p.specific,passengers:[p]};
-        const key=[row.flight,row.passenger,row.sourceList].join("|").toUpperCase();
-        if(!base[dir].some(x=>[x.flight,x.passenger||x.name,x.sourceList].join("|").toUpperCase()===key))base[dir].push(row);
+        if(!conn.flight)continue;
+
+        // Inbound : le vol de correspondance arrive de conn.airport vers CDG/origin.
+        const from=card.cardKey==="INBOUND"?(conn.airport||""):(p.origin||"");
+        const to=card.cardKey==="INBOUND"?(p.origin||""):(conn.airport||p.destination||"");
+
+        let target=base[dir].find(r=>String(r.flight||"").toUpperCase()===String(conn.flight||"").toUpperCase());
+        if(!target){
+          target={flight:conn.flight,from,to,time:"",classCounts:{},passengers:[],sourceList:card.listName,conx:""};
+          base[dir].push(target);
+        }
+        target.from=target.from||from;
+        target.to=target.to||to;
+        target.passengers=Array.isArray(target.passengers)?target.passengers:[];
+        if(!target.passengers.some(q=>lot3PaxKey(q)===lot3PaxKey(p)))target.passengers.push(p);
+        target.pax=target.passengers.length;
+        target.count=target.passengers.length;
       }
     }
   }
