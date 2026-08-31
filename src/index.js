@@ -1,4 +1,6 @@
-// ALYZIA OPS V50.26 · Generic Passenger Enrichment · Protected Specific Airlines
+// V50.27 RULE: INCARRIAGE/INC = INBOUND PASSENGERS; INBOUND CUSTOMER SUMMARY = INBOUND FLIGHTS.
+// Passenger dossier displays linked INBOUND/OUTBOUND flight exactly via the shared connection rows.
+// ALYZIA OPS V50.27 · Generic Inbound Summary/Pax Link
 // - Assets statiques public/
 // - API vols partagée D1
 // - Bridge interne vers SARIA
@@ -2355,8 +2357,8 @@ const LOT2_GENERIC_DEFAULT_LIST_MAPPINGS = [
   ["UMNR","UMNR"],
   ["UM","UMNR"],
   ["MAAS","MAAS"],
-  ["INBOUND CUSTOMER SUMMARY","INBOUND"],
-  ["ONCARRIAGE CUSTOMER SUMMARY","OUTBOUND"]
+  ["INBOUND CUSTOMER SUMMARY","INBOUND_SUMMARY"],
+  ["ONCARRIAGE CUSTOMER SUMMARY","OUTBOUND_SUMMARY"]
 ];
 
 const LOT2_GENERIC_AIRLINE_LIST_MAPPINGS = {
@@ -2365,15 +2367,15 @@ const LOT2_GENERIC_AIRLINE_LIST_MAPPINGS = {
     ["ONC","OUTBOUND"],
     ["INC","INBOUND"],
     ["WCH","WCH"],
-    ["INBOUND CUSTOMER SUMMARY","INBOUND"],
-    ["ONCARRIAGE CUSTOMER SUMMARY","OUTBOUND"]
+    ["INBOUND CUSTOMER SUMMARY","INBOUND_SUMMARY"],
+    ["ONCARRIAGE CUSTOMER SUMMARY","OUTBOUND_SUMMARY"]
   ],
   AH: [
     ["FQA","FQTV"],
     ["INC","INBOUND"],
     ["WCH","WCH"],
-    ["INBOUND CUSTOMER SUMMARY","INBOUND"],
-    ["ONCARRIAGE CUSTOMER SUMMARY","OUTBOUND"]
+    ["INBOUND CUSTOMER SUMMARY","INBOUND_SUMMARY"],
+    ["ONCARRIAGE CUSTOMER SUMMARY","OUTBOUND_SUMMARY"]
   ]
 };
 
@@ -2444,6 +2446,7 @@ function lot2IsConnectionSummaryList(listName,cardKey){
   const l=lot2Upper(listName);
   const c=lot2Upper(cardKey);
   return /(?:INBOUND|ONCARRIAGE)\s+CUSTOMER\s+SUMMARY/.test(l)
+    || /^(?:INBOUND|OUTBOUND)_SUMMARY$/.test(c)
     || (/(?:INBOUND|OUTBOUND)/.test(c) && /CUSTOMER\s+SUMMARY/.test(l));
 }
 
@@ -2695,6 +2698,7 @@ function lot2SsrFromCard(cardKey,specific){
   if(c==="CHLD")return ["CHLD"];
   if(c==="INF")return ["INF"];
   if(c==="WCH")return [s||"WCH"];
+  if(c==="INBOUND_SUMMARY"||c==="OUTBOUND_SUMMARY")return [];
   if(c==="INBOUND")return ["INBOUND",s].filter(Boolean);
   if(c==="OUTBOUND")return ["OUTBOUND",s].filter(Boolean);
   return [c,s].filter(Boolean);
@@ -2823,7 +2827,8 @@ function lot2FqtvCategories(passengerItems){
 }
 
 function lot2ExtractConnectionRows(text,listName,cardKey){
-  const c=String(cardKey||"").toUpperCase();
+  const rawCard=String(cardKey||"").toUpperCase();
+  const c=rawCard==="INBOUND_SUMMARY"?"INBOUND":rawCard==="OUTBOUND_SUMMARY"?"OUTBOUND":rawCard;
   if(c!=="INBOUND" && c!=="OUTBOUND")return [];
   const rows=[];
   const up=lot2Upper(text);
@@ -3007,7 +3012,7 @@ async function lot2ProcessOneJob(env,job){
     const documentType=cardKey==="OPERATIONAL_INFO"?"OPERATIONAL_INFO":lot2DocumentTypeFromCard(cardKey,filename,mime);
     const passengerCount=cardKey==="OPERATIONAL_INFO"?0:(extracted.readable?lot2ExtractPassengerCount(extracted.text,listName,cardKey):0);
     const classCounts=cardKey==="OPERATIONAL_INFO"?{}:(extracted.readable?lot2ExtractClassCountsForDocument(extracted.text,listName,cardKey):{});
-    const passengerItems=(cardKey==="OPERATIONAL_INFO"||!extracted.readable)?[]:lot2ExtractPassengerItemsFromGenericList(extracted.text,listName,cardKey);
+    const passengerItems=(cardKey==="OPERATIONAL_INFO"||!extracted.readable||cardKey==="INBOUND_SUMMARY"||cardKey==="OUTBOUND_SUMMARY")?[]:lot2ExtractPassengerItemsFromGenericList(extracted.text,listName,cardKey);
     const connectionRows=(cardKey==="OPERATIONAL_INFO"||!extracted.readable)?[]:lot2ExtractConnectionRows(extracted.text,listName,cardKey);
     const fqtvCategories=cardKey==="FQTV"?lot2FqtvCategories(passengerItems):{};
 
@@ -3695,10 +3700,13 @@ function lot3MergeFlightData(current,row,card){
     }
   }
 
-  if(card.cardKey==="INBOUND" || card.cardKey==="OUTBOUND"){
-    const dir=card.cardKey==="INBOUND"?"inbound":"outbound";
+  if(["INBOUND","OUTBOUND","INBOUND_SUMMARY","OUTBOUND_SUMMARY"].includes(card.cardKey)){
+    const isInbound=card.cardKey==="INBOUND" || card.cardKey==="INBOUND_SUMMARY";
+    const isSummary=card.cardKey==="INBOUND_SUMMARY" || card.cardKey==="OUTBOUND_SUMMARY";
+    const dir=isInbound?"inbound":"outbound";
     base[dir]=Array.isArray(base[dir])?base[dir]:[];
-    const rows=Array.isArray(card.connectionRows)?card.connectionRows:[];
+    // SUMMARY = liste des vols. INC/ONC = listes nominatives passagers.
+    const rows=isSummary && Array.isArray(card.connectionRows)?card.connectionRows:[];
     for(const r of rows){
       if(!r.flight)continue;
       const row={flight:r.flight,from:r.from,to:r.to,time:r.time,classCounts:r.classCounts,passengers:[],sourceList:card.listName,conx:r.conx};
@@ -3712,8 +3720,8 @@ function lot3MergeFlightData(current,row,card){
         if(!conn.flight)continue;
 
         // Inbound : le vol de correspondance arrive de conn.airport vers CDG/origin.
-        const from=card.cardKey==="INBOUND"?(conn.airport||""):(p.origin||"");
-        const to=card.cardKey==="INBOUND"?(p.origin||""):(conn.airport||p.destination||"");
+        const from=isInbound?(conn.airport||""):(p.origin||"");
+        const to=isInbound?(p.origin||""):(conn.airport||p.destination||"");
 
         let target=base[dir].find(r=>String(r.flight||"").toUpperCase()===String(conn.flight||"").toUpperCase());
         if(!target){
