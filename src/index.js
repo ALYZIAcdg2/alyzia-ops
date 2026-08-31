@@ -1,4 +1,4 @@
-// ALYZIA OPS V50.12 · LOT 2 Summary Count Fix
+// ALYZIA OPS V50.13 · LOT 2 Outbound Summary Count Fix
 // - Assets statiques public/
 // - API vols partagée D1
 // - Bridge interne vers SARIA
@@ -2360,7 +2360,15 @@ function lot2ExtractConnectionSummaryCounts(text){
     // Ignore headers and route labels.
     if(/^(FLTNR|BOOKED|TER:|GATE:|CDG-|INBOUND CONNECTION|OUTBOUND CONNECTION)/.test(r))continue;
 
-    const m=r.match(/^([A-Z0-9]{2,4}\d{1,4})\s+\d{3,4}\s+(?:[A-Z]{3}\s+){1,2}[A-Z]{3}\s+\d{2}H\d{2}\s+(\d{1,4})\s+(\d{1,4})(?:\s+\d{1,4}){0,3}\b/);
+    /*
+     * Deux formats observés :
+     * INBOUND  : AV54 0655 BOG GYD 05H00 0 1 0 0 0
+     * OUTBOUND : J2645 2015 SVX 01H10 2 6 2 1 0
+     *
+     * On ne lit jamais les chiffres du numéro de vol.
+     * On cherche le bloc CONX HHHMM puis les colonnes C/Y qui suivent.
+     */
+    const m=r.match(/^([A-Z0-9]{2,4}\d{1,4})\s+\d{3,4}\s+(?:(?:[A-Z]{3})\s+){1,2}\d{2}H\d{2}\s+(\d{1,4})\s+(\d{1,4})(?:\s+\d{1,4}){0,3}\b/);
     if(!m)continue;
 
     out.C+=Number(m[2]||0);
@@ -2479,7 +2487,7 @@ async function lot2ProcessOneJob(env,job){
       reason:extracted.reason,
       rules: parserMode==="SPECIFIC_LOCKED"
         ? "Parser spécifique verrouillé : aucune transformation Worker Lot 2."
-        : "GENERIC V50.12 : extraction PDF réelle ; summary count depuis lignes connexion C/Y ; listName exact ; mapping compagnie ; aucune carte inventée.",
+        : "GENERIC V50.13 : extraction PDF réelle ; summary INBOUND/OUTBOUND depuis lignes connexion C/Y ; listName exact ; mapping compagnie ; aucune carte inventée.",
       mappingScope:listMapping.mappingScope,
       matchedListName:listMapping.matchedListName
     };
