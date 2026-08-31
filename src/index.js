@@ -1,4 +1,4 @@
-// ALYZIA OPS V50.16 · Lot 3 No Stub Flight Fix
+// ALYZIA OPS V50.17 · Generic Flight Date From Report Line
 // - Assets statiques public/
 // - API vols partagée D1
 // - Bridge interne vers SARIA
@@ -2437,6 +2437,112 @@ function lot2DocumentTypeFromCard(cardKey,filename,mime){
   return guessDocumentType(filename,mime,"");
 }
 
+
+const LOTX_MONTHS={JAN:"01",FEB:"02",MAR:"03",APR:"04",MAY:"05",JUN:"06",JUL:"07",AUG:"08",SEP:"09",OCT:"10",NOV:"11",DEC:"12"};
+
+function lot2DateRawToIso(dayMon,contextIso){
+  const m=String(dayMon||"").toUpperCase().match(/^(\d{1,2})(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)$/);
+  if(!m)return "";
+  const day=String(Number(m[1])).padStart(2,"0");
+  const mon=LOTX_MONTHS[m[2]];
+  let year=Number(String(contextIso||"").slice(0,4))||new Date().getUTCFullYear();
+
+  // Gestion passage mois: rapport fin août, vol 01SEP => même année.
+  // Rapport fin décembre, vol 01JAN => année +1.
+  const ctxMon=Number(String(contextIso||"").slice(5,7))||0;
+  const targetMon=Number(mon);
+  if(ctxMon===12 && targetMon===1)year+=1;
+  if(ctxMon===1 && targetMon===12)year-=1;
+
+  return `${year}-${mon}-${day}`;
+}
+
+function lot2DetectFlightDateFromReportLine(text,airline,flightNumber,currentIso){
+  /*
+   * V50.17 — date réelle du vol générique.
+   * Ignore la date d'émission du rapport en haut à droite (ex: 30AUG2026 07:46Z).
+   * Prend la date de la ligne vol :
+   *   AH1003  01SEP  CDG STD1215
+   */
+  const up=lot2Upper(text).replace(/\r/g,"\n");
+  const a=String(airline||"").toUpperCase();
+  const f=String(flightNumber||"").toUpperCase();
+  const num=f.replace(a,"");
+  const variants=[f,`${a}${num}`,`${a} ${num}`].filter(Boolean).map(v=>v.replace(/\s+/g,"\\s*"));
+  for(const line of up.split(/\n+/).slice(0,220)){
+    const l=line.trim().replace(/\s+/g," ");
+    if(!l)continue;
+    if(!/STD\s*\d{3,4}/.test(l))continue;
+    if(!new RegExp(`\\b(?:${variants.join("|")})\\b`).test(l.replace(/\s+/g,""))) {
+      // fallback with spaces normalized
+      if(!new RegExp(`\\b${a}\\s*${num}\\b`).test(l))continue;
+    }
+    const dm=l.match(/\b(\d{1,2}(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC))\b/);
+    if(dm){
+      const iso=lot2DateRawToIso(dm[1],currentIso);
+      if(iso)return {iso,raw:dm[1],line:l};
+    }
+  }
+
+  // Fallback plus permissif : AH1003 01SEP même si STD a sauté de l'extraction.
+  const compact=up.slice(0,12000).replace(/\s+/g," ");
+  const re=new RegExp(`\\b${a}\\s*${num}\\s+(\\d{1,2}(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC))\\b`);
+  const m=compact.match(re);
+  if(m){
+    const iso=lot2DateRawToIso(m[1],currentIso);
+    if(iso)return {iso,raw:m[1],line:m[0]};
+  }
+
+  return {iso:"",raw:"",line:""};
+}
+
+async function lot2UpdateJobFlightDate(env,job,version,newIso,reason){
+  if(!newIso || newIso===job.flight_date)return {changed:false,flightDate:job.flight_date};
+  const oldDate=job.flight_date||"";
+  const oldFileId=version.file_id||job.file_id||"";
+  const oldVersionId=version.version_id||job.version_id||"";
+
+  const newFileId=String(oldFileId).replace(`|${oldDate}|`,`|${newIso}|`);
+  const newVersionId=String(oldVersionId).replace(`|${oldDate}|`,`|${newIso}|`);
+  const newJobId=String(job.job_id).replace(`|${oldDate}|`,`|${newIso}|`);
+
+  await env.OPS_DB.prepare(`UPDATE gmail_messages SET flight_date=?,updated_at=CURRENT_TIMESTAMP WHERE gmail_message_id=?`)
+    .bind(newIso,job.gmail_message_id||version.gmail_message_id||"").run();
+
+  await env.OPS_DB.prepare(`UPDATE import_files SET flight_date=?,file_id=?,updated_at=CURRENT_TIMESTAMP WHERE file_id=?`)
+    .bind(newIso,newFileId,oldFileId).run().catch(async()=>{
+      await env.OPS_DB.prepare(`UPDATE import_files SET flight_date=?,updated_at=CURRENT_TIMESTAMP WHERE file_id=?`)
+        .bind(newIso,oldFileId).run();
+    });
+
+  await env.OPS_DB.prepare(`UPDATE import_file_versions SET flight_date=?,file_id=?,version_id=? WHERE version_id=?`)
+    .bind(newIso,newFileId,newVersionId,oldVersionId).run().catch(async()=>{
+      await env.OPS_DB.prepare(`UPDATE import_file_versions SET flight_date=? WHERE version_id=?`)
+        .bind(newIso,oldVersionId).run();
+    });
+
+  await env.OPS_DB.prepare(`UPDATE import_jobs SET flight_date=?,file_id=?,version_id=?,job_id=?,updated_at=CURRENT_TIMESTAMP WHERE job_id=?`)
+    .bind(newIso,newFileId,newVersionId,newJobId,job.job_id).run().catch(async()=>{
+      await env.OPS_DB.prepare(`UPDATE import_jobs SET flight_date=?,updated_at=CURRENT_TIMESTAMP WHERE job_id=?`)
+        .bind(newIso,job.job_id).run();
+    });
+
+  await recordImportChange(env,{
+    scope:"JOB",
+    airline:job.airline,
+    flightNumber:job.flight_number,
+    flightDate:newIso,
+    gmailMessageId:job.gmail_message_id,
+    fileId:newFileId,
+    versionId:newVersionId,
+    changeType:"FLIGHT_DATE_FROM_REPORT_LINE",
+    before:{flightDate:oldDate,fileId:oldFileId,versionId:oldVersionId,jobId:job.job_id},
+    after:{flightDate:newIso,fileId:newFileId,versionId:newVersionId,jobId:newJobId,reason}
+  }).catch(()=>{});
+
+  return {changed:true,flightDate:newIso,fileId:newFileId,versionId:newVersionId,jobId:newJobId};
+}
+
 async function lot2ProcessOneJob(env,job){
   const jobId=String(job.job_id||"");
   await env.OPS_DB.prepare(`UPDATE import_jobs SET status='PROCESSING',attempts=attempts+1,updated_at=CURRENT_TIMESTAMP WHERE job_id=?`).bind(jobId).run();
@@ -2456,6 +2562,22 @@ async function lot2ProcessOneJob(env,job){
     const extracted=await lot2ExtractTextFromR2Object(object,filename,mime);
     const airline=String(job.airline||version.airline||"").toUpperCase();
     const parserMode=LOT2_SPECIFIC_AIRLINES.has(airline)?"SPECIFIC_LOCKED":"GENERIC";
+
+    let effectiveFlightDate=String(job.flight_date||version.flight_date||"");
+    let effectiveJobId=jobId;
+    let effectiveFileId=version.file_id;
+    let effectiveVersionId=version.version_id;
+
+    if(parserMode==="GENERIC" && extracted.readable){
+      const detectedDate=lot2DetectFlightDateFromReportLine(extracted.text,airline,job.flight_number||version.flight_number||"",effectiveFlightDate);
+      if(detectedDate.iso && detectedDate.iso!==effectiveFlightDate){
+        const upd=await lot2UpdateJobFlightDate(env,job,version,detectedDate.iso,detectedDate);
+        effectiveFlightDate=upd.flightDate||detectedDate.iso;
+        effectiveJobId=upd.jobId||effectiveJobId;
+        effectiveFileId=upd.fileId||effectiveFileId;
+        effectiveVersionId=upd.versionId||effectiveVersionId;
+      }
+    }
 
     const listName=lot2DetectListName(extracted.text,filename);
     const listMapping=parserMode==="SPECIFIC_LOCKED"
@@ -2526,27 +2648,27 @@ async function lot2ProcessOneJob(env,job){
         status=excluded.status,
         updated_at=CURRENT_TIMESTAMP
     `).bind(
-      jobId,version.version_id,version.file_id,job.airline||"",job.flight_number||"",job.flight_date||"",
+      effectiveJobId,effectiveVersionId,effectiveFileId,job.airline||"",job.flight_number||"",effectiveFlightDate||job.flight_date||"",
       parserMode,documentType,listName,cardKey,passengerCount,JSON.stringify(classCounts),lot2Preview(extracted.text),JSON.stringify(result),resultStatus
     ).run();
 
-    await env.OPS_DB.prepare(`UPDATE import_file_versions SET status=? WHERE version_id=?`).bind(resultStatus,version.version_id).run();
-    await env.OPS_DB.prepare(`UPDATE import_files SET status=?, document_type=?, updated_at=CURRENT_TIMESTAMP WHERE file_id=?`).bind(resultStatus,documentType,version.file_id).run();
-    await env.OPS_DB.prepare(`UPDATE import_jobs SET status='DONE', error_message=NULL, updated_at=CURRENT_TIMESTAMP WHERE job_id=?`).bind(jobId).run();
+    await env.OPS_DB.prepare(`UPDATE import_file_versions SET status=? WHERE version_id=?`).bind(resultStatus,effectiveVersionId).run();
+    await env.OPS_DB.prepare(`UPDATE import_files SET status=?, document_type=?, updated_at=CURRENT_TIMESTAMP WHERE file_id=?`).bind(resultStatus,documentType,effectiveFileId).run();
+    await env.OPS_DB.prepare(`UPDATE import_jobs SET status='DONE', error_message=NULL, updated_at=CURRENT_TIMESTAMP WHERE job_id=?`).bind(effectiveJobId).run();
 
     await recordImportChange(env,{
       scope:"JOB",
       airline:job.airline,
       flightNumber:job.flight_number,
-      flightDate:job.flight_date,
+      flightDate:effectiveFlightDate||job.flight_date,
       gmailMessageId:job.gmail_message_id,
-      fileId:version.file_id,
-      versionId:version.version_id,
+      fileId:effectiveFileId,
+      versionId:effectiveVersionId,
       changeType,
       after:result
     });
 
-    return {ok:true,jobId,status:resultStatus,airline:job.airline,flightNumber:job.flight_number,flightDate:job.flight_date,documentType,listName,cardKey,passengerCount,mappingScope:listMapping.mappingScope,matchedListName:listMapping.matchedListName};
+    return {ok:true,jobId:effectiveJobId,status:resultStatus,airline:job.airline,flightNumber:job.flight_number,flightDate:effectiveFlightDate||job.flight_date,documentType,listName,cardKey,passengerCount,mappingScope:listMapping.mappingScope,matchedListName:listMapping.matchedListName};
   }catch(e){
     const msg=String(e?.message||e);
     await env.OPS_DB.prepare(`UPDATE import_jobs SET status='ERROR',error_message=?,updated_at=CURRENT_TIMESTAMP WHERE job_id=?`).bind(msg,jobId).run();
