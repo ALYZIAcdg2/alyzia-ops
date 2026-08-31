@@ -1,4 +1,4 @@
-// ALYZIA OPS V50.9 · LOT 2 Strict Explicit PDF List Classification
+// ALYZIA OPS V50.10 · LOT 2 Airline List Mapping
 // - Assets statiques public/
 // - API vols partagée D1
 // - Bridge interne vers SARIA
@@ -2056,26 +2056,92 @@ function lot2DetectListName(text,filename){
   return "";
 }
 
-function lot2GenericCardFromListName(listName){
-  const l=lot2Upper(listName);
-  if(!l)return "NO_LIST";
-  if(/ALL\s+(CUSTOMERS|PAX|RESERVATION)/.test(l))return "MASTER";
-  if(/\bFQA\b|\bFQTV\b/.test(l))return "FQTV";
-  if(/WCHR|WCHS|WCHC|WCMP|WCBD|WCLB|\bWCH\b/.test(l))return "WCH";
-  if(/INFANT|\bINF\b/.test(l))return "INF";
-  if(/CHILD|CHLD|\bKID\b/.test(l))return "CHLD";
-  if(/MEAL|SPML|[A-Z]{2}ML/.test(l))return "MEAL";
-  if(/STAFF|REBATE|BOOKABLE|DUTY/.test(l))return "STAFF";
-  if(/\bEMD\b/.test(l))return "EMD";
-  if(/ETKT|TICKET/.test(l))return "ETKT";
-  if(/INAD/.test(l))return "INAD";
-  if(/DEPA/.test(l))return "DEPA";
-  if(/DEPU/.test(l))return "DEPU";
-  if(/UMNR|\bUM\b/.test(l))return "UMNR";
-  if(/MAAS/.test(l))return "MAAS";
-  if(/\bINC\b|INBOUND|CONNECTION FROM/.test(l))return "INBOUND";
-  if(/\bONC\b|OUTBOUND|ONCARRIAGE|CONNECTION TO/.test(l))return "OUTBOUND";
-  return "OTHER";
+const LOT2_GENERIC_DEFAULT_LIST_MAPPINGS = [
+  ["ALL CUSTOMERS","MASTER"],
+  ["ALL PAX","MASTER"],
+  ["ALL RESERVATION","MASTER"],
+  ["FQTV","FQTV"],
+  ["WCH","WCH"],
+  ["WCHR","WCH"],
+  ["WCHS","WCH"],
+  ["WCHC","WCH"],
+  ["WCMP","WCH"],
+  ["WCBD","WCH"],
+  ["WCLB","WCH"],
+  ["INF","INF"],
+  ["INFANT","INF"],
+  ["CHLD","CHLD"],
+  ["CHILD","CHLD"],
+  ["KID","CHLD"],
+  ["ETKT","ETKT"],
+  ["TICKET","ETKT"],
+  ["EMD","EMD"],
+  ["MEAL","MEAL"],
+  ["SPML","MEAL"],
+  ["VGML","MEAL"],
+  ["AVML","MEAL"],
+  ["BBML","MEAL"],
+  ["CHML","MEAL"],
+  ["HNML","MEAL"],
+  ["KSML","MEAL"],
+  ["MOML","MEAL"],
+  ["INAD","INAD"],
+  ["DEPA","DEPA"],
+  ["DEPU","DEPU"],
+  ["UMNR","UMNR"],
+  ["UM","UMNR"],
+  ["MAAS","MAAS"],
+  ["INBOUND CUSTOMER SUMMARY","INBOUND"],
+  ["ONCARRIAGE CUSTOMER SUMMARY","OUTBOUND"]
+];
+
+const LOT2_GENERIC_AIRLINE_LIST_MAPPINGS = {
+  J2: [
+    ["FQA","FQTV"],
+    ["ONC","OUTBOUND"],
+    ["INC","INBOUND"],
+    ["WCH","WCH"],
+    ["INBOUND CUSTOMER SUMMARY","INBOUND"],
+    ["ONCARRIAGE CUSTOMER SUMMARY","OUTBOUND"]
+  ]
+};
+
+function lot2NormalizeListKey(v){
+  return lot2Upper(v)
+    .replace(/[^A-Z0-9]+/g," ")
+    .replace(/\s+/g," ")
+    .trim();
+}
+
+function lot2LookupListMapping(airline,listName){
+  const raw=lot2NormalizeListKey(listName);
+  if(!raw)return {cardKey:"NO_LIST", mappingScope:"NONE", matchedListName:""};
+
+  const airlineKey=lot2Upper(airline);
+  const airlineRows=LOT2_GENERIC_AIRLINE_LIST_MAPPINGS[airlineKey]||[];
+
+  for(const [name,cardKey] of airlineRows){
+    if(raw===lot2NormalizeListKey(name)){
+      return {cardKey, mappingScope:airlineKey, matchedListName:name};
+    }
+  }
+
+  for(const [name,cardKey] of LOT2_GENERIC_DEFAULT_LIST_MAPPINGS){
+    if(raw===lot2NormalizeListKey(name)){
+      return {cardKey, mappingScope:"DEFAULT", matchedListName:name};
+    }
+  }
+
+  // Groupes de codes repas : si le nom explicite LIST OF est un code meal connu.
+  if(/^[A-Z]{2}ML$/.test(raw)){
+    return {cardKey:"MEAL", mappingScope:"DEFAULT_PATTERN", matchedListName:"MEAL_CODE"};
+  }
+
+  return {cardKey:"OTHER", mappingScope:"UNMAPPED", matchedListName:""};
+}
+
+function lot2GenericCardFromListName(listName,airline){
+  return lot2LookupListMapping(airline,listName).cardKey;
 }
 
 function lot2ExtractClassCounts(text){
@@ -2144,7 +2210,10 @@ async function lot2ProcessOneJob(env,job){
     const parserMode=LOT2_SPECIFIC_AIRLINES.has(airline)?"SPECIFIC_LOCKED":"GENERIC";
 
     const listName=lot2DetectListName(extracted.text,filename);
-    const cardKey=parserMode==="SPECIFIC_LOCKED"?"SPECIFIC":lot2GenericCardFromListName(listName);
+    const listMapping=parserMode==="SPECIFIC_LOCKED"
+      ? {cardKey:"SPECIFIC",mappingScope:"SPECIFIC_LOCKED",matchedListName:""}
+      : lot2LookupListMapping(airline,listName);
+    const cardKey=listMapping.cardKey;
     const documentType=lot2DocumentTypeFromCard(cardKey,filename,mime);
     const passengerCount=lot2ExtractPassengerCount(extracted.text,listName);
     const classCounts=lot2ExtractClassCounts(extracted.text);
@@ -2183,7 +2252,9 @@ async function lot2ProcessOneJob(env,job){
       reason:extracted.reason,
       rules: parserMode==="SPECIFIC_LOCKED"
         ? "Parser spécifique verrouillé : aucune transformation Worker Lot 2."
-        : "GENERIC V50.9 strict : seul LIST OF ou un titre résumé explicite du PDF est utilisé ; aucune carte inventée."
+        : "GENERIC V50.10 : listName = nom exact du fichier ; cardKey = mapping par compagnie puis DEFAULT ; aucune carte inventée.",
+      mappingScope:listMapping.mappingScope,
+      matchedListName:listMapping.matchedListName
     };
 
     await env.OPS_DB.prepare(`
@@ -2227,7 +2298,7 @@ async function lot2ProcessOneJob(env,job){
       after:result
     });
 
-    return {ok:true,jobId,status:resultStatus,airline:job.airline,flightNumber:job.flight_number,flightDate:job.flight_date,documentType,listName,cardKey,passengerCount};
+    return {ok:true,jobId,status:resultStatus,airline:job.airline,flightNumber:job.flight_number,flightDate:job.flight_date,documentType,listName,cardKey,passengerCount,mappingScope:listMapping.mappingScope,matchedListName:listMapping.matchedListName};
   }catch(e){
     const msg=String(e?.message||e);
     await env.OPS_DB.prepare(`UPDATE import_jobs SET status='ERROR',error_message=?,updated_at=CURRENT_TIMESTAMP WHERE job_id=?`).bind(msg,jobId).run();
