@@ -1,4 +1,4 @@
-// ALYZIA OPS V50.13 · LOT 2 Outbound Summary Count Fix
+// ALYZIA OPS V50.14 · LOT 3 Flight Injection
 // - Assets statiques public/
 // - API vols partagée D1
 // - Bridge interne vers SARIA
@@ -2602,8 +2602,308 @@ async function lot2PipelineSummary(env){
     ORDER BY id DESC
     LIMIT 50
   `).all();
-  return {ok:true,jobs:jobs.results||[],files:files.results||[],classified:results.results||[],recentChanges:recent.results||[]};
+  let cards={results:[]};
+  try{
+    await ensureLot3Tables(env);
+    cards=await env.OPS_DB.prepare(`SELECT card_key,COUNT(*) AS count,SUM(passenger_count) AS passenger_count FROM flight_import_cards GROUP BY card_key ORDER BY card_key`).all();
+  }catch(e){}
+  return {ok:true,jobs:jobs.results||[],files:files.results||[],classified:results.results||[],flightCards:cards.results||[],recentChanges:recent.results||[]};
 }
+
+
+/* =========================================================
+ * LOT 3 — Injection vers fiche vol
+ * ========================================================= */
+
+async function ensureLot3Tables(env){
+  await ensureImportProcessorTables(env);
+  await env.OPS_DB.batch([
+    env.OPS_DB.prepare(`
+      CREATE TABLE IF NOT EXISTS flight_import_cards (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        identity TEXT NOT NULL,
+        airline TEXT NOT NULL,
+        flight_number TEXT NOT NULL,
+        flight_date TEXT NOT NULL,
+        card_key TEXT NOT NULL,
+        list_name TEXT NOT NULL DEFAULT '',
+        source_status TEXT NOT NULL DEFAULT 'ACTIVE',
+        passenger_count INTEGER NOT NULL DEFAULT 0,
+        class_counts_json TEXT NOT NULL DEFAULT '{}',
+        version_id TEXT,
+        file_id TEXT,
+        job_id TEXT,
+        result_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(identity, card_key, list_name, version_id)
+      )
+    `),
+    env.OPS_DB.prepare(`CREATE INDEX IF NOT EXISTS idx_flight_import_cards_identity ON flight_import_cards(identity,card_key,updated_at)`),
+    env.OPS_DB.prepare(`CREATE INDEX IF NOT EXISTS idx_flight_import_cards_flight ON flight_import_cards(airline,flight_number,flight_date)`),
+    env.OPS_DB.prepare(`
+      CREATE TABLE IF NOT EXISTS flight_import_injections (
+        result_job_id TEXT PRIMARY KEY,
+        identity TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'INJECTED',
+        before_json TEXT,
+        after_json TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `)
+  ]);
+}
+
+function lot3IdentityFromRow(row){
+  return [
+    String(row?.flight_date||"").trim(),
+    String(row?.airline||"").trim().toUpperCase(),
+    String(row?.flight_number||"").trim().toUpperCase()
+  ].join("|");
+}
+
+function lot3CardLabel(cardKey,listName){
+  const c=lot2Upper(cardKey);
+  const l=String(listName||"").trim();
+  if(c==="FQTV")return "FQTV";
+  if(c==="INBOUND")return l.includes("SUMMARY")?"INBOUND SUMMARY":"INBOUND";
+  if(c==="OUTBOUND")return l.includes("SUMMARY")?"OUTBOUND SUMMARY":"OUTBOUND";
+  if(c==="MASTER")return "BOOKED / MASTER";
+  return c || l || "OTHER";
+}
+
+function lot3SafeResultJson(v){
+  const x=safeJsonParse(v,{});
+  return x && typeof x==="object"?x:{};
+}
+
+function lot3BuildImportCard(row){
+  const result=lot3SafeResultJson(row.result_json);
+  const classCounts=safeJsonParse(row.class_counts_json,{});
+  return {
+    cardKey:String(row.card_key||""),
+    label:lot3CardLabel(row.card_key,row.list_name),
+    listName:String(row.list_name||""),
+    documentType:String(row.document_type||row.card_key||""),
+    passengerCount:Number(row.passenger_count||0),
+    classCounts,
+    parserMode:String(row.parser_mode||""),
+    status:String(row.status||""),
+    mappingScope:String(result.mappingScope||""),
+    matchedListName:String(result.matchedListName||""),
+    source:{
+      jobId:String(row.job_id||""),
+      fileId:String(row.file_id||""),
+      versionId:String(row.version_id||""),
+      injectedAt:new Date().toISOString()
+    },
+    rules:"LOT3 : injection depuis import_job_results validé ; n'écrase pas les corrections manuelles."
+  };
+}
+
+function lot3MergeFlightData(current,row,card){
+  const base=current && typeof current==="object"?{...current}:{};
+  const identity=lot3IdentityFromRow(row);
+
+  base.date=base.date || String(row.flight_date||"");
+  base.airline=base.airline || String(row.airline||"").toUpperCase();
+  base.flight=base.flight || String(row.flight_number||"").toUpperCase();
+  base.identity=base.identity || identity;
+
+  const imports=base.imports && typeof base.imports==="object" && !Array.isArray(base.imports)
+    ? {...base.imports}
+    : {};
+
+  const cards=imports.cards && typeof imports.cards==="object" && !Array.isArray(imports.cards)
+    ? {...imports.cards}
+    : {};
+
+  const key=String(card.cardKey||"OTHER").toUpperCase();
+  const previous=cards[key] && typeof cards[key]==="object" && !Array.isArray(cards[key]) ? cards[key] : null;
+
+  // Protection corrections manuelles : si une carte porte manualLocked=true, on archive seulement la source.
+  if(previous && previous.manualLocked===true){
+    const sources=Array.isArray(previous.sources)?previous.sources.slice():[];
+    sources.push(card);
+    cards[key]={...previous,sources,serverUpdatedAt:new Date().toISOString()};
+  }else{
+    const sources=previous && Array.isArray(previous.sources)?previous.sources.slice():[];
+    sources.push(card);
+
+    // Si plusieurs sources d'une même carte existent, on garde le plus haut compteur en affichage
+    // et toutes les sources restent consultables.
+    const prevCount=Number(previous?.passengerCount||0);
+    const nextCount=Number(card.passengerCount||0);
+    const display=nextCount>=prevCount?card:previous;
+
+    cards[key]={
+      ...(display||card),
+      passengerCount:Math.max(prevCount,nextCount),
+      sources,
+      serverUpdatedAt:new Date().toISOString()
+    };
+  }
+
+  imports.cards=cards;
+  imports.lastInjectionAt=new Date().toISOString();
+  imports.lastInjectionLot="LOT3";
+  imports.status="INJECTED";
+
+  base.imports=imports;
+  return base;
+}
+
+async function lot3UpsertFlightCard(env,identity,row,card){
+  await env.OPS_DB.prepare(`
+    INSERT INTO flight_import_cards
+      (identity,airline,flight_number,flight_date,card_key,list_name,passenger_count,class_counts_json,version_id,file_id,job_id,result_json,created_at,updated_at)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+    ON CONFLICT(identity,card_key,list_name,version_id) DO UPDATE SET
+      passenger_count=excluded.passenger_count,
+      class_counts_json=excluded.class_counts_json,
+      file_id=excluded.file_id,
+      job_id=excluded.job_id,
+      result_json=excluded.result_json,
+      updated_at=CURRENT_TIMESTAMP
+  `).bind(
+    identity,
+    String(row.airline||"").toUpperCase(),
+    String(row.flight_number||"").toUpperCase(),
+    String(row.flight_date||""),
+    String(row.card_key||""),
+    String(row.list_name||""),
+    Number(row.passenger_count||0),
+    JSON.stringify(card.classCounts||{}),
+    String(row.version_id||""),
+    String(row.file_id||""),
+    String(row.job_id||""),
+    JSON.stringify(card)
+  ).run();
+}
+
+async function lot3InjectOneResult(env,row){
+  const identity=lot3IdentityFromRow(row);
+  const existing=await getFlightByIdentity(env,identity);
+  const before=existing?JSON.stringify(existing):null;
+  const card=lot3BuildImportCard(row);
+  const afterFlight=lot3MergeFlightData(existing,row,card);
+
+  await upsertFlight(env,afterFlight);
+  await lot3UpsertFlightCard(env,identity,row,card);
+
+  await env.OPS_DB.prepare(`
+    INSERT INTO flight_import_injections
+      (result_job_id,identity,status,before_json,after_json,created_at,updated_at)
+    VALUES (?,?,?,?,?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+    ON CONFLICT(result_job_id) DO UPDATE SET
+      identity=excluded.identity,
+      status=excluded.status,
+      before_json=excluded.before_json,
+      after_json=excluded.after_json,
+      updated_at=CURRENT_TIMESTAMP
+  `).bind(String(row.job_id||""),identity,"INJECTED",before,JSON.stringify(afterFlight)).run();
+
+  await env.OPS_DB.prepare(`
+    UPDATE import_job_results
+    SET status='INJECTED',
+        updated_at=CURRENT_TIMESTAMP
+    WHERE job_id=?
+  `).bind(String(row.job_id||"")).run();
+
+  await recordImportChange(env,{
+    scope:"FLIGHT",
+    airline:row.airline,
+    flightNumber:row.flight_number,
+    flightDate:row.flight_date,
+    fileId:row.file_id,
+    versionId:row.version_id,
+    changeType:"FLIGHT_CARD_INJECTED",
+    before:before?safeJsonParse(before,{}):null,
+    after:{identity,card}
+  });
+
+  return {
+    ok:true,
+    identity,
+    airline:row.airline,
+    flightNumber:row.flight_number,
+    flightDate:row.flight_date,
+    cardKey:row.card_key,
+    listName:row.list_name,
+    passengerCount:Number(row.passenger_count||0),
+    status:"INJECTED"
+  };
+}
+
+async function lot3InjectNext(env,body){
+  await ensureLot3Tables(env);
+  const limit=Math.max(1,Math.min(50,Number(body?.limit||10)));
+  const airline=String(body?.airline||"").toUpperCase();
+  const flight=String(body?.flight||body?.flightNumber||"").toUpperCase();
+  const date=String(body?.date||body?.flightDate||"");
+
+  const wh=[
+    "status IN ('GENERIC_CARD_READY','GENERIC_MASTER_READY','GENERIC_CARD_OTHER')",
+    "parser_mode='GENERIC'",
+    "card_key IS NOT NULL",
+    "card_key<>''",
+    "card_key<>'NO_LIST'"
+  ];
+  const binds=[];
+  if(airline){wh.push("airline=?");binds.push(airline)}
+  if(flight){wh.push("flight_number=?");binds.push(flight)}
+  if(date){wh.push("flight_date=?");binds.push(date)}
+  binds.push(limit);
+
+  const {results=[]}=await env.OPS_DB.prepare(`
+    SELECT *
+    FROM import_job_results
+    WHERE ${wh.join(" AND ")}
+    ORDER BY updated_at ASC
+    LIMIT ?
+  `).bind(...binds).all();
+
+  const injected=[];
+  for(const row of results){
+    injected.push(await lot3InjectOneResult(env,row));
+  }
+
+  return {ok:true,requested:limit,found:results.length,injected};
+}
+
+async function lot3FlightCards(env,url){
+  await ensureLot3Tables(env);
+  const identity=String(url.searchParams.get("identity")||"").trim();
+  const airline=String(url.searchParams.get("airline")||"").toUpperCase();
+  const flight=String(url.searchParams.get("flight")||"").toUpperCase();
+  const date=String(url.searchParams.get("date")||"");
+
+  const wh=[]; const binds=[];
+  if(identity){wh.push("identity=?");binds.push(identity)}
+  if(airline){wh.push("airline=?");binds.push(airline)}
+  if(flight){wh.push("flight_number=?");binds.push(flight)}
+  if(date){wh.push("flight_date=?");binds.push(date)}
+
+  const {results=[]}=await env.OPS_DB.prepare(`
+    SELECT identity,airline,flight_number,flight_date,card_key,list_name,passenger_count,class_counts_json,version_id,file_id,job_id,result_json,updated_at
+    FROM flight_import_cards
+    ${wh.length?`WHERE ${wh.join(" AND ")}`:""}
+    ORDER BY identity,card_key,list_name,updated_at DESC
+    LIMIT 200
+  `).bind(...binds).all();
+
+  return {
+    ok:true,
+    count:results.length,
+    cards:results.map(r=>({
+      ...r,
+      class_counts:safeJsonParse(r.class_counts_json,{}),
+      result:safeJsonParse(r.result_json,{})
+    }))
+  };
+}
+
 
 async function handleGmailPipeline(request,env,url){
   if(!url.pathname.startsWith("/api/gmail") && !url.pathname.startsWith("/api/import-pipeline"))return null;
@@ -2617,6 +2917,11 @@ async function handleGmailPipeline(request,env,url){
     }
     if(url.pathname==="/api/import-pipeline/status" && request.method==="GET")return json(await lot2PipelineSummary(env));
     if(url.pathname==="/api/import-pipeline/results" && request.method==="GET")return json(await lot2Results(env,url));
+    if(url.pathname==="/api/import-pipeline/flight-cards" && request.method==="GET")return json(await lot3FlightCards(env,url));
+    if(url.pathname==="/api/import-pipeline/inject-next" && request.method==="POST"){
+      const body=await request.json().catch(()=>({}));
+      return json(await lot3InjectNext(env,body));
+    }
     if(url.pathname==="/api/import-pipeline/process-next" && request.method==="POST"){
       const body=await request.json().catch(()=>({}));
       return json(await lot2ProcessNext(env,body));
