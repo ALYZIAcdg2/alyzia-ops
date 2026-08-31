@@ -1,7 +1,19 @@
 {
   "name": "alyzia-ops",
-  "main": "src/index.js",
-  "compatibility_date": "2025-08-01",
+  "main": "./src/index.js",
+  "compatibility_date": "2026-08-06",
+
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS"
+  },
+
+  "services": [
+    {
+      "binding": "SARIA",
+      "service": "saria-seatmap"
+    }
+  ],
 
   "d1_databases": [
     {
@@ -16,10 +28,5 @@
       "binding": "OPS_FILES",
       "bucket_name": "alyzia-ops-files"
     }
-  ],
-
-  "assets": {
-    "directory": "./public",
-    "binding": "ASSETS"
-  }
+  ]
 }
