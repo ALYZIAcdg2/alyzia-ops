@@ -6,7 +6,7 @@
   <meta http-equiv="Expires" content="0">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V50.28 · BUILD132 · TOOLS STABLE</title>
+<title>ALYZIA OPS - V50.28 · BUILD133 · TOOLS NATIVE FIX</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -7082,7 +7082,7 @@ html,body{
 const ALYZIA_APP_VERSION='V50.27';
 const ALYZIA_SQ_LOCK_VERSION='V49.64';
 const ALYZIA_TK_LOCK_VERSION='V49.69';
-const ALYZIA_APP_BUILD='2026-08-31-129';
+const ALYZIA_APP_BUILD='2026-08-31-133';
 </script>
 <header class="topbar">
  <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V50.27</span></div>
@@ -8531,7 +8531,7 @@ function twPrintHtml(s){
  </table><script>window.onload=()=>setTimeout(()=>window.print(),150)<\/script><!-- V49.83: silent multi-device auto-sync 0.5s selected / 1.5s global; TK cards view-only; mobile TYPE header hardened. -->
 <!-- V49.88: compact mobile WSA KPI; named standby list when an explicit TK standby report is available. -->
 <!-- V50.15: stabilisation imports nominative, PREPA dynamic generic/specific, sticky desktop nav, editable flight notes, A/C selector fix. -->
-<!-- V50.28 BUILD132: OUTILS reverted to the stable V50.21 openTools path; removed V50.24/V50.27 global openTools overrides and capture click interception. -->
+<!-- V50.28 BUILD133: OUTILS final active override replaced with native stable renderer; no opsCloudToolCardHtml dependency; no capture click interception. -->
 </body></html>`;
 }
 function ozPrintHtml(s){
@@ -22278,71 +22278,55 @@ const V5014_BUILD='2026-08-30-117';
 openTools=async function(){
   await fetchRecentPrepaImports().catch(()=>{});
 
-  const g=impGlobal();
-
-  showModal(
-    'OUTILS',
-    `ALYZIA OPS · V50.15`,
-    `<div class="tools-grid">
-      <div class="imports-main-card" style="cursor:default">
-        <div class="imports-main-top">
-          <span class="imports-main-icon">⇩</span>
-          <span class="imports-main-state">${g.errors?'À VÉRIFIER':'ACTIF'}</span>
-        </div>
-        <h3>IMPORTS GMAIL</h3>
-        <p>MULTI-COMPAGNIES — DÉTECTION, CRÉATION DU VOL SI NÉCESSAIRE ET INJECTION AUTOMATIQUE.</p>
-        <div class="imports-main-stats">
-          <div class="imports-main-stat"><b>${g.files}</b><span>FICHIERS</span></div>
-          <div class="imports-main-stat"><b>${g.injected}/${g.flights}</b><span>VOLS INJECTÉS</span></div>
-          <div class="imports-main-stat"><b>${g.unidentified}</b><span>À IDENTIFIER</span></div>
-        </div>
-        <div class="v5014-import-actions">
-          <button class="v5013-admin-btn" onclick="openImportsDashboard()">VOIR IMPORTS</button>
-          <button class="v5013-admin-btn repair" onclick="v5013OpenRepair()">↻ REPAIR</button>
-          <button id="v5014ToolsDriveBtn" class="v5013-admin-btn drive bad" onclick="v5013ConfigureDrive()">⚙ CONFIGURER GOOGLE DRIVE</button>
-        </div>
+  showModal('OUTILS','ALYZIA OPS',`<div class="tools-grid">
+    <div class="tools-version-card">
+      <div class="version-main">
+        <small>VERSION DE L’APPLICATION</small>
+        <b>${ALYZIA_APP_VERSION}</b>
+        <span class="version-build">BUILD ${ALYZIA_APP_BUILD}</span>
       </div>
+      <span class="app-version-badge">${ALYZIA_APP_VERSION}</span>
+    </div>
 
-      <button class="tool-card" onclick="openFlightImport()">
-        <span class="tool-icon">⇩</span><b>IMPORTER VOLS</b><span>EXCEL XLS / XLSX</span>
-      </button>
+    ${renderImportsMainCard()}
 
-      <button class="tool-card" onclick="openCreateFlight()">
-        <span class="tool-icon">＋</span><b>CRÉER VOL</b><span>AJOUT MANUEL</span>
-      </button>
+    <button class="tool-card" onclick="openFlightImport()">
+      <span class="tool-icon">⇩</span><b>IMPORTER VOLS</b><span>EXCEL XLS / XLSX</span>
+    </button>
 
-      <button class="tool-card company-config-tool" onclick="openCompanyConfig()">
-        <span class="tool-icon">⚙</span><b>CONFIG COMPAGNIE</b><span>CLASSES ET MODULES</span>
-      </button>
+    <button class="tool-card" onclick="openCreateFlight()">
+      <span class="tool-icon">＋</span><b>CRÉER VOL</b><span>AJOUT MANUEL</span>
+    </button>
 
-      <button class="tool-card" onclick="openSeatmap()">
-        <span class="tool-icon">▦</span><b>SEATMAP</b><span>PLAN CABINE</span>
-      </button>
+    <button class="tool-card company-config-tool" onclick="openCompanyConfig()">
+      <span class="tool-icon">⚙</span><b>CONFIG COMPAGNIE</b><span>CLASSES ET MODULES</span>
+    </button>
 
-      <button class="tool-card" onclick="openSaria()">
-        <span class="tool-icon">✈</span><b>SARIA</b><span>CABIN / SEATMAP</span>
-      </button>
+    <button class="tool-card" onclick="openSeatmap()">
+      <span class="tool-icon">▦</span><b>SEATMAP</b><span>PLAN CABINE</span>
+    </button>
 
-      ${opsCloudToolCardHtml()}
-    </div>`
-  );
+    <button class="tool-card" onclick="openSariaApp()">
+      <span class="tool-icon">✈</span><b>SARIA</b><span>CABIN / SEATMAP</span>
+    </button>
 
-  /* modalSub est rempli avec textContent par le moteur historique :
-     on force donc ici les deux lignes souhaitées. */
-  const sub=document.getElementById('modalSub');
-  if(sub){
-    sub.innerHTML=`ALYZIA OPS · V50.15<br><span style="font-size:9px;font-weight:950;color:#075fc8">BUILD ${V5014_BUILD}</span>`;
-  }
+    <div class="ops-cloud-card">
+      ${(()=>{const st=opsCloudStatusMarkup();return `<div id="opsCloudStatusBox" class="ops-cloud-status ${st.cls}">${st.text}</div>`})()}
+      <div class="ops-cloud-help">
+        D1 PARTAGÉ · RECONNEXION AUTOMATIQUE · PC, TABLETTE ET TÉLÉPHONE.
+        <br><b style="color:#087749">V50.28 · BUILD133 · OUTILS NATIVE FIX</b>
+      </div>
+      <button class="live-refresh" onclick="manualCloudRefresh()">↻ SYNCHRONISER</button>
+    </div>
 
-  setTimeout(async()=>{
-    const btn=document.getElementById('v5014ToolsDriveBtn');
-    if(!btn)return;
-    const drive=await v5013GetDriveStatus();
-    btn.className=`v5013-admin-btn drive ${drive.configured?'ok':'bad'}`;
-    btn.textContent=drive.configured
-      ? `✓ GOOGLE DRIVE DIRECT${drive.connectedEmail?' · '+drive.connectedEmail:''}`
-      : (drive.oauthClientConfigured?'⚙ CONFIGURER GOOGLE DRIVE':'⚠ OAUTH GOOGLE À FINALISER');
-  },0);
+    <div class="adb-usage-card">
+      <div id="adbUsageBox">
+        <button class="live-refresh" onclick="loadAeroUsage()">AERODATABOX</button>
+      </div>
+    </div>
+
+    <button class="clear-all-flights-btn" onclick="openFullReset()">🗑 REMETTRE TOUT À ZÉRO</button>
+  </div>`);
 };
 
 
