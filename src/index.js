@@ -1,4 +1,4 @@
-// ALYZIA OPS V50.25 · Generic Inbound Clean
+// ALYZIA OPS V50.26 · Generic Passenger Enrichment · Protected Specific Airlines
 // - Assets statiques public/
 // - API vols partagée D1
 // - Bridge interne vers SARIA
@@ -3277,6 +3277,83 @@ function lot3PaxKey(p){
 }
 
 
+function lot3IsProtectedSpecificAirline(airline){
+  return ["SQ","TK","TW","BJ"].includes(String(airline||"").trim().toUpperCase());
+}
+
+function lot3PaxNameKey(p){
+  return String(p?.name||"").toUpperCase().replace(/[^A-Z0-9]/g,"");
+}
+function lot3PaxSeatKey(p){
+  return String(p?.seat||"").trim().toUpperCase().replace(/\s+/g,"");
+}
+function lot3PaxClassKey(p){
+  return String(p?.class||p?.cabinClass||"").trim().toUpperCase();
+}
+function lot3PaxPnrKey(p){
+  return String(p?.pnr||p?.recordLocator||p?.record_locator||"").trim().toUpperCase().replace(/[^A-Z0-9]/g,"");
+}
+function lot3PaxEtktKeys(p){
+  const vals=[];
+  const add=v=>{
+    if(v==null||v==="")return;
+    if(Array.isArray(v)){v.forEach(add);return;}
+    if(typeof v==="object"){
+      add(v.number);add(v.documentNumber);add(v.document_number);add(v.id);return;
+    }
+    const s=String(v).toUpperCase().replace(/[^A-Z0-9]/g,"");
+    if(s)vals.push(s);
+  };
+  add(p?.etkt);add(p?.etkts);add(p?.tickets);add(p?.documentNumber);add(p?.documents?.etkt);
+  return [...new Set(vals)];
+}
+
+/*
+ * V50.26 — matching hiérarchique GENERIC uniquement.
+ * Ordre : ETKT > PNR+NOM > NOM+SIÈGE > NOM+CLASSE > NOM unique.
+ * SQ/TK/TW/BJ restent sur le comportement historique, sans aucun changement.
+ */
+function lot3FindPassengerIndex(passengers,incoming,airline){
+  const list=Array.isArray(passengers)?passengers:[];
+  if(lot3IsProtectedSpecificAirline(airline)){
+    const k=lot3PaxKey(incoming);
+    return list.findIndex(p=>lot3PaxKey(p)===k);
+  }
+
+  const et=lot3PaxEtktKeys(incoming);
+  if(et.length){
+    const hits=[];
+    list.forEach((p,i)=>{if(lot3PaxEtktKeys(p).some(v=>et.includes(v)))hits.push(i)});
+    if(hits.length===1)return hits[0];
+  }
+
+  const name=lot3PaxNameKey(incoming);
+  const pnr=lot3PaxPnrKey(incoming);
+  if(name&&pnr){
+    const hits=[];list.forEach((p,i)=>{if(lot3PaxNameKey(p)===name&&lot3PaxPnrKey(p)===pnr)hits.push(i)});
+    if(hits.length===1)return hits[0];
+  }
+
+  const seat=lot3PaxSeatKey(incoming);
+  if(name&&seat){
+    const hits=[];list.forEach((p,i)=>{if(lot3PaxNameKey(p)===name&&lot3PaxSeatKey(p)===seat)hits.push(i)});
+    if(hits.length===1)return hits[0];
+  }
+
+  const cls=lot3PaxClassKey(incoming);
+  if(name&&cls){
+    const hits=[];list.forEach((p,i)=>{if(lot3PaxNameKey(p)===name&&lot3PaxClassKey(p)===cls)hits.push(i)});
+    if(hits.length===1)return hits[0];
+  }
+
+  if(name){
+    const hits=[];list.forEach((p,i)=>{if(lot3PaxNameKey(p)===name)hits.push(i)});
+    if(hits.length===1)return hits[0];
+  }
+  return -1;
+}
+
+
 function lot3CleanImportedPassenger(p){
   const x={...(p||{})};
   const bad=/\b(?:MASTER|TKNE|AS)\b/i;
@@ -3476,18 +3553,63 @@ function lot3UpsertPassengers(base,card){
   const items=Array.isArray(card?.passengerItems)?card.passengerItems:[];
   if(!items.length)return;
 
-  const byKey=new Map(base.passengers.map((p,i)=>[lot3PaxKey(p),i]));
+  const protectedFlow=lot3IsProtectedSpecificAirline(base.airline);
+  const cardKey=String(card?.cardKey||"").toUpperCase();
+
+  // Garde-fou absolu : on garde exactement l'ancien matching pour SQ/TK/TW/BJ.
+  if(protectedFlow){
+    const byKey=new Map(base.passengers.map((p,i)=>[lot3PaxKey(p),i]));
+    for(const raw of items){
+      const p=lot3NormalizePassengerForUi(raw,card);
+      const key=lot3PaxKey(p);
+      if(!key)continue;
+      if(byKey.has(key)){
+        const idx=byKey.get(key);
+        base.passengers[idx]=lot3MergePassengerInfo(base.passengers[idx],p);
+      }else if(cardKey==="MASTER" || !base.passengers.length || !byKey.has(key)){
+        byKey.set(key,base.passengers.length);
+        base.passengers.push(p);
+      }
+    }
+    return;
+  }
+
+  const hasMasterAlready=!!base.imports?.cards?.MASTER || base.passengers.some(p=>p?._genericMaster===true);
+
   for(const raw of items){
     const p=lot3NormalizePassengerForUi(raw,card);
-    const key=lot3PaxKey(p);
-    if(!key)continue;
-    if(byKey.has(key)){
-      const idx=byKey.get(key);
-      base.passengers[idx]=lot3MergePassengerInfo(base.passengers[idx],p);
-    }else if(card.cardKey==="MASTER" || !base.passengers.length || !byKey.has(key)){
-      byKey.set(key,base.passengers.length);
+    if(!lot3PaxNameKey(p) && !lot3PaxEtktKeys(p).length)continue;
+
+    const idx=lot3FindPassengerIndex(base.passengers,p,base.airline);
+    if(idx>=0){
+      const merged=lot3MergePassengerInfo(base.passengers[idx],p);
+      if(cardKey==="MASTER"){
+        merged._genericMaster=true;
+        delete merged._genericProvisional;
+      }
+      base.passengers[idx]=merged;
+      continue;
+    }
+
+    if(cardKey==="MASTER"){
+      p._genericMaster=true;
+      delete p._genericProvisional;
+      base.passengers.push(p);
+      continue;
+    }
+
+    // Avant l'arrivée du MASTER on garde temporairement l'information.
+    // Dès que le MASTER est présent, une carte secondaire ne crée plus de faux dossier passager.
+    if(!hasMasterAlready && !base.passengers.some(q=>q?._genericMaster===true)){
+      p._genericProvisional=true;
       base.passengers.push(p);
     }
+  }
+
+  if(cardKey==="MASTER"){
+    // La population MASTER est l'autorité du dossier passager générique.
+    // Les lignes secondaires non rapprochées restent dans leurs cartes/listes mais ne créent pas de dossier fantôme.
+    base.passengers=base.passengers.filter(p=>p?._genericMaster===true || p?._genericProvisional!==true);
   }
 }
 
@@ -3563,7 +3685,8 @@ function lot3MergeFlightData(current,row,card){
       const seen=new Set(old.map(p=>[p.name,p.seat,p.class,p.specific,p.note].map(x=>String(x||"").toUpperCase()).join("|")));
       for(const p0 of card.passengerItems){
         const p=lot3NormalizePassengerForUi(p0,card);
-        const master=(base.passengers||[]).find(q=>lot3PaxKey(q)===lot3PaxKey(p));
+        const masterIdx=lot3FindPassengerIndex(base.passengers||[],p,base.airline);
+        const master=masterIdx>=0?(base.passengers||[])[masterIdx]:null;
         const merged=master?lot3MergePassengerInfo(master,p):p;
         const key=[merged.name,merged.seat,merged.class,merged.specific,merged.note].map(x=>String(x||"").toUpperCase()).join("|");
         if(!seen.has(key)){old.push(merged);seen.add(key);}
