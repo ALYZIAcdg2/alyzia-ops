@@ -1,4 +1,5 @@
 <!doctype html>
+<!-- V50.29 BUILD131: GENERIC INBOUND SUMMARY = FLIGHTS / INC = PASSENGERS. SQ/TK/TW/BJ PROTECTED. -->
 <html lang="fr">
 <head>
   <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
@@ -6,7 +7,7 @@
   <meta http-equiv="Expires" content="0">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V50.28 · GENERIC PAX + TOOLS FIXED</title>
+<title>ALYZIA OPS - V50.29 · GENERIC PAX + TOOLS FIXED</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -17332,7 +17333,20 @@ function passengerConnectionRows(p,inbound){
    if(q.etkt&&r.etkt&&String(q.etkt)===String(r.etkt))return true;
    if(q.pnr&&r.pnr&&String(q.pnr).toUpperCase()===String(r.pnr).toUpperCase())return true;
    if(q.seat&&r.seat&&String(q.seat).toUpperCase()===String(r.seat).toUpperCase())return true;
-   return norm(q.name||q.fullName)===norm(r.passenger||r.name||r.fullName);
+   if(norm(q.name||q.fullName)===norm(r.passenger||r.name||r.fullName))return true;
+
+   // V50.29 GENERIC ONLY: SUMMARY stores the flight row and INC/ONC attach pax in row.passengers[].
+   // SQ remains on its historical branch above.
+   if(x.airline!=='SQ' && Array.isArray(raw?.passengers)){
+     return raw.passengers.some(pp=>{
+       const rp=resolvePassengerForDisplay(pp,x);
+       if(q.etkt&&rp.etkt&&String(q.etkt)===String(rp.etkt))return true;
+       if(q.pnr&&rp.pnr&&String(q.pnr).toUpperCase()===String(rp.pnr).toUpperCase())return true;
+       if(q.seat&&rp.seat&&String(q.seat).toUpperCase()===String(rp.seat).toUpperCase())return true;
+       return !!norm(q.name||q.fullName) && norm(q.name||q.fullName)===norm(rp.name||rp.fullName);
+     });
+   }
+   return false;
  });
  const seen=new Set();return matched.filter(r=>{const k=String(r.flight||'').toUpperCase();if(seen.has(k))return false;seen.add(k);return true});
 }
@@ -23557,19 +23571,19 @@ try{
 
   function openToolsLite(){
     try{
-      // V50.28 BUILD130 — ouverture directe du modal OUTILS.
+      // V50.29 BUILD131 — ouverture directe du modal OUTILS.
       // On ne dépend plus des anciennes surcharges openTools()/showModal().
       const modal=document.getElementById('modal');
       const title=document.getElementById('modalTitle');
       const sub=document.getElementById('modalSub');
       const body=document.getElementById('modalBody');
       if(!modal||!title||!sub||!body){
-        console.error('V50.28 OUTILS: structure modal introuvable');
+        console.error('V50.29 OUTILS: structure modal introuvable');
         return;
       }
       try{ if(Array.isArray(window.modalStack)) window.modalStack.length=0; }catch(e){}
       title.textContent='OUTILS';
-      sub.textContent='ALYZIA OPS · V50.28 · BUILD 130';
+      sub.textContent='ALYZIA OPS · V50.29 · BUILD 130';
       body.innerHTML=`<div class="tools-grid">
         <button class="tool-card tools-imports-featured" onclick="openImportsDashboard()"><span class="tool-icon">⇩</span><b>IMPORTS GMAIL</b><span>PIPELINE GMAIL / R2 / D1</span></button>
         <button class="tool-card company-config-tool" onclick="openCompanyConfig()"><span class="tool-icon">⚙</span><b>CONFIG COMPAGNIE</b><span>CLASSES, MODULES, CARTES SSR</span></button>
@@ -23582,7 +23596,7 @@ try{
       const back=document.getElementById('modalBackBtn');
       if(back)back.style.display='none';
     }catch(err){
-      console.error('V50.28 OUTILS',err);
+      console.error('V50.29 OUTILS',err);
     }
   }
   window.openTools=openToolsLite;
@@ -23602,7 +23616,7 @@ try{
     window.render.__v5027=true;
   }
   setTimeout(()=>{try{applyClean(typeof f==='function'?f():null)}catch(e){}},250);
-  console.log('ALYZIA OPS V50.28 BUILD 130 — GENERIC PAX + TOOLS FIXED LOADED');
+  console.log('ALYZIA OPS V50.29 BUILD 130 — GENERIC PAX + TOOLS FIXED LOADED');
 })();
 </script>
 </body></html>
