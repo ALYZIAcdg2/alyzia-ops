@@ -6,7 +6,7 @@
   <meta http-equiv="Expires" content="0">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V50.21 · TW CONFIG CARDS FIX</title>
+<title>ALYZIA OPS - V50.22 · CONST ASSIGN FIX</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -7132,13 +7132,13 @@ html,body{
 <body>
 <script>
 /* V49.75 — BJ KPI WEB SBY AVAILABLE. SQ/TK frozen. */
-const ALYZIA_APP_VERSION='V50.21';
+const ALYZIA_APP_VERSION='V50.22';
 const ALYZIA_SQ_LOCK_VERSION='V49.64';
 const ALYZIA_TK_LOCK_VERSION='V49.69';
-const ALYZIA_APP_BUILD='2026-08-31-123';
+const ALYZIA_APP_BUILD='2026-08-31-124';
 </script>
 <header class="topbar">
- <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V50.21</span></div>
+ <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V50.22</span></div>
  <nav class="nav">
    <button class="home-nav" onclick="renderHome()" title="Accueil vols">⌂</button>
    <button onclick="renderHome()">VOLS</button><button onclick="openFlightSearch()">RECHERCHE</button><button onclick="renderPrepa()">PRÉPA</button><button onclick="openTools()">OUTILS</button><button>ADMIN</button>
@@ -17851,7 +17851,7 @@ async function openTools(){
    <button class="tool-card" onclick="openSariaApp()"><span class="tool-icon">✈</span><b>SARIA</b><span>OUVRIR DIRECTEMENT L’OUTIL SARIA CABIN / SEATMAP.</span></button>
    <div class="ops-cloud-card">
      ${(()=>{const st=opsCloudStatusMarkup();return `<div id="opsCloudStatusBox" class="ops-cloud-status ${st.cls}">${st.text}</div>`})()}
-     <div class="ops-cloud-help">D1 PARTAGÉ · 3 TENTATIVES AU DÉMARRAGE · RECONNEXION AUTOMATIQUE · PC, TABLETTE ET TÉLÉPHONE.<br><b style="color:#087749">V50.21 · TW CONFIG CARDS FIX</b></div>
+     <div class="ops-cloud-help">D1 PARTAGÉ · 3 TENTATIVES AU DÉMARRAGE · RECONNEXION AUTOMATIQUE · PC, TABLETTE ET TÉLÉPHONE.<br><b style="color:#087749">V50.22 · CONST ASSIGN FIX</b></div>
      <button class="live-refresh" onclick="manualCloudRefresh()">↻ SYNCHRONISER MAINTENANT</button>
    </div>
    ${renderImportsMainCard()}
@@ -20556,7 +20556,7 @@ function v5011SetActionState(c,key,kind,label,on=true){
 function v5011StateFor(c,key){return V5011_ACTION_STATE.get(`${c}|${key}`)||null}
 
 /* Reprendre/Réinjecter : traitement asynchrone, modal toujours fermable/navigable. */
-const v5011_run_row_base=v5009RunRow;
+let v5011_run_row_base=v5009RunRow;
 async function v5011ResumeImport(c,key){
   const row=getImpRow(c,key);if(!row)return;
   const processed=String(row.status||'').toUpperCase()==='PROCESSED';
@@ -22590,8 +22590,8 @@ try{
 (function(){
   'use strict';
 
-  const VERSION='V50.21';
-  const BUILD='2026-08-31-123';
+  const VERSION='V50.22';
+  const BUILD='2026-08-31-124';
 
   function driveStatusInto(btn){
     if(!btn || typeof window.v5013GetDriveStatus!=='function') return;
@@ -23185,6 +23185,8 @@ try{
 })();
 </script>
 
+
+<!-- V50.22 BUILD124: correction JS. v5011_run_row_base passe de const à let pour permettre le remplacement V50.12 sans TypeError. -->
 </body></html>
 <!-- V50.03: cloud status is debounced; 3 startup retries; transient sync failures no longer force immediate local mode. -->
 <!-- V50.0: generic airline PREPA engine + airline profiles; SQ/TK/BJ parser semantics unchanged. -->
