@@ -1,6 +1,7 @@
+// V50.28 RULE: INC/INCARRIAGE = INBOUND PAX; INBOUND SUMMARY = FLIGHT METADATA; route inbound terminates at main origin (CDG).
 // V50.27 RULE: INCARRIAGE/INC = INBOUND PASSENGERS; INBOUND CUSTOMER SUMMARY = INBOUND FLIGHTS.
 // Passenger dossier displays linked INBOUND/OUTBOUND flight exactly via the shared connection rows.
-// ALYZIA OPS V50.27 · Generic Inbound Summary/Pax Link
+// ALYZIA OPS V50.28 · Generic Connections + Full Passenger Consolidation
 // - Assets statiques public/
 // - API vols partagée D1
 // - Bridge interne vers SARIA
@@ -3700,41 +3701,94 @@ function lot3MergeFlightData(current,row,card){
     }
   }
 
+
   if(["INBOUND","OUTBOUND","INBOUND_SUMMARY","OUTBOUND_SUMMARY"].includes(card.cardKey)){
     const isInbound=card.cardKey==="INBOUND" || card.cardKey==="INBOUND_SUMMARY";
     const isSummary=card.cardKey==="INBOUND_SUMMARY" || card.cardKey==="OUTBOUND_SUMMARY";
     const dir=isInbound?"inbound":"outbound";
-    base[dir]=Array.isArray(base[dir])?base[dir]:[];
-    // SUMMARY = liste des vols. INC/ONC = listes nominatives passagers.
-    const rows=isSummary && Array.isArray(card.connectionRows)?card.connectionRows:[];
-    for(const r of rows){
-      if(!r.flight)continue;
-      const row={flight:r.flight,from:r.from,to:r.to,time:r.time,classCounts:r.classCounts,passengers:[],sourceList:card.listName,conx:r.conx};
-      const key=[row.flight,row.from,row.to,row.time,row.sourceList].join("|");
-      if(!base[dir].some(x=>[x.flight,x.from,x.to,x.time,x.sourceList].join("|")===key))base[dir].push(row);
-    }
-    if(Array.isArray(card.passengerItems) && card.passengerItems.length){
+
+    /*
+     * V50.28 STRICT CONNECTION MODEL
+     * SUMMARY = metadata vols uniquement.
+     * INC / ONC = passagers uniquement.
+     * La fiche vol expose ensuite UNE LIGNE PAR PASSAGER, comme SQ.
+     */
+    if(!isSummary && Array.isArray(card.passengerItems) && card.passengerItems.length){
+      const summaryKey=isInbound?"INBOUND_SUMMARY":"OUTBOUND_SUMMARY";
+      const summaryCard=cards[summaryKey]||null;
+      const summaryRows=[];
+      const srcs=summaryCard&&Array.isArray(summaryCard.sources)&&summaryCard.sources.length?summaryCard.sources:[summaryCard].filter(Boolean);
+      for(const s of srcs){
+        for(const r of (Array.isArray(s?.connectionRows)?s.connectionRows:[]))summaryRows.push(r);
+      }
+      if(!summaryRows.length && Array.isArray(summaryCard?.connectionRows))summaryRows.push(...summaryCard.connectionRows);
+      const byFlight=new Map(summaryRows.filter(r=>r?.flight).map(r=>[String(r.flight).toUpperCase(),r]));
+
+      base[dir]=Array.isArray(base[dir])?base[dir]:[];
+      // Remove prior generic rows produced by the same nominative list; summary rows are never displayed as pax rows.
+      base[dir]=base[dir].filter(r=>{
+        if(!r)return false;
+        if(Array.isArray(r.passengers))return false;
+        const src=String(r.sourceList||"").toUpperCase();
+        return src!==String(card.listName||"").toUpperCase();
+      });
+
       for(const p0 of card.passengerItems){
         const p=lot3NormalizePassengerForUi(p0,card);
         const conn=p.connection||{};
-        if(!conn.flight)continue;
-
-        // Inbound : le vol de correspondance arrive de conn.airport vers CDG/origin.
-        const from=isInbound?(conn.airport||""):(p.origin||"");
-        const to=isInbound?(p.origin||""):(conn.airport||p.destination||"");
-
-        let target=base[dir].find(r=>String(r.flight||"").toUpperCase()===String(conn.flight||"").toUpperCase());
-        if(!target){
-          target={flight:conn.flight,from,to,time:"",classCounts:{},passengers:[],sourceList:card.listName,conx:""};
-          base[dir].push(target);
-        }
-        target.from=target.from||from;
-        target.to=target.to||to;
-        target.passengers=Array.isArray(target.passengers)?target.passengers:[];
-        if(!target.passengers.some(q=>lot3PaxKey(q)===lot3PaxKey(p)))target.passengers.push(p);
-        target.pax=target.passengers.length;
-        target.count=target.passengers.length;
+        const flight=String(conn.flight||"").trim().toUpperCase();
+        if(!flight)continue;
+        const meta=byFlight.get(flight)||{};
+        const masterIdx=lot3FindPassengerIndex(base.passengers||[],p,base.airline);
+        const master=masterIdx>=0?(base.passengers||[])[masterIdx]:null;
+        const pax=master?lot3MergePassengerInfo(master,p):p;
+        const airport=String(conn.airport||"").trim().toUpperCase();
+        const metaFrom=String(meta.from||"").trim().toUpperCase();
+        const metaTo=String(meta.to||"").trim().toUpperCase();
+        const from=isInbound
+          ? ((metaFrom && metaFrom!==String(base.dep||"").toUpperCase() && metaFrom!==String(base.dest||"").toUpperCase())?metaFrom:(airport||metaFrom))
+          : (String(base.dest||metaFrom||"").toUpperCase());
+        const to=isInbound
+          ? String(base.dep||"CDG").toUpperCase()
+          : ((metaTo && metaTo!==String(base.dep||"").toUpperCase() && metaTo!==String(base.dest||"").toUpperCase())?metaTo:(airport||metaTo));
+        const row={
+          ...pax,
+          passenger:pax.name||pax.fullName||"",
+          name:pax.name||pax.fullName||"",
+          flight,
+          from,
+          to,
+          time:String(meta.time||"").trim(),
+          conx:String(meta.conx||""),
+          class:pax.class||pax.cabinClass||"",
+          sourceList:card.listName,
+          connection:{...conn,direction:isInbound?"INBOUND":"OUTBOUND",flight,airport}
+        };
+        const key=[flight,lot3PaxEtktKeys(pax)[0]||lot3PaxPnrKey(pax)||lot3PaxNameKey(pax),lot3PaxSeatKey(pax)].join("|");
+        const idx=base[dir].findIndex(r=>[
+          String(r.flight||"").toUpperCase(),
+          lot3PaxEtktKeys(r)[0]||lot3PaxPnrKey(r)||lot3PaxNameKey(r),
+          lot3PaxSeatKey(r)
+        ].join("|")===key);
+        if(idx>=0)base[dir][idx]=lot3MergePassengerInfo(base[dir][idx],row);
+        else base[dir].push(row);
       }
+    }
+  }
+
+  // V50.28: after every generic card, refresh all list snapshots from the consolidated master.
+  if(!lot3IsProtectedSpecificAirline(base.airline)){
+    for(const listKey of Object.keys(base.common_lists||{})){
+      base.common_lists[listKey]=(base.common_lists[listKey]||[]).map(p=>{
+        const idx=lot3FindPassengerIndex(base.passengers||[],p,base.airline);
+        return idx>=0?lot3MergePassengerInfo(base.passengers[idx],p):p;
+      });
+    }
+    for(const dir of ["inbound","outbound"]){
+      base[dir]=(base[dir]||[]).map(p=>{
+        const idx=lot3FindPassengerIndex(base.passengers||[],p,base.airline);
+        return idx>=0?lot3MergePassengerInfo(base.passengers[idx],p):p;
+      });
     }
   }
 
