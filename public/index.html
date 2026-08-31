@@ -6,7 +6,7 @@
   <meta http-equiv="Expires" content="0">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V50.22 · CONST ASSIGN FIX</title>
+<title>ALYZIA OPS - V50.23 · SSR EXISTING CARDS ONLY</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -7023,122 +7023,35 @@ html,body{
 </style>
 
 
-<style id="alyzia-lot4-import-cards-css">
-/* V50.19 BUILD121 — Lot 4 affichage cartes importées uniquement en fiche vol */
-.imported-flight-cards{
-  margin:10px 0 12px;
-  border:1px solid #dce7f2;
-  border-radius:14px;
-  background:linear-gradient(180deg,#ffffff 0%,#f7fbff 100%);
-  box-shadow:0 8px 22px rgba(10,35,70,.06);
-  padding:12px;
-}
-.imported-flight-cards-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px}
-.imported-flight-cards-title b{display:block;font-size:13px;color:#14243a;font-weight:950;letter-spacing:.2px}
-.imported-flight-cards-title span{display:block;font-size:9px;color:#677b91;font-weight:850;margin-top:2px}
-.imported-flight-chip{border:1px solid #bdd7f6;background:#eef6ff;color:#075fd3;border-radius:999px;padding:6px 9px;font-size:9px;font-weight:950;white-space:nowrap}
-.imported-flight-cards-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
-.imported-flight-card{border:1px solid #d9e4ef;background:#fff;border-radius:12px;padding:11px;cursor:pointer;text-align:left;color:#162840;position:relative;overflow:hidden;min-height:118px}
-.imported-flight-card:hover{border-color:#86b6ed;background:#f8fbff}
-.imported-flight-card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:#075fd3}
-.imported-flight-card.imported-summary::before{background:#7c3aed}
-.imported-flight-card.imported-listof::before{background:#087749}
-.imported-flight-card-main{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
-.imported-flight-card h4{margin:0;font-size:12px;color:#14243a;font-weight:950}
-.imported-flight-card .imported-count{font-size:24px;line-height:1;color:#075fd3;font-weight:950}
-.imported-flight-card.imported-summary .imported-count{color:#7c3aed}
-.imported-flight-card.imported-listof .imported-count{color:#087749}
-.imported-flight-card-meta{display:grid;gap:5px;margin-top:9px}
-.imported-source-row{border:1px solid #e4ebf3;background:#f9fbfd;border-radius:8px;padding:7px}
-.imported-source-row b{display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:9px;color:#14243a}
-.imported-source-row span{display:block;font-size:8px;color:#687b91;margin-top:3px;font-weight:850;text-transform:none;word-break:break-word}
-.imported-source-type{display:inline-flex;align-items:center;border-radius:999px;padding:3px 6px;font-size:7px;font-weight:950;border:1px solid #d3e2f1;background:#fff;color:#4d6178;white-space:nowrap}
-.imported-source-type.summary{border-color:#d8c7ff;background:#f5f0ff;color:#6d28d9}
-.imported-source-type.listof{border-color:#bfe4cf;background:#effaf3;color:#087749}
-.imported-class-pills{display:flex;gap:4px;flex-wrap:wrap;margin-top:7px}
-.imported-class-pill{border:1px solid #d8e2ec;background:#fff;border-radius:999px;padding:3px 6px;font-size:8px;font-weight:950;color:#14243a}
-.imported-modal-list{display:grid;gap:8px;margin-top:12px}
-.imported-modal-source{border:1px solid #dce7f2;border-radius:10px;background:#fff;padding:10px}
-.imported-modal-source h4{margin:0 0 6px;font-size:12px;color:#14243a}
-.imported-modal-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:9px}
-.imported-modal-kpi{border:1px solid #e0e8f0;border-radius:9px;background:#f8fbff;padding:9px;min-width:0}
-.imported-modal-kpi b{display:block;font-size:16px;color:#075fd3;word-break:break-word}
-.imported-modal-kpi span{display:block;font-size:8px;color:#64788e;font-weight:950;margin-top:2px}
-@media(max-width:900px){
-  .imported-flight-cards-grid{grid-template-columns:1fr}
-  .imported-modal-kpis{grid-template-columns:1fr}
-}
-</style>
 
-
-<style id="alyzia-v5020-generic-config-css">
-/* V50.21 BUILD123 — génériques sans cartes par défaut */
-.company-config-cards.v5020-all{
-  display:grid;
-  grid-template-columns:repeat(auto-fit,minmax(230px,1fr));
-  gap:9px;
-}
-.company-config-card.generic-off{
-  border-color:#dbe5ef;
-  background:#fbfdff;
-}
-.company-config-card.generic-off .company-config-info small{
-  color:#7b8796;
-}
-.company-config-card.specific-on{
-  border-color:#b9d7ff;
-  background:#f7fbff;
-}
-.v5020-config-banner{
-  border:1px solid #cfe0f2;
-  background:#f8fbff;
-  border-radius:10px;
-  padding:12px;
-  margin-bottom:12px;
-  display:flex;
-  justify-content:space-between;
+<style id="alyzia-v5023-existing-cards-only-css">
+/* V50.23 BUILD125 — injection visible uniquement dans les cartes déjà existantes */
+.v5023-import-note{
+  display:inline-flex;
   align-items:center;
-  gap:10px;
-}
-.v5020-config-banner b{display:block;font-size:12px;color:#12243b}
-.v5020-config-banner span{display:block;font-size:9px;color:#65788d;font-weight:850;margin-top:3px;line-height:1.35}
-.v5020-config-banner button{
-  border:1px solid #0b6fe8;
-  background:#eef6ff;
-  color:#075fd3;
-  border-radius:8px;
-  padding:9px 11px;
-  font-size:9px;
+  gap:5px;
+  border:1px solid #bfe4cf;
+  background:#effaf3;
+  color:#087749;
+  border-radius:999px;
+  padding:3px 7px;
+  font-size:8px;
   font-weight:950;
-  white-space:nowrap;
+  margin-left:6px;
 }
-.v5020-ssr-grid{
-  display:grid;
-  grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
-  gap:8px;
-  margin-top:12px;
-}
-.v5020-ssr-card{
-  border:1px solid #dfe8f1;
-  background:#fff;
-  border-radius:9px;
-  padding:10px;
-}
-.v5020-ssr-card b{display:block;font-size:11px;color:#14243a}
-.v5020-ssr-card span{display:block;font-size:8px;color:#66798f;font-weight:850;margin-top:4px;line-height:1.35}
 </style>
 
 </head>
 <body>
 <script>
 /* V49.75 — BJ KPI WEB SBY AVAILABLE. SQ/TK frozen. */
-const ALYZIA_APP_VERSION='V50.22';
+const ALYZIA_APP_VERSION='V50.23';
 const ALYZIA_SQ_LOCK_VERSION='V49.64';
 const ALYZIA_TK_LOCK_VERSION='V49.69';
-const ALYZIA_APP_BUILD='2026-08-31-124';
+const ALYZIA_APP_BUILD='2026-08-31-125';
 </script>
 <header class="topbar">
- <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V50.22</span></div>
+ <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V50.23</span></div>
  <nav class="nav">
    <button class="home-nav" onclick="renderHome()" title="Accueil vols">⌂</button>
    <button onclick="renderHome()">VOLS</button><button onclick="openFlightSearch()">RECHERCHE</button><button onclick="renderPrepa()">PRÉPA</button><button onclick="openTools()">OUTILS</button><button>ADMIN</button>
@@ -17851,7 +17764,7 @@ async function openTools(){
    <button class="tool-card" onclick="openSariaApp()"><span class="tool-icon">✈</span><b>SARIA</b><span>OUVRIR DIRECTEMENT L’OUTIL SARIA CABIN / SEATMAP.</span></button>
    <div class="ops-cloud-card">
      ${(()=>{const st=opsCloudStatusMarkup();return `<div id="opsCloudStatusBox" class="ops-cloud-status ${st.cls}">${st.text}</div>`})()}
-     <div class="ops-cloud-help">D1 PARTAGÉ · 3 TENTATIVES AU DÉMARRAGE · RECONNEXION AUTOMATIQUE · PC, TABLETTE ET TÉLÉPHONE.<br><b style="color:#087749">V50.22 · CONST ASSIGN FIX</b></div>
+     <div class="ops-cloud-help">D1 PARTAGÉ · 3 TENTATIVES AU DÉMARRAGE · RECONNEXION AUTOMATIQUE · PC, TABLETTE ET TÉLÉPHONE.<br><b style="color:#087749">V50.23 · SSR EXISTING CARDS ONLY</b></div>
      <button class="live-refresh" onclick="manualCloudRefresh()">↻ SYNCHRONISER MAINTENANT</button>
    </div>
    ${renderImportsMainCard()}
@@ -22590,8 +22503,8 @@ try{
 (function(){
   'use strict';
 
-  const VERSION='V50.22';
-  const BUILD='2026-08-31-124';
+  const VERSION='V50.23';
+  const BUILD='2026-08-31-125';
 
   function driveStatusInto(btn){
     if(!btn || typeof window.v5013GetDriveStatus!=='function') return;
@@ -22754,439 +22667,203 @@ try{
 </script>
 
 
-<script id="alyzia-lot4-import-cards-js">
-/* V50.19 BUILD121 — Lot 4 safe : affichage uniquement si .flight-head existe */
+<!-- V50.22 BUILD124: correction JS. v5011_run_row_base passe de const à let pour permettre le remplacement V50.12 sans TypeError. -->
+
+<script id="alyzia-v5023-existing-cards-only-js">
+/* V50.23 BUILD125
+   Stoppe les nouvelles cartes "CARTES IMPORTÉES".
+   Les données importées alimentent uniquement les structures existantes :
+   - BOOKED / CLASSES
+   - cartes SSR existantes
+   - common_lists pour les modales dès que le Worker fournit les noms
+   - INBOUND/OUTBOUND restent gérés par la logique existante dédiée.
+*/
 (function(){
   'use strict';
-  const LOT4_BUILD='2026-08-31-121';
-  let lot4LastIdentity='';
-  let lot4LastCards={};
+  const V5023_BUILD='2026-08-31-125';
+  const V5023_SPECIFIC=new Set(['SQ','TK','BJ','TW']);
 
-  function lot4Esc(v){return String(v??'').replace(/[&<>"']/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]})}
-  function lot4Num(v){const n=Number(v||0);return Number.isFinite(n)?n:0}
-  function lot4CurrentFlight(){try{return typeof f==='function'?f():null}catch(e){return null}}
-  function lot4IsDetailPage(){
-    const app=document.getElementById('app');
-    if(!app)return false;
-    if(!app.querySelector('.flight-head'))return false;
-    try{
-      if(typeof currentView!=='undefined' && currentView!=='detail')return false;
-    }catch(e){}
-    return true;
+  function v5023Num(v){
+    const n=Number(v||0);
+    return Number.isFinite(n)?n:0;
   }
-  function lot4Identity(x){
-    if(!x)return '';
-    let date='';
-    try{date=String(x.date||x.activeDate||HOME_DATE||selectedDate||'').trim()}catch(e){date=String(x.date||x.activeDate||'').trim()}
-    const airline=String(x.airline||'').trim().toUpperCase();
-    const flight=String(x.flight||'').trim().toUpperCase();
-    return date&&airline&&flight?date+'|'+airline+'|'+flight:'';
+  function v5023IsGeneric(a){
+    a=String(a||'').toUpperCase();
+    return a && !V5023_SPECIFIC.has(a);
   }
-  function lot4SourceKind(src){
-    const list=String(src?.listName||src?.list_name||'').toUpperCase();
-    const label=String(src?.label||'').toUpperCase();
-    if(list.includes('SUMMARY')||label.includes('SUMMARY'))return 'summary';
-    return 'listof';
+  function v5023Sources(card){
+    return Array.isArray(card?.sources)&&card.sources.length?card.sources:[card].filter(Boolean);
   }
-  function lot4SourceKindLabel(kind){return kind==='summary'?'SUMMARY · RÉSUMÉ CONNEXION':'LIST OF · LISTE NOMINATIVE'}
-  function lot4Classes(c){
-    const obj=c&&typeof c==='object'?c:{};
-    return ['F','J','C','W','S','Y'].filter(function(k){return Object.prototype.hasOwnProperty.call(obj,k)})
-      .map(function(k){return '<span class="imported-class-pill">'+k+' '+lot4Num(obj[k])+'</span>'}).join('');
+  function v5023CardCount(card){
+    return Math.max(0,...v5023Sources(card).map(s=>v5023Num(s?.passengerCount)),v5023Num(card?.passengerCount));
   }
-  function lot4NormalizeCards(rawCards){
-    const cards=rawCards&&typeof rawCards==='object'?rawCards:{};
+  function v5023ClassCounts(card){
     const out={};
-    Object.keys(cards).forEach(function(k){
-      const card=cards[k]||{};
-      const sources=Array.isArray(card.sources)&&card.sources.length?card.sources:[card];
-      out[k]=Object.assign({},card,{
-        cardKey:card.cardKey||k,
-        passengerCount:lot4Num(card.passengerCount),
-        sources:sources.map(function(s){return Object.assign({},s,{cardKey:s.cardKey||card.cardKey||k})})
+    v5023Sources(card).forEach(src=>{
+      const c=src?.classCounts&&typeof src.classCounts==='object'?src.classCounts:{};
+      Object.keys(c).forEach(k=>{
+        const key=String(k||'').toUpperCase();
+        if(!key)return;
+        out[key]=Math.max(v5023Num(out[key]),v5023Num(c[k]));
+      });
+    });
+    const c=card?.classCounts&&typeof card.classCounts==='object'?card.classCounts:{};
+    Object.keys(c).forEach(k=>{
+      const key=String(k||'').toUpperCase();
+      if(!key)return;
+      out[key]=Math.max(v5023Num(out[key]),v5023Num(c[k]));
+    });
+    return out;
+  }
+  function v5023PassengerItems(card){
+    const out=[];
+    const seen=new Set();
+    function push(p,src){
+      if(!p || typeof p!=='object')return;
+      const name=String(p.name||p.fullName||p.passenger_name||'').trim();
+      const key=[name,String(p.seat||''),String(p.class||p.cabinClass||''),String(p.etkt||p.ticket||''),String(src?.listName||'')].join('|').toUpperCase();
+      if(!name || seen.has(key))return;
+      seen.add(key);
+      out.push({
+        ...p,
+        name,
+        class:String(p.class||p.cabinClass||'').toUpperCase(),
+        specific:String(p.specific||src?.listName||card?.cardKey||''),
+        note:String(p.note||src?.listName||'IMPORT')
+      });
+    }
+    v5023Sources(card).forEach(src=>{
+      const lists=[src?.passengers,src?.items,src?.passengerItems,src?.names];
+      lists.forEach(arr=>{
+        if(Array.isArray(arr))arr.forEach(p=>push(typeof p==='string'?{name:p}:p,src));
       });
     });
     return out;
   }
-  async function lot4FetchFlight(identity){
-    const res=await fetch('/api/flights?identity='+encodeURIComponent(identity),{cache:'no-store'});
-    if(!res.ok)throw new Error('HTTP '+res.status);
-    return await res.json();
-  }
-  function lot4RenderPanel(cards){
-    const keys=Object.keys(cards||{}).filter(function(k){return cards[k]});
-    if(!keys.length)return '';
-    const totalSources=keys.reduce(function(s,k){return s+(cards[k].sources||[]).length},0);
-    return '<section id="lot4ImportedCards" class="imported-flight-cards">'+
-      '<div class="imported-flight-cards-head">'+
-        '<div class="imported-flight-cards-title"><b>CARTES IMPORTÉES</b><span>SUMMARY = résumé connexion · LIST OF = liste nominative</span></div>'+
-        '<span class="imported-flight-chip">'+keys.length+' CARTE'+(keys.length>1?'S':'')+' · '+totalSources+' SOURCE'+(totalSources>1?'S':'')+'</span>'+
-      '</div>'+
-      '<div class="imported-flight-cards-grid">'+keys.map(function(k){return lot4RenderCard(cards[k])}).join('')+'</div>'+
-    '</section>';
-  }
-  function lot4RenderCard(card){
-    const sources=Array.isArray(card.sources)?card.sources:[card];
-    const mainKind=sources.some(function(s){return lot4SourceKind(s)==='summary'})?'summary':'listof';
-    return '<button class="imported-flight-card imported-'+mainKind+'" onclick="openLot4ImportCard(\''+lot4Esc(card.cardKey)+'\')">'+
-      '<div class="imported-flight-card-main"><div><h4>'+lot4Esc(card.label||card.cardKey)+'</h4><div class="imported-class-pills">'+lot4Classes(card.classCounts)+'</div></div><div class="imported-count">'+lot4Num(card.passengerCount)+'</div></div>'+
-      '<div class="imported-flight-card-meta">'+sources.slice(0,3).map(function(src){
-        const kind=lot4SourceKind(src);
-        return '<div class="imported-source-row"><b>'+lot4Esc(src.listName||src.list_name||'—')+'<em class="imported-source-type '+kind+'">'+lot4SourceKindLabel(kind)+'</em></b><span>'+lot4Num(src.passengerCount)+' PAX · '+lot4Esc(src.mappingScope||'')+'</span></div>';
-      }).join('')+'</div>'+
-    '</button>';
-  }
-  function lot4RemovePanel(){
-    const old=document.getElementById('lot4ImportedCards');
-    if(old)old.remove();
-  }
-  function lot4InsertPanel(cards){
-    const app=document.getElementById('app');
-    if(!app)return;
-    lot4RemovePanel();
+  function v5023ApplyImportedToExistingModel(x){
+    if(!x || !x.imports || !x.imports.cards)return x;
+    x.common=x.common||{};
+    x.common_lists=x.common_lists||{};
+    x.booked=x.booked||{};
 
-    const head=app.querySelector('.flight-head');
-    if(!head)return; // sécurité : jamais sur accueil / vols / prépa
+    const cards=x.imports.cards||{};
 
-    const panel=lot4RenderPanel(cards);
-    if(!panel)return;
-    head.insertAdjacentHTML('afterend',panel);
-  }
-  async function lot4DecorateFlightImportCards(){
-    if(!lot4IsDetailPage()){
-      lot4RemovePanel();
-      return;
+    // MASTER = booked existant + KPI classes. Pas de nouvelle carte.
+    if(cards.MASTER){
+      const counts=v5023ClassCounts(cards.MASTER);
+      Object.keys(counts).forEach(k=>{
+        if(v5023Num(counts[k])>0)x.booked[k]=v5023Num(counts[k]);
+      });
+      const total=v5023CardCount(cards.MASTER);
+      if(total>0)x._importedBookedTotal=total;
     }
 
-    const x=lot4CurrentFlight();
-    const identity=lot4Identity(x);
-    if(!identity){
-      lot4RemovePanel();
-      return;
+    const map={
+      WCH:'WCH',
+      CHLD:'CHLD',
+      INF:'INF',
+      EMD:'EMD',
+      ETKT:'ETK',
+      FQTV:'FQTV',
+      STAFF:'STAFF',
+      MEAL:'MEAL',
+      UMNR:'UMNR',
+      MAAS:'MAAS',
+      INAD:'INAD',
+      DEPA:'DEPA',
+      DEPU:'DEPU'
+    };
+
+    Object.keys(map).forEach(cardKey=>{
+      const card=cards[cardKey];
+      if(!card)return;
+      const key=map[cardKey];
+      const count=v5023CardCount(card);
+      if(count>0)x.common[key]=count;
+
+      const pax=v5023PassengerItems(card);
+      if(pax.length)x.common_lists[key]=pax;
+    });
+
+    // FQTV peut avoir plusieurs sources/catégories : on garde une seule carte FQTV,
+    // les catégories seront dans la modale quand les noms/catégories sont disponibles.
+    if(cards.FQTV && !Array.isArray(x.common_lists.FQTV)){
+      const pax=v5023PassengerItems(cards.FQTV);
+      if(pax.length)x.common_lists.FQTV=pax;
     }
 
-    try{
-      let cards=lot4NormalizeCards(x?.imports?.cards);
-      if(!Object.keys(cards).length || lot4LastIdentity!==identity){
-        const data=await lot4FetchFlight(identity);
-        if(data?.ok && data?.flight){
-          cards=lot4NormalizeCards(data.flight?.imports?.cards);
-          try{Object.assign(x,data.flight)}catch(e){}
-        }
-      }
-      lot4LastIdentity=identity;
-      lot4LastCards=cards;
-      lot4InsertPanel(cards);
-    }catch(e){
-      console.warn('LOT4 IMPORT CARDS',e);
-    }
+    return x;
   }
 
-  window.openLot4ImportCard=function(cardKey){
-    const card=lot4LastCards[String(cardKey||'')]||null;
-    if(!card)return;
-    const sources=Array.isArray(card.sources)?card.sources:[card];
-    const body='<div class="imported-modal-kpis">'+
-      '<div class="imported-modal-kpi"><b>'+lot4Num(card.passengerCount)+'</b><span>TOTAL CARTE</span></div>'+
-      '<div class="imported-modal-kpi"><b>'+sources.length+'</b><span>SOURCE'+(sources.length>1?'S':'')+'</span></div>'+
-      '<div class="imported-modal-kpi"><b>'+lot4Esc(card.mappingScope||sources[0]?.mappingScope||'—')+'</b><span>MAPPING</span></div>'+
-    '</div><div class="imported-modal-list">'+sources.map(function(src){
-      const kind=lot4SourceKind(src);
-      return '<div class="imported-modal-source"><h4>'+lot4Esc(src.listName||'—')+'</h4>'+
-      '<div><span class="imported-source-type '+kind+'">'+lot4SourceKindLabel(kind)+'</span></div>'+
-      '<div class="imported-class-pills">'+lot4Classes(src.classCounts)+'</div>'+
-      '<div class="imported-modal-kpis">'+
-        '<div class="imported-modal-kpi"><b>'+lot4Num(src.passengerCount)+'</b><span>PASSAGERS</span></div>'+
-        '<div class="imported-modal-kpi"><b>'+lot4Esc(src.documentType||src.cardKey||'—')+'</b><span>CARTE</span></div>'+
-        '<div class="imported-modal-kpi"><b>'+lot4Esc(src.status||'—')+'</b><span>STATUT</span></div>'+
-      '</div>'+
-      '<div class="imported-source-row" style="margin-top:8px"><b>VERSION</b><span>'+lot4Esc(src?.source?.versionId||'—')+'</span></div></div>';
-    }).join('')+'</div>';
-    showModal('IMPORT · '+lot4Esc(card.label||card.cardKey),'SUMMARY = résumé connexion · LIST OF = liste nominative',body);
-  };
-
-  window.refreshLot4ImportCards=function(){lot4LastIdentity='';lot4DecorateFlightImportCards()};
-
-  function lot4Start(){
-    try{
-      if(typeof render==='function' && !render.__lot4Wrapped){
-        const originalRender=render;
-        render=function(){
-          const r=originalRender.apply(this,arguments);
-          setTimeout(lot4DecorateFlightImportCards,120);
-          return r;
-        };
-        render.__lot4Wrapped=true;
-      }
-      if(typeof renderHome==='function' && !renderHome.__lot4Wrapped){
-        const originalHome=renderHome;
-        renderHome=function(){
-          const r=originalHome.apply(this,arguments);
-          setTimeout(lot4RemovePanel,0);
-          return r;
-        };
-        renderHome.__lot4Wrapped=true;
-      }
-      setTimeout(lot4DecorateFlightImportCards,300);
-    }catch(e){console.warn('LOT4 START',e)}
-  }
-
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',lot4Start);
-  else lot4Start();
-
-  console.log('ALYZIA OPS V50.19 BUILD '+LOT4_BUILD+' — LOT4 SAFE DETAIL ONLY LOADED');
-})();
-</script>
-
-
-<script id="alyzia-v5020-generic-no-default-cards-js">
-/* V50.21 BUILD123 — génériques sans cartes par défaut
-   Objectif : hors SQ/TK/BJ/TW, aucune carte SSR affichée par défaut.
-   Les cartes génériques visibles viendront uniquement de l'import Lot 3 / Lot 4. */
-(function(){
-  'use strict';
-
-  const V5020_BUILD='2026-08-31-123';
-  const V5020_SPECIFIC_AIRLINES=new Set(['SQ','TK','BJ','TW']);
-  const V5020_ALL_AIRLINES=[
-    '3O','6H','A9','AH','AI','AT','AV','BJ','C3','DE','EI','ENT','ET','FB','FI','HF','HM','HU',
-    'IZ','J2','JU','KU','LA','LO','LS','LY','MH','MS','NH','OZ','PC','RJ','S4','SB','SK','SQ',
-    'TB','TK','TS','TU','TW','VF','WB'
-  ];
-
-  const V5020_SSR_LIBRARY=[
-    ['INF / INFANT','Bébé / infant'],
-    ['CHLD / CHILD / KID','Enfant'],
-    ['WCH / WCHR / WCHS / WCHC','Assistance fauteuil'],
-    ['WCMP / WCBD / WCLB','Assistance fauteuil spécifique'],
-    ['BLND / DEAF','Assistance sensorielle'],
-    ['UMNR / UM','Mineur non accompagné'],
-    ['MAAS','Meet and assist'],
-    ['FQTV / FQA','Frequent flyer / statut'],
-    ['STAFF / REBATE / DUTY','Staff'],
-    ['WEB / CHECK-IN','Web / accepté selon source'],
-    ['EMD','Documents EMD'],
-    ['ETKT / TICKET','Billets'],
-    ['MEAL / SPML / VGML / AVML / BBML / CHML','Repas spéciaux'],
-    ['INAD','Inadmissible'],
-    ['DEPA','Deportee accompanied'],
-    ['DEPU','Deportee unaccompanied'],
-    ['GROUP','Groupe'],
-    ['VIP / VVIP / HCIP / IMPT','VIP / important pax'],
-    ['PETC / AVIH / SVAN / ESAN','Animal'],
-    ['EXST / CBBG','Extra seat / cabin baggage'],
-    ['EXBG / XBAG','Excédent bagage'],
-    ['TKNE','Ticket issue / billet selon compagnie'],
-    ['DOOR','Door / assistance spécifique selon compagnie'],
-    ['UPRQ / UPG / UPGRADE','Upgrade request'],
-    ['EXMO','Extra mobility / code spécifique selon compagnie'],
-    ['INBOUND / INC','Connexion arrivée'],
-    ['OUTBOUND / ONC','Connexion départ'],
-    ['OTHER','Liste explicite non mappée']
-  ];
-
-  function v5020Esc(v){
-    return String(v??'').replace(/[&<>"']/g,function(m){
-      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m];
+  function v5023GenericImportedKeys(x){
+    v5023ApplyImportedToExistingModel(x);
+    const keys=['INF','CHLD','WCH','INAD','DEPA','DEPU','FQTV','STAFF','EMD','ETK','MEAL','UMNR','MAAS'];
+    return keys.filter(k=>{
+      const n=v5023Num(x?.common?.[k]);
+      const list=Array.isArray(x?.common_lists?.[k])?x.common_lists[k]:[];
+      return n>0 || list.length>0;
     });
   }
 
-  function v5020GenericModules(){
-    return {
-      header:true,config:true,booked:true,upgrade:true,web:true,available:true,standby:true,
-      meals:true,particularities:false,inbound:true,outbound:true,notes:true
-    };
-  }
-
-  function v5020EnsureAirlineProfiles(){
+  function v5023PatchGenericRendering(){
     try{
-      if(typeof COMPANY_CONFIG==='undefined')return;
-
-      V5020_ALL_AIRLINES.forEach(function(a){
-        if(COMPANY_CONFIG[a])return;
-
-        COMPANY_CONFIG[a]={
-          airline:a,
-          rules:[{id:a.toLowerCase()+'_all',pattern:a+'*',classes:['Y']}],
-          modules:v5020GenericModules(),
-          particularities:{}
+      if(typeof renderGenericParticularitiesV50==='function' && !renderGenericParticularitiesV50.__v5023Wrapped){
+        window.renderGenericParticularitiesV50 = renderGenericParticularitiesV50 = function(x){
+          const labels={ETK:'ETKT'};
+          const keys=v5023GenericImportedKeys(x);
+          const html=keys.map(k=>commonTile(k,labels[k]||k)).join('');
+          return html + (typeof passengerSearchTile==='function'?passengerSearchTile():'');
         };
-      });
-
-      // Les compagnies spécifiques restent autorisées à afficher leurs cartes métier.
-      ['SQ','TK','BJ'].forEach(function(a){
-        if(COMPANY_CONFIG[a] && COMPANY_CONFIG[a].modules){
-          COMPANY_CONFIG[a].modules.particularities=true;
-        }
-      });
-
-      // TW reste spécifique et garde ses cartes métier configurables.
-      if(COMPANY_CONFIG.TW){
-        COMPANY_CONFIG.TW.modules={...v5020GenericModules(),particularities:true};
-        if(!COMPANY_CONFIG.TW.particularities || !Object.keys(COMPANY_CONFIG.TW.particularities).length){
-          COMPANY_CONFIG.TW.particularities=typeof defaultParticularityVisibility==='function'?defaultParticularityVisibility('TW'):{};
-        }
-      }else{
-        COMPANY_CONFIG.TW={
-          airline:'TW',
-          rules:[{id:'tw_all',pattern:'TW*',classes:['C','Y']}],
-          modules:{...v5020GenericModules(),particularities:true},
-          particularities:typeof defaultParticularityVisibility==='function'?defaultParticularityVisibility('TW'):{}
-        };
+        renderGenericParticularitiesV50.__v5023Wrapped=true;
       }
-
-      // Sécurité : toutes les autres compagnies n'ont pas de cartes SSR par défaut.
-      Object.keys(COMPANY_CONFIG).forEach(function(a){
-        if(!V5020_SPECIFIC_AIRLINES.has(String(a).toUpperCase()) && COMPANY_CONFIG[a]?.modules){
-          COMPANY_CONFIG[a].modules.particularities=false;
-          COMPANY_CONFIG[a].particularities={};
-        }
-      });
-
-      try{
-        if(typeof saveCompanyConfig==='function')saveCompanyConfig();
-        else localStorage.setItem('alyzia_ops_company_config_v490',JSON.stringify(COMPANY_CONFIG));
-      }catch(e){}
     }catch(e){
-      console.warn('[V50.20 CONFIG PROFILES]',e);
+      console.warn('V50.23 generic rendering patch',e);
     }
   }
 
-  function v5020IsGenericAirline(airline){
-    const a=String(airline||'').toUpperCase();
-    return a && !V5020_SPECIFIC_AIRLINES.has(a);
-  }
-
-  function v5020PatchVisibility(){
+  function v5023PatchRender(){
     try{
-      const originalModule=typeof companyModuleVisible==='function'?companyModuleVisible:null;
-      window.companyModuleVisible = companyModuleVisible = function(x,key){
-        const a=String(x?.airline||'').toUpperCase();
-
-        // Règle verrouillée : générique = aucune carte SSR par défaut.
-        if(key==='particularities' && v5020IsGenericAirline(a))return false;
-
-        if(originalModule)return originalModule(x,key);
-        return true;
-      };
-
-      const originalPart=typeof companyParticularityVisible==='function'?companyParticularityVisible:null;
-      window.companyParticularityVisible = companyParticularityVisible = function(x,id){
-        const a=String(x?.airline||'').toUpperCase();
-
-        // Double sécurité si une section particularities était rendue ailleurs.
-        if(v5020IsGenericAirline(a))return false;
-
-        if(originalPart)return originalPart(x,id);
-        return true;
-      };
-    }catch(e){
-      console.warn('[V50.20 VISIBILITY PATCH]',e);
-    }
-  }
-
-  function v5020PatchCloudConfigSync(){
-    try{
-      if(typeof syncCompanyConfigFromFlights==='function' && !syncCompanyConfigFromFlights.__v5020Wrapped){
-        const original=syncCompanyConfigFromFlights;
-        syncCompanyConfigFromFlights=function(){
-          const result=original.apply(this,arguments);
-          v5020EnsureAirlineProfiles();
-          return result;
+      if(typeof render==='function' && !render.__v5023ExistingCardsWrapped){
+        const original=render;
+        render=function(){
+          try{
+            const x=typeof f==='function'?f():null;
+            if(x)v5023ApplyImportedToExistingModel(x);
+          }catch(e){}
+          const old=document.getElementById('lot4ImportedCards');
+          if(old)old.remove();
+          return original.apply(this,arguments);
         };
-        syncCompanyConfigFromFlights.__v5020Wrapped=true;
+        render.__v5023ExistingCardsWrapped=true;
       }
-    }catch(e){}
-  }
-
-  window.openGenericSsrLibrary=function(){
-    const body=
-      '<div class="v5020-config-banner">'+
-        '<div><b>BIBLIOTHÈQUE SSR / LISTES GÉNÉRIQUES</b>'+
-        '<span>Ces codes sont en mémoire pour construire les mappings compagnie dans le temps. Ils ne créent pas de cartes visibles par défaut.</span></div>'+
-      '</div>'+
-      '<div class="v5020-ssr-grid">'+
-        V5020_SSR_LIBRARY.map(function(r){
-          return '<div class="v5020-ssr-card"><b>'+v5020Esc(r[0])+'</b><span>'+v5020Esc(r[1])+'</span></div>';
-        }).join('')+
-      '</div>';
-    showModal('BIBLIOTHÈQUE SSR','BASE À ADAPTER PAR COMPAGNIE',body);
-  };
-
-  function v5020PatchCompanyConfigModal(){
-    try{
-      if(typeof openCompanyConfig!=='function' || openCompanyConfig.__v5020Wrapped)return;
-
-      window.openCompanyConfig = openCompanyConfig = function(){
-        v5020EnsureAirlineProfiles();
-
-        const codes=V5020_ALL_AIRLINES.slice().sort(function(a,b){
-          const aw=V5020_SPECIFIC_AIRLINES.has(a)?0:1;
-          const bw=V5020_SPECIFIC_AIRLINES.has(b)?0:1;
-          return aw-bw || a.localeCompare(b);
-        });
-
-        const body=
-          '<div class="v5020-config-banner">'+
-            '<div><b>CONFIGURATION COMPAGNIES</b>'+
-            '<span>SQ / TK / BJ / TW gardent leurs cartes spécifiques. Toutes les autres compagnies sont génériques : aucune carte SSR par défaut, les cartes viennent de l’import.</span></div>'+
-            '<button onclick="openGenericSsrLibrary()">VOIR BIBLIOTHÈQUE SSR</button>'+
-          '</div>'+
-          '<div class="company-config-cards v5020-all">'+
-            codes.map(function(a){
-              const cfg=COMPANY_CONFIG[a]||{};
-              const specific=V5020_SPECIFIC_AIRLINES.has(a);
-              const rules=(cfg.rules||[]).map(function(r){
-                return String(r.pattern||a+'*')+' → '+(Array.isArray(r.classes)?r.classes.join(' / '):'Y');
-              }).join(' · ');
-
-              return '<button class="company-config-card '+(specific?'specific-on':'generic-off')+'" onclick="openAirlineConfig(\''+a+'\')">'+
-                '<div class="company-config-logo">'+(typeof airlineLogo==='function'?airlineLogo(a,'large'):'<b>'+a+'</b>')+'</div>'+
-                '<div class="company-config-info">'+
-                  '<b>'+a+' · '+(specific?'SPÉCIFIQUE':'GÉNÉRIQUE')+'</b>'+
-                  '<span>'+(specific?'CARTES MÉTIER ACTIVES':'CARTES PAR DÉFAUT DÉSACTIVÉES')+'</span>'+
-                  '<small>'+v5020Esc(rules||a+'* → Y')+'</small>'+
-                '</div>'+
-                '<div class="company-config-arrow">›</div>'+
-              '</button>';
-            }).join('')+
-          '</div>';
-
-        showModal('CONFIG COMPAGNIE','TOUTES COMPAGNIES · GÉNÉRIQUE SANS CARTES PAR DÉFAUT',body);
-      };
-
-      openCompanyConfig.__v5020Wrapped=true;
     }catch(e){
-      console.warn('[V50.20 COMPANY CONFIG MODAL]',e);
+      console.warn('V50.23 render patch',e);
     }
   }
 
-  function v5020Start(){
-    v5020EnsureAirlineProfiles();
-    v5020PatchVisibility();
-    v5020PatchCloudConfigSync();
-    v5020PatchCompanyConfigModal();
-
-    // Si une fiche générique était déjà ouverte, on force juste un rendu propre.
-    setTimeout(function(){
+  function v5023Start(){
+    v5023PatchGenericRendering();
+    v5023PatchRender();
+    setTimeout(()=>{
       try{
+        const old=document.getElementById('lot4ImportedCards');
+        if(old)old.remove();
         const x=typeof f==='function'?f():null;
-        if(x && v5020IsGenericAirline(x.airline) && typeof render==='function' && typeof currentView!=='undefined' && currentView==='detail'){
-          render();
-        }
+        if(x)v5023ApplyImportedToExistingModel(x);
+        if(typeof render==='function' && typeof currentView!=='undefined' && currentView==='detail')render();
       }catch(e){}
     },250);
   }
 
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',v5020Start);
-  else v5020Start();
+  window.v5023ApplyImportedToExistingModel=v5023ApplyImportedToExistingModel;
 
-  console.log('ALYZIA OPS V50.21 BUILD '+V5020_BUILD+' — TW CONFIG CARDS FIX LOADED');
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',v5023Start);
+  else v5023Start();
+
+  console.log('ALYZIA OPS V50.23 BUILD '+V5023_BUILD+' — EXISTING SSR CARDS ONLY LOADED');
 })();
 </script>
 
-
-<!-- V50.22 BUILD124: correction JS. v5011_run_row_base passe de const à let pour permettre le remplacement V50.12 sans TypeError. -->
 </body></html>
 <!-- V50.03: cloud status is debounced; 3 startup retries; transient sync failures no longer force immediate local mode. -->
 <!-- V50.0: generic airline PREPA engine + airline profiles; SQ/TK/BJ parser semantics unchanged. -->
