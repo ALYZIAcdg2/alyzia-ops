@@ -1,4 +1,4 @@
-// ALYZIA OPS V50.14 · LOT 3 Flight Injection
+// ALYZIA OPS V50.15 · Lot 3 Class Counts Fix
 // - Assets statiques public/
 // - API vols partagée D1
 // - Bridge interne vers SARIA
@@ -2317,14 +2317,27 @@ function lot2GenericCardFromListName(listName,airline){
 }
 
 function lot2ExtractClassCounts(text){
+  /*
+   * V50.15 — Class counts strict.
+   * Ne jamais scanner tout le PDF : cela peut prendre J274 / J2809 pour une classe J.
+   * Les classes viennent uniquement de l'en-tête LIST OF.
+   *
+   * Exemple autorisé :
+   * LIST OF: FQA C0 Y14 TOTAL 14
+   * LIST OF: ONC C2 Y13 TOTAL 15
+   */
   const up=lot2Upper(text);
   const out={};
-  const sample=up.slice(0,8000);
-  for(const m of sample.matchAll(/\b([FJCWSY])\s*(\d{1,4})\b/g)){
+  const header=up.match(/\bLIST\s+OF\s*:\s*[^\n\r]{0,220}/);
+  if(!header)return out;
+
+  const h=header[0];
+  for(const m of h.matchAll(/\b([FJCWSY])\s*(\d{1,4})\b/g)){
     const k=m[1];
     const n=Number(m[2]||0);
-    if(Number.isFinite(n))out[k]=Math.max(Number(out[k]||0),n);
+    if(Number.isFinite(n))out[k]=n;
   }
+
   return out;
 }
 
@@ -2487,7 +2500,7 @@ async function lot2ProcessOneJob(env,job){
       reason:extracted.reason,
       rules: parserMode==="SPECIFIC_LOCKED"
         ? "Parser spécifique verrouillé : aucune transformation Worker Lot 2."
-        : "GENERIC V50.13 : extraction PDF réelle ; summary INBOUND/OUTBOUND depuis lignes connexion C/Y ; listName exact ; mapping compagnie ; aucune carte inventée.",
+        : "GENERIC V50.15 : classCounts uniquement depuis header LIST OF ou summary C/Y ; aucun numéro de vol compté comme classe.",
       mappingScope:listMapping.mappingScope,
       matchedListName:listMapping.matchedListName
     };
