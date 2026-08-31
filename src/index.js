@@ -1,4 +1,4 @@
-// ALYZIA OPS V50.18 · Date Fix No Version Column
+// ALYZIA OPS V50.20 · Operational Info Strict Fields
 // - Assets statiques public/
 // - API vols partagée D1
 // - Bridge interne vers SARIA
@@ -1669,6 +1669,87 @@ async function recordImportChange(env,row){
   `).bind(row.scope||"FILE",row.airline||"",row.flightNumber||"",row.flightDate||"",row.gmailMessageId||"",row.fileId||"",row.versionId||"",row.changeType||"",JSON.stringify(row.before||null),JSON.stringify(row.after||null)).run();
 }
 
+
+function mailRawDateToIso(raw,receivedAt){
+  raw=String(raw||"").toUpperCase().trim();
+  const m=raw.match(/^(\d{1,2})(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)$/);
+  if(!m)return raw;
+  const months={JAN:"01",FEB:"02",MAR:"03",APR:"04",MAY:"05",JUN:"06",JUL:"07",AUG:"08",SEP:"09",OCT:"10",NOV:"11",DEC:"12"};
+  let y=new Date(receivedAt||Date.now()).getUTCFullYear();
+  const ctxM=new Date(receivedAt||Date.now()).getUTCMonth()+1;
+  const targetM=Number(months[m[2]]);
+  if(ctxM===12 && targetM===1)y+=1;
+  if(ctxM===1 && targetM===12)y-=1;
+  return `${y}-${months[m[2]]}-${String(Number(m[1])).padStart(2,"0")}`;
+}
+
+function isPlainTextOperationalMail(subject,body){
+  const src=lot2Upper(`${subject||""}\n${body||""}`);
+  return /\bJFE\s+SCREEN\s+COPY\b/.test(src)
+    && /\bSTD\s*:?\s*\d{1,2}[:.]?\d{2}\b/.test(src)
+    && /\bAIRCRAFT\b/.test(src)
+    && /\bCONFIG\b/.test(src)
+    && /\bCABIN\s+CAPACITY\b/.test(src);
+}
+
+async function storeVirtualPlainTextImport(env,{messageId,subject,receivedAt,bodyText,flightBase}){
+  const text=String(bodyText||"");
+  if(!isPlainTextOperationalMail(subject,text))return {added:0,updated:0,duplicate:0,created:false};
+
+  const flight=detectMailFlight(subject,"jfe_screen_copy.txt",text);
+  if(!flight.airline && flightBase)Object.assign(flight,flightBase);
+
+  const airline=flight.airline||"UNK";
+  const flightNumber=flight.flightNumber||"UNIDENTIFIED";
+  const flightDate=mailRawDateToIso(flight.flightDate||flightBase?.flightDate||"UNKNOWN_DATE",receivedAt);
+  const docType="OPERATIONAL_INFO";
+  const filename="jfe_screen_copy_plain_text.txt";
+  const norm=normalizeFilename(filename);
+  const bytes=new TextEncoder().encode(text);
+  const sha=await sha256Hex(bytes);
+  const fileId=`${airline}|${flightNumber}|${flightDate}|${docType}|${norm}`;
+  const versionId=`${fileId}|${sha}`;
+  const r2Key=`prepa/${flightDate}/${airline}/${flightNumber}/${messageId}/${sha}_${norm}`.replace(/\s+/g,"_");
+
+  const existingVersion=await env.OPS_DB.prepare(`SELECT version_id FROM import_file_versions WHERE version_id=? LIMIT 1`).bind(versionId).first();
+  if(existingVersion){
+    await recordImportChange(env,{scope:"FILE",airline,flightNumber,flightDate,gmailMessageId:messageId,fileId,versionId,changeType:"DUPLICATE_TEXT_BODY",after:{filename,sha}});
+    return {added:0,updated:0,duplicate:1,created:false};
+  }
+
+  await env.OPS_FILES.put(r2Key,bytes,{httpMetadata:{contentType:"text/plain; charset=UTF-8"},customMetadata:{gmail_message_id:messageId,filename_original:filename,sha256:sha,document_type:docType,source:"GMAIL_BODY"}});
+
+  const existingFile=await env.OPS_DB.prepare(`SELECT file_id,active_version_id FROM import_files WHERE file_id=? LIMIT 1`).bind(fileId).first();
+
+  await env.OPS_DB.prepare(`
+    INSERT INTO import_file_versions
+      (version_id,file_id,gmail_message_id,attachment_id,filename_original,filename_normalized,mime_type,file_size,sha256,r2_key,document_time,received_at,status,is_active,created_at)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?, 'STORED', 1, CURRENT_TIMESTAMP)
+  `).bind(versionId,fileId,messageId,"GMAIL_BODY",filename,norm,"text/plain",bytes.byteLength,sha,r2Key,receivedAt,receivedAt).run();
+
+  if(existingFile){
+    await env.OPS_DB.prepare(`UPDATE import_file_versions SET is_active=0 WHERE file_id=? AND version_id<>?`).bind(fileId,versionId).run();
+    await env.OPS_DB.prepare(`UPDATE import_files SET active_version_id=?,status='UPDATED',latest_document_time=?,updated_at=CURRENT_TIMESTAMP WHERE file_id=?`).bind(versionId,receivedAt,fileId).run();
+    await recordImportChange(env,{scope:"FILE",airline,flightNumber,flightDate,gmailMessageId:messageId,fileId,versionId,changeType:"UPDATED_TEXT_BODY",before:{activeVersionId:existingFile.active_version_id},after:{filename,sha,r2Key}});
+  }else{
+    await env.OPS_DB.prepare(`
+      INSERT INTO import_files
+        (file_id,active_version_id,airline,flight_number,flight_date,document_type,filename_normalized,status,latest_document_time,created_at,updated_at)
+      VALUES (?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+    `).bind(fileId,versionId,airline,flightNumber,flightDate,docType,norm,"ADDED",receivedAt).run();
+    await recordImportChange(env,{scope:"FILE",airline,flightNumber,flightDate,gmailMessageId:messageId,fileId,versionId,changeType:"ADDED_TEXT_BODY",after:{filename,sha,r2Key}});
+  }
+
+  await env.OPS_DB.prepare(`
+    INSERT INTO import_jobs
+      (job_id,job_type,priority,airline,flight_number,flight_date,file_id,version_id,gmail_message_id,status,created_at,updated_at)
+    VALUES (?,?,?,?,?,?,?,?,?,'QUEUED',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+    ON CONFLICT(job_id) DO NOTHING
+  `).bind(`PARSE|${versionId}`,"PARSE_FILE",5,airline,flightNumber,flightDate,fileId,versionId,messageId).run();
+
+  return {added:existingFile?0:1,updated:existingFile?1:0,duplicate:0,created:true};
+}
+
 async function storeGmailMessage(env,messageId){
   await ensureGmailPipelineTables(env);
 
@@ -1693,7 +1774,7 @@ async function storeGmailMessage(env,messageId){
   await applyGmailLabel(env,messageId,GMAIL_LABELS.RECEIVED).catch(()=>{});
 
   const parts=walkParts(message.payload,[]);
-  let added=0,updated=0,duplicate=0,error=0;
+  let added=0,updated=0,duplicate=0,error=0,virtualText=0;
 
   for(const part of parts){
     try{
@@ -1762,13 +1843,24 @@ async function storeGmailMessage(env,messageId){
     }
   }
 
-  const finalStatus=error?"ERROR":updated?"UPDATED":added?"IMPORTED":duplicate?"DUPLICATE":"NO_ATTACHMENT";
+  try{
+    const virtual=await storeVirtualPlainTextImport(env,{messageId,subject,receivedAt,bodyText,flightBase});
+    if(virtual.created)virtualText++;
+    added+=virtual.added||0;
+    updated+=virtual.updated||0;
+    duplicate+=virtual.duplicate||0;
+  }catch(e){
+    error++;
+    await recordImportChange(env,{scope:"MESSAGE",gmailMessageId:messageId,changeType:"TEXT_BODY_ERROR",after:{error:String(e?.message||e)}}).catch(()=>{});
+  }
+
+  const finalStatus=error?"ERROR":updated?"UPDATED":added?"IMPORTED":duplicate?"DUPLICATE":virtualText?"IMPORTED":"NO_ATTACHMENT";
   await env.OPS_DB.prepare(`UPDATE gmail_messages SET status=?,label_state=?,processed_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE gmail_message_id=?`).bind(finalStatus,finalStatus,messageId).run();
 
   const label=finalStatus==="ERROR"?GMAIL_LABELS.ERROR:finalStatus==="UPDATED"?GMAIL_LABELS.UPDATED:finalStatus==="DUPLICATE"?GMAIL_LABELS.DUPLICATE:GMAIL_LABELS.IMPORTED;
   await applyGmailLabel(env,messageId,label).catch(()=>{});
 
-  return {status:finalStatus,messageId,attachments:parts.length,added,updated,duplicate,error};
+  return {status:finalStatus,messageId,attachments:parts.length,virtualText,added,updated,duplicate,error};
 }
 
 async function gmailSyncNow(env,body){
@@ -2558,6 +2650,109 @@ async function lot2UpdateJobFlightDate(env,job,version,newIso,reason){
   };
 }
 
+
+function lot2CleanClock(v){
+  const s=String(v||"").trim();
+  const m=s.match(/(\d{1,2})[:H.]?(\d{2})/);
+  if(!m)return "";
+  return `${String(Number(m[1])).padStart(2,"0")}:${m[2]}`;
+}
+
+function lot2ParseOperationalInfo(text,airline,flightNumber,currentIso){
+  /*
+   * V50.20 — OPERATIONAL_INFO strict.
+   * Injection autorisée UNIQUEMENT :
+   * - STD
+   * - STA
+   * - DUREE / duration depuis TOTAL ELAPSED TIME
+   * - ROUTE dep/dest
+   * - TYPE A/C
+   * - CONFIGURATION / CAPACITY
+   *
+   * Ne pas injecter :
+   * - BOARDING
+   * - GATE
+   * - ACCEPTANCE STATUS
+   *
+   * Exemple Amadeus :
+   * SCHEDULED:
+   *   12:15
+   *   13:30
+   * TOTAL ELAPSED TIME:
+   *   02H15
+   *
+   * On conserve STD et STA en heures locales affichées par Altea.
+   * La durée vient de TOTAL ELAPSED TIME, ce qui évite les erreurs timezone.
+   */
+  const raw=String(text||"").replace(/\r/g,"\n");
+  const up=lot2Upper(raw);
+  if(!/\bJFE\s+SCREEN\s+COPY\b/.test(up) && !/\bAIRCRAFT\b/.test(up))return null;
+
+  const info={};
+  const detectedDate=lot2DetectFlightDateFromReportLine(raw,airline,flightNumber,currentIso);
+  if(detectedDate.iso)info.date=detectedDate.iso;
+
+  // Route depuis bloc AIRPORT ou ligne CDG-ALG.
+  const airportBlock=raw.match(/\bAIRPORT\s*:\s*([\s\S]{0,180}?)(?:\bELAPSED\s+TIME\b|\bSCHEDULED\b|\bTOTAL\s+ELAPSED\b)/i);
+  if(airportBlock){
+    const codes=(airportBlock[1].match(/\b[A-Z]{3}\b/g)||[]).filter(c=>!["STD","STA"].includes(c));
+    if(codes.length>=2){
+      info.dep=codes[0];
+      info.dest=codes[1];
+    }
+  }
+  let m=up.match(/\b([A-Z]{3})-([A-Z]{3})\b/);
+  if(m){
+    info.dep=info.dep||m[1];
+    info.dest=info.dest||m[2];
+  }
+
+  // STD direct en haut.
+  m=raw.match(/\bSTD\s*:\s*([0-2]?\d[:.]?\d{2})/i);
+  if(m)info.std=lot2CleanClock(m[1]);
+
+  // Bloc SCHEDULED : première heure = STD, deuxième heure = STA.
+  const scheduledBlock=raw.match(/\bSCHEDULED\s*:\s*([\s\S]{0,180}?)(?:\bTOTAL\s+ELAPSED\s+TIME\b|\bCOMMENTS\b|\[|$)/i);
+  if(scheduledBlock){
+    const times=[...scheduledBlock[1].matchAll(/\b([0-2]?\d[:.]?\d{2})\b/g)].map(x=>lot2CleanClock(x[1])).filter(Boolean);
+    if(times[0])info.std=info.std||times[0];
+    if(times[1])info.sta=times[1];
+  }
+
+  // Parfois le texte réécrit "STD 12:15 / STD 13:30".
+  if(!info.sta){
+    const stdTimes=[...raw.matchAll(/\bSTD\s*[: ]\s*([0-2]?\d[:.]?\d{2})\b/gi)].map(x=>lot2CleanClock(x[1])).filter(Boolean);
+    if(stdTimes[0])info.std=info.std||stdTimes[0];
+    if(stdTimes[1])info.sta=stdTimes[1];
+  }
+
+  // Durée : source officielle = TOTAL ELAPSED TIME, pas différence simple STD/STA.
+  m=raw.match(/\bTOTAL\s+ELAPSED\s+TIME\s*:\s*([\s\S]{0,80})/i);
+  if(m){
+    const dm=m[1].match(/\b(\d{1,2})H\s*([0-5]\d)\b/i) || m[1].match(/\b(\d{1,2})[:.]([0-5]\d)\b/);
+    if(dm){
+      const h=String(Number(dm[1])).padStart(2,"0");
+      const mm=String(dm[2]).padStart(2,"0");
+      info.duration=`${h}H${mm}`;
+      info.durationMinutes=Number(dm[1])*60+Number(dm[2]);
+    }
+  }
+
+  // Ligne avion : CDG-ALG |738 | |14 |165 |14 |165 |10
+  m=up.match(/\b([A-Z]{3})-([A-Z]{3})\s*\|?\s*([A-Z0-9]{2,4})\s*\|?\s*([A-Z0-9-]*)\s*\|?\s*(\d{1,3})\s*\|?\s*(\d{1,3})\s*\|?\s*(\d{1,3})\s*\|?\s*(\d{1,3})\s*\|?\s*(\d{1,3})/);
+  if(m){
+    info.dep=info.dep||m[1];
+    info.dest=info.dest||m[2];
+    info.aircraft=m[3];       // TYPE A/C
+    info.reg=m[4]||"";
+    info.config={C:Number(m[5]),Y:Number(m[6])};
+    info.capacity={C:Number(m[7]),Y:Number(m[8])};
+  }
+
+  const has=Object.keys(info).length>0;
+  return has?info:null;
+}
+
 async function lot2ProcessOneJob(env,job){
   const jobId=String(job.job_id||"");
   await env.OPS_DB.prepare(`UPDATE import_jobs SET status='PROCESSING',attempts=attempts+1,updated_at=CURRENT_TIMESTAMP WHERE job_id=?`).bind(jobId).run();
@@ -2594,19 +2789,25 @@ async function lot2ProcessOneJob(env,job){
       }
     }
 
+    const operationalInfo=extracted.readable?lot2ParseOperationalInfo(extracted.text,airline,job.flight_number||version.flight_number||"",effectiveFlightDate):null;
     const listName=lot2DetectListName(extracted.text,filename);
-    const listMapping=parserMode==="SPECIFIC_LOCKED"
-      ? {cardKey:"SPECIFIC",mappingScope:"SPECIFIC_LOCKED",matchedListName:""}
-      : lot2LookupListMapping(airline,listName);
+    const listMapping=operationalInfo && !listName && parserMode==="GENERIC"
+      ? {cardKey:"OPERATIONAL_INFO",mappingScope:"OPERATIONAL_INFO",matchedListName:"JFE SCREEN COPY"}
+      : (parserMode==="SPECIFIC_LOCKED"
+        ? {cardKey:"SPECIFIC",mappingScope:"SPECIFIC_LOCKED",matchedListName:""}
+        : lot2LookupListMapping(airline,listName));
     const cardKey=listMapping.cardKey;
-    const documentType=lot2DocumentTypeFromCard(cardKey,filename,mime);
-    const passengerCount=extracted.readable?lot2ExtractPassengerCount(extracted.text,listName,cardKey):0;
-    const classCounts=extracted.readable?lot2ExtractClassCountsForDocument(extracted.text,listName,cardKey):{};
+    const documentType=cardKey==="OPERATIONAL_INFO"?"OPERATIONAL_INFO":lot2DocumentTypeFromCard(cardKey,filename,mime);
+    const passengerCount=cardKey==="OPERATIONAL_INFO"?0:(extracted.readable?lot2ExtractPassengerCount(extracted.text,listName,cardKey):0);
+    const classCounts=cardKey==="OPERATIONAL_INFO"?{}:(extracted.readable?lot2ExtractClassCountsForDocument(extracted.text,listName,cardKey):{});
 
     let resultStatus="CLASSIFIED";
     let changeType="DOC_CLASSIFIED";
 
-    if(parserMode==="SPECIFIC_LOCKED"){
+    if(cardKey==="OPERATIONAL_INFO"){
+      resultStatus="OPERATIONAL_INFO_READY";
+      changeType="OPERATIONAL_INFO_READY";
+    }else if(parserMode==="SPECIFIC_LOCKED"){
       resultStatus="READY_SPECIFIC_PARSER";
       changeType="SPECIFIC_READY";
     }else if(cardKey==="NO_LIST"){
@@ -2637,9 +2838,10 @@ async function lot2ProcessOneJob(env,job){
       reason:extracted.reason,
       rules: parserMode==="SPECIFIC_LOCKED"
         ? "Parser spécifique verrouillé : aucune transformation Worker Lot 2."
-        : "GENERIC V50.18 : date vol depuis ligne rapport ; classCounts depuis header LIST OF ou summary C/Y ; aucun numéro de vol compté comme classe.",
+        : "GENERIC V50.20 : date vol depuis ligne rapport ; OPERATIONAL_INFO strict STD/STA/route/type/config/capacity/duration ; aucun numéro de vol compté comme classe.",
       mappingScope:listMapping.mappingScope,
-      matchedListName:listMapping.matchedListName
+      matchedListName:listMapping.matchedListName,
+      operationalInfo: operationalInfo||null
     };
 
     await env.OPS_DB.prepare(`
@@ -2932,7 +3134,88 @@ async function lot3UpsertFlightCard(env,identity,row,card){
   ).run();
 }
 
+
+function lot3MergeOperationalInfo(existing,row){
+  /*
+   * V50.20 — injection stricte OPERATIONAL_INFO.
+   * On alimente uniquement les champs opérationnels validés :
+   * STD/STA, ROUTE, TYPE A/C, CONFIGURATION/CAPACITY, DUREE.
+   */
+  const result=lot3SafeResultJson(row.result_json);
+  const info=result.operationalInfo||{};
+  const x=existing && typeof existing==="object"?{...existing}:{};
+
+  if(info.date)x.date=info.date;
+  if(info.dep)x.dep=info.dep;
+  if(info.dest)x.dest=info.dest;
+  if(info.std)x.std=info.std;
+  if(info.sta)x.sta=info.sta;
+  if(info.duration)x.duration=info.duration;
+  if(info.durationMinutes!=null)x.durationMinutes=info.durationMinutes;
+  if(info.aircraft)x.aircraft=info.aircraft;
+  if(info.reg)x.reg=info.reg;
+  if(info.config)x.config={...(x.config||{}),...info.config};
+  if(info.capacity)x.capacity={...(x.capacity||{}),...info.capacity};
+
+  x.imports=x.imports||{};
+  x.imports.operationalInfo={
+    ...(x.imports.operationalInfo||{}),
+    date:info.date||x.date||"",
+    dep:info.dep||x.dep||"",
+    dest:info.dest||x.dest||"",
+    std:info.std||x.std||"",
+    sta:info.sta||x.sta||"",
+    duration:info.duration||x.duration||"",
+    durationMinutes:info.durationMinutes??x.durationMinutes??null,
+    aircraft:info.aircraft||x.aircraft||"",
+    reg:info.reg||x.reg||"",
+    config:info.config||x.config||{},
+    capacity:info.capacity||x.capacity||{},
+    source:{jobId:row.job_id,versionId:row.version_id,fileId:row.file_id},
+    updatedAt:new Date().toISOString(),
+    rules:"OPERATIONAL_INFO strict : STD/STA, route, type A/C, config/capacity, duration only."
+  };
+  x.imports.status="INJECTED";
+  x.imports.lastInjectionAt=new Date().toISOString();
+  x.imports.lastInjectionLot="LOT3_OPERATIONAL_INFO_V50_20";
+  return x;
+}
+
+async function lot3InjectOperationalInfo(env,row,options={}){
+  const identity=lot3IdentityFromRow(row);
+  const existing=await getFlightByIdentity(env,identity);
+  const before=existing?JSON.stringify(existing):null;
+  if(!existing && !options.createMissingFlights){
+    await env.OPS_DB.prepare(`UPDATE import_job_results SET status='WAITING_FLIGHT',updated_at=CURRENT_TIMESTAMP WHERE job_id=?`).bind(String(row.job_id||"")).run();
+    await recordImportChange(env,{scope:"FLIGHT",airline:row.airline,flightNumber:row.flight_number,flightDate:row.flight_date,fileId:row.file_id,versionId:row.version_id,changeType:"OPERATIONAL_INFO_WAITING_FLIGHT",before:null,after:{identity,row}});
+    return {ok:true,identity,airline:row.airline,flightNumber:row.flight_number,flightDate:row.flight_date,cardKey:"OPERATIONAL_INFO",listName:"JFE SCREEN COPY",passengerCount:0,status:"WAITING_FLIGHT"};
+  }
+
+  const afterFlight=lot3MergeOperationalInfo(existing,row);
+  afterFlight.airline=afterFlight.airline||String(row.airline||"").toUpperCase();
+  afterFlight.flight=afterFlight.flight||String(row.flight_number||"").toUpperCase();
+  afterFlight.date=afterFlight.date||String(row.flight_date||"");
+  await upsertFlight(env,afterFlight);
+
+  await env.OPS_DB.prepare(`
+    INSERT INTO flight_import_injections
+      (result_job_id,identity,status,before_json,after_json,created_at,updated_at)
+    VALUES (?,?,?,?,?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+    ON CONFLICT(result_job_id) DO UPDATE SET
+      identity=excluded.identity,status=excluded.status,before_json=excluded.before_json,after_json=excluded.after_json,updated_at=CURRENT_TIMESTAMP
+  `).bind(String(row.job_id||""),identity,"INJECTED",before,JSON.stringify(afterFlight)).run();
+
+  await env.OPS_DB.prepare(`UPDATE import_job_results SET status='INJECTED',updated_at=CURRENT_TIMESTAMP WHERE job_id=?`).bind(String(row.job_id||"")).run();
+
+  await recordImportChange(env,{scope:"FLIGHT",airline:row.airline,flightNumber:row.flight_number,flightDate:row.flight_date,fileId:row.file_id,versionId:row.version_id,changeType:"OPERATIONAL_INFO_INJECTED",before:before?safeJsonParse(before,{}):null,after:{identity,operationalInfo:lot3SafeResultJson(row.result_json).operationalInfo||{}}});
+
+  return {ok:true,identity,airline:row.airline,flightNumber:row.flight_number,flightDate:row.flight_date,cardKey:"OPERATIONAL_INFO",listName:"JFE SCREEN COPY",passengerCount:0,status:"INJECTED"};
+}
+
 async function lot3InjectOneResult(env,row,options={}){
+  if(String(row.card_key||"")==="OPERATIONAL_INFO" || String(row.document_type||"")==="OPERATIONAL_INFO"){
+    return await lot3InjectOperationalInfo(env,row,options);
+  }
   const identity=lot3IdentityFromRow(row);
   const existing=await getFlightByIdentity(env,identity);
   const before=existing?JSON.stringify(existing):null;
@@ -3049,7 +3332,7 @@ async function lot3InjectNext(env,body){
   const date=String(body?.date||body?.flightDate||"");
 
   const wh=[
-    "status IN ('GENERIC_CARD_READY','GENERIC_MASTER_READY','GENERIC_CARD_OTHER')",
+    "status IN ('GENERIC_CARD_READY','GENERIC_MASTER_READY','GENERIC_CARD_OTHER','OPERATIONAL_INFO_READY')",
     "parser_mode='GENERIC'",
     "card_key IS NOT NULL",
     "card_key<>''",
