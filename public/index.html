@@ -6,7 +6,7 @@
   <meta http-equiv="Expires" content="0">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V50.24 · TOOLS SAFE + FQTV CATEGORIES</title>
+<title>ALYZIA OPS - V50.25 · ALG TZ + DOSSIER UI</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -7045,13 +7045,13 @@ html,body{
 <body>
 <script>
 /* V49.75 — BJ KPI WEB SBY AVAILABLE. SQ/TK frozen. */
-const ALYZIA_APP_VERSION='V50.24';
+const ALYZIA_APP_VERSION='V50.25';
 const ALYZIA_SQ_LOCK_VERSION='V49.64';
 const ALYZIA_TK_LOCK_VERSION='V49.69';
-const ALYZIA_APP_BUILD='2026-08-31-126';
+const ALYZIA_APP_BUILD='2026-08-31-127';
 </script>
 <header class="topbar">
- <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V50.24</span></div>
+ <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V50.25</span></div>
  <nav class="nav">
    <button class="home-nav" onclick="renderHome()" title="Accueil vols">⌂</button>
    <button onclick="renderHome()">VOLS</button><button onclick="openFlightSearch()">RECHERCHE</button><button onclick="renderPrepa()">PRÉPA</button><button onclick="openTools()">OUTILS</button><button>ADMIN</button>
@@ -17764,7 +17764,7 @@ async function openTools(){
    <button class="tool-card" onclick="openSariaApp()"><span class="tool-icon">✈</span><b>SARIA</b><span>OUVRIR DIRECTEMENT L’OUTIL SARIA CABIN / SEATMAP.</span></button>
    <div class="ops-cloud-card">
      ${(()=>{const st=opsCloudStatusMarkup();return `<div id="opsCloudStatusBox" class="ops-cloud-status ${st.cls}">${st.text}</div>`})()}
-     <div class="ops-cloud-help">D1 PARTAGÉ · 3 TENTATIVES AU DÉMARRAGE · RECONNEXION AUTOMATIQUE · PC, TABLETTE ET TÉLÉPHONE.<br><b style="color:#087749">V50.24 · TOOLS SAFE + FQTV CATEGORIES</b></div>
+     <div class="ops-cloud-help">D1 PARTAGÉ · 3 TENTATIVES AU DÉMARRAGE · RECONNEXION AUTOMATIQUE · PC, TABLETTE ET TÉLÉPHONE.<br><b style="color:#087749">V50.25 · ALG TZ + DOSSIER UI</b></div>
      <button class="live-refresh" onclick="manualCloudRefresh()">↻ SYNCHRONISER MAINTENANT</button>
    </div>
    ${renderImportsMainCard()}
@@ -22503,8 +22503,8 @@ try{
 (function(){
   'use strict';
 
-  const VERSION='V50.24';
-  const BUILD='2026-08-31-126';
+  const VERSION='V50.25';
+  const BUILD='2026-08-31-127';
 
   function driveStatusInto(btn){
     if(!btn || typeof window.v5013GetDriveStatus!=='function') return;
@@ -22965,6 +22965,177 @@ try{
   setTimeout(removeImportedBlock,200);
 
   console.log('ALYZIA OPS V50.24 BUILD '+V5024_BUILD+' — TOOLS SAFE + FQTV CATEGORIES LOADED');
+})();
+</script>
+
+
+<script id="alyzia-v5025-alg-tz-dossier-ui-js">
+/* V50.25 BUILD127 — Timezone ALG + enrichissement UI depuis imports existants */
+(function(){
+  'use strict';
+  const V5025_BUILD='2026-08-31-127';
+
+  function v5025Key(p){return String(p?.name||'').toUpperCase().replace(/[^A-Z0-9/]/g,'')}
+  function v5025Arr(v){return Array.isArray(v)?v:[]}
+  function v5025Num(v){const n=Number(v||0);return Number.isFinite(n)?n:0}
+  function v5025Specific(a){return ['SQ','TK','BJ','TW'].includes(String(a||'').toUpperCase())}
+  function v5025Merge(a,b){
+    const o={...(a||{})};
+    Object.entries(b||{}).forEach(([k,v])=>{
+      if(v==null||v==='')return;
+      if(k==='ssr')o.ssr=[...new Set([...v5025Arr(o.ssr),...v5025Arr(v)].filter(Boolean))];
+      else if(k==='note')o.note=[...new Set([o.note,v].filter(Boolean).map(String))].join(' · ');
+      else if(k==='specific')o.specific=[...new Set([o.specific,v].filter(Boolean).map(String))].join(' · ');
+      else if(k==='fqtv')o.fqtv={...(o.fqtv||{}),...(v||{})};
+      else if(!o[k])o[k]=v;
+    });
+    return o;
+  }
+  function v5025TitleFromName(p){
+    if(p.title)return p;
+    const m=String(p.name||'').match(/\b(MR|MRS|MS|MISS|MSTR)\s*$/i);
+    if(m){
+      p.title=m[1].toUpperCase();
+      p.name=String(p.name||'').replace(/\s+\b(MR|MRS|MS|MISS|MSTR)\s*$/i,'').trim();
+    }
+    return p;
+  }
+  function v5025NormalizePax(p,cardKey,source){
+    const x=v5025TitleFromName({...(p||{})});
+    const c=String(cardKey||x.cardKey||'').toUpperCase();
+    x.class=String(x.class||x.cabinClass||'').toUpperCase();
+    x.sourceList=x.sourceList||source?.listName||'';
+    x.imported=true;
+    x.ssr=[...new Set([...v5025Arr(x.ssr), c && !['MASTER','ETKT','EMD'].includes(c)?c:'', x.specific||''].filter(Boolean))];
+    if(c==='FQTV'){
+      x.fqtv=x.fqtv||{tier:x.category||x.specific||'FQA',number:''};
+      x.category=x.category||x.fqtv.tier||x.specific||'FQA';
+    }
+    return x;
+  }
+  function v5025CardSources(card){return Array.isArray(card?.sources)&&card.sources.length?card.sources:[card].filter(Boolean)}
+  function v5025AllPaxFromCard(card,cardKey){
+    const out=[];
+    v5025CardSources(card).forEach(src=>{
+      [...v5025Arr(src.passengerItems),...v5025Arr(src.passengers),...v5025Arr(src.items)].forEach(p=>{
+        if(typeof p==='string')p={name:p};
+        if(p&&p.name)out.push(v5025NormalizePax(p,cardKey,src));
+      });
+    });
+    return out;
+  }
+  function v5025ApplyImports(x){
+    if(!x||!x.imports||!x.imports.cards)return x;
+    if(v5025Specific(x.airline))return x;
+
+    x.common=x.common||{};
+    x.common_lists=x.common_lists||{};
+    x.booked=x.booked||{};
+    x.passengers=Array.isArray(x.passengers)?x.passengers:[];
+
+    const cards=x.imports.cards||{};
+    const map={WCH:'WCH',CHLD:'CHLD',INF:'INF',EMD:'EMD',ETKT:'ETK',FQTV:'FQTV',STAFF:'STAFF',MEAL:'MEAL',UMNR:'UMNR',MAAS:'MAAS',INAD:'INAD',DEPA:'DEPA',DEPU:'DEPU'};
+
+    const passengerMap=new Map(x.passengers.map((p,i)=>[v5025Key(p),i]));
+
+    Object.keys(cards).forEach(cardKey=>{
+      const card=cards[cardKey];
+      const ck=String(cardKey).toUpperCase();
+
+      if(ck==='MASTER'){
+        const cc=card.classCounts||{};
+        Object.keys(cc).forEach(k=>{if(v5025Num(cc[k])>0)x.booked[String(k).toUpperCase()]=v5025Num(cc[k])});
+      }
+
+      const pax=v5025AllPaxFromCard(card,ck);
+      pax.forEach(p=>{
+        const key=v5025Key(p); if(!key)return;
+        if(passengerMap.has(key)){
+          const idx=passengerMap.get(key);
+          x.passengers[idx]=v5025Merge(x.passengers[idx],p);
+        }else{
+          passengerMap.set(key,x.passengers.length);
+          x.passengers.push(p);
+        }
+      });
+
+      const commonKey=map[ck];
+      if(commonKey){
+        const count=Math.max(v5025Num(card.passengerCount),...v5025CardSources(card).map(s=>v5025Num(s.passengerCount)));
+        if(count>0)x.common[commonKey]=Math.max(v5025Num(x.common[commonKey]),count);
+        const old=v5025Arr(x.common_lists[commonKey]);
+        const seen=new Set(old.map(v5025Key));
+        pax.forEach(p=>{
+          const master=x.passengers[passengerMap.get(v5025Key(p))]||p;
+          const k=v5025Key(master);
+          if(k && !seen.has(k)){old.push(master);seen.add(k)}
+        });
+        x.common_lists[commonKey]=old;
+      }
+
+      if((ck==='INBOUND'||ck==='OUTBOUND') && pax.length){
+        const dir=ck==='INBOUND'?'inbound':'outbound';
+        x[dir]=Array.isArray(x[dir])?x[dir]:[];
+        pax.forEach(p=>{
+          const conn=p.connection||{};
+          const row={flight:conn.flight||'',from:p.origin||'',to:p.destination||'',time:'',passenger:p.name,name:p.name,class:p.class,specific:p.specific,sourceList:p.sourceList,passengers:[p]};
+          const key=[row.flight,row.passenger,row.sourceList].join('|').toUpperCase();
+          if(!x[dir].some(r=>[r.flight,r.passenger||r.name,r.sourceList].join('|').toUpperCase()===key))x[dir].push(row);
+        });
+      }
+    });
+
+    return x;
+  }
+
+  // Timezone live clocks.
+  try{
+    if(typeof TZ==='object'){
+      TZ.ALG=1;
+      TZ.ORN=1;
+      TZ.CZL=1;
+      TZ.AAE=1;
+    }
+    if(typeof CITY==='object')CITY.ALG='ALGER';
+  }catch(e){}
+
+  // Outils ultra-safe.
+  window.openTools=async function(){
+    showModal('OUTILS','ALYZIA OPS · '+(window.ALYZIA_APP_VERSION||'V50.25')+' · BUILD '+(window.ALYZIA_APP_BUILD||V5025_BUILD),
+      '<div class="tools-grid">'+
+      '<button class="tool-card tools-imports-featured" onclick="openImportsDashboard()"><span class="tool-icon">⇩</span><b>IMPORTS GMAIL</b><span>PIPELINE GMAIL / R2 / D1</span></button>'+
+      '<button class="tool-card" onclick="openFlightImport()"><span class="tool-icon">⇩</span><b>IMPORTER VOLS</b><span>EXCEL XLS / XLSX</span></button>'+
+      '<button class="tool-card" onclick="openCreateFlight()"><span class="tool-icon">＋</span><b>CRÉER VOL</b><span>AJOUT MANUEL</span></button>'+
+      '<button class="tool-card company-config-tool" onclick="openCompanyConfig()"><span class="tool-icon">⚙</span><b>CONFIG COMPAGNIE</b><span>CLASSES, MODULES, CARTES SSR</span></button>'+
+      '<button class="tool-card" onclick="openSeatmap()"><span class="tool-icon">▦</span><b>SEATMAP</b><span>PLAN CABINE</span></button>'+
+      '<button class="tool-card" onclick="openSaria()"><span class="tool-icon">✈</span><b>SARIA</b><span>CABIN / SEATMAP</span></button>'+
+      '</div>');
+  };
+
+  const originalRender=typeof render==='function'?render:null;
+  if(originalRender&&!originalRender.__v5025Wrapped){
+    window.render=render=function(){
+      try{const x=typeof f==='function'?f():null;if(x)v5025ApplyImports(x)}catch(e){}
+      const r=originalRender.apply(this,arguments);
+      setTimeout(()=>{const old=document.getElementById('lot4ImportedCards');if(old)old.remove()},0);
+      return r;
+    };
+    render.__v5025Wrapped=true;
+  }
+
+  const originalOpenBooked=typeof openBooked==='function'?openBooked:null;
+  if(originalOpenBooked&&!originalOpenBooked.__v5025Wrapped){
+    window.openBooked=openBooked=function(){
+      try{const x=typeof f==='function'?f():null;if(x)v5025ApplyImports(x)}catch(e){}
+      return originalOpenBooked.apply(this,arguments);
+    };
+    openBooked.__v5025Wrapped=true;
+  }
+
+  window.v5025ApplyImports=v5025ApplyImports;
+  setTimeout(()=>{try{const x=typeof f==='function'?f():null;if(x)v5025ApplyImports(x)}catch(e){}},300);
+
+  console.log('ALYZIA OPS V50.25 BUILD '+V5025_BUILD+' — ALG TZ + DOSSIER UI LOADED');
 })();
 </script>
 
