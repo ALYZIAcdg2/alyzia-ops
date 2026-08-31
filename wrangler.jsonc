@@ -1,19 +1,7 @@
 {
   "name": "alyzia-ops",
-  "main": "./src/index.js",
-  "compatibility_date": "2026-08-06",
-
-  "assets": {
-    "directory": "./public",
-    "binding": "ASSETS"
-  },
-
-  "services": [
-    {
-      "binding": "SARIA",
-      "service": "saria-seatmap"
-    }
-  ],
+  "main": "src/index.js",
+  "compatibility_date": "2025-08-01",
 
   "d1_databases": [
     {
@@ -21,11 +9,17 @@
       "database_name": "alyzia-ops-db",
       "database_id": "2881327d-f2dd-4037-a395-f7095b32c69c"
     }
-  ]
-}
-"r2_buckets": [
-  {
-    "binding": "OPS_FILES",
-    "bucket_name": "alyzia-ops-files"
+  ],
+
+  "r2_buckets": [
+    {
+      "binding": "OPS_FILES",
+      "bucket_name": "alyzia-ops-files"
+    }
+  ],
+
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS"
   }
-]
+}
