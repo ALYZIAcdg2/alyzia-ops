@@ -6,7 +6,7 @@
   <meta http-equiv="Expires" content="0">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V50.23 · SSR EXISTING CARDS ONLY</title>
+<title>ALYZIA OPS - V50.24 · TOOLS SAFE + FQTV CATEGORIES</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -7045,13 +7045,13 @@ html,body{
 <body>
 <script>
 /* V49.75 — BJ KPI WEB SBY AVAILABLE. SQ/TK frozen. */
-const ALYZIA_APP_VERSION='V50.23';
+const ALYZIA_APP_VERSION='V50.24';
 const ALYZIA_SQ_LOCK_VERSION='V49.64';
 const ALYZIA_TK_LOCK_VERSION='V49.69';
-const ALYZIA_APP_BUILD='2026-08-31-125';
+const ALYZIA_APP_BUILD='2026-08-31-126';
 </script>
 <header class="topbar">
- <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V50.23</span></div>
+ <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V50.24</span></div>
  <nav class="nav">
    <button class="home-nav" onclick="renderHome()" title="Accueil vols">⌂</button>
    <button onclick="renderHome()">VOLS</button><button onclick="openFlightSearch()">RECHERCHE</button><button onclick="renderPrepa()">PRÉPA</button><button onclick="openTools()">OUTILS</button><button>ADMIN</button>
@@ -17764,7 +17764,7 @@ async function openTools(){
    <button class="tool-card" onclick="openSariaApp()"><span class="tool-icon">✈</span><b>SARIA</b><span>OUVRIR DIRECTEMENT L’OUTIL SARIA CABIN / SEATMAP.</span></button>
    <div class="ops-cloud-card">
      ${(()=>{const st=opsCloudStatusMarkup();return `<div id="opsCloudStatusBox" class="ops-cloud-status ${st.cls}">${st.text}</div>`})()}
-     <div class="ops-cloud-help">D1 PARTAGÉ · 3 TENTATIVES AU DÉMARRAGE · RECONNEXION AUTOMATIQUE · PC, TABLETTE ET TÉLÉPHONE.<br><b style="color:#087749">V50.23 · SSR EXISTING CARDS ONLY</b></div>
+     <div class="ops-cloud-help">D1 PARTAGÉ · 3 TENTATIVES AU DÉMARRAGE · RECONNEXION AUTOMATIQUE · PC, TABLETTE ET TÉLÉPHONE.<br><b style="color:#087749">V50.24 · TOOLS SAFE + FQTV CATEGORIES</b></div>
      <button class="live-refresh" onclick="manualCloudRefresh()">↻ SYNCHRONISER MAINTENANT</button>
    </div>
    ${renderImportsMainCard()}
@@ -22503,8 +22503,8 @@ try{
 (function(){
   'use strict';
 
-  const VERSION='V50.23';
-  const BUILD='2026-08-31-125';
+  const VERSION='V50.24';
+  const BUILD='2026-08-31-126';
 
   function driveStatusInto(btn){
     if(!btn || typeof window.v5013GetDriveStatus!=='function') return;
@@ -22861,6 +22861,110 @@ try{
   else v5023Start();
 
   console.log('ALYZIA OPS V50.23 BUILD '+V5023_BUILD+' — EXISTING SSR CARDS ONLY LOADED');
+})();
+</script>
+
+
+<script id="alyzia-v5024-tools-safe-fqtv-js">
+/* V50.24 BUILD126 — OUTILS safe + FQTV catégories génériques */
+(function(){
+  'use strict';
+  const V5024_BUILD='2026-08-31-126';
+
+  function v5024IsSpecific(a){
+    return ['SQ','TK','BJ','TW'].includes(String(a||'').toUpperCase());
+  }
+  function v5024Esc(v){
+    return String(v??'').replace(/[&<>"']/g,function(m){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m];
+    });
+  }
+  function v5024SafeCall(name,fallback){
+    return typeof window[name]==='function'?window[name]:fallback;
+  }
+
+  // OUTILS robuste : ne dépend pas des fonctions de stats imports qui peuvent casser le modal.
+  window.openTools=async function(){
+    const body='<div class="tools-grid">'+
+      '<button class="tool-card tools-imports-featured" onclick="openImportsDashboard()">'+
+        '<span class="tool-icon">⇩</span><b>IMPORTS GMAIL</b><span>PIPELINE GMAIL / R2 / D1</span>'+
+      '</button>'+
+      '<button class="tool-card" onclick="openFlightImport()">'+
+        '<span class="tool-icon">⇩</span><b>IMPORTER VOLS</b><span>EXCEL XLS / XLSX</span>'+
+      '</button>'+
+      '<button class="tool-card" onclick="openCreateFlight()">'+
+        '<span class="tool-icon">＋</span><b>CRÉER VOL</b><span>AJOUT MANUEL</span>'+
+      '</button>'+
+      '<button class="tool-card company-config-tool" onclick="openCompanyConfig()">'+
+        '<span class="tool-icon">⚙</span><b>CONFIG COMPAGNIE</b><span>CLASSES, MODULES, CARTES SSR</span>'+
+      '</button>'+
+      '<button class="tool-card" onclick="openSeatmap()">'+
+        '<span class="tool-icon">▦</span><b>SEATMAP</b><span>PLAN CABINE</span>'+
+      '</button>'+
+      '<button class="tool-card" onclick="openSaria()">'+
+        '<span class="tool-icon">✈</span><b>SARIA</b><span>CABIN / SEATMAP</span>'+
+      '</button>'+
+      (typeof opsCloudToolCardHtml==='function'?opsCloudToolCardHtml():'')+
+    '</div>';
+    showModal('OUTILS','ALYZIA OPS · '+(window.ALYZIA_APP_VERSION||'V50.24')+' · BUILD '+(window.ALYZIA_APP_BUILD||V5024_BUILD),body);
+  };
+
+  // FQTV générique : une seule carte existante FQTV, mais catégories internes
+  // depuis les fichiers (ex AH : DJURDJURA / TAHAT).
+  const originalOpenFqtvCategories=typeof openFqtvCategories==='function'?openFqtvCategories:null;
+  window.openFqtvCategories=openFqtvCategories=function(){
+    const x=typeof f==='function'?f():null;
+    if(!x || v5024IsSpecific(x.airline)){
+      if(originalOpenFqtvCategories)return originalOpenFqtvCategories();
+      return;
+    }
+
+    const arr=Array.isArray(x.common_lists?.FQTV)?x.common_lists.FQTV:[];
+    if(!arr.length){
+      showModal('FQTV · '+(x.common?.FQTV||0),x.flight,'<div class="prepa-empty">AUCUN PASSAGER DÉTAILLÉ</div>');
+      return;
+    }
+
+    const groups={};
+    arr.forEach(p=>{
+      const cat=String(p?.category||p?.fqtv?.tier||p?.specific||'FQA').toUpperCase()||'FQA';
+      (groups[cat]=groups[cat]||[]).push(p);
+    });
+    window.__v5024FqtvGroups=groups;
+
+    showModal('FQTV · '+arr.length,x.flight,
+      '<div class="meal-category-list">'+
+        Object.keys(groups).sort().map(cat=>
+          '<button class="meal-category-row fqtv-cat" onclick="openV5024FqtvPassengerList(\''+v5024Esc(cat)+'\')">'+
+            '<span>'+v5024Esc(cat)+'</span><b>'+groups[cat].length+'</b><small>VOIR LES PASSAGERS</small>'+
+          '</button>'
+        ).join('')+
+      '</div>'
+    );
+  };
+
+  window.openV5024FqtvPassengerList=function(cat){
+    const list=(window.__v5024FqtvGroups||{})[cat]||[];
+    if(typeof showPax==='function')showPax('FQTV · '+cat,list,list.length);
+  };
+
+  // Sécurité : aucun bloc "CARTES IMPORTÉES" ne reste affiché.
+  function removeImportedBlock(){
+    const old=document.getElementById('lot4ImportedCards');
+    if(old)old.remove();
+  }
+  const originalRender=typeof render==='function'?render:null;
+  if(originalRender && !originalRender.__v5024Wrapped){
+    window.render=render=function(){
+      const r=originalRender.apply(this,arguments);
+      setTimeout(removeImportedBlock,0);
+      return r;
+    };
+    render.__v5024Wrapped=true;
+  }
+  setTimeout(removeImportedBlock,200);
+
+  console.log('ALYZIA OPS V50.24 BUILD '+V5024_BUILD+' — TOOLS SAFE + FQTV CATEGORIES LOADED');
 })();
 </script>
 
