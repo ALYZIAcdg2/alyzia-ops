@@ -1,4 +1,4 @@
-// ALYZIA OPS V50.11 · LOT 2 PDF Text Extractor Fix
+// ALYZIA OPS V50.12 · LOT 2 Summary Count Fix
 // - Assets statiques public/
 // - API vols partagée D1
 // - Bridge interne vers SARIA
@@ -2328,7 +2328,61 @@ function lot2ExtractClassCounts(text){
   return out;
 }
 
-function lot2ExtractPassengerCount(text,listName){
+function lot2IsConnectionSummaryList(listName,cardKey){
+  const l=lot2Upper(listName);
+  const c=lot2Upper(cardKey);
+  return /(?:INBOUND|ONCARRIAGE)\s+CUSTOMER\s+SUMMARY/.test(l)
+    || (/(?:INBOUND|OUTBOUND)/.test(c) && /CUSTOMER\s+SUMMARY/.test(l));
+}
+
+function lot2ExtractConnectionSummaryCounts(text){
+  /*
+   * V50.12 — Summary count fix.
+   * Les rapports "INBOUND CUSTOMER SUMMARY" et "ONCARRIAGE CUSTOMER SUMMARY"
+   * ne sont pas des listes nominatives. Il ne faut jamais compter J274/J2809
+   * comme passagers.
+   *
+   * Format Altea observé :
+   * FLTNR STA/STD DEP/ARR DEST CONX C Y C Y TTL
+   * AV54 0655 BOG GYD 05H00 0 1 0 0 0
+   * J2645 2015 SVX 01H10 2 6 2 1 0
+   *
+   * On additionne uniquement les deux premiers chiffres C/Y après CONX.
+   */
+  const up=lot2Upper(text);
+  const out={C:0,Y:0};
+  let rows=0;
+
+  for(const line of up.split(/\n+/)){
+    const r=line.trim().replace(/\s+/g," ");
+    if(!r)continue;
+
+    // Ignore headers and route labels.
+    if(/^(FLTNR|BOOKED|TER:|GATE:|CDG-|INBOUND CONNECTION|OUTBOUND CONNECTION)/.test(r))continue;
+
+    const m=r.match(/^([A-Z0-9]{2,4}\d{1,4})\s+\d{3,4}\s+(?:[A-Z]{3}\s+){1,2}[A-Z]{3}\s+\d{2}H\d{2}\s+(\d{1,4})\s+(\d{1,4})(?:\s+\d{1,4}){0,3}\b/);
+    if(!m)continue;
+
+    out.C+=Number(m[2]||0);
+    out.Y+=Number(m[3]||0);
+    rows++;
+  }
+
+  return {classCounts:out,total:out.C+out.Y,rows};
+}
+
+function lot2ExtractClassCountsForDocument(text,listName,cardKey){
+  if(lot2IsConnectionSummaryList(listName,cardKey)){
+    return lot2ExtractConnectionSummaryCounts(text).classCounts;
+  }
+  return lot2ExtractClassCounts(text);
+}
+
+function lot2ExtractPassengerCount(text,listName,cardKey){
+  if(lot2IsConnectionSummaryList(listName,cardKey)){
+    return lot2ExtractConnectionSummaryCounts(text).total;
+  }
+
   const up=lot2Upper(text);
   const header=up.match(/\bLIST\s+OF\s*:\s*[^\n\r]{0,200}/);
   const h=header?header[0]:up.slice(0,2000);
@@ -2350,6 +2404,7 @@ function lot2ExtractPassengerCount(text,listName){
   if(names.size)return names.size;
   return 0;
 }
+
 
 function lot2Preview(text){
   return lot2CleanText(text).slice(0,2500);
@@ -2387,8 +2442,8 @@ async function lot2ProcessOneJob(env,job){
       : lot2LookupListMapping(airline,listName);
     const cardKey=listMapping.cardKey;
     const documentType=lot2DocumentTypeFromCard(cardKey,filename,mime);
-    const passengerCount=extracted.readable?lot2ExtractPassengerCount(extracted.text,listName):0;
-    const classCounts=extracted.readable?lot2ExtractClassCounts(extracted.text):{};
+    const passengerCount=extracted.readable?lot2ExtractPassengerCount(extracted.text,listName,cardKey):0;
+    const classCounts=extracted.readable?lot2ExtractClassCountsForDocument(extracted.text,listName,cardKey):{};
 
     let resultStatus="CLASSIFIED";
     let changeType="DOC_CLASSIFIED";
@@ -2424,7 +2479,7 @@ async function lot2ProcessOneJob(env,job){
       reason:extracted.reason,
       rules: parserMode==="SPECIFIC_LOCKED"
         ? "Parser spécifique verrouillé : aucune transformation Worker Lot 2."
-        : "GENERIC V50.11 : extraction PDF réelle Flate/ToUnicode ; listName exact ; mapping compagnie puis DEFAULT ; aucune carte inventée.",
+        : "GENERIC V50.12 : extraction PDF réelle ; summary count depuis lignes connexion C/Y ; listName exact ; mapping compagnie ; aucune carte inventée.",
       mappingScope:listMapping.mappingScope,
       matchedListName:listMapping.matchedListName
     };
