@@ -23,3 +23,9 @@
     }
   ]
 }
+"r2_buckets": [
+  {
+    "binding": "OPS_FILES",
+    "bucket_name": "alyzia-ops-files"
+  }
+]
