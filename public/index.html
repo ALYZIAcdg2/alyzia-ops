@@ -7080,13 +7080,13 @@ html,body{
 <body>
 <script>
 /* V49.75 — BJ KPI WEB SBY AVAILABLE. SQ/TK frozen. */
-const ALYZIA_APP_VERSION='V50.27';
+const ALYZIA_APP_VERSION='V50.31';
 const ALYZIA_SQ_LOCK_VERSION='V49.64';
 const ALYZIA_TK_LOCK_VERSION='V49.69';
 const ALYZIA_APP_BUILD='2026-08-31-129';
 </script>
 <header class="topbar">
- <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V50.27</span></div>
+ <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V50.31</span></div>
  <nav class="nav">
    <button class="home-nav" onclick="renderHome()" title="Accueil vols">⌂</button>
    <button onclick="renderHome()">VOLS</button><button onclick="openFlightSearch()">RECHERCHE</button><button onclick="renderPrepa()">PRÉPA</button><button onclick="openTools()">OUTILS</button><button>ADMIN</button>
@@ -23858,14 +23858,12 @@ try{
       <div class="passenger-note-wrap"><label>NOTE PASSAGER</label><textarea id="passengerNoteInput" class="passenger-note" placeholder="AJOUTER UNE INFORMATION OPÉRATIONNELLE...">${esc(saved)}</textarea><div class="passenger-note-actions"><button class="note-save" onclick='savePassengerNote(${JSON.stringify(p)})'>ENREGISTRER NOTE</button></div></div>`);
   };
 
-  const oldRender=window.render;
-  if(typeof oldRender==='function'&&!oldRender.__v5029){
-    window.render=render=function(){try{rebuildGeneric(typeof f==='function'?f():null)}catch(e){console.warn('V50.29 generic rebuild',e)}return oldRender.apply(this,arguments)};
-    window.render.__v5029=true;
-  }
-  try{const x=typeof f==='function'?f():null;if(x)rebuildGeneric(x)}catch(e){}
-  try{document.title='ALYZIA OPS - V50.30 · GENERIC PAX CONSOLIDATED + CONNECTION FIX'}catch(e){}
-  console.log('ALYZIA OPS V50.30 BUILD132 — GENERIC INBOUND/OUTBOUND + FULL PAX CONSOLIDATION LOADED');
+  /* V50.31 SAFE HOME GUARD
+     IMPORTANT: no hook on global render() and no eager rebuild at startup.
+     Generic reconciliation runs only when a generic passenger/connection view is opened.
+     This keeps renderHome(), flight list, sync and SQ/TK/TW/BJ historical flows untouched. */
+  try{document.title='ALYZIA OPS - V50.31 · GENERIC PAX/CONNECTION SAFE HOME'}catch(e){}
+  console.log('ALYZIA OPS V50.31 BUILD133 — SAFE HOME · GENERIC PAX/CONNECTIONS LAZY ONLY');
 })();
 </script>
 </body></html>
