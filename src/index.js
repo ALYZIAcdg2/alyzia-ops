@@ -1,4 +1,4 @@
-// ALYZIA OPS V50.15 · Lot 3 Class Counts Fix
+// ALYZIA OPS V50.16 · Lot 3 No Stub Flight Fix
 // - Assets statiques public/
 // - API vols partagée D1
 // - Bridge interne vers SARIA
@@ -2795,11 +2795,66 @@ async function lot3UpsertFlightCard(env,identity,row,card){
   ).run();
 }
 
-async function lot3InjectOneResult(env,row){
+async function lot3InjectOneResult(env,row,options={}){
   const identity=lot3IdentityFromRow(row);
   const existing=await getFlightByIdentity(env,identity);
   const before=existing?JSON.stringify(existing):null;
   const card=lot3BuildImportCard(row);
+
+  /*
+   * V50.16 — No stub flight fix.
+   * Ne jamais créer une fiche vol vide depuis un import partiel.
+   * Si le vol n'existe pas encore dans la table flights, on stocke seulement
+   * les cartes importées dans flight_import_cards et on marque WAITING_FLIGHT.
+   * La fiche vol sera enrichie quand le vol réel sera présent.
+   */
+  if(!existing && !options.createMissingFlights){
+    await lot3UpsertFlightCard(env,identity,row,card);
+
+    await env.OPS_DB.prepare(`
+      INSERT INTO flight_import_injections
+        (result_job_id,identity,status,before_json,after_json,created_at,updated_at)
+      VALUES (?,?,?,?,?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+      ON CONFLICT(result_job_id) DO UPDATE SET
+        identity=excluded.identity,
+        status=excluded.status,
+        before_json=excluded.before_json,
+        after_json=excluded.after_json,
+        updated_at=CURRENT_TIMESTAMP
+    `).bind(String(row.job_id||""),identity,"WAITING_FLIGHT",null,JSON.stringify({identity,card})).run();
+
+    await env.OPS_DB.prepare(`
+      UPDATE import_job_results
+      SET status='WAITING_FLIGHT',
+          updated_at=CURRENT_TIMESTAMP
+      WHERE job_id=?
+    `).bind(String(row.job_id||"")).run();
+
+    await recordImportChange(env,{
+      scope:"FLIGHT",
+      airline:row.airline,
+      flightNumber:row.flight_number,
+      flightDate:row.flight_date,
+      fileId:row.file_id,
+      versionId:row.version_id,
+      changeType:"FLIGHT_CARD_WAITING_FLIGHT",
+      before:null,
+      after:{identity,card}
+    });
+
+    return {
+      ok:true,
+      identity,
+      airline:row.airline,
+      flightNumber:row.flight_number,
+      flightDate:row.flight_date,
+      cardKey:row.card_key,
+      listName:row.list_name,
+      passengerCount:Number(row.passenger_count||0),
+      status:"WAITING_FLIGHT"
+    };
+  }
+
   const afterFlight=lot3MergeFlightData(existing,row,card);
 
   await upsertFlight(env,afterFlight);
@@ -2878,8 +2933,9 @@ async function lot3InjectNext(env,body){
   `).bind(...binds).all();
 
   const injected=[];
+  const options={createMissingFlights:body?.createMissingFlights===true};
   for(const row of results){
-    injected.push(await lot3InjectOneResult(env,row));
+    injected.push(await lot3InjectOneResult(env,row,options));
   }
 
   return {ok:true,requested:limit,found:results.length,injected};
