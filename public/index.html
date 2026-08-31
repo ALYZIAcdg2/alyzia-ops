@@ -6,7 +6,7 @@
   <meta http-equiv="Expires" content="0">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V50.27 · PAX CLEAN UI + TOOLS HARD STOP</title>
+<title>ALYZIA OPS - V50.28 · GENERIC PAX + TOOLS FIXED</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -22538,7 +22538,7 @@ try{
   'use strict';
 
   const VERSION='V50.27';
-  const BUILD='2026-08-31-129';
+  const BUILD='2026-08-31-130';
 
   function driveStatusInto(btn){
     if(!btn || typeof window.v5013GetDriveStatus!=='function') return;
@@ -23556,7 +23556,34 @@ try{
   };
 
   function openToolsLite(){
-    showModal('OUTILS','ALYZIA OPS · V50.27 · BUILD '+BUILD,`<div class="tools-grid"><button class="tool-card" onclick="openImportsDashboard()"><span class="tool-icon">⇩</span><b>IMPORTS GMAIL</b><span>PIPELINE GMAIL / R2 / D1</span></button><button class="tool-card" onclick="openCompanyConfig()"><span class="tool-icon">⚙</span><b>CONFIG COMPAGNIE</b><span>CLASSES, MODULES, CARTES SSR</span></button><button class="tool-card" onclick="openFlightImport()"><span class="tool-icon">⇩</span><b>IMPORTER VOLS</b><span>EXCEL XLS / XLSX</span></button><button class="tool-card" onclick="openCreateFlight()"><span class="tool-icon">＋</span><b>CRÉER VOL</b><span>AJOUT MANUEL</span></button><button class="tool-card" onclick="openSeatmap()"><span class="tool-icon">▦</span><b>SEATMAP</b><span>PLAN CABINE</span></button><button class="tool-card" onclick="openSaria()"><span class="tool-icon">✈</span><b>SARIA</b><span>CABIN / SEATMAP</span></button></div>`);
+    try{
+      // V50.28 BUILD130 — ouverture directe du modal OUTILS.
+      // On ne dépend plus des anciennes surcharges openTools()/showModal().
+      const modal=document.getElementById('modal');
+      const title=document.getElementById('modalTitle');
+      const sub=document.getElementById('modalSub');
+      const body=document.getElementById('modalBody');
+      if(!modal||!title||!sub||!body){
+        console.error('V50.28 OUTILS: structure modal introuvable');
+        return;
+      }
+      try{ if(Array.isArray(window.modalStack)) window.modalStack.length=0; }catch(e){}
+      title.textContent='OUTILS';
+      sub.textContent='ALYZIA OPS · V50.28 · BUILD 130';
+      body.innerHTML=`<div class="tools-grid">
+        <button class="tool-card tools-imports-featured" onclick="openImportsDashboard()"><span class="tool-icon">⇩</span><b>IMPORTS GMAIL</b><span>PIPELINE GMAIL / R2 / D1</span></button>
+        <button class="tool-card company-config-tool" onclick="openCompanyConfig()"><span class="tool-icon">⚙</span><b>CONFIG COMPAGNIE</b><span>CLASSES, MODULES, CARTES SSR</span></button>
+        <button class="tool-card" onclick="openFlightImport()"><span class="tool-icon">⇩</span><b>IMPORTER VOLS</b><span>EXCEL XLS / XLSX</span></button>
+        <button class="tool-card" onclick="openCreateFlight()"><span class="tool-icon">＋</span><b>CRÉER VOL</b><span>AJOUT MANUEL</span></button>
+        <button class="tool-card" onclick="openSeatmap()"><span class="tool-icon">▦</span><b>SEATMAP</b><span>PLAN CABINE</span></button>
+        <button class="tool-card" onclick="openSaria()"><span class="tool-icon">✈</span><b>SARIA</b><span>CABIN / SEATMAP</span></button>
+      </div>`;
+      modal.classList.add('open');
+      const back=document.getElementById('modalBackBtn');
+      if(back)back.style.display='none';
+    }catch(err){
+      console.error('V50.28 OUTILS',err);
+    }
   }
   window.openTools=openToolsLite;
   document.addEventListener('click',function(e){
@@ -23575,7 +23602,7 @@ try{
     window.render.__v5027=true;
   }
   setTimeout(()=>{try{applyClean(typeof f==='function'?f():null)}catch(e){}},250);
-  console.log('ALYZIA OPS V50.27 BUILD '+BUILD+' — PAX CLEAN UI + TOOLS HARD STOP LOADED');
+  console.log('ALYZIA OPS V50.28 BUILD 130 — GENERIC PAX + TOOLS FIXED LOADED');
 })();
 </script>
 </body></html>
