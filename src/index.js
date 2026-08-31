@@ -1,4 +1,4 @@
-// ALYZIA OPS V50.23 · Generic Passenger Clean Injection
+// ALYZIA OPS V50.25 · Generic Inbound Clean
 // - Assets statiques public/
 // - API vols partagée D1
 // - Bridge interne vers SARIA
@@ -2715,7 +2715,7 @@ function lot2ExtractPassengerItemsFromGenericList(text,listName,cardKey){
 
   for(let i=0;i<lines.length;i++){
     const raw=String(lines[i]||"").replace(/\s+/g," ").trim();
-    const m=raw.match(/^\s*(\d{1,3})\.\s*(.+?)\s+([MF])\s+([A-Z]{3})\s+([A-Z]{3})\s+([A-Z]{1,2}[A-Z0-9]?)\s*(.*)$/i);
+    const m=raw.match(/^\s*(\d{1,3})\.\s*(.+?)\s+([MFACI])\s+([A-Z]{3})\s+([A-Z]{3})\s+([A-Z]{1,2}[A-Z0-9]?)\s*(.*)$/i);
     if(!m)continue;
 
     const seq=Number(m[1]);
@@ -2723,6 +2723,7 @@ function lot2ExtractPassengerItemsFromGenericList(text,listName,cardKey){
     const name=split.name;
     const title=split.title;
     const gender=String(m[3]||"").toUpperCase();
+    const passengerType=gender==="A"?"ADT":gender==="C"?"CHLD":gender==="I"?"INF":"";
     const origin=String(m[4]||"").toUpperCase();
     const destination=String(m[5]||"").toUpperCase();
     const cls=lot2PassengerClassFromCode(m[6]);
@@ -2731,7 +2732,7 @@ function lot2ExtractPassengerItemsFromGenericList(text,listName,cardKey){
 
     const item={
       id:`${cKey||"GEN"}-${seq}-${name}`,
-      seq,name,title,gender,
+      seq,name,title,gender,passengerType,
       class:cls,cabinClass:cls,
       origin,destination,acceptance,
       specific:"",
@@ -3298,9 +3299,126 @@ function lot3CleanImportedPassenger(p){
   return x;
 }
 
+
+function lot3CleanGenericTokenText(v){
+  let s=String(v||"").trim();
+  if(!s)return "";
+  // Jamais afficher ces jetons techniques comme SSR / spécificité.
+  s=s.replace(/\bMASTER\b/gi,"")
+     .replace(/\bTKNE\b/gi,"")
+     .replace(/\bAS\b/gi,"")
+     .replace(/\bETK[TN]?[-\s]*\d{10,}\b/gi,"")
+     .replace(/\bEMD[-\s]*\d{10,}[A-Z0-9]*\b/gi,"")
+     .replace(/\b\d{10,}\b/g,"")
+     .replace(/\s*[·,;/|-]\s*/g," · ")
+     .replace(/(?:\s*·\s*){2,}/g," · ")
+     .replace(/^\s*·\s*|\s*·\s*$/g,"")
+     .replace(/\s+/g," ")
+     .trim();
+  return s;
+}
+
+function lot3CleanGenericSsrArray(v){
+  const bad=new Set(["MASTER","TKNE","AS",""]);
+  const out=[];
+  for(const raw of (Array.isArray(v)?v:[v])){
+    let s=String(raw||"").trim().toUpperCase();
+    if(!s || bad.has(s))continue;
+    if(/^\d{10,}$/.test(s))continue;
+    if(/^ETK[TN]?[-\s]*\d{10,}/.test(s))continue;
+    if(/^EMD[-\s]*\d{10,}/.test(s))continue;
+    if(!out.includes(s))out.push(s);
+  }
+  return out;
+}
+
+function lot3CleanImportedPassengerStrict(p){
+  const x={...(p||{})};
+  x.name=String(x.name||"").replace(/\s+/g," ").trim();
+  x.class=String(x.class||x.cabinClass||"").toUpperCase();
+  x.cabinClass=x.class;
+  x.title=String(x.title||"").toUpperCase();
+  x.gender=String(x.gender||"").toUpperCase();
+  x.passengerType=String(x.passengerType||"").toUpperCase();
+  x.ssr=lot3CleanGenericSsrArray(x.ssr);
+  x.specific=lot3CleanGenericTokenText(x.specific);
+  x.note=lot3CleanGenericTokenText(x.note);
+  if(x.cardKey==="MASTER"){
+    x.ssr=[];x.specific="";x.note="";
+  }
+  if(x.cardKey==="ETKT"){
+    x.ssr=[];x.specific="";x.note="";
+  }
+  if(x.cardKey==="EMD"){
+    x.ssr=[];x.specific="";x.note="";
+  }
+  return x;
+}
+
+function lot3DedupePassengerArray(arr){
+  const out=[];
+  const map=new Map();
+  for(const raw of Array.isArray(arr)?arr:[]){
+    const p=lot3CleanImportedPassengerStrict(raw);
+    const key=lot3PaxKey(p);
+    if(!key)continue;
+    if(map.has(key)){
+      const idx=map.get(key);
+      out[idx]=lot3MergePassengerInfo(out[idx],p);
+    }else{
+      map.set(key,out.length);
+      out.push(p);
+    }
+  }
+  return out;
+}
+
+function lot3CleanConnectionRows(rows,dir,base){
+  const out=[];
+  const byFlight=new Map();
+  for(const raw of Array.isArray(rows)?rows:[]){
+    const r={...(raw||{})};
+    r.flight=String(r.flight||"").trim().toUpperCase();
+    if(!r.flight || r.flight==="—" || r.flight==="-")continue;
+    r.from=String(r.from||"").trim().toUpperCase();
+    r.to=String(r.to||"").trim().toUpperCase();
+    r.time=String(r.time||"").trim();
+    r.passengers=lot3DedupePassengerArray(r.passengers||[]);
+    const key=r.flight;
+    if(!byFlight.has(key)){
+      byFlight.set(key,out.length);
+      out.push(r);
+    }else{
+      const cur=out[byFlight.get(key)];
+      // Préférer la provenance réelle de la summary (ex YYZ) au faux CDG issu de la ligne INC.
+      if((!cur.from || cur.from===base.dep) && r.from && r.from!==base.dep)cur.from=r.from;
+      if(!cur.to && r.to)cur.to=r.to;
+      if(!cur.time && r.time)cur.time=r.time;
+      cur.conx=cur.conx||r.conx||"";
+      cur.classCounts={...(cur.classCounts||{}),...(r.classCounts||{})};
+      cur.passengers=lot3DedupePassengerArray([...(cur.passengers||[]),...(r.passengers||[])]);
+      cur.paxCount=Math.max(Number(cur.paxCount||0),Number(r.paxCount||0),cur.passengers.length);
+      cur.count=Math.max(Number(cur.count||0),Number(r.count||0),cur.passengers.length);
+    }
+  }
+  return out;
+}
+
+function lot3SanitizeFlightGeneric(base){
+  if(!base||typeof base!=="object")return base;
+  base.passengers=lot3DedupePassengerArray(base.passengers||[]);
+  if(base.common_lists&&typeof base.common_lists==="object"){
+    Object.keys(base.common_lists).forEach(k=>{
+      base.common_lists[k]=lot3DedupePassengerArray(base.common_lists[k]||[]);
+    });
+  }
+  base.inbound=lot3CleanConnectionRows(base.inbound||[],"INBOUND",base);
+  base.outbound=lot3CleanConnectionRows(base.outbound||[],"OUTBOUND",base);
+  return base;
+}
 function lot3MergePassengerInfo(a,b){
-  a=lot3CleanImportedPassenger(a||{});
-  b=lot3CleanImportedPassenger(b||{});
+  a=lot3CleanImportedPassengerStrict(lot3CleanImportedPassenger(a||{}));
+  b=lot3CleanImportedPassengerStrict(lot3CleanImportedPassenger(b||{}));
   const out={...(a||{})};
   for(const [k,v] of Object.entries(b||{})){
     if(v==null || v==="")continue;
@@ -3350,7 +3468,7 @@ function lot3NormalizePassengerForUi(p,card){
   if(c==="ETKT" && !x.etkt)x.etkt=x.documentNumber||x.etkt||"";
   x.sourceList=x.listName||card?.listName||"";
   x.imported=true;
-  return lot3CleanImportedPassenger(x);
+  return lot3CleanImportedPassengerStrict(lot3CleanImportedPassenger(x));
 }
 
 function lot3UpsertPassengers(base,card){
@@ -3374,7 +3492,7 @@ function lot3UpsertPassengers(base,card){
 }
 
 function lot3MergeFlightData(current,row,card){
-  const base=current && typeof current==="object"?{...current}:{};
+  const base=lot3SanitizeFlightGeneric(current && typeof current==="object"?{...current}:{});
   const identity=lot3IdentityFromRow(row);
 
   base.date=base.date || String(row.flight_date||"");
@@ -3490,7 +3608,7 @@ function lot3MergeFlightData(current,row,card){
   }
 
   base.imports=imports;
-  return base;
+  return lot3SanitizeFlightGeneric(base);
 }
 
 async function lot3UpsertFlightCard(env,identity,row,card){
