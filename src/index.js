@@ -1,4 +1,4 @@
-// ALYZIA OPS V50.8 · LOT 2 Import Job Processor + STRICT LIST OF Classification
+// ALYZIA OPS V50.9 · LOT 2 Strict Explicit PDF List Classification
 // - Assets statiques public/
 // - API vols partagée D1
 // - Bridge interne vers SARIA
@@ -2011,43 +2011,46 @@ async function lot2ExtractTextFromR2Object(object,filename,mime){
 
 function lot2DetectListName(text,filename){
   /*
-   * V50.8 — STRICT LIST OF
-   * On ne déduit plus jamais le nom de liste à partir de mots trouvés
-   * dans le PDF ou dans le nom de fichier.
+   * V50.9 — STRICT EXPLICIT PDF LIST NAME
+   * On ne déduit jamais le nom de liste depuis des mots passagers.
    *
-   * Seule une ligne explicite du document fait foi :
-   *   LIST OF: XXXXX
+   * Sources autorisées :
+   *   1) une ligne explicite "LIST OF: XXXXX"
+   *   2) un titre explicite de rapport résumé Altea :
+   *      "INBOUND CUSTOMER SUMMARY" ou "ONCARRIAGE CUSTOMER SUMMARY"
    *
-   * Si cette ligne n'est pas trouvée, on retourne une chaîne vide.
-   * Le job sera classé GENERIC_LIST_NOT_FOUND, sans carte inventée.
+   * Si aucune source explicite n'est trouvée, on retourne "".
    */
   const raw=lot2CleanText(String(text||"")).replace(/\r/g,"\n");
   const lines=raw.split(/\n+/).map(x=>String(x||"").trim()).filter(Boolean);
 
-  for(const line of lines.slice(0,120)){
-    const m=line.match(/\bLIST\s+OF\s*:\s*(.{2,140})$/i);
-    if(!m)continue;
-
-    const cleaned=String(m[1]||"")
+  function cleanListName(v){
+    return String(v||"")
       .replace(/\b(?:TOTAL|TTL)\b.*$/i,"")
       .replace(/\b[FJCWSY]\s*\d+\b/gi,"")
       .replace(/\s+/g," ")
       .trim();
+  }
 
+  for(const line of lines.slice(0,160)){
+    const m=line.match(/\bLIST\s+OF\s*:\s*(.{2,140})$/i);
+    if(!m)continue;
+    const cleaned=cleanListName(m[1]);
     if(cleaned)return cleaned;
   }
 
   // OCR/text extraction peut parfois coller "LIST OF:" au milieu d'une ligne.
-  // On accepte seulement la mention explicite LIST OF:, jamais un mot isolé.
   const compact=raw.slice(0,12000);
   const m=compact.match(/\bLIST\s+OF\s*:\s*([^\n\r]{2,140})/i);
   if(m){
-    const cleaned=String(m[1]||"")
-      .replace(/\b(?:TOTAL|TTL)\b.*$/i,"")
-      .replace(/\b[FJCWSY]\s*\d+\b/gi,"")
-      .replace(/\s+/g," ")
-      .trim();
+    const cleaned=cleanListName(m[1]);
     if(cleaned)return cleaned;
+  }
+
+  // Titres explicites de rapports sommaires, sans inventer de liste.
+  for(const line of lines.slice(0,80)){
+    if(/^INBOUND\s+CUSTOMER\s+SUMMARY\b/i.test(line))return "INBOUND CUSTOMER SUMMARY";
+    if(/^ONCARRIAGE\s+CUSTOMER\s+SUMMARY\b/i.test(line))return "ONCARRIAGE CUSTOMER SUMMARY";
   }
 
   return "";
@@ -2057,7 +2060,7 @@ function lot2GenericCardFromListName(listName){
   const l=lot2Upper(listName);
   if(!l)return "NO_LIST";
   if(/ALL\s+(CUSTOMERS|PAX|RESERVATION)/.test(l))return "MASTER";
-  if(/FQTV/.test(l))return "FQTV";
+  if(/\bFQA\b|\bFQTV\b/.test(l))return "FQTV";
   if(/WCHR|WCHS|WCHC|WCMP|WCBD|WCLB|\bWCH\b/.test(l))return "WCH";
   if(/INFANT|\bINF\b/.test(l))return "INF";
   if(/CHILD|CHLD|\bKID\b/.test(l))return "CHLD";
@@ -2070,8 +2073,8 @@ function lot2GenericCardFromListName(listName){
   if(/DEPU/.test(l))return "DEPU";
   if(/UMNR|\bUM\b/.test(l))return "UMNR";
   if(/MAAS/.test(l))return "MAAS";
-  if(/INBOUND|CONNECTION FROM/.test(l))return "INBOUND";
-  if(/OUTBOUND|ONCARRIAGE|CONNECTION TO/.test(l))return "OUTBOUND";
+  if(/\bINC\b|INBOUND|CONNECTION FROM/.test(l))return "INBOUND";
+  if(/\bONC\b|OUTBOUND|ONCARRIAGE|CONNECTION TO/.test(l))return "OUTBOUND";
   return "OTHER";
 }
 
@@ -2180,7 +2183,7 @@ async function lot2ProcessOneJob(env,job){
       reason:extracted.reason,
       rules: parserMode==="SPECIFIC_LOCKED"
         ? "Parser spécifique verrouillé : aucune transformation Worker Lot 2."
-        : "GENERIC V50.8 strict : seul le nom explicite LIST OF du fichier est utilisé ; aucune carte inventée."
+        : "GENERIC V50.9 strict : seul LIST OF ou un titre résumé explicite du PDF est utilisé ; aucune carte inventée."
     };
 
     await env.OPS_DB.prepare(`
