@@ -1,4 +1,5 @@
 <!doctype html>
+<!-- V50.29 BUILD131: GENERIC INBOUND SUMMARY = FLIGHTS / INC = PASSENGERS. SQ/TK/TW/BJ PROTECTED. -->
 <html lang="fr">
 <head>
   <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
@@ -6,7 +7,7 @@
   <meta http-equiv="Expires" content="0">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V50.29 · GENERIC PAX CONSOLIDATED + CONNECTION FIX</title>
+<title>ALYZIA OPS - V50.30 · GENERIC PAX + CONNECTIONS SAFE</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -7079,10 +7080,10 @@ html,body{
 <body>
 <script>
 /* V49.75 — BJ KPI WEB SBY AVAILABLE. SQ/TK frozen. */
-const ALYZIA_APP_VERSION='V50.29';
+const ALYZIA_APP_VERSION='V50.27';
 const ALYZIA_SQ_LOCK_VERSION='V49.64';
 const ALYZIA_TK_LOCK_VERSION='V49.69';
-const ALYZIA_APP_BUILD='2026-08-31-131';
+const ALYZIA_APP_BUILD='2026-08-31-129';
 </script>
 <header class="topbar">
  <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V50.27</span></div>
@@ -8531,255 +8532,6 @@ function twPrintHtml(s){
  </table><script>window.onload=()=>setTimeout(()=>window.print(),150)<\/script><!-- V49.83: silent multi-device auto-sync 0.5s selected / 1.5s global; TK cards view-only; mobile TYPE header hardened. -->
 <!-- V49.88: compact mobile WSA KPI; named standby list when an explicit TK standby report is available. -->
 <!-- V50.15: stabilisation imports nominative, PREPA dynamic generic/specific, sticky desktop nav, editable flight notes, A/C selector fix. -->
-
-<script>
-/* =========================================================
-   V50.29 BUILD131 — GENERIC PAX CONSOLIDATION + CONNECTION FIX
-   - SQ/TK/TW/BJ PROTECTED: zero behavioral change.
-   - INC/INCARRIAGE = nominative INBOUND passenger list.
-   - INBOUND SUMMARY = flight metadata only.
-   - Generic passenger cards always resolve against one consolidated master.
-   ========================================================= */
-(function(){
-  'use strict';
-  const PROTECTED=new Set(['SQ','TK','TW','BJ']);
-  const arr=v=>Array.isArray(v)?v:[];
-  const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-  const up=v=>String(v||'').trim().toUpperCase();
-  const nameKey=p=>up(p?.name||p?.fullName||p?.shortName).replace(/[^A-Z0-9]/g,'');
-  const seatKey=p=>up(p?.seat).replace(/\s+/g,'');
-  const classKey=p=>up(p?.class||p?.cabinClass);
-  const pnrKey=p=>up(p?.pnr||p?.recordLocator||p?.record_locator).replace(/[^A-Z0-9]/g,'');
-  const docKey=v=>up(v).replace(/[^A-Z0-9]/g,'');
-  function etktKeys(p){
-    const out=[]; const add=v=>{
-      if(v==null||v==='')return;
-      if(Array.isArray(v)){v.forEach(add);return}
-      if(typeof v==='object'){add(v.number);add(v.documentNumber);add(v.document_number);add(v.id);return}
-      const k=docKey(v);if(k)out.push(k);
-    };
-    add(p?.etkt);add(p?.etkts);add(p?.tickets);add(p?.documentNumber);add(p?.documents?.etkt);
-    return [...new Set(out)];
-  }
-  function isGeneric(x){return !!x&&!PROTECTED.has(up(x.airline))}
-  function cardSources(card){return arr(card?.sources).length?arr(card.sources):[card].filter(Boolean)}
-  function cardPassengers(card){
-    const out=[];
-    cardSources(card).forEach(src=>{
-      const rows=arr(src?.passengerItems).length?arr(src.passengerItems):arr(src?.passengers);
-      rows.forEach(p=>{if(p&&typeof p==='object')out.push({...p,sourceList:p.sourceList||src.listName||card?.listName||''})});
-    });
-    return out;
-  }
-  function cardConnectionRows(card){
-    const out=[]; cardSources(card).forEach(src=>arr(src?.connectionRows).forEach(r=>out.push({...r,sourceList:src.listName||card?.listName||''})));
-    if(!out.length)arr(card?.connectionRows).forEach(r=>out.push({...r,sourceList:card?.listName||''}));
-    return out;
-  }
-  function cleanSsr(v){
-    const bad=new Set(['','MASTER','TKNE','AS','INBOUND','OUTBOUND']);
-    return [...new Set(arr(v).map(up).filter(s=>s&&!bad.has(s)&&!/^\d{10,}$/.test(s)&&!/^ETK/.test(s)&&!/^EMD/.test(s)))];
-  }
-  function normalizePax(raw){
-    const p={...(raw||{})};
-    p.name=up(p.name||p.fullName||p.shortName);
-    p.class=up(p.class||p.cabinClass);p.cabinClass=p.class;
-    p.seat=up(p.seat);
-    p.title=up(p.title);
-    p.ssr=cleanSsr(p.ssr);
-    if(p.etkt)p.etkt=String(p.etkt).trim();
-    if(p.emd)p.emd=String(p.emd).trim();
-    if(p.fqtv&&typeof p.fqtv==='object')p.fqtv={...p.fqtv};
-    return p;
-  }
-  function mergePax(a,b){
-    const o=normalizePax(a),q=normalizePax(b);
-    Object.entries(q).forEach(([k,v])=>{
-      if(v==null||v==='')return;
-      if(k==='ssr')o.ssr=[...new Set([...cleanSsr(o.ssr),...cleanSsr(v)])];
-      else if(k==='fqtv')o.fqtv={...(o.fqtv||{}),...(v||{})};
-      else if(k==='emdNumbers')o.emdNumbers=[...new Set([...arr(o.emdNumbers),...arr(v)])];
-      else if(k==='etkts')o.etkts=[...new Set([...arr(o.etkts),...arr(v)])];
-      else if(k==='specific'){
-        const sv=String(v||'').trim();if(sv&&!/^(MASTER|TKNE|AS|INBOUND|OUTBOUND)$/i.test(sv))o.specific=o.specific||sv;
-      }else if(!o[k])o[k]=v;
-    });
-    return normalizePax(o);
-  }
-  function findIndex(list,incoming){
-    const p=normalizePax(incoming),et=etktKeys(p);
-    if(et.length){const hits=[];arr(list).forEach((q,i)=>{if(etktKeys(q).some(k=>et.includes(k)))hits.push(i)});if(hits.length===1)return hits[0]}
-    const n=nameKey(p),pnr=pnrKey(p),seat=seatKey(p),cls=classKey(p);
-    if(n&&pnr){const h=[];arr(list).forEach((q,i)=>{if(nameKey(q)===n&&pnrKey(q)===pnr)h.push(i)});if(h.length===1)return h[0]}
-    if(n&&seat){const h=[];arr(list).forEach((q,i)=>{if(nameKey(q)===n&&seatKey(q)===seat)h.push(i)});if(h.length===1)return h[0]}
-    if(n&&cls){const h=[];arr(list).forEach((q,i)=>{if(nameKey(q)===n&&classKey(q)===cls)h.push(i)});if(h.length===1)return h[0]}
-    if(n){const h=[];arr(list).forEach((q,i)=>{if(nameKey(q)===n)h.push(i)});if(h.length===1)return h[0]}
-    return -1;
-  }
-  function buildMaster(x){
-    if(!isGeneric(x))return arr(x?.passengers);
-    const cards=x.imports?.cards||{};
-    const masterRows=cardPassengers(cards.MASTER);
-    let master=[];
-    if(masterRows.length){master=masterRows.map(normalizePax)}
-    else master=arr(x.passengers).map(normalizePax);
-
-    // Preserve already known fields, then enrich from every generic card.
-    arr(x.passengers).forEach(raw=>{
-      const p=normalizePax(raw),i=findIndex(master,p);
-      if(i>=0)master[i]=mergePax(master[i],p); else if(!masterRows.length&&nameKey(p))master.push(p);
-    });
-    Object.entries(cards).forEach(([ck,card])=>{
-      if(up(ck)==='MASTER')return;
-      cardPassengers(card).forEach(raw=>{
-        const p=normalizePax(raw),i=findIndex(master,p);
-        if(i>=0)master[i]=mergePax(master[i],p);
-      });
-    });
-    // stable de-duplication
-    const out=[];
-    master.forEach(p=>{const i=findIndex(out,p);if(i>=0)out[i]=mergePax(out[i],p);else if(nameKey(p)||etktKeys(p).length)out.push(p)});
-    x.passengers=out;
-    return out;
-  }
-  function resolveMaster(p,x){
-    if(!isGeneric(x))return p;
-    const master=buildMaster(x);const i=findIndex(master,p);
-    return i>=0?mergePax(master[i],p):normalizePax(p);
-  }
-  function validAirport(v){const s=up(v);return /^[A-Z]{3}$/.test(s)?s:''}
-  function summaryMap(x,inbound){
-    const cards=x.imports?.cards||{};
-    const key=inbound?'INBOUND_SUMMARY':'OUTBOUND_SUMMARY';
-    const map=new Map();
-    cardConnectionRows(cards[key]).forEach(r=>{
-      const flight=up(r.flight);if(!flight)return;
-      const old=map.get(flight)||{};
-      map.set(flight,{...old,...r,flight});
-    });
-    return map;
-  }
-  function passengerConnectionRowsFromImports(x,inbound){
-    if(!isGeneric(x))return inbound?arr(x.inbound):arr(x.outbound);
-    const cards=x.imports?.cards||{};
-    const pcard=cards[inbound?'INBOUND':'OUTBOUND'];
-    const summaries=summaryMap(x,inbound);
-    const master=buildMaster(x);
-    const out=[];const seen=new Set();
-    cardPassengers(pcard).forEach(raw=>{
-      let p=normalizePax(raw);const conn=p.connection||{};const flight=up(conn.flight||p.connectionFlight||p.inboundFlight||p.outboundFlight);
-      if(!flight)return;
-      const mi=findIndex(master,p);if(mi>=0)p=mergePax(master[mi],p);
-      const meta=summaries.get(flight)||{};
-      const connAirport=validAirport(conn.airport||conn.origin||conn.destination);
-      let from,to;
-      if(inbound){
-        const metaFrom=validAirport(meta.from);
-        // INC gives the real feeder airport; summary gives schedule. Never use main-flight destination (e.g. ALG) as inbound destination.
-        from=(metaFrom&&metaFrom!==up(x.dep)&&metaFrom!==up(x.dest))?metaFrom:(connAirport||metaFrom||'');
-        to=validAirport(x.dep)||'CDG';
-      }else{
-        from=validAirport(x.dest)||validAirport(meta.from)||'';
-        const metaTo=validAirport(meta.to);
-        to=(metaTo&&metaTo!==up(x.dep)&&metaTo!==up(x.dest))?metaTo:(connAirport||metaTo||'');
-      }
-      const row={
-        ...p,
-        passenger:p.name,
-        name:p.name,
-        flight,
-        from,
-        to,
-        time:meta.time||p.time||'',
-        conx:meta.conx||'',
-        class:p.class||'',
-        sourceList:p.sourceList||pcard?.listName||'',
-        connection:{...conn,direction:inbound?'INBOUND':'OUTBOUND',flight,airport:connAirport||conn.airport||''}
-      };
-      const k=[flight,etktKeys(p)[0]||pnrKey(p)||nameKey(p),seatKey(p)].join('|');
-      if(!seen.has(k)){seen.add(k);out.push(row)}
-    });
-    return out;
-  }
-  function rebuildGeneric(x){
-    if(!isGeneric(x))return x;
-    buildMaster(x);
-    x.common_lists=x.common_lists||{};
-    Object.keys(x.common_lists).forEach(k=>{
-      x.common_lists[k]=arr(x.common_lists[k]).map(p=>resolveMaster(p,x));
-    });
-    x.inbound=passengerConnectionRowsFromImports(x,true);
-    x.outbound=passengerConnectionRowsFromImports(x,false);
-    return x;
-  }
-
-  const oldResolve=window.resolvePassengerForDisplay;
-  window.resolvePassengerForDisplay=resolvePassengerForDisplay=function(p,x=(typeof f==='function'?f():null)){
-    if(!isGeneric(x))return oldResolve?oldResolve(p,x):p;
-    return resolveMaster(p,x);
-  };
-
-  const oldOperational=window.operationalConnectionRows;
-  window.operationalConnectionRows=operationalConnectionRows=function(rows,inbound,x=(typeof f==='function'?f():null)){
-    if(!isGeneric(x))return oldOperational?oldOperational(rows,inbound,x):rows;
-    rebuildGeneric(x);
-    return inbound?arr(x.inbound):arr(x.outbound);
-  };
-
-  const oldPaxRows=window.paxRows;
-  window.paxRows=paxRows=function(items,count){
-    const x=typeof f==='function'?f():null;
-    if(!isGeneric(x))return oldPaxRows?oldPaxRows(items,count):'';
-    rebuildGeneric(x);
-    const list=arr(items).map(p=>resolveMaster(p,x));
-    PAX_MODAL_ITEMS=list;
-    const rows=list.map((p,i)=>{
-      const docs=[p.etkt?`ETKT ${p.etkt}`:'',p.emd?`EMD ${p.emd}`:''].filter(Boolean).join(' · ')||'—';
-      const fq=p.fqtv?.number||p.fqtv?.ffid||'';
-      const ssr=cleanSsr(p.ssr).join(' · ');
-      const info=[fq?`FQTV ${fq}`:'',ssr,p.specific||''].filter(Boolean).join(' · ')||'—';
-      return `<button class="paxrow" onclick="openPaxFromModal(${i})"><strong>${esc(p.name||'PASSAGER')}</strong><span class="seat">${esc(p.seat||'—')}</span><span class="class-cell">${esc(p.class||'—')}</span><span class="pax-document">${esc(docs)}</span><span class="specific">${esc(info)}</span></button>`;
-    }).join('');
-    return `<div class="paxlist"><div class="paxlist-head"><span>NOM / PRÉNOM</span><span>SIÈGE</span><span>CLASSE</span><span>DOCUMENT</span><span>FQTV / SSR / INFO</span></div>${rows||'<div class="prepa-empty">AUCUN PASSAGER DÉTAILLÉ</div>'}</div>`;
-  };
-
-  const oldOpenPax=window.openPax;
-  window.openPax=openPax=function(raw){
-    const x=typeof f==='function'?f():null;
-    if(!isGeneric(x))return oldOpenPax?oldOpenPax(raw):null;
-    rebuildGeneric(x);
-    const p=resolveMaster(raw,x);
-    const saved=typeof getPassengerNote==='function'?getPassengerNote(p):'';
-    const ssr=cleanSsr(p.ssr).join(' · ')||'—';
-    const fq=p.fqtv?.number||p.fqtv?.ffid||'—';
-    const fqTier=p.fqtv?.tier||p.fqtv?.status||p.category||'';
-    const spec=String(p.specific||'').trim()||'—';
-    showModal(p.name||'PASSAGER',x.flight,`
-      <div class="profile generic-consolidated-profile">
-        <div><small>SIÈGE</small><b>${esc(p.seat||'—')}</b></div>
-        <div><small>CLASSE</small><b>${esc(p.class||'—')}</b></div>
-        <div><small>GENRE / TITRE</small><b>${esc(p.title||p.gender||'—')}</b></div>
-        <div><small>ETKT</small><b>${esc(p.etkt||'—')}</b></div>
-        <div><small>EMD</small><b>${esc(p.emd||'—')}</b></div>
-        <div><small>FQTV</small><b>${esc(fq)}${fqTier?` · ${esc(fqTier)}`:''}</b></div>
-        <div><small>SSR</small><b>${esc(ssr)}</b></div>
-        <div class="profile-specificity"><small>SPÉCIFICITÉ</small><b>${esc(spec)}</b></div>
-      </div>
-      ${typeof passengerConnectionsHtml==='function'?passengerConnectionsHtml(p):''}
-      <div class="passenger-note-wrap"><label>NOTE PASSAGER</label><textarea id="passengerNoteInput" class="passenger-note" placeholder="AJOUTER UNE INFORMATION OPÉRATIONNELLE...">${esc(saved)}</textarea><div class="passenger-note-actions"><button class="note-save" onclick='savePassengerNote(${JSON.stringify(p)})'>ENREGISTRER NOTE</button></div></div>`);
-  };
-
-  const oldRender=window.render;
-  if(typeof oldRender==='function'&&!oldRender.__v5029){
-    window.render=render=function(){try{rebuildGeneric(typeof f==='function'?f():null)}catch(e){console.warn('V50.29 generic rebuild',e)}return oldRender.apply(this,arguments)};
-    window.render.__v5029=true;
-  }
-  try{const x=typeof f==='function'?f():null;if(x)rebuildGeneric(x)}catch(e){}
-  try{document.title='ALYZIA OPS - V50.29 · GENERIC PAX CONSOLIDATED + CONNECTION FIX'}catch(e){}
-  console.log('ALYZIA OPS V50.29 BUILD131 — GENERIC INBOUND/OUTBOUND + FULL PAX CONSOLIDATION LOADED');
-})();
-</script>
-
 </body></html>`;
 }
 function ozPrintHtml(s){
@@ -17581,7 +17333,20 @@ function passengerConnectionRows(p,inbound){
    if(q.etkt&&r.etkt&&String(q.etkt)===String(r.etkt))return true;
    if(q.pnr&&r.pnr&&String(q.pnr).toUpperCase()===String(r.pnr).toUpperCase())return true;
    if(q.seat&&r.seat&&String(q.seat).toUpperCase()===String(r.seat).toUpperCase())return true;
-   return norm(q.name||q.fullName)===norm(r.passenger||r.name||r.fullName);
+   if(norm(q.name||q.fullName)===norm(r.passenger||r.name||r.fullName))return true;
+
+   // V50.29 GENERIC ONLY: SUMMARY stores the flight row and INC/ONC attach pax in row.passengers[].
+   // SQ remains on its historical branch above.
+   if(x.airline!=='SQ' && Array.isArray(raw?.passengers)){
+     return raw.passengers.some(pp=>{
+       const rp=resolvePassengerForDisplay(pp,x);
+       if(q.etkt&&rp.etkt&&String(q.etkt)===String(rp.etkt))return true;
+       if(q.pnr&&rp.pnr&&String(q.pnr).toUpperCase()===String(rp.pnr).toUpperCase())return true;
+       if(q.seat&&rp.seat&&String(q.seat).toUpperCase()===String(rp.seat).toUpperCase())return true;
+       return !!norm(q.name||q.fullName) && norm(q.name||q.fullName)===norm(rp.name||rp.fullName);
+     });
+   }
+   return false;
  });
  const seen=new Set();return matched.filter(r=>{const k=String(r.flight||'').toUpperCase();if(seen.has(k))return false;seen.add(k);return true});
 }
@@ -23806,19 +23571,19 @@ try{
 
   function openToolsLite(){
     try{
-      // V50.28 BUILD130 — ouverture directe du modal OUTILS.
+      // V50.29 BUILD131 — ouverture directe du modal OUTILS.
       // On ne dépend plus des anciennes surcharges openTools()/showModal().
       const modal=document.getElementById('modal');
       const title=document.getElementById('modalTitle');
       const sub=document.getElementById('modalSub');
       const body=document.getElementById('modalBody');
       if(!modal||!title||!sub||!body){
-        console.error('V50.28 OUTILS: structure modal introuvable');
+        console.error('V50.29 OUTILS: structure modal introuvable');
         return;
       }
       try{ if(Array.isArray(window.modalStack)) window.modalStack.length=0; }catch(e){}
       title.textContent='OUTILS';
-      sub.textContent='ALYZIA OPS · V50.28 · BUILD 130';
+      sub.textContent='ALYZIA OPS · V50.29 · BUILD 130';
       body.innerHTML=`<div class="tools-grid">
         <button class="tool-card tools-imports-featured" onclick="openImportsDashboard()"><span class="tool-icon">⇩</span><b>IMPORTS GMAIL</b><span>PIPELINE GMAIL / R2 / D1</span></button>
         <button class="tool-card company-config-tool" onclick="openCompanyConfig()"><span class="tool-icon">⚙</span><b>CONFIG COMPAGNIE</b><span>CLASSES, MODULES, CARTES SSR</span></button>
@@ -23831,7 +23596,7 @@ try{
       const back=document.getElementById('modalBackBtn');
       if(back)back.style.display='none';
     }catch(err){
-      console.error('V50.28 OUTILS',err);
+      console.error('V50.29 OUTILS',err);
     }
   }
   window.openTools=openToolsLite;
@@ -23851,7 +23616,256 @@ try{
     window.render.__v5027=true;
   }
   setTimeout(()=>{try{applyClean(typeof f==='function'?f():null)}catch(e){}},250);
-  console.log('ALYZIA OPS V50.28 BUILD 130 — GENERIC PAX + TOOLS FIXED LOADED');
+  console.log('ALYZIA OPS V50.29 BUILD 130 — GENERIC PAX + TOOLS FIXED LOADED');
+})();
+</script>
+
+<!-- V50.30 BUILD132 SAFE APPEND: generic pax + inbound/outbound correction -->
+<script>
+/* =========================================================
+   V50.30 BUILD132 — GENERIC PAX CONSOLIDATION + CONNECTION FIX
+   - SQ/TK/TW/BJ PROTECTED: zero behavioral change.
+   - INC/INCARRIAGE = nominative INBOUND passenger list.
+   - INBOUND SUMMARY = flight metadata only.
+   - Generic passenger cards always resolve against one consolidated master.
+   ========================================================= */
+(function(){
+  'use strict';
+  const PROTECTED=new Set(['SQ','TK','TW','BJ']);
+  const arr=v=>Array.isArray(v)?v:[];
+  const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  const up=v=>String(v||'').trim().toUpperCase();
+  const nameKey=p=>up(p?.name||p?.fullName||p?.shortName).replace(/[^A-Z0-9]/g,'');
+  const seatKey=p=>up(p?.seat).replace(/\s+/g,'');
+  const classKey=p=>up(p?.class||p?.cabinClass);
+  const pnrKey=p=>up(p?.pnr||p?.recordLocator||p?.record_locator).replace(/[^A-Z0-9]/g,'');
+  const docKey=v=>up(v).replace(/[^A-Z0-9]/g,'');
+  function etktKeys(p){
+    const out=[]; const add=v=>{
+      if(v==null||v==='')return;
+      if(Array.isArray(v)){v.forEach(add);return}
+      if(typeof v==='object'){add(v.number);add(v.documentNumber);add(v.document_number);add(v.id);return}
+      const k=docKey(v);if(k)out.push(k);
+    };
+    add(p?.etkt);add(p?.etkts);add(p?.tickets);add(p?.documentNumber);add(p?.documents?.etkt);
+    return [...new Set(out)];
+  }
+  function isGeneric(x){return !!x&&!PROTECTED.has(up(x.airline))}
+  function cardSources(card){return arr(card?.sources).length?arr(card.sources):[card].filter(Boolean)}
+  function cardPassengers(card){
+    const out=[];
+    cardSources(card).forEach(src=>{
+      const rows=arr(src?.passengerItems).length?arr(src.passengerItems):arr(src?.passengers);
+      rows.forEach(p=>{if(p&&typeof p==='object')out.push({...p,sourceList:p.sourceList||src.listName||card?.listName||''})});
+    });
+    return out;
+  }
+  function cardConnectionRows(card){
+    const out=[]; cardSources(card).forEach(src=>arr(src?.connectionRows).forEach(r=>out.push({...r,sourceList:src.listName||card?.listName||''})));
+    if(!out.length)arr(card?.connectionRows).forEach(r=>out.push({...r,sourceList:card?.listName||''}));
+    return out;
+  }
+  function cleanSsr(v){
+    const bad=new Set(['','MASTER','TKNE','AS','INBOUND','OUTBOUND']);
+    return [...new Set(arr(v).map(up).filter(s=>s&&!bad.has(s)&&!/^\d{10,}$/.test(s)&&!/^ETK/.test(s)&&!/^EMD/.test(s)))];
+  }
+  function normalizePax(raw){
+    const p={...(raw||{})};
+    p.name=up(p.name||p.fullName||p.shortName);
+    p.class=up(p.class||p.cabinClass);p.cabinClass=p.class;
+    p.seat=up(p.seat);
+    p.title=up(p.title);
+    p.ssr=cleanSsr(p.ssr);
+    if(p.etkt)p.etkt=String(p.etkt).trim();
+    if(p.emd)p.emd=String(p.emd).trim();
+    if(p.fqtv&&typeof p.fqtv==='object')p.fqtv={...p.fqtv};
+    return p;
+  }
+  function mergePax(a,b){
+    const o=normalizePax(a),q=normalizePax(b);
+    Object.entries(q).forEach(([k,v])=>{
+      if(v==null||v==='')return;
+      if(k==='ssr')o.ssr=[...new Set([...cleanSsr(o.ssr),...cleanSsr(v)])];
+      else if(k==='fqtv')o.fqtv={...(o.fqtv||{}),...(v||{})};
+      else if(k==='emdNumbers')o.emdNumbers=[...new Set([...arr(o.emdNumbers),...arr(v)])];
+      else if(k==='etkts')o.etkts=[...new Set([...arr(o.etkts),...arr(v)])];
+      else if(k==='specific'){
+        const sv=String(v||'').trim();if(sv&&!/^(MASTER|TKNE|AS|INBOUND|OUTBOUND)$/i.test(sv))o.specific=o.specific||sv;
+      }else if(!o[k])o[k]=v;
+    });
+    return normalizePax(o);
+  }
+  function findIndex(list,incoming){
+    const p=normalizePax(incoming),et=etktKeys(p);
+    if(et.length){const hits=[];arr(list).forEach((q,i)=>{if(etktKeys(q).some(k=>et.includes(k)))hits.push(i)});if(hits.length===1)return hits[0]}
+    const n=nameKey(p),pnr=pnrKey(p),seat=seatKey(p),cls=classKey(p);
+    if(n&&pnr){const h=[];arr(list).forEach((q,i)=>{if(nameKey(q)===n&&pnrKey(q)===pnr)h.push(i)});if(h.length===1)return h[0]}
+    if(n&&seat){const h=[];arr(list).forEach((q,i)=>{if(nameKey(q)===n&&seatKey(q)===seat)h.push(i)});if(h.length===1)return h[0]}
+    if(n&&cls){const h=[];arr(list).forEach((q,i)=>{if(nameKey(q)===n&&classKey(q)===cls)h.push(i)});if(h.length===1)return h[0]}
+    if(n){const h=[];arr(list).forEach((q,i)=>{if(nameKey(q)===n)h.push(i)});if(h.length===1)return h[0]}
+    return -1;
+  }
+  function buildMaster(x){
+    if(!isGeneric(x))return arr(x?.passengers);
+    const cards=x.imports?.cards||{};
+    const masterRows=cardPassengers(cards.MASTER);
+    let master=[];
+    if(masterRows.length){master=masterRows.map(normalizePax)}
+    else master=arr(x.passengers).map(normalizePax);
+
+    // Preserve already known fields, then enrich from every generic card.
+    arr(x.passengers).forEach(raw=>{
+      const p=normalizePax(raw),i=findIndex(master,p);
+      if(i>=0)master[i]=mergePax(master[i],p); else if(!masterRows.length&&nameKey(p))master.push(p);
+    });
+    Object.entries(cards).forEach(([ck,card])=>{
+      if(up(ck)==='MASTER')return;
+      cardPassengers(card).forEach(raw=>{
+        const p=normalizePax(raw),i=findIndex(master,p);
+        if(i>=0)master[i]=mergePax(master[i],p);
+      });
+    });
+    // stable de-duplication
+    const out=[];
+    master.forEach(p=>{const i=findIndex(out,p);if(i>=0)out[i]=mergePax(out[i],p);else if(nameKey(p)||etktKeys(p).length)out.push(p)});
+    x.passengers=out;
+    return out;
+  }
+  function resolveMaster(p,x){
+    if(!isGeneric(x))return p;
+    const master=buildMaster(x);const i=findIndex(master,p);
+    return i>=0?mergePax(master[i],p):normalizePax(p);
+  }
+  function validAirport(v){const s=up(v);return /^[A-Z]{3}$/.test(s)?s:''}
+  function summaryMap(x,inbound){
+    const cards=x.imports?.cards||{};
+    const key=inbound?'INBOUND_SUMMARY':'OUTBOUND_SUMMARY';
+    const map=new Map();
+    cardConnectionRows(cards[key]).forEach(r=>{
+      const flight=up(r.flight);if(!flight)return;
+      const old=map.get(flight)||{};
+      map.set(flight,{...old,...r,flight});
+    });
+    return map;
+  }
+  function passengerConnectionRowsFromImports(x,inbound){
+    if(!isGeneric(x))return inbound?arr(x.inbound):arr(x.outbound);
+    const cards=x.imports?.cards||{};
+    const pcard=cards[inbound?'INBOUND':'OUTBOUND'];
+    const summaries=summaryMap(x,inbound);
+    const master=buildMaster(x);
+    const out=[];const seen=new Set();
+    cardPassengers(pcard).forEach(raw=>{
+      let p=normalizePax(raw);const conn=p.connection||{};const flight=up(conn.flight||p.connectionFlight||p.inboundFlight||p.outboundFlight);
+      if(!flight)return;
+      const mi=findIndex(master,p);if(mi>=0)p=mergePax(master[mi],p);
+      const meta=summaries.get(flight)||{};
+      const connAirport=validAirport(conn.airport||conn.origin||conn.destination);
+      let from,to;
+      if(inbound){
+        const metaFrom=validAirport(meta.from);
+        // INC gives the real feeder airport; summary gives schedule. Never use main-flight destination (e.g. ALG) as inbound destination.
+        from=(metaFrom&&metaFrom!==up(x.dep)&&metaFrom!==up(x.dest))?metaFrom:(connAirport||metaFrom||'');
+        to=validAirport(x.dep)||'CDG';
+      }else{
+        from=validAirport(x.dest)||validAirport(meta.from)||'';
+        const metaTo=validAirport(meta.to);
+        to=(metaTo&&metaTo!==up(x.dep)&&metaTo!==up(x.dest))?metaTo:(connAirport||metaTo||'');
+      }
+      const row={
+        ...p,
+        passenger:p.name,
+        name:p.name,
+        flight,
+        from,
+        to,
+        time:meta.time||p.time||'',
+        conx:meta.conx||'',
+        class:p.class||'',
+        sourceList:p.sourceList||pcard?.listName||'',
+        connection:{...conn,direction:inbound?'INBOUND':'OUTBOUND',flight,airport:connAirport||conn.airport||''}
+      };
+      const k=[flight,etktKeys(p)[0]||pnrKey(p)||nameKey(p),seatKey(p)].join('|');
+      if(!seen.has(k)){seen.add(k);out.push(row)}
+    });
+    return out;
+  }
+  function rebuildGeneric(x){
+    if(!isGeneric(x))return x;
+    buildMaster(x);
+    x.common_lists=x.common_lists||{};
+    Object.keys(x.common_lists).forEach(k=>{
+      x.common_lists[k]=arr(x.common_lists[k]).map(p=>resolveMaster(p,x));
+    });
+    x.inbound=passengerConnectionRowsFromImports(x,true);
+    x.outbound=passengerConnectionRowsFromImports(x,false);
+    return x;
+  }
+
+  const oldResolve=window.resolvePassengerForDisplay;
+  window.resolvePassengerForDisplay=resolvePassengerForDisplay=function(p,x=(typeof f==='function'?f():null)){
+    if(!isGeneric(x))return oldResolve?oldResolve(p,x):p;
+    return resolveMaster(p,x);
+  };
+
+  const oldOperational=window.operationalConnectionRows;
+  window.operationalConnectionRows=operationalConnectionRows=function(rows,inbound,x=(typeof f==='function'?f():null)){
+    if(!isGeneric(x))return oldOperational?oldOperational(rows,inbound,x):rows;
+    rebuildGeneric(x);
+    return inbound?arr(x.inbound):arr(x.outbound);
+  };
+
+  const oldPaxRows=window.paxRows;
+  window.paxRows=paxRows=function(items,count){
+    const x=typeof f==='function'?f():null;
+    if(!isGeneric(x))return oldPaxRows?oldPaxRows(items,count):'';
+    rebuildGeneric(x);
+    const list=arr(items).map(p=>resolveMaster(p,x));
+    PAX_MODAL_ITEMS=list;
+    const rows=list.map((p,i)=>{
+      const docs=[p.etkt?`ETKT ${p.etkt}`:'',p.emd?`EMD ${p.emd}`:''].filter(Boolean).join(' · ')||'—';
+      const fq=p.fqtv?.number||p.fqtv?.ffid||'';
+      const ssr=cleanSsr(p.ssr).join(' · ');
+      const info=[fq?`FQTV ${fq}`:'',ssr,p.specific||''].filter(Boolean).join(' · ')||'—';
+      return `<button class="paxrow" onclick="openPaxFromModal(${i})"><strong>${esc(p.name||'PASSAGER')}</strong><span class="seat">${esc(p.seat||'—')}</span><span class="class-cell">${esc(p.class||'—')}</span><span class="pax-document">${esc(docs)}</span><span class="specific">${esc(info)}</span></button>`;
+    }).join('');
+    return `<div class="paxlist"><div class="paxlist-head"><span>NOM / PRÉNOM</span><span>SIÈGE</span><span>CLASSE</span><span>DOCUMENT</span><span>FQTV / SSR / INFO</span></div>${rows||'<div class="prepa-empty">AUCUN PASSAGER DÉTAILLÉ</div>'}</div>`;
+  };
+
+  const oldOpenPax=window.openPax;
+  window.openPax=openPax=function(raw){
+    const x=typeof f==='function'?f():null;
+    if(!isGeneric(x))return oldOpenPax?oldOpenPax(raw):null;
+    rebuildGeneric(x);
+    const p=resolveMaster(raw,x);
+    const saved=typeof getPassengerNote==='function'?getPassengerNote(p):'';
+    const ssr=cleanSsr(p.ssr).join(' · ')||'—';
+    const fq=p.fqtv?.number||p.fqtv?.ffid||'—';
+    const fqTier=p.fqtv?.tier||p.fqtv?.status||p.category||'';
+    const spec=String(p.specific||'').trim()||'—';
+    showModal(p.name||'PASSAGER',x.flight,`
+      <div class="profile generic-consolidated-profile">
+        <div><small>SIÈGE</small><b>${esc(p.seat||'—')}</b></div>
+        <div><small>CLASSE</small><b>${esc(p.class||'—')}</b></div>
+        <div><small>GENRE / TITRE</small><b>${esc(p.title||p.gender||'—')}</b></div>
+        <div><small>ETKT</small><b>${esc(p.etkt||'—')}</b></div>
+        <div><small>EMD</small><b>${esc(p.emd||'—')}</b></div>
+        <div><small>FQTV</small><b>${esc(fq)}${fqTier?` · ${esc(fqTier)}`:''}</b></div>
+        <div><small>SSR</small><b>${esc(ssr)}</b></div>
+        <div class="profile-specificity"><small>SPÉCIFICITÉ</small><b>${esc(spec)}</b></div>
+      </div>
+      ${typeof passengerConnectionsHtml==='function'?passengerConnectionsHtml(p):''}
+      <div class="passenger-note-wrap"><label>NOTE PASSAGER</label><textarea id="passengerNoteInput" class="passenger-note" placeholder="AJOUTER UNE INFORMATION OPÉRATIONNELLE...">${esc(saved)}</textarea><div class="passenger-note-actions"><button class="note-save" onclick='savePassengerNote(${JSON.stringify(p)})'>ENREGISTRER NOTE</button></div></div>`);
+  };
+
+  const oldRender=window.render;
+  if(typeof oldRender==='function'&&!oldRender.__v5029){
+    window.render=render=function(){try{rebuildGeneric(typeof f==='function'?f():null)}catch(e){console.warn('V50.29 generic rebuild',e)}return oldRender.apply(this,arguments)};
+    window.render.__v5029=true;
+  }
+  try{const x=typeof f==='function'?f():null;if(x)rebuildGeneric(x)}catch(e){}
+  try{document.title='ALYZIA OPS - V50.30 · GENERIC PAX CONSOLIDATED + CONNECTION FIX'}catch(e){}
+  console.log('ALYZIA OPS V50.30 BUILD132 — GENERIC INBOUND/OUTBOUND + FULL PAX CONSOLIDATION LOADED');
 })();
 </script>
 </body></html>
