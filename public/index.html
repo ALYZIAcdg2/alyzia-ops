@@ -6,7 +6,7 @@
   <meta http-equiv="Expires" content="0">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V50.26 · CLEAN GENERIC DOSSIERS</title>
+<title>ALYZIA OPS - V50.27 · PAX CLEAN UI + TOOLS HARD STOP</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -7065,17 +7065,27 @@ html,body{
 }
 </style>
 
+
+<style id="alyzia-v5027-clean-ui-css">
+/* V50.27 — listes pax génériques propres */
+.paxlist.v5027-clean .paxlist-head,.paxlist.v5027-clean .paxrow{grid-template-columns:minmax(220px,1.7fr) 92px 78px minmax(190px,1fr)!important}
+.paxlist.v5027-clean .paxrow{min-height:68px}
+.paxlist.v5027-clean .paxrow .specific{white-space:normal;line-height:1.25;font-size:11px}
+.flight-head .saria-ac-select{font-size:20px!important;min-height:40px!important;line-height:1.05!important;overflow:hidden!important;text-overflow:ellipsis!important}
+.flight-head .saria-ac-wrap{max-width:190px!important}
+@media(max-width:900px){.paxlist.v5027-clean .paxlist-head,.paxlist.v5027-clean .paxrow{grid-template-columns:1fr 58px 54px 1fr!important}.flight-head .saria-ac-select{font-size:17px!important}}
+</style>
 </head>
 <body>
 <script>
 /* V49.75 — BJ KPI WEB SBY AVAILABLE. SQ/TK frozen. */
-const ALYZIA_APP_VERSION='V50.26';
+const ALYZIA_APP_VERSION='V50.27';
 const ALYZIA_SQ_LOCK_VERSION='V49.64';
 const ALYZIA_TK_LOCK_VERSION='V49.69';
-const ALYZIA_APP_BUILD='2026-08-31-128';
+const ALYZIA_APP_BUILD='2026-08-31-129';
 </script>
 <header class="topbar">
- <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V50.26</span></div>
+ <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V50.27</span></div>
  <nav class="nav">
    <button class="home-nav" onclick="renderHome()" title="Accueil vols">⌂</button>
    <button onclick="renderHome()">VOLS</button><button onclick="openFlightSearch()">RECHERCHE</button><button onclick="renderPrepa()">PRÉPA</button><button onclick="openTools()">OUTILS</button><button>ADMIN</button>
@@ -17788,7 +17798,7 @@ async function openTools(){
    <button class="tool-card" onclick="openSariaApp()"><span class="tool-icon">✈</span><b>SARIA</b><span>OUVRIR DIRECTEMENT L’OUTIL SARIA CABIN / SEATMAP.</span></button>
    <div class="ops-cloud-card">
      ${(()=>{const st=opsCloudStatusMarkup();return `<div id="opsCloudStatusBox" class="ops-cloud-status ${st.cls}">${st.text}</div>`})()}
-     <div class="ops-cloud-help">D1 PARTAGÉ · 3 TENTATIVES AU DÉMARRAGE · RECONNEXION AUTOMATIQUE · PC, TABLETTE ET TÉLÉPHONE.<br><b style="color:#087749">V50.26 · CLEAN GENERIC DOSSIERS</b></div>
+     <div class="ops-cloud-help">D1 PARTAGÉ · 3 TENTATIVES AU DÉMARRAGE · RECONNEXION AUTOMATIQUE · PC, TABLETTE ET TÉLÉPHONE.<br><b style="color:#087749">V50.27 · PAX CLEAN UI + TOOLS HARD STOP</b></div>
      <button class="live-refresh" onclick="manualCloudRefresh()">↻ SYNCHRONISER MAINTENANT</button>
    </div>
    ${renderImportsMainCard()}
@@ -22527,8 +22537,8 @@ try{
 (function(){
   'use strict';
 
-  const VERSION='V50.26';
-  const BUILD='2026-08-31-128';
+  const VERSION='V50.27';
+  const BUILD='2026-08-31-129';
 
   function driveStatusInto(btn){
     if(!btn || typeof window.v5013GetDriveStatus!=='function') return;
@@ -23168,7 +23178,7 @@ try{
 /* V50.26 BUILD128 — dossiers génériques propres + OUTILS anti-blocage */
 (function(){
   'use strict';
-  const BUILD='2026-08-31-128';
+  const BUILD='2026-08-31-129';
 
   function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
   function arr(v){return Array.isArray(v)?v:[]}
@@ -23392,6 +23402,182 @@ try{
 })();
 </script>
 
+
+<script id="alyzia-v5027-pax-clean-tools-hardstop-js">
+/* V50.27 BUILD129 — nettoyage affichage pax génériques + OUTILS hard-stop */
+(function(){
+  'use strict';
+  const BUILD='2026-08-31-129';
+  const BAD_RE=/\b(MASTER|TKNE|AS)\b|\b\d{10,}\b|\bETK[TN]?[-\s]*\d{10,}\b|\bEMD[-\s]*\d{10,}[A-Z0-9]*\b/gi;
+  const SPECIFIC_AIRLINES=new Set(['SQ','TK','BJ','TW']);
+  function isGeneric(){try{return !SPECIFIC_AIRLINES.has(String(f()?.airline||'').toUpperCase())}catch(e){return false}}
+  function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+  function cleanText(v){return String(v||'').replace(BAD_RE,'').replace(/\s*[·,;/|-]\s*/g,' · ').replace(/(?:\s*·\s*){2,}/g,' · ').replace(/^\s*·\s*|\s*·\s*$/g,'').replace(/\s+/g,' ').trim()}
+  function key(p){return String(p?.name||'').toUpperCase().replace(/[^A-Z0-9/]/g,'')}
+  function arr(v){return Array.isArray(v)?v:[]}
+  function cleanSsr(v){
+    const out=[];
+    for(const raw of arr(v)){
+      const s=String(raw||'').trim().toUpperCase();
+      if(!s||['MASTER','TKNE','AS'].includes(s)||/^\d{10,}$/.test(s)||/^ETK/.test(s)||/^EMD/.test(s))continue;
+      if(!out.includes(s))out.push(s);
+    }
+    return out;
+  }
+  function titleGender(p){
+    return String(p.title||p.gender||p.passengerType||'').toUpperCase()||'—';
+  }
+  function normalizePax(p){
+    const x={...(p||{})};
+    x.name=String(x.name||'').replace(/\s+/g,' ').trim();
+    const t=x.name.match(/\b(MR|MRS|MS|MISS|MSTR)\s*$/i);
+    if(t&&!x.title){x.title=t[1].toUpperCase();x.name=x.name.replace(/\s+\b(MR|MRS|MS|MISS|MSTR)\s*$/i,'').trim()}
+    x.class=String(x.class||x.cabinClass||'').toUpperCase();
+    x.gender=String(x.gender||'').toUpperCase();
+    x.passengerType=String(x.passengerType||'').toUpperCase();
+    x.ssr=cleanSsr(x.ssr);
+    x.specific=cleanText(x.specific);
+    x.note=cleanText(x.note);
+    if(x.cardKey==='FQTV'||x.fqtv){x.ssr=['FQTV'];x.specific=cleanText(x.category||x.fqtv?.tier||x.specific||'')}
+    if(x.cardKey==='WCH'&&x.category){x.ssr=[String(x.category).toUpperCase()]}
+    if(x.cardKey==='CHLD')x.ssr=['CHLD'];
+    if(x.cardKey==='INF')x.ssr=['INF'];
+    if(x.cardKey==='INBOUND'||x.connection){x.ssr=['INBOUND'];x.specific=cleanText(x.connection?.flight?`INBOUND ${x.connection.flight} ${x.connection.airport||''}`:x.specific)}
+    if(x.cardKey==='MASTER'){x.ssr=[];x.specific='';x.note=''}
+    if(x.cardKey==='ETKT'){x.ssr=[];x.specific='';x.note=''}
+    if(x.cardKey==='EMD'){x.ssr=[];x.specific='';x.note=''}
+    return x;
+  }
+  function merge(a,b){
+    const o=normalizePax(a), n=normalizePax(b);
+    Object.entries(n).forEach(([k,v])=>{
+      if(v==null||v==='')return;
+      if(k==='ssr')o.ssr=[...new Set([...arr(o.ssr),...arr(v)])];
+      else if(k==='specific')o.specific=cleanText([...new Set([o.specific,v].filter(Boolean))].join(' · '));
+      else if(k==='note')o.note=cleanText([...new Set([o.note,v].filter(Boolean))].join(' · '));
+      else if(k==='fqtv')o.fqtv={...(o.fqtv||{}),...(v||{})};
+      else if(!o[k])o[k]=v;
+    });
+    return normalizePax(o);
+  }
+  function dedupe(list){
+    const out=[], map=new Map();
+    arr(list).forEach(raw=>{const p=normalizePax(raw);const k=key(p);if(!k)return;if(map.has(k)){out[map.get(k)]=merge(out[map.get(k)],p)}else{map.set(k,out.length);out.push(p)}});
+    return out;
+  }
+  function applyClean(x){
+    if(!x||!isGeneric())return x;
+    x.passengers=dedupe(x.passengers||[]);
+    x.common_lists=x.common_lists||{};
+    Object.keys(x.common_lists).forEach(k=>{x.common_lists[k]=dedupe(x.common_lists[k]||[])});
+    x.inbound=cleanConnections(x.inbound||[],x);
+    x.outbound=cleanConnections(x.outbound||[],x);
+    return x;
+  }
+  function cleanConnections(rows,x){
+    const out=[], map=new Map();
+    arr(rows).forEach(r0=>{
+      const r={...(r0||{})};r.flight=String(r.flight||'').trim().toUpperCase();
+      if(!r.flight||r.flight==='—'||r.flight==='-')return;
+      r.passengers=dedupe(r.passengers||[]);
+      const k=r.flight;
+      if(!map.has(k)){map.set(k,out.length);out.push(r)}else{
+        const cur=out[map.get(k)];
+        if((!cur.from||cur.from===x.dep)&&r.from&&r.from!==x.dep)cur.from=r.from;
+        if(!cur.to&&r.to)cur.to=r.to;
+        if(!cur.time&&r.time)cur.time=r.time;
+        cur.conx=cur.conx||r.conx||'';
+        cur.passengers=dedupe([...(cur.passengers||[]),...(r.passengers||[])]);
+        cur.paxCount=Math.max(Number(cur.paxCount||0),Number(r.paxCount||0),cur.passengers.length);
+      }
+    });
+    return out;
+  }
+  function fillList(label,items){
+    const x=applyClean(typeof f==='function'?f():null)||{};
+    const l=String(label||'').toUpperCase();
+    let it=dedupe(items||[]);
+    if(it.length)return it;
+    const keyMap={ETKT:'ETK',ETK:'ETK',CHLD:'CHLD',INF:'INF',WCH:'WCH',FQTV:'FQTV',EMD:'EMD'};
+    const ck=keyMap[l]||l;
+    if(x.common_lists&&Array.isArray(x.common_lists[ck]))it=dedupe(x.common_lists[ck]);
+    if(it.length)return it;
+    if(ck==='ETK')return dedupe(arr(x.passengers).filter(p=>p.etkt));
+    if(ck==='EMD')return dedupe(arr(x.passengers).filter(p=>p.emd));
+    if(['CHLD','INF','FQTV'].includes(ck))return dedupe(arr(x.passengers).filter(p=>arr(p.ssr).includes(ck)||p.cardKey===ck));
+    if(ck==='WCH')return dedupe(arr(x.passengers).filter(p=>arr(p.ssr).some(s=>/^WCH/.test(s))));
+    return it;
+  }
+  function infoText(p,label){
+    const x=normalizePax(p); const l=String(label||'').toUpperCase();
+    if(l.includes('ETK')&&x.etkt)return 'ETKT-'+x.etkt;
+    if(l.includes('EMD')&&x.emd)return 'EMD-'+x.emd;
+    if(x.etkt&&l.includes('BOOKED'))return 'ETKT-'+x.etkt;
+    const ssr=cleanSsr(x.ssr).join(' · ');
+    if(ssr)return ssr+(x.specific?' · '+x.specific:'');
+    if(x.specific)return x.specific;
+    if(x.etkt)return 'ETKT-'+x.etkt;
+    if(x.emd)return 'EMD-'+x.emd;
+    return '—';
+  }
+
+  window.paxRows=function(items,count){
+    const currentLabel=window.__v5027CurrentPaxLabel||'';
+    const list=dedupe(items||[]).map(normalizePax);
+    const rows=list.map((p,i)=>`<button class="paxrow" onclick="openPaxFromModal(${i})"><strong>${esc(p.name||'—')}</strong><span class="seat">${esc(p.seat||'—')}</span><span class="class-cell">${esc(p.class||'—')}</span><span class="specific">${esc(infoText(p,currentLabel))}</span></button>`).join('');
+    return `<div class="paxlist v5027-clean"><div class="paxlist-head"><span>NOM / PRÉNOM</span><span>SIÈGE</span><span>CLASSE</span><span>ETKT / SSR</span></div>${rows||'<div class="prepa-empty">AUCUN PASSAGER DÉTAILLÉ</div>'}</div>${count>list.length?`<div style="margin-top:10px;color:#64768b;font-size:11px">AFFICHAGE DE ${list.length} PASSAGER(S) SUR ${count}</div>`:''}`;
+  };
+
+  const oldShowPax=window.showPax;
+  window.showPax=function(label,items,count,sort='name',dir='asc'){
+    applyClean(typeof f==='function'?f():null);
+    const filled=fillList(label,items);
+    window.__v5027CurrentPaxLabel=label;
+    if(typeof sortPaxItems==='function'){
+      PAX_MODAL_SOURCE=filled.slice();
+      PAX_MODAL_ITEMS=sortPaxItems(PAX_MODAL_SOURCE,sort,dir);
+      const enc=encodeURIComponent(label);const next=s=>sort===s?(dir==='asc'?'desc':'asc'):'asc';
+      const arrow=(active)=>active?(dir==='asc'?' ▲':' ▼'):'';
+      const sortbar=`<div class="sortbar compact-sortbar"><button class="${sort==='name'?'active':''}" onclick="showPax(decodeURIComponent('${enc}'),PAX_MODAL_SOURCE,${count||filled.length},'name','${next('name')}')">NOM${arrow(sort==='name')}</button><button class="${sort==='class'?'active':''}" onclick="showPax(decodeURIComponent('${enc}'),PAX_MODAL_SOURCE,${count||filled.length},'class','${next('class')}')">CLASSE${arrow(sort==='class')}</button><button class="${sort==='seat'?'active':''}" onclick="showPax(decodeURIComponent('${enc}'),PAX_MODAL_SOURCE,${count||filled.length},'seat','${next('seat')}')">SIÈGE${arrow(sort==='seat')}</button></div>`;
+      showModal(label+' · '+(count||filled.length),f().flight,sortbar+paxRows(PAX_MODAL_ITEMS,count||filled.length));
+      return;
+    }
+    return oldShowPax?oldShowPax(label,filled,count||filled.length,sort,dir):null;
+  };
+
+  const oldOpenPax=window.openPax;
+  window.openPax=function(raw){
+    if(!isGeneric()||!raw)return oldOpenPax?oldOpenPax(raw):null;
+    const p=normalizePax(raw);const x=f();const savedNote=(typeof getPassengerNote==='function'?getPassengerNote(p):p.userNote)||'';
+    const ssr=cleanSsr(p.ssr).join(' · ')||'—';
+    const spec=cleanText(p.specific||p.category||p.fqtv?.tier||'')||'—';
+    const fqtv=p.fqtv?`<div><small>FQTV</small><b>${esc(p.fqtv.number||p.fqtv.ffid||'—')}</b></div>`:'';
+    showModal(p.name||'PASSAGER',x.flight,`<div class="profile"><div><small>SIÈGE</small><b>${esc(p.seat||'—')}</b></div><div><small>CLASSE</small><b>${esc(p.class||'—')}</b></div><div><small>GENRE / TITRE</small><b>${esc(titleGender(p))}</b></div><div><small>ETKT</small><b>${esc(p.etkt||'—')}</b></div><div><small>EMD</small><b>${esc(p.emd||'—')}</b></div>${fqtv}<div><small>SSR</small><b>${esc(ssr)}</b></div><div class="profile-specificity"><small>SPÉCIFICITÉ</small><b>${esc(spec)}</b></div></div><div class="passenger-note-wrap"><label>NOTE PASSAGER</label><textarea id="passengerNoteInput" class="passenger-note" placeholder="AJOUTER UNE INFORMATION OPÉRATIONNELLE...">${esc(savedNote)}</textarea><div class="passenger-note-actions"><button class="note-save" onclick='savePassengerNote(${JSON.stringify(p)})'>ENREGISTRER NOTE</button></div></div>`);
+  };
+
+  function openToolsLite(){
+    showModal('OUTILS','ALYZIA OPS · V50.27 · BUILD '+BUILD,`<div class="tools-grid"><button class="tool-card" onclick="openImportsDashboard()"><span class="tool-icon">⇩</span><b>IMPORTS GMAIL</b><span>PIPELINE GMAIL / R2 / D1</span></button><button class="tool-card" onclick="openCompanyConfig()"><span class="tool-icon">⚙</span><b>CONFIG COMPAGNIE</b><span>CLASSES, MODULES, CARTES SSR</span></button><button class="tool-card" onclick="openFlightImport()"><span class="tool-icon">⇩</span><b>IMPORTER VOLS</b><span>EXCEL XLS / XLSX</span></button><button class="tool-card" onclick="openCreateFlight()"><span class="tool-icon">＋</span><b>CRÉER VOL</b><span>AJOUT MANUEL</span></button><button class="tool-card" onclick="openSeatmap()"><span class="tool-icon">▦</span><b>SEATMAP</b><span>PLAN CABINE</span></button><button class="tool-card" onclick="openSaria()"><span class="tool-icon">✈</span><b>SARIA</b><span>CABIN / SEATMAP</span></button></div>`);
+  }
+  window.openTools=openToolsLite;
+  document.addEventListener('click',function(e){
+    const b=e.target&&e.target.closest&&e.target.closest('button');
+    if(!b)return;
+    const txt=(b.textContent||'').trim().toUpperCase();
+    const oc=String(b.getAttribute('onclick')||'');
+    if(txt==='OUTILS'||oc.includes('openTools')){
+      e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
+      setTimeout(openToolsLite,0);
+    }
+  },true);
+  const oldRender=window.render;
+  if(typeof oldRender==='function'&&!oldRender.__v5027){
+    window.render=function(){try{applyClean(typeof f==='function'?f():null)}catch(e){};return oldRender.apply(this,arguments)};
+    window.render.__v5027=true;
+  }
+  setTimeout(()=>{try{applyClean(typeof f==='function'?f():null)}catch(e){}},250);
+  console.log('ALYZIA OPS V50.27 BUILD '+BUILD+' — PAX CLEAN UI + TOOLS HARD STOP LOADED');
+})();
+</script>
 </body></html>
 <!-- V50.03: cloud status is debounced; 3 startup retries; transient sync failures no longer force immediate local mode. -->
 <!-- V50.0: generic airline PREPA engine + airline profiles; SQ/TK/BJ parser semantics unchanged. -->
