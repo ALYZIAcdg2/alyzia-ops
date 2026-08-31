@@ -1,4 +1,4 @@
-// ALYZIA OPS V50.6 · LOT 1 Gmail API Intake + R2/D1 Pipeline Foundation
+// ALYZIA OPS V50.7 · LOT 2 Import Job Processor + Document Classification
 // - Assets statiques public/
 // - API vols partagée D1
 // - Bridge interne vers SARIA
@@ -1865,6 +1865,416 @@ async function importPipelineStatus(env){
   return {ok:true,jobs:rows.results||[],files:files.results||[],recentChanges:recent.results||[]};
 }
 
+
+
+/* =========================================================
+ * ALYZIA OPS V50.7 — LOT 2 IMPORT JOB PROCESSOR
+ * ---------------------------------------------------------
+ * Objectif du lot 2 :
+ * - prendre les jobs QUEUED créés par le Lot 1
+ * - lire les fichiers dans R2
+ * - extraire un texte opérationnel quand possible
+ * - classifier le document
+ * - préparer le résultat pour le Lot 3, sans injection fiche vol
+ *
+ * VERROUILLAGE :
+ * - SQ / TK / BJ / TW : parsers spécifiques NON TOUCHÉS.
+ *   Le job est marqué READY_SPECIFIC_PARSER.
+ * - Autres compagnies : GENERIC.
+ *   ALL CUSTOMERS / ALL PAX = MASTER.
+ *   LIST OF: XXXXX = carte correspondante.
+ * ========================================================= */
+
+const LOT2_SPECIFIC_AIRLINES = new Set(["SQ","TK","BJ","TW"]);
+
+async function ensureImportProcessorTables(env){
+  await ensureGmailPipelineTables(env);
+  await env.OPS_DB.batch([
+    env.OPS_DB.prepare(`
+      CREATE TABLE IF NOT EXISTS import_job_results (
+        job_id TEXT PRIMARY KEY,
+        version_id TEXT NOT NULL,
+        file_id TEXT NOT NULL,
+        airline TEXT,
+        flight_number TEXT,
+        flight_date TEXT,
+        parser_mode TEXT,
+        document_type TEXT,
+        list_name TEXT,
+        card_key TEXT,
+        passenger_count INTEGER,
+        class_counts_json TEXT,
+        extracted_text_preview TEXT,
+        result_json TEXT,
+        status TEXT NOT NULL DEFAULT 'CLASSIFIED',
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `),
+    env.OPS_DB.prepare(`CREATE INDEX IF NOT EXISTS idx_import_job_results_flight ON import_job_results(airline,flight_number,flight_date,updated_at)`),
+    env.OPS_DB.prepare(`CREATE INDEX IF NOT EXISTS idx_import_job_results_version ON import_job_results(version_id)`)
+  ]);
+}
+
+function lot2Upper(v){return String(v||"").toUpperCase().replace(/\u00a0/g," ");}
+function lot2CleanText(v){
+  return String(v||"")
+    .replace(/\u0000/g," ")
+    .replace(/[\t ]+/g," ")
+    .replace(/\r/g,"\n")
+    .replace(/\n{3,}/g,"\n\n")
+    .trim();
+}
+
+function lot2FileExtension(filename){
+  const m=String(filename||"").toLowerCase().match(/\.([a-z0-9]{1,8})$/);
+  return m?m[1]:"";
+}
+
+function lot2DecodeUtf8(bytes){
+  try{return new TextDecoder("utf-8",{fatal:false}).decode(bytes)}catch(e){return ""}
+}
+
+function lot2DecodeLatin1(bytes){
+  let out="";
+  const chunk=8192;
+  for(let i=0;i<bytes.length;i+=chunk){
+    out+=String.fromCharCode(...bytes.slice(i,i+chunk));
+  }
+  return out;
+}
+
+function lot2ExtractPdfStrings(raw){
+  const source=String(raw||"");
+  const out=[];
+
+  // Texte PDF fréquent : chaînes littérales entre parenthèses.
+  for(const m of source.matchAll(/\((?:\\.|[^\\()]){2,}\)/g)){
+    let v=m[0].slice(1,-1)
+      .replace(/\\n/g,"\n")
+      .replace(/\\r/g,"\n")
+      .replace(/\\t/g," ")
+      .replace(/\\([()\\])/g,"$1")
+      .replace(/\\\d{1,3}/g," ");
+    if(/[A-Za-z0-9]{2}/.test(v))out.push(v);
+  }
+
+  // Texte hexadécimal PDF simple : <0041004C...> ou <414C...>
+  for(const m of source.matchAll(/<([0-9A-Fa-f]{8,})>/g)){
+    const hex=m[1];
+    if(hex.length>3000)continue;
+    try{
+      const bytes=[];
+      for(let i=0;i<hex.length;i+=2)bytes.push(parseInt(hex.slice(i,i+2),16));
+      let ascii=String.fromCharCode(...bytes).replace(/\u0000/g,"");
+      if(/[A-Za-z]{3}/.test(ascii))out.push(ascii);
+    }catch(e){}
+  }
+
+  // Fallback : blocs ASCII visibles dans le PDF.
+  for(const m of source.matchAll(/[A-Za-z0-9][A-Za-z0-9 .,:;_\-/()#'&]{8,}/g)){
+    const v=m[0];
+    if(!/^(obj|endobj|stream|endstream|xref|trailer)$/i.test(v))out.push(v);
+  }
+
+  return lot2CleanText(out.join("\n"));
+}
+
+async function lot2ExtractTextFromR2Object(object,filename,mime){
+  const ext=lot2FileExtension(filename);
+  const size=Number(object?.size||0);
+  const MAX_PARSE_BYTES=25*1024*1024;
+  if(size>MAX_PARSE_BYTES){
+    return {text:"",readable:false,reason:`FICHIER TROP VOLUMINEUX POUR PARSING WORKER (${size} bytes)`};
+  }
+
+  const bytes=new Uint8Array(await object.arrayBuffer());
+  const m=String(mime||"").toLowerCase();
+
+  if(ext==="zip")return {text:"",readable:false,reason:"ZIP STOCKÉ · PARSING DIFFÉRÉ"};
+  if(["xls","xlsx","doc","docx","msg"].includes(ext)){
+    // Ces fichiers sont stockés et indexés au Lot 1. Le parsing natif arrivera par module dédié.
+    return {text:lot2CleanText(lot2DecodeUtf8(bytes).slice(0,200000)),readable:false,reason:`${ext.toUpperCase()} STOCKÉ · PARSING DÉDIÉ À AJOUTER`};
+  }
+  if(ext==="pdf" || m.includes("pdf")){
+    const raw=lot2DecodeLatin1(bytes);
+    const text=lot2ExtractPdfStrings(raw);
+    return {text,readable:!!text,reason:text?"PDF_TEXT_EXTRACTED":"PDF SANS TEXTE EXPLOITABLE PAR LE WORKER"};
+  }
+
+  if(m.startsWith("text/") || ["txt","csv","html","htm","eml","json","xml"].includes(ext)){
+    return {text:lot2CleanText(lot2DecodeUtf8(bytes)),readable:true,reason:"TEXT_EXTRACTED"};
+  }
+
+  return {text:lot2CleanText(lot2DecodeUtf8(bytes).slice(0,200000)),readable:false,reason:"TYPE STOCKÉ · PARSING NON PRIORITAIRE"};
+}
+
+function lot2DetectListName(text,filename){
+  const up=lot2Upper(`${text}\n${filename}`);
+  let m=up.match(/\bLIST\s+OF\s*:\s*([^\n\r]{2,90})/);
+  if(m){
+    return m[1]
+      .replace(/\b(?:TOTAL|TTL)\b.*$/i,"")
+      .replace(/\b[FJCWSY]\s*\d+\b/g,"")
+      .replace(/\s+/g," ")
+      .trim();
+  }
+  if(/ALL\s+(CUSTOMERS|PAX|RESERVATION)/.test(up))return "ALL CUSTOMERS";
+  if(/FQTV/.test(up))return "FQTV";
+  if(/\bEMD\b/.test(up))return "EMD";
+  if(/ETKT|TICKET/.test(up))return "ETKT";
+  if(/WCHR|WCHS|WCHC|\bWCH\b/.test(up))return "WCH";
+  if(/INFANT|\bINF\b/.test(up))return "INFANT";
+  if(/CHILD|CHLD|\bKID\b/.test(up))return "CHLD";
+  if(/MEAL|[A-Z]{2}ML/.test(up))return "MEAL";
+  if(/STAFF|REBATE|BOOKABLE/.test(up))return "STAFF";
+  if(/INAD/.test(up))return "INAD";
+  if(/DEPA/.test(up))return "DEPA";
+  if(/DEPU/.test(up))return "DEPU";
+  if(/UMNR|\bUM\b/.test(up))return "UMNR";
+  if(/MAAS/.test(up))return "MAAS";
+  if(/INBOUND|CONNECTION FROM/.test(up))return "INBOUND";
+  if(/OUTBOUND|ONCARRIAGE|CONNECTION TO/.test(up))return "OUTBOUND";
+  return "UNKNOWN";
+}
+
+function lot2GenericCardFromListName(listName){
+  const l=lot2Upper(listName);
+  if(/ALL\s+(CUSTOMERS|PAX|RESERVATION)/.test(l))return "MASTER";
+  if(/FQTV/.test(l))return "FQTV";
+  if(/WCHR|WCHS|WCHC|WCMP|WCBD|WCLB|\bWCH\b/.test(l))return "WCH";
+  if(/INFANT|\bINF\b/.test(l))return "INF";
+  if(/CHILD|CHLD|\bKID\b/.test(l))return "CHLD";
+  if(/MEAL|SPML|[A-Z]{2}ML/.test(l))return "MEAL";
+  if(/STAFF|REBATE|BOOKABLE|DUTY/.test(l))return "STAFF";
+  if(/\bEMD\b/.test(l))return "EMD";
+  if(/ETKT|TICKET/.test(l))return "ETKT";
+  if(/INAD/.test(l))return "INAD";
+  if(/DEPA/.test(l))return "DEPA";
+  if(/DEPU/.test(l))return "DEPU";
+  if(/UMNR|\bUM\b/.test(l))return "UMNR";
+  if(/MAAS/.test(l))return "MAAS";
+  if(/INBOUND|CONNECTION FROM/.test(l))return "INBOUND";
+  if(/OUTBOUND|ONCARRIAGE|CONNECTION TO/.test(l))return "OUTBOUND";
+  return "OTHER";
+}
+
+function lot2ExtractClassCounts(text){
+  const up=lot2Upper(text);
+  const out={};
+  const sample=up.slice(0,8000);
+  for(const m of sample.matchAll(/\b([FJCWSY])\s*(\d{1,4})\b/g)){
+    const k=m[1];
+    const n=Number(m[2]||0);
+    if(Number.isFinite(n))out[k]=Math.max(Number(out[k]||0),n);
+  }
+  return out;
+}
+
+function lot2ExtractPassengerCount(text,listName){
+  const up=lot2Upper(text);
+  const header=up.match(/\bLIST\s+OF\s*:\s*[^\n\r]{0,200}/);
+  const h=header?header[0]:up.slice(0,2000);
+  let m=h.match(/\bTOTAL\s*(\d{1,5})\b/);
+  if(m)return Number(m[1]);
+  m=h.match(/\bTTL\s*(\d{1,5})\b/);
+  if(m)return Number(m[1]);
+  const classCounts=lot2ExtractClassCounts(h);
+  const sum=Object.values(classCounts).reduce((a,b)=>a+Number(b||0),0);
+  if(sum>0)return sum;
+
+  // Fallback nominatif Altea : lignes commençant par numéro + NOM/PRENOM.
+  const names=new Set();
+  for(const line of up.split(/\n+/)){
+    const r=line.trim();
+    const nm=r.match(/^\s*\d{1,4}[.)]?\s*([A-Z][A-Z' .-]{1,60}\/[A-Z][A-Z' .-]{1,80})/);
+    if(nm)names.add(nm[1].replace(/\s+/g," "));
+  }
+  if(names.size)return names.size;
+  return 0;
+}
+
+function lot2Preview(text){
+  return lot2CleanText(text).slice(0,2500);
+}
+
+function lot2DocumentTypeFromCard(cardKey,filename,mime){
+  if(cardKey==="MASTER")return "ALL_CUSTOMERS";
+  if(cardKey && cardKey!=="OTHER")return cardKey;
+  return guessDocumentType(filename,mime,"");
+}
+
+async function lot2ProcessOneJob(env,job){
+  const jobId=String(job.job_id||"");
+  await env.OPS_DB.prepare(`UPDATE import_jobs SET status='PROCESSING',attempts=attempts+1,updated_at=CURRENT_TIMESTAMP WHERE job_id=?`).bind(jobId).run();
+
+  try{
+    const version=await env.OPS_DB.prepare(`
+      SELECT * FROM import_file_versions WHERE version_id=? LIMIT 1
+    `).bind(job.version_id).first();
+    if(!version)throw new Error("VERSION INTROUVABLE");
+    if(!env.OPS_FILES)throw new Error("BINDING R2 OPS_FILES ABSENT");
+
+    const object=await env.OPS_FILES.get(version.r2_key);
+    if(!object)throw new Error("FICHIER R2 INTROUVABLE");
+
+    const filename=version.filename_original||version.filename_normalized||"file";
+    const mime=version.mime_type||object.httpMetadata?.contentType||"application/octet-stream";
+    const extracted=await lot2ExtractTextFromR2Object(object,filename,mime);
+    const airline=String(job.airline||version.airline||"").toUpperCase();
+    const parserMode=LOT2_SPECIFIC_AIRLINES.has(airline)?"SPECIFIC_LOCKED":"GENERIC";
+
+    const listName=lot2DetectListName(extracted.text,filename);
+    const cardKey=parserMode==="SPECIFIC_LOCKED"?"SPECIFIC":lot2GenericCardFromListName(listName);
+    const documentType=lot2DocumentTypeFromCard(cardKey,filename,mime);
+    const passengerCount=lot2ExtractPassengerCount(extracted.text,listName);
+    const classCounts=lot2ExtractClassCounts(extracted.text);
+
+    let resultStatus="CLASSIFIED";
+    let changeType="DOC_CLASSIFIED";
+
+    if(parserMode==="SPECIFIC_LOCKED"){
+      resultStatus="READY_SPECIFIC_PARSER";
+      changeType="SPECIFIC_READY";
+    }else if(cardKey==="MASTER"){
+      resultStatus="GENERIC_MASTER_READY";
+      changeType="GENERIC_MASTER_READY";
+    }else if(cardKey==="OTHER"){
+      resultStatus=extracted.readable?"GENERIC_CARD_OTHER":"ARCHIVED_ONLY";
+      changeType=extracted.readable?"GENERIC_CARD_OTHER":"ARCHIVED_ONLY";
+    }else{
+      resultStatus="GENERIC_CARD_READY";
+      changeType="GENERIC_CARD_READY";
+    }
+
+    const result={
+      lot:"LOT2",
+      parserMode,
+      documentType,
+      listName,
+      cardKey,
+      passengerCount,
+      classCounts,
+      readable:extracted.readable,
+      reason:extracted.reason,
+      rules: parserMode==="SPECIFIC_LOCKED"
+        ? "Parser spécifique verrouillé : aucune transformation Worker Lot 2."
+        : "GENERIC : ALL CUSTOMERS/ALL PAX = master ; LIST OF = carte."
+    };
+
+    await env.OPS_DB.prepare(`
+      INSERT INTO import_job_results
+        (job_id,version_id,file_id,airline,flight_number,flight_date,parser_mode,document_type,list_name,card_key,passenger_count,class_counts_json,extracted_text_preview,result_json,status,created_at,updated_at)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+      ON CONFLICT(job_id) DO UPDATE SET
+        version_id=excluded.version_id,
+        file_id=excluded.file_id,
+        airline=excluded.airline,
+        flight_number=excluded.flight_number,
+        flight_date=excluded.flight_date,
+        parser_mode=excluded.parser_mode,
+        document_type=excluded.document_type,
+        list_name=excluded.list_name,
+        card_key=excluded.card_key,
+        passenger_count=excluded.passenger_count,
+        class_counts_json=excluded.class_counts_json,
+        extracted_text_preview=excluded.extracted_text_preview,
+        result_json=excluded.result_json,
+        status=excluded.status,
+        updated_at=CURRENT_TIMESTAMP
+    `).bind(
+      jobId,version.version_id,version.file_id,job.airline||"",job.flight_number||"",job.flight_date||"",
+      parserMode,documentType,listName,cardKey,passengerCount,JSON.stringify(classCounts),lot2Preview(extracted.text),JSON.stringify(result),resultStatus
+    ).run();
+
+    await env.OPS_DB.prepare(`UPDATE import_file_versions SET status=? WHERE version_id=?`).bind(resultStatus,version.version_id).run();
+    await env.OPS_DB.prepare(`UPDATE import_files SET status=?, document_type=?, updated_at=CURRENT_TIMESTAMP WHERE file_id=?`).bind(resultStatus,documentType,version.file_id).run();
+    await env.OPS_DB.prepare(`UPDATE import_jobs SET status='DONE', error_message=NULL, updated_at=CURRENT_TIMESTAMP WHERE job_id=?`).bind(jobId).run();
+
+    await recordImportChange(env,{
+      scope:"JOB",
+      airline:job.airline,
+      flightNumber:job.flight_number,
+      flightDate:job.flight_date,
+      gmailMessageId:job.gmail_message_id,
+      fileId:version.file_id,
+      versionId:version.version_id,
+      changeType,
+      after:result
+    });
+
+    return {ok:true,jobId,status:resultStatus,airline:job.airline,flightNumber:job.flight_number,flightDate:job.flight_date,documentType,listName,cardKey,passengerCount};
+  }catch(e){
+    const msg=String(e?.message||e);
+    await env.OPS_DB.prepare(`UPDATE import_jobs SET status='ERROR',error_message=?,updated_at=CURRENT_TIMESTAMP WHERE job_id=?`).bind(msg,jobId).run();
+    await recordImportChange(env,{scope:"JOB",airline:job.airline,flightNumber:job.flight_number,flightDate:job.flight_date,gmailMessageId:job.gmail_message_id,fileId:job.file_id,versionId:job.version_id,changeType:"JOB_ERROR",after:{error:msg}}).catch(()=>{});
+    return {ok:false,jobId,error:msg};
+  }
+}
+
+async function lot2ProcessNext(env,body){
+  await ensureImportProcessorTables(env);
+  const limit=Math.max(1,Math.min(50,Number(body?.limit||10)));
+  const {results=[]}=await env.OPS_DB.prepare(`
+    SELECT *
+    FROM import_jobs
+    WHERE status='QUEUED'
+      AND (run_after IS NULL OR run_after='' OR run_after<=CURRENT_TIMESTAMP)
+    ORDER BY priority ASC, created_at ASC
+    LIMIT ?
+  `).bind(limit).all();
+
+  const processed=[];
+  for(const job of results){
+    processed.push(await lot2ProcessOneJob(env,job));
+  }
+  return {ok:true,requested:limit,found:results.length,processed};
+}
+
+async function lot2Requeue(env,body){
+  await ensureImportProcessorTables(env);
+  const status=String(body?.status||"ERROR").toUpperCase();
+  const allowed=new Set(["ERROR","DONE","PROCESSING"]);
+  if(!allowed.has(status))return {ok:false,error:"STATUT NON AUTORISÉ"};
+  const r=await env.OPS_DB.prepare(`UPDATE import_jobs SET status='QUEUED',error_message=NULL,updated_at=CURRENT_TIMESTAMP WHERE status=?`).bind(status).run();
+  return {ok:true,requeued:r.meta?.changes||0,fromStatus:status};
+}
+
+async function lot2Results(env,url){
+  await ensureImportProcessorTables(env);
+  const airline=String(url.searchParams.get("airline")||"").toUpperCase();
+  const flight=String(url.searchParams.get("flight")||"").toUpperCase();
+  const date=String(url.searchParams.get("date")||"");
+  const limit=Math.max(1,Math.min(200,Number(url.searchParams.get("limit")||50)));
+  const wh=[]; const binds=[];
+  if(airline){wh.push("airline=?");binds.push(airline)}
+  if(flight){wh.push("flight_number=?");binds.push(flight)}
+  if(date){wh.push("flight_date=?");binds.push(date)}
+  binds.push(limit);
+  const {results=[]}=await env.OPS_DB.prepare(`
+    SELECT job_id,version_id,file_id,airline,flight_number,flight_date,parser_mode,document_type,list_name,card_key,passenger_count,class_counts_json,status,updated_at,extracted_text_preview
+    FROM import_job_results
+    ${wh.length?`WHERE ${wh.join(" AND ")}`:""}
+    ORDER BY updated_at DESC
+    LIMIT ?
+  `).bind(...binds).all();
+  return {ok:true,count:results.length,results:results.map(r=>({...r,class_counts:safeJsonParse(r.class_counts_json,{})}))};
+}
+
+async function lot2PipelineSummary(env){
+  await ensureImportProcessorTables(env);
+  const jobs=await env.OPS_DB.prepare(`SELECT status,COUNT(*) AS count FROM import_jobs GROUP BY status`).all();
+  const files=await env.OPS_DB.prepare(`SELECT status,COUNT(*) AS count FROM import_files GROUP BY status`).all();
+  const results=await env.OPS_DB.prepare(`SELECT status,parser_mode,card_key,COUNT(*) AS count FROM import_job_results GROUP BY status,parser_mode,card_key ORDER BY status,parser_mode,card_key`).all();
+  const recent=await env.OPS_DB.prepare(`
+    SELECT created_at,change_type,airline,flight_number,flight_date,file_id,version_id,after_json
+    FROM import_changes
+    ORDER BY id DESC
+    LIMIT 50
+  `).all();
+  return {ok:true,jobs:jobs.results||[],files:files.results||[],classified:results.results||[],recentChanges:recent.results||[]};
+}
+
 async function handleGmailPipeline(request,env,url){
   if(!url.pathname.startsWith("/api/gmail") && !url.pathname.startsWith("/api/import-pipeline"))return null;
   try{
@@ -1875,7 +2285,16 @@ async function handleGmailPipeline(request,env,url){
       const body=await request.json().catch(()=>({}));
       return json(await gmailSyncNow(env,body));
     }
-    if(url.pathname==="/api/import-pipeline/status" && request.method==="GET")return json(await importPipelineStatus(env));
+    if(url.pathname==="/api/import-pipeline/status" && request.method==="GET")return json(await lot2PipelineSummary(env));
+    if(url.pathname==="/api/import-pipeline/results" && request.method==="GET")return json(await lot2Results(env,url));
+    if(url.pathname==="/api/import-pipeline/process-next" && request.method==="POST"){
+      const body=await request.json().catch(()=>({}));
+      return json(await lot2ProcessNext(env,body));
+    }
+    if(url.pathname==="/api/import-pipeline/requeue" && request.method==="POST"){
+      const body=await request.json().catch(()=>({}));
+      return json(await lot2Requeue(env,body));
+    }
     return json({ok:false,error:"ROUTE GMAIL PIPELINE INCONNUE"},404);
   }catch(e){
     return json({ok:false,error:String(e?.message||e)},500);
