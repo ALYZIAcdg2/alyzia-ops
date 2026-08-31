@@ -1,4 +1,4 @@
-// ALYZIA OPS V50.20 · Operational Info Strict Fields
+// ALYZIA OPS V50.21 · Existing SSR Data Injection
 // - Assets statiques public/
 // - API vols partagée D1
 // - Bridge interne vers SARIA
@@ -2367,6 +2367,13 @@ const LOT2_GENERIC_AIRLINE_LIST_MAPPINGS = {
     ["WCH","WCH"],
     ["INBOUND CUSTOMER SUMMARY","INBOUND"],
     ["ONCARRIAGE CUSTOMER SUMMARY","OUTBOUND"]
+  ],
+  AH: [
+    ["FQA","FQTV"],
+    ["INC","INBOUND"],
+    ["WCH","WCH"],
+    ["INBOUND CUSTOMER SUMMARY","INBOUND"],
+    ["ONCARRIAGE CUSTOMER SUMMARY","OUTBOUND"]
   ]
 };
 
@@ -2658,6 +2665,136 @@ function lot2CleanClock(v){
   return `${String(Number(m[1])).padStart(2,"0")}:${m[2]}`;
 }
 
+
+function lot2PassengerClassFromCode(v){
+  const s=String(v||"").toUpperCase().trim();
+  if(!s)return "";
+  return s[0]||"";
+}
+
+function lot2CleanPassengerName(v){
+  return String(v||"")
+    .replace(/\s+/g," ")
+    .replace(/\b(MR|MRS|MS|MISS|MSTR)\b$/i," $1")
+    .trim();
+}
+
+function lot2ExtractPassengerItemsFromGenericList(text,listName,cardKey){
+  /*
+   * V50.21 — extraction nominative générique.
+   * On lit uniquement les lignes numérotées des LIST OF.
+   * Exemple:
+   * 1.BELKADI/ALI MR M CDG ALG YN WCHS CTCE CTCM
+   * 1.BELABID/MANIL MR M CDG ALG YN DJURDJURA
+   *   AH718974373
+   *   ACCRUAL
+   */
+  const lines=String(text||"").replace(/\r/g,"\n").split(/\n+/);
+  const items=[];
+  const cKey=String(cardKey||"").toUpperCase();
+  const lName=String(listName||"").toUpperCase();
+
+  for(let i=0;i<lines.length;i++){
+    const raw=String(lines[i]||"").replace(/\s+/g," ").trim();
+    const m=raw.match(/^\s*(\d{1,3})\.\s*(.+?)\s+([MF])\s+([A-Z]{3})\s+([A-Z]{3})\s+([A-Z]{1,2}[A-Z0-9]?)\s*(.*)$/i);
+    if(!m)continue;
+
+    const seq=Number(m[1]);
+    const name=lot2CleanPassengerName(m[2]);
+    const gender=String(m[3]||"").toUpperCase();
+    const origin=String(m[4]||"").toUpperCase();
+    const destination=String(m[5]||"").toUpperCase();
+    const cls=lot2PassengerClassFromCode(m[6]);
+    const acceptance=String(m[6]||"").toUpperCase();
+    let rest=String(m[7]||"").trim();
+
+    const item={
+      seq,
+      name,
+      gender,
+      class:cls,
+      cabinClass:cls,
+      origin,
+      destination,
+      acceptance,
+      specific:"",
+      note:rest,
+      listName,
+      cardKey:cKey,
+      source:"GENERIC_LIST_OF"
+    };
+
+    if(cKey==="WCH"){
+      const code=(rest.match(/\b(WCHR|WCHS|WCHC|WCMP|WCBD|WCLB)\b/i)||[])[1]||"WCH";
+      item.specific=String(code).toUpperCase();
+      item.category=item.specific;
+      item.codes=rest.split(/\s+/).filter(Boolean);
+    }else if(cKey==="FQTV"){
+      // AH FQA: catégories visibles dans le fichier: DJURDJURA / TAHAT.
+      const tokens=rest.split(/\s+/).filter(Boolean);
+      const tier=tokens.find(t=>!/^(ACCRUAL|AH\d{6,})$/i.test(t))||"FQA";
+      const next1=String(lines[i+1]||"").trim();
+      const next2=String(lines[i+2]||"").trim();
+      const ffid=(next1.match(/\b[A-Z]{2}\d{6,}\b/i)||[])[0]||"";
+      item.specific=String(tier||"FQA").toUpperCase();
+      item.category=item.specific;
+      item.fqtv={program:"",tier:item.specific,number:ffid,ffid};
+      item.note=[rest,ffid,next2 && /ACCRUAL/i.test(next2)?"ACCRUAL":""].filter(Boolean).join(" · ");
+    }else if(cKey==="INBOUND" || cKey==="OUTBOUND"){
+      const conn=rest.match(/\b([IO])-([A-Z0-9]{2,4})\s+([A-Z]{3})\b/i);
+      if(conn){
+        item.connection={
+          direction:conn[1].toUpperCase()==="I"?"INBOUND":"OUTBOUND",
+          flight:conn[2].toUpperCase(),
+          airport:conn[3].toUpperCase()
+        };
+        item.specific=`${item.connection.direction} ${item.connection.flight} ${item.connection.airport}`;
+      }else{
+        item.specific=rest;
+      }
+    }else{
+      item.specific=rest || cKey || lName;
+    }
+
+    items.push(item);
+  }
+
+  return items;
+}
+
+function lot2FqtvCategories(passengerItems){
+  const out={};
+  for(const p of passengerItems||[]){
+    const cat=String(p.category||p.specific||"FQA").toUpperCase()||"FQA";
+    out[cat]=(out[cat]||0)+1;
+  }
+  return out;
+}
+
+function lot2ExtractConnectionRows(text,listName,cardKey){
+  const c=String(cardKey||"").toUpperCase();
+  if(c!=="INBOUND" && c!=="OUTBOUND")return [];
+  const rows=[];
+  const up=lot2Upper(text);
+  for(const line of up.split(/\n+/)){
+    const r=line.trim().replace(/\s+/g," ");
+    if(!r || /^(FLTNR|BOOKED|TER:|GATE:|CDG-|INBOUND CONNECTION|OUTBOUND CONNECTION)/.test(r))continue;
+    const m=r.match(/\b([A-Z0-9]{2,5})\s+(\d{3,4})\s+([A-Z]{3})\s+([A-Z]{3})\s+(\d{1,2}H[0-5]\d)\s+(\d{1,3})\s+(\d{1,3})\b/);
+    if(m){
+      rows.push({
+        flight:m[1],
+        time:lot2CleanClock(m[2]),
+        from:m[3],
+        to:m[4],
+        conx:m[5],
+        classCounts:{C:Number(m[6]),Y:Number(m[7])},
+        direction:c
+      });
+    }
+  }
+  return rows;
+}
+
 function lot2ParseOperationalInfo(text,airline,flightNumber,currentIso){
   /*
    * V50.20 — OPERATIONAL_INFO strict.
@@ -2739,17 +2876,36 @@ function lot2ParseOperationalInfo(text,airline,flightNumber,currentIso){
   }
 
   // Ligne avion : CDG-ALG |738 | |14 |165 |14 |165 |10
-  m=up.match(/\b([A-Z]{3})-([A-Z]{3})\s*\|?\s*([A-Z0-9]{2,4})\s*\|?\s*([A-Z0-9-]*)\s*\|?\s*(\d{1,3})\s*\|?\s*(\d{1,3})\s*\|?\s*(\d{1,3})\s*\|?\s*(\d{1,3})\s*\|?\s*(\d{1,3})/);
-  if(m){
-    info.dep=info.dep||m[1];
-    info.dest=info.dest||m[2];
-    info.aircraft=m[3];       // TYPE A/C
-    info.reg=m[4]||"";
-    info.config={C:Number(m[5]),Y:Number(m[6])};
-    info.capacity={C:Number(m[7]),Y:Number(m[8])};
+  // REG peut être vide. On ne doit jamais prendre "14" comme immatriculation.
+  for(const line of up.split(/\n+/)){
+    const l=line.trim();
+    if(!/\b[A-Z]{3}-[A-Z]{3}\b/.test(l))continue;
+    const clean=l.replace(/\|/g," ").replace(/\s+/g," ").trim();
+    const t=clean.split(" ");
+    const routeIdx=t.findIndex(x=>/^[A-Z]{3}-[A-Z]{3}$/.test(x));
+    if(routeIdx<0 || !t[routeIdx+1])continue;
+
+    const route=t[routeIdx].split("-");
+    info.dep=info.dep||route[0];
+    info.dest=info.dest||route[1];
+    info.aircraft=t[routeIdx+1]; // TYPE A/C
+
+    let p=routeIdx+2;
+    if(t[p] && !/^\d+$/.test(t[p])){
+      // immat renseignée explicitement uniquement si alphanum non numérique.
+      // Pour AH1003, REG vide => on ne touche pas immat.
+      p++;
+    }
+
+    const nums=t.slice(p).filter(x=>/^\d+$/.test(x)).map(Number);
+    if(nums.length>=4){
+      info.config={C:nums[0],Y:nums[1]};
+      info.capacity={C:nums[2],Y:nums[3]};
+    }
+    break;
   }
 
-  const has=Object.keys(info).length>0;
+    const has=Object.keys(info).length>0;
   return has?info:null;
 }
 
@@ -2800,6 +2956,9 @@ async function lot2ProcessOneJob(env,job){
     const documentType=cardKey==="OPERATIONAL_INFO"?"OPERATIONAL_INFO":lot2DocumentTypeFromCard(cardKey,filename,mime);
     const passengerCount=cardKey==="OPERATIONAL_INFO"?0:(extracted.readable?lot2ExtractPassengerCount(extracted.text,listName,cardKey):0);
     const classCounts=cardKey==="OPERATIONAL_INFO"?{}:(extracted.readable?lot2ExtractClassCountsForDocument(extracted.text,listName,cardKey):{});
+    const passengerItems=(cardKey==="OPERATIONAL_INFO"||!extracted.readable)?[]:lot2ExtractPassengerItemsFromGenericList(extracted.text,listName,cardKey);
+    const connectionRows=(cardKey==="OPERATIONAL_INFO"||!extracted.readable)?[]:lot2ExtractConnectionRows(extracted.text,listName,cardKey);
+    const fqtvCategories=cardKey==="FQTV"?lot2FqtvCategories(passengerItems):{};
 
     let resultStatus="CLASSIFIED";
     let changeType="DOC_CLASSIFIED";
@@ -2838,10 +2997,13 @@ async function lot2ProcessOneJob(env,job){
       reason:extracted.reason,
       rules: parserMode==="SPECIFIC_LOCKED"
         ? "Parser spécifique verrouillé : aucune transformation Worker Lot 2."
-        : "GENERIC V50.20 : date vol depuis ligne rapport ; OPERATIONAL_INFO strict STD/STA/route/type/config/capacity/duration ; aucun numéro de vol compté comme classe.",
+        : "GENERIC V50.21 : injection dans structures existantes ; noms passagers LIST OF ; OPERATIONAL_INFO strict ; FQA/INC AH mappés.",
       mappingScope:listMapping.mappingScope,
       matchedListName:listMapping.matchedListName,
-      operationalInfo: operationalInfo||null
+      operationalInfo: operationalInfo||null,
+      passengerItems,
+      connectionRows,
+      fqtvCategories
     };
 
     await env.OPS_DB.prepare(`
@@ -3050,6 +3212,10 @@ function lot3BuildImportCard(row){
       versionId:String(row.version_id||""),
       injectedAt:new Date().toISOString()
     },
+    passengers:Array.isArray(result.passengerItems)?result.passengerItems:[],
+    passengerItems:Array.isArray(result.passengerItems)?result.passengerItems:[],
+    connectionRows:Array.isArray(result.connectionRows)?result.connectionRows:[],
+    fqtvCategories:result.fqtvCategories||{},
     rules:"LOT3 : injection depuis import_job_results validé ; n'écrase pas les corrections manuelles."
   };
 }
@@ -3102,6 +3268,45 @@ function lot3MergeFlightData(current,row,card){
   imports.lastInjectionLot="LOT3";
   imports.status="INJECTED";
 
+  // Injection dans les structures déjà existantes de la fiche vol.
+  base.common=base.common||{};
+  base.common_lists=base.common_lists||{};
+  base.booked=base.booked||{};
+
+  if(card.cardKey==="MASTER"){
+    Object.entries(card.classCounts||{}).forEach(([k,v])=>{
+      const n=Number(v||0);
+      if(n>0)base.booked[String(k).toUpperCase()]=n;
+    });
+  }
+
+  const map={WCH:"WCH",CHLD:"CHLD",INF:"INF",EMD:"EMD",ETKT:"ETK",FQTV:"FQTV",STAFF:"STAFF",MEAL:"MEAL",UMNR:"UMNR",MAAS:"MAAS",INAD:"INAD",DEPA:"DEPA",DEPU:"DEPU"};
+  const existingKey=map[String(card.cardKey||"").toUpperCase()];
+  if(existingKey){
+    const count=Number(card.passengerCount||0);
+    if(count>0)base.common[existingKey]=Math.max(Number(base.common[existingKey]||0),count);
+    if(Array.isArray(card.passengerItems)&&card.passengerItems.length){
+      const old=Array.isArray(base.common_lists[existingKey])?base.common_lists[existingKey]:[];
+      const seen=new Set(old.map(p=>[p.name,p.seat,p.class,p.specific,p.note].map(x=>String(x||"").toUpperCase()).join("|")));
+      for(const p of card.passengerItems){
+        const key=[p.name,p.seat,p.class,p.specific,p.note].map(x=>String(x||"").toUpperCase()).join("|");
+        if(!seen.has(key)){old.push(p);seen.add(key);}
+      }
+      base.common_lists[existingKey]=old;
+    }
+  }
+
+  if(card.cardKey==="INBOUND" || card.cardKey==="OUTBOUND"){
+    const dir=card.cardKey==="INBOUND"?"inbound":"outbound";
+    base[dir]=Array.isArray(base[dir])?base[dir]:[];
+    const rows=Array.isArray(card.connectionRows)?card.connectionRows:[];
+    for(const r of rows){
+      const row={flight:r.flight,from:r.from,to:r.to,time:r.time,classCounts:r.classCounts,passengers:[],sourceList:card.listName,conx:r.conx};
+      const key=[row.flight,row.from,row.to,row.time,row.sourceList].join("|");
+      if(!base[dir].some(x=>[x.flight,x.from,x.to,x.time,x.sourceList].join("|")===key))base[dir].push(row);
+    }
+  }
+
   base.imports=imports;
   return base;
 }
@@ -3150,10 +3355,12 @@ function lot3MergeOperationalInfo(existing,row){
   if(info.dest)x.dest=info.dest;
   if(info.std)x.std=info.std;
   if(info.sta)x.sta=info.sta;
-  if(info.duration)x.duration=info.duration;
+  if(info.durationMinutes!=null)x.duration=Number(info.durationMinutes); // UI durationText attend des minutes.
+  if(info.duration)x.durationLabel=info.duration;
   if(info.durationMinutes!=null)x.durationMinutes=info.durationMinutes;
   if(info.aircraft)x.aircraft=info.aircraft;
-  if(info.reg)x.reg=info.reg;
+  // REG/GATE restent manuels. Nettoyage uniquement si une ancienne mauvaise injection numérique existe.
+  if(/^\d+$/.test(String(x.reg||"")))x.reg="";
   if(info.config)x.config={...(x.config||{}),...info.config};
   if(info.capacity)x.capacity={...(x.capacity||{}),...info.capacity};
 
