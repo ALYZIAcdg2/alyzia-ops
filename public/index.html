@@ -7022,17 +7022,99 @@ html,body{
 }
 </style>
 
+
+<style id="alyzia-lot4-import-cards-css">
+/* V50.18 BUILD120 — Lot 4 affichage cartes importées */
+.imported-flight-cards{
+  margin:10px 0 12px;
+  border:1px solid #dce7f2;
+  border-radius:14px;
+  background:linear-gradient(180deg,#ffffff 0%,#f7fbff 100%);
+  box-shadow:0 8px 22px rgba(10,35,70,.06);
+  padding:12px;
+}
+.imported-flight-cards-head{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
+  margin-bottom:10px
+}
+.imported-flight-cards-title{
+  display:flex;align-items:center;gap:8px;min-width:0
+}
+.imported-flight-cards-title b{
+  display:block;font-size:13px;color:#14243a;font-weight:950;letter-spacing:.2px
+}
+.imported-flight-cards-title span{
+  display:block;font-size:9px;color:#677b91;font-weight:850;margin-top:2px
+}
+.imported-flight-chip{
+  border:1px solid #bdd7f6;background:#eef6ff;color:#075fd3;border-radius:999px;
+  padding:6px 9px;font-size:9px;font-weight:950;white-space:nowrap
+}
+.imported-flight-cards-grid{
+  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px
+}
+.imported-flight-card{
+  border:1px solid #d9e4ef;background:#fff;border-radius:12px;padding:11px;
+  cursor:pointer;text-align:left;color:#162840;position:relative;overflow:hidden
+}
+.imported-flight-card:hover{border-color:#86b6ed;background:#f8fbff}
+.imported-flight-card::before{
+  content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:#075fd3
+}
+.imported-flight-card.imported-summary::before{background:#7c3aed}
+.imported-flight-card.imported-listof::before{background:#087749}
+.imported-flight-card-main{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.imported-flight-card h4{margin:0;font-size:12px;color:#14243a;font-weight:950}
+.imported-flight-card .imported-count{font-size:24px;line-height:1;color:#075fd3;font-weight:950}
+.imported-flight-card.imported-summary .imported-count{color:#7c3aed}
+.imported-flight-card.imported-listof .imported-count{color:#087749}
+.imported-flight-card-meta{display:grid;gap:5px;margin-top:9px}
+.imported-source-row{
+  border:1px solid #e4ebf3;background:#f9fbfd;border-radius:8px;padding:7px
+}
+.imported-source-row b{display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:9px;color:#14243a}
+.imported-source-row span{display:block;font-size:8px;color:#687b91;margin-top:3px;font-weight:850}
+.imported-source-type{
+  display:inline-flex;align-items:center;border-radius:999px;padding:3px 6px;font-size:7px;font-weight:950;
+  border:1px solid #d3e2f1;background:#fff;color:#4d6178;white-space:nowrap
+}
+.imported-source-type.summary{border-color:#d8c7ff;background:#f5f0ff;color:#6d28d9}
+.imported-source-type.listof{border-color:#bfe4cf;background:#effaf3;color:#087749}
+.imported-class-pills{display:flex;gap:4px;flex-wrap:wrap;margin-top:7px}
+.imported-class-pill{
+  border:1px solid #d8e2ec;background:#fff;border-radius:999px;padding:3px 6px;
+  font-size:8px;font-weight:950;color:#14243a
+}
+.imported-empty{
+  border:1px dashed #cbd8e5;background:#f8fafc;color:#71849a;border-radius:12px;padding:12px;
+  font-size:10px;font-weight:850;text-align:center
+}
+.imported-modal-list{display:grid;gap:8px;margin-top:12px}
+.imported-modal-source{
+  border:1px solid #dce7f2;border-radius:10px;background:#fff;padding:10px
+}
+.imported-modal-source h4{margin:0 0 6px;font-size:12px;color:#14243a}
+.imported-modal-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:9px}
+.imported-modal-kpi{border:1px solid #e0e8f0;border-radius:9px;background:#f8fbff;padding:9px}
+.imported-modal-kpi b{display:block;font-size:16px;color:#075fd3}
+.imported-modal-kpi span{display:block;font-size:8px;color:#64788e;font-weight:950;margin-top:2px}
+@media(max-width:900px){
+  .imported-flight-cards-grid{grid-template-columns:1fr}
+  .imported-modal-kpis{grid-template-columns:1fr}
+}
+</style>
+
 </head>
 <body>
 <script>
 /* V49.75 — BJ KPI WEB SBY AVAILABLE. SQ/TK frozen. */
-const ALYZIA_APP_VERSION='V50.15';
+const ALYZIA_APP_VERSION='V50.18';
 const ALYZIA_SQ_LOCK_VERSION='V49.64';
 const ALYZIA_TK_LOCK_VERSION='V49.69';
-const ALYZIA_APP_BUILD='2026-08-30-117';
+const ALYZIA_APP_BUILD='2026-08-31-120';
 </script>
 <header class="topbar">
- <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V50.15</span></div>
+ <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V50.18</span></div>
  <nav class="nav">
    <button class="home-nav" onclick="renderHome()" title="Accueil vols">⌂</button>
    <button onclick="renderHome()">VOLS</button><button onclick="openFlightSearch()">RECHERCHE</button><button onclick="renderPrepa()">PRÉPA</button><button onclick="openTools()">OUTILS</button><button>ADMIN</button>
@@ -8465,7 +8547,89 @@ function editingSnapshot(){const idx=Number(document.getElementById('editingFlig
 function twPrintHtml(s){
  const {x,data}=s,e=data.extra||{};
  const f=(k)=>escHtml(e[k]||'');
- return `<!doctype html><html><head><meta charset="utf-8"><style>@page{size:A4 portrait;margin:5mm}*{box-sizing:border-box}body{font-family:Arial;margin:0;font-size:9px}h1{text-align:center;background:#d62828;color:#fff;margin:0 auto 6px;width:58mm;padding:5px}h2{text-align:center;margin:3px 0 8px}table{width:100%;border-collapse:collapse}td,th{border:1px solid #111;padding:4px;vertical-align:middle}th{background:#eee}.big{height:54mm;vertical-align:top}.mid{height:26mm;vertical-align:top}.red{color:#d71920;font-weight:900}</style></head><body><h1>T'WAY</h1><h2>Briefing Sheet (${escHtml(data.date)})</h2><table>
+ return `<!doctype html><html><head><meta charset="utf-8"><style>@page{size:A4 portrait;margin:5mm}*{box-sizing:border-box}body{font-family:Arial;margin:0;font-size:9px}h1{text-align:center;background:#d62828;color:#fff;margin:0 auto 6px;width:58mm;padding:5px}h2{text-align:center;margin:3px 0 8px}table{width:100%;border-collapse:collapse}td,th{border:1px solid #111;padding:4px;vertical-align:middle}th{background:#eee}.big{height:54mm;vertical-align:top}.mid{height:26mm;vertical-align:top}.red{color:#d71920;font-weight:900}</style>
+<style id="alyzia-lot4-import-cards-css">
+/* V50.18 BUILD120 — Lot 4 affichage cartes importées */
+.imported-flight-cards{
+  margin:10px 0 12px;
+  border:1px solid #dce7f2;
+  border-radius:14px;
+  background:linear-gradient(180deg,#ffffff 0%,#f7fbff 100%);
+  box-shadow:0 8px 22px rgba(10,35,70,.06);
+  padding:12px;
+}
+.imported-flight-cards-head{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
+  margin-bottom:10px
+}
+.imported-flight-cards-title{
+  display:flex;align-items:center;gap:8px;min-width:0
+}
+.imported-flight-cards-title b{
+  display:block;font-size:13px;color:#14243a;font-weight:950;letter-spacing:.2px
+}
+.imported-flight-cards-title span{
+  display:block;font-size:9px;color:#677b91;font-weight:850;margin-top:2px
+}
+.imported-flight-chip{
+  border:1px solid #bdd7f6;background:#eef6ff;color:#075fd3;border-radius:999px;
+  padding:6px 9px;font-size:9px;font-weight:950;white-space:nowrap
+}
+.imported-flight-cards-grid{
+  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px
+}
+.imported-flight-card{
+  border:1px solid #d9e4ef;background:#fff;border-radius:12px;padding:11px;
+  cursor:pointer;text-align:left;color:#162840;position:relative;overflow:hidden
+}
+.imported-flight-card:hover{border-color:#86b6ed;background:#f8fbff}
+.imported-flight-card::before{
+  content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:#075fd3
+}
+.imported-flight-card.imported-summary::before{background:#7c3aed}
+.imported-flight-card.imported-listof::before{background:#087749}
+.imported-flight-card-main{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.imported-flight-card h4{margin:0;font-size:12px;color:#14243a;font-weight:950}
+.imported-flight-card .imported-count{font-size:24px;line-height:1;color:#075fd3;font-weight:950}
+.imported-flight-card.imported-summary .imported-count{color:#7c3aed}
+.imported-flight-card.imported-listof .imported-count{color:#087749}
+.imported-flight-card-meta{display:grid;gap:5px;margin-top:9px}
+.imported-source-row{
+  border:1px solid #e4ebf3;background:#f9fbfd;border-radius:8px;padding:7px
+}
+.imported-source-row b{display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:9px;color:#14243a}
+.imported-source-row span{display:block;font-size:8px;color:#687b91;margin-top:3px;font-weight:850}
+.imported-source-type{
+  display:inline-flex;align-items:center;border-radius:999px;padding:3px 6px;font-size:7px;font-weight:950;
+  border:1px solid #d3e2f1;background:#fff;color:#4d6178;white-space:nowrap
+}
+.imported-source-type.summary{border-color:#d8c7ff;background:#f5f0ff;color:#6d28d9}
+.imported-source-type.listof{border-color:#bfe4cf;background:#effaf3;color:#087749}
+.imported-class-pills{display:flex;gap:4px;flex-wrap:wrap;margin-top:7px}
+.imported-class-pill{
+  border:1px solid #d8e2ec;background:#fff;border-radius:999px;padding:3px 6px;
+  font-size:8px;font-weight:950;color:#14243a
+}
+.imported-empty{
+  border:1px dashed #cbd8e5;background:#f8fafc;color:#71849a;border-radius:12px;padding:12px;
+  font-size:10px;font-weight:850;text-align:center
+}
+.imported-modal-list{display:grid;gap:8px;margin-top:12px}
+.imported-modal-source{
+  border:1px solid #dce7f2;border-radius:10px;background:#fff;padding:10px
+}
+.imported-modal-source h4{margin:0 0 6px;font-size:12px;color:#14243a}
+.imported-modal-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:9px}
+.imported-modal-kpi{border:1px solid #e0e8f0;border-radius:9px;background:#f8fbff;padding:9px}
+.imported-modal-kpi b{display:block;font-size:16px;color:#075fd3}
+.imported-modal-kpi span{display:block;font-size:8px;color:#64788e;font-weight:950;margin-top:2px}
+@media(max-width:900px){
+  .imported-flight-cards-grid{grid-template-columns:1fr}
+  .imported-modal-kpis{grid-template-columns:1fr}
+}
+</style>
+
+</head><body><h1>T'WAY</h1><h2>Briefing Sheet (${escHtml(data.date)})</h2><table>
  <tr><th>FLT NO</th><td>${f('tw401Flight')}</td><th>STA</th><td>${f('tw401Sta')}</td><th>ETA</th><td>${f('tw401Eta')}</td><th>ATA</th><td>${f('tw401Ata')}</td></tr>
  <tr><th>FLT NO</th><td>${f('tw402Flight')}</td><th>STD</th><td>${f('tw402Std')}</td><th>ETD</th><td>${f('tw402Etd')}</td><th>ATD</th><td>${f('tw402Atd')}</td></tr>
  <tr><th>CFG</th><td>${f('twCfg')}</td><th>C/CL</th><td>${escHtml(data.config?.C||'')}</td><th>Y/CL</th><td>${escHtml(data.config?.Y||'')}</td><th>TTL</th><td>${f('twTtl')}</td></tr>
@@ -8478,11 +8642,295 @@ function twPrintHtml(s){
  </table><script>window.onload=()=>setTimeout(()=>window.print(),150)<\/script><!-- V49.83: silent multi-device auto-sync 0.5s selected / 1.5s global; TK cards view-only; mobile TYPE header hardened. -->
 <!-- V49.88: compact mobile WSA KPI; named standby list when an explicit TK standby report is available. -->
 <!-- V50.15: stabilisation imports nominative, PREPA dynamic generic/specific, sticky desktop nav, editable flight notes, A/C selector fix. -->
+
+<script id="alyzia-lot4-import-cards-js">
+/* V50.18 BUILD120 — Lot 4 affichage frontend des cartes importées */
+(function(){
+  const LOT4_BUILD='2026-08-31-120';
+  let lot4LastIdentity='';
+  let lot4LastCards={};
+
+  function lot4Esc(v){
+    return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  }
+  function lot4Num(v){const n=Number(v||0);return Number.isFinite(n)?n:0}
+  function lot4CurrentFlight(){
+    try{return typeof f==='function'?f():null}catch(e){return null}
+  }
+  function lot4Identity(x){
+    if(!x)return '';
+    const date=String(x.date||x.activeDate||HOME_DATE||selectedDate||'').trim();
+    const airline=String(x.airline||'').trim().toUpperCase();
+    const flight=String(x.flight||'').trim().toUpperCase();
+    return date&&airline&&flight?`${date}|${airline}|${flight}`:'';
+  }
+  function lot4SourceKind(src){
+    const list=String(src?.listName||src?.list_name||'').toUpperCase();
+    const label=String(src?.label||'').toUpperCase();
+    if(list.includes('SUMMARY')||label.includes('SUMMARY'))return 'summary';
+    return 'listof';
+  }
+  function lot4SourceKindLabel(kind){
+    return kind==='summary'?'SUMMARY · RÉSUMÉ CONNEXION':'LIST OF · LISTE NOMINATIVE';
+  }
+  function lot4Classes(c){
+    const obj=c&&typeof c==='object'?c:{};
+    const order=['F','J','C','W','S','Y'];
+    return order
+      .filter(k=>Object.prototype.hasOwnProperty.call(obj,k))
+      .map(k=>`<span class="imported-class-pill">${k} ${lot4Num(obj[k])}</span>`)
+      .join('');
+  }
+  function lot4NormalizeCards(rawCards){
+    const cards=rawCards&&typeof rawCards==='object'?rawCards:{};
+    const out={};
+    Object.keys(cards).forEach(k=>{
+      const card=cards[k]||{};
+      const sources=Array.isArray(card.sources)&&card.sources.length?card.sources:[card];
+      out[k]={
+        ...card,
+        cardKey:card.cardKey||k,
+        passengerCount:lot4Num(card.passengerCount),
+        sources:sources.map(s=>({...s,cardKey:s.cardKey||card.cardKey||k}))
+      };
+    });
+    return out;
+  }
+  async function lot4FetchFlight(identity){
+    const url=`/api/flights?identity=${encodeURIComponent(identity)}`;
+    const res=await fetch(url,{cache:'no-store'});
+    if(!res.ok)throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  }
+  function lot4RenderPanel(cards){
+    const keys=Object.keys(cards||{}).filter(k=>cards[k]);
+    if(!keys.length)return `
+      <section id="lot4ImportedCards" class="imported-flight-cards">
+        <div class="imported-flight-cards-head">
+          <div class="imported-flight-cards-title"><div><b>CARTES IMPORTÉES</b><span>LOT 4 · AUCUNE CARTE INJECTÉE POUR CE VOL</span></div></div>
+          <span class="imported-flight-chip">BUILD ${LOT4_BUILD}</span>
+        </div>
+        <div class="imported-empty">Aucune carte importée à afficher pour ce vol.</div>
+      </section>`;
+
+    const totalSources=keys.reduce((s,k)=>s+(cards[k].sources||[]).length,0);
+    return `
+      <section id="lot4ImportedCards" class="imported-flight-cards">
+        <div class="imported-flight-cards-head">
+          <div class="imported-flight-cards-title">
+            <div><b>CARTES IMPORTÉES</b><span>SUMMARY = résumé connexion · LIST OF = liste nominative</span></div>
+          </div>
+          <span class="imported-flight-chip">${keys.length} CARTE${keys.length>1?'S':''} · ${totalSources} SOURCE${totalSources>1?'S':''}</span>
+        </div>
+        <div class="imported-flight-cards-grid">
+          ${keys.map(k=>lot4RenderCard(cards[k])).join('')}
+        </div>
+      </section>`;
+  }
+  function lot4RenderCard(card){
+    const sources=Array.isArray(card.sources)?card.sources:[card];
+    const mainKind=sources.some(s=>lot4SourceKind(s)==='summary')?'summary':'listof';
+    return `
+      <button class="imported-flight-card imported-${mainKind}" onclick="openLot4ImportCard('${lot4Esc(card.cardKey)}')">
+        <div class="imported-flight-card-main">
+          <div>
+            <h4>${lot4Esc(card.label||card.cardKey)}</h4>
+            <div class="imported-class-pills">${lot4Classes(card.classCounts)}</div>
+          </div>
+          <div class="imported-count">${lot4Num(card.passengerCount)}</div>
+        </div>
+        <div class="imported-flight-card-meta">
+          ${sources.slice(0,3).map(src=>{
+            const kind=lot4SourceKind(src);
+            return `<div class="imported-source-row">
+              <b>${lot4Esc(src.listName||src.list_name||'—')}<em class="imported-source-type ${kind}">${lot4SourceKindLabel(kind)}</em></b>
+              <span>${lot4Num(src.passengerCount)} PAX · ${lot4Esc(src.mappingScope||'')}</span>
+            </div>`;
+          }).join('')}
+        </div>
+      </button>`;
+  }
+  function lot4InsertPanel(cards){
+    const app=document.getElementById('app');
+    if(!app)return;
+    const old=document.getElementById('lot4ImportedCards');
+    if(old)old.remove();
+    const html=lot4RenderPanel(cards);
+    const head=app.querySelector('.flight-head');
+    if(head)head.insertAdjacentHTML('afterend',html);
+    else app.insertAdjacentHTML('afterbegin',html);
+  }
+  async function lot4DecorateFlightImportCards(){
+    if(window.currentView && window.currentView!=='detail')return;
+    const x=lot4CurrentFlight();
+    const identity=lot4Identity(x);
+    if(!identity)return;
+
+    try{
+      let cards=lot4NormalizeCards(x?.imports?.cards);
+      if(!Object.keys(cards).length || lot4LastIdentity!==identity){
+        const data=await lot4FetchFlight(identity);
+        if(data?.ok && data?.flight){
+          cards=lot4NormalizeCards(data.flight?.imports?.cards);
+          try{
+            Object.assign(x,data.flight);
+          }catch(e){}
+        }
+      }
+      lot4LastIdentity=identity;
+      lot4LastCards=cards;
+      lot4InsertPanel(cards);
+    }catch(e){
+      console.warn('LOT4 IMPORT CARDS',e);
+    }
+  }
+
+  window.openLot4ImportCard=function(cardKey){
+    const card=lot4LastCards[String(cardKey||'')]||null;
+    if(!card)return;
+    const sources=Array.isArray(card.sources)?card.sources:[card];
+    const body=`
+      <div class="imported-modal-kpis">
+        <div class="imported-modal-kpi"><b>${lot4Num(card.passengerCount)}</b><span>TOTAL CARTE</span></div>
+        <div class="imported-modal-kpi"><b>${sources.length}</b><span>SOURCE${sources.length>1?'S':''}</span></div>
+        <div class="imported-modal-kpi"><b>${lot4Esc(card.mappingScope||sources[0]?.mappingScope||'—')}</b><span>MAPPING</span></div>
+      </div>
+      <div class="imported-modal-list">
+        ${sources.map(src=>{
+          const kind=lot4SourceKind(src);
+          return `<div class="imported-modal-source">
+            <h4>${lot4Esc(src.listName||'—')}</h4>
+            <div><span class="imported-source-type ${kind}">${lot4SourceKindLabel(kind)}</span></div>
+            <div class="imported-class-pills">${lot4Classes(src.classCounts)}</div>
+            <div class="imported-modal-kpis">
+              <div class="imported-modal-kpi"><b>${lot4Num(src.passengerCount)}</b><span>PASSAGERS</span></div>
+              <div class="imported-modal-kpi"><b>${lot4Esc(src.documentType||src.cardKey||'—')}</b><span>CARTE</span></div>
+              <div class="imported-modal-kpi"><b>${lot4Esc(src.status||'—')}</b><span>STATUT</span></div>
+            </div>
+            <div class="imported-source-row" style="margin-top:8px">
+              <b>VERSION</b>
+              <span>${lot4Esc(src?.source?.versionId||'—')}</span>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>`;
+    showModal(`IMPORT · ${lot4Esc(card.label||card.cardKey)}`,'SUMMARY = résumé connexion · LIST OF = liste nominative',body);
+  };
+
+  window.refreshLot4ImportCards=function(){
+    lot4LastIdentity='';
+    lot4DecorateFlightImportCards();
+  };
+
+  const start=function(){
+    try{
+      if(typeof render==='function' && !render.__lot4Wrapped){
+        const originalRender=render;
+        render=function(){
+          const r=originalRender.apply(this,arguments);
+          setTimeout(lot4DecorateFlightImportCards,120);
+          return r;
+        };
+        render.__lot4Wrapped=true;
+      }
+      setTimeout(lot4DecorateFlightImportCards,300);
+    }catch(e){
+      console.warn('LOT4 START',e);
+    }
+  };
+
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);
+  else start();
+})();
+</script>
+
 </body></html>`;
 }
 function ozPrintHtml(s){
  const {x,data}=s,e=data.extra||{},f=k=>escHtml(e[k]||'');
- return `<!doctype html><html><head><meta charset="utf-8"><style>@page{size:A4 portrait;margin:5mm}*{box-sizing:border-box}body{font-family:Arial;margin:0;font-size:8px}h2{text-align:center;margin:4px 0 8px}table{width:100%;border-collapse:collapse}td,th{border:1px solid #111;padding:4px}th{background:#eee}.yellow{background:#fff99a}.big{height:62mm;vertical-align:top}.mid{height:34mm;vertical-align:top}.red{color:#d71920;font-weight:900}</style></head><body><h2>ASIANA AIRLINES · Briefing Sheet (${escHtml(data.date)})</h2><table>
+ return `<!doctype html><html><head><meta charset="utf-8"><style>@page{size:A4 portrait;margin:5mm}*{box-sizing:border-box}body{font-family:Arial;margin:0;font-size:8px}h2{text-align:center;margin:4px 0 8px}table{width:100%;border-collapse:collapse}td,th{border:1px solid #111;padding:4px}th{background:#eee}.yellow{background:#fff99a}.big{height:62mm;vertical-align:top}.mid{height:34mm;vertical-align:top}.red{color:#d71920;font-weight:900}</style>
+<style id="alyzia-lot4-import-cards-css">
+/* V50.18 BUILD120 — Lot 4 affichage cartes importées */
+.imported-flight-cards{
+  margin:10px 0 12px;
+  border:1px solid #dce7f2;
+  border-radius:14px;
+  background:linear-gradient(180deg,#ffffff 0%,#f7fbff 100%);
+  box-shadow:0 8px 22px rgba(10,35,70,.06);
+  padding:12px;
+}
+.imported-flight-cards-head{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
+  margin-bottom:10px
+}
+.imported-flight-cards-title{
+  display:flex;align-items:center;gap:8px;min-width:0
+}
+.imported-flight-cards-title b{
+  display:block;font-size:13px;color:#14243a;font-weight:950;letter-spacing:.2px
+}
+.imported-flight-cards-title span{
+  display:block;font-size:9px;color:#677b91;font-weight:850;margin-top:2px
+}
+.imported-flight-chip{
+  border:1px solid #bdd7f6;background:#eef6ff;color:#075fd3;border-radius:999px;
+  padding:6px 9px;font-size:9px;font-weight:950;white-space:nowrap
+}
+.imported-flight-cards-grid{
+  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px
+}
+.imported-flight-card{
+  border:1px solid #d9e4ef;background:#fff;border-radius:12px;padding:11px;
+  cursor:pointer;text-align:left;color:#162840;position:relative;overflow:hidden
+}
+.imported-flight-card:hover{border-color:#86b6ed;background:#f8fbff}
+.imported-flight-card::before{
+  content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:#075fd3
+}
+.imported-flight-card.imported-summary::before{background:#7c3aed}
+.imported-flight-card.imported-listof::before{background:#087749}
+.imported-flight-card-main{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.imported-flight-card h4{margin:0;font-size:12px;color:#14243a;font-weight:950}
+.imported-flight-card .imported-count{font-size:24px;line-height:1;color:#075fd3;font-weight:950}
+.imported-flight-card.imported-summary .imported-count{color:#7c3aed}
+.imported-flight-card.imported-listof .imported-count{color:#087749}
+.imported-flight-card-meta{display:grid;gap:5px;margin-top:9px}
+.imported-source-row{
+  border:1px solid #e4ebf3;background:#f9fbfd;border-radius:8px;padding:7px
+}
+.imported-source-row b{display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:9px;color:#14243a}
+.imported-source-row span{display:block;font-size:8px;color:#687b91;margin-top:3px;font-weight:850}
+.imported-source-type{
+  display:inline-flex;align-items:center;border-radius:999px;padding:3px 6px;font-size:7px;font-weight:950;
+  border:1px solid #d3e2f1;background:#fff;color:#4d6178;white-space:nowrap
+}
+.imported-source-type.summary{border-color:#d8c7ff;background:#f5f0ff;color:#6d28d9}
+.imported-source-type.listof{border-color:#bfe4cf;background:#effaf3;color:#087749}
+.imported-class-pills{display:flex;gap:4px;flex-wrap:wrap;margin-top:7px}
+.imported-class-pill{
+  border:1px solid #d8e2ec;background:#fff;border-radius:999px;padding:3px 6px;
+  font-size:8px;font-weight:950;color:#14243a
+}
+.imported-empty{
+  border:1px dashed #cbd8e5;background:#f8fafc;color:#71849a;border-radius:12px;padding:12px;
+  font-size:10px;font-weight:850;text-align:center
+}
+.imported-modal-list{display:grid;gap:8px;margin-top:12px}
+.imported-modal-source{
+  border:1px solid #dce7f2;border-radius:10px;background:#fff;padding:10px
+}
+.imported-modal-source h4{margin:0 0 6px;font-size:12px;color:#14243a}
+.imported-modal-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:9px}
+.imported-modal-kpi{border:1px solid #e0e8f0;border-radius:9px;background:#f8fbff;padding:9px}
+.imported-modal-kpi b{display:block;font-size:16px;color:#075fd3}
+.imported-modal-kpi span{display:block;font-size:8px;color:#64788e;font-weight:950;margin-top:2px}
+@media(max-width:900px){
+  .imported-flight-cards-grid{grid-template-columns:1fr}
+  .imported-modal-kpis{grid-template-columns:1fr}
+}
+</style>
+
+</head><body><h2>ASIANA AIRLINES · Briefing Sheet (${escHtml(data.date)})</h2><table>
  <tr class="yellow"><th>Flt.Nbr</th><td>${f('ozFlight')}</td><th>STD</th><td>${f('ozStd')}</td><th>ATD</th><td>${f('ozAtd')}</td><th>DL CODE</th><td>${f('ozDl')}</td></tr>
  <tr><th>CFG</th><td>C ${escHtml(data.config?.C||'')}</td><td>LG ${f('ozLg')}</td><td>Y ${escHtml(data.config?.Y||'')}</td><td>TTL ${f('ozTtl')}</td><th>GATE</th><td>${f('ozGate')}</td><th>PARKING</th><td>${f('ozParking')}</td></tr>
  <tr><th>BKG</th><td colspan="3">C ${escHtml(data.booking?.C||'')} · Y ${escHtml(data.booking?.Y||'')}</td><th colspan="2">CHKIN START/CLOSE</th><td colspan="2">${f('ozOps11')} / ${f('ozOps12')}</td></tr>
@@ -8492,6 +8940,208 @@ function ozPrintHtml(s){
  <tr><td colspan="4" class="mid">${f('ozOutbound')}</td><td colspan="4" class="mid">${f('ozInbound')}</td></tr>
  <tr><th colspan="8">DUTY / CONTACTS</th></tr><tr><td colspan="8" class="mid">${Object.keys(e).filter(k=>k.startsWith('ozDuty')).map(k=>escHtml(e[k])).filter(Boolean).join(' · ')}</td></tr>
  </table><script>window.onload=()=>setTimeout(()=>window.print(),150)<\/script><!-- V49.83: silent multi-device auto-sync 0.5s selected / 1.5s global; TK cards view-only; mobile TYPE header hardened. -->
+
+<script id="alyzia-lot4-import-cards-js">
+/* V50.18 BUILD120 — Lot 4 affichage frontend des cartes importées */
+(function(){
+  const LOT4_BUILD='2026-08-31-120';
+  let lot4LastIdentity='';
+  let lot4LastCards={};
+
+  function lot4Esc(v){
+    return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  }
+  function lot4Num(v){const n=Number(v||0);return Number.isFinite(n)?n:0}
+  function lot4CurrentFlight(){
+    try{return typeof f==='function'?f():null}catch(e){return null}
+  }
+  function lot4Identity(x){
+    if(!x)return '';
+    const date=String(x.date||x.activeDate||HOME_DATE||selectedDate||'').trim();
+    const airline=String(x.airline||'').trim().toUpperCase();
+    const flight=String(x.flight||'').trim().toUpperCase();
+    return date&&airline&&flight?`${date}|${airline}|${flight}`:'';
+  }
+  function lot4SourceKind(src){
+    const list=String(src?.listName||src?.list_name||'').toUpperCase();
+    const label=String(src?.label||'').toUpperCase();
+    if(list.includes('SUMMARY')||label.includes('SUMMARY'))return 'summary';
+    return 'listof';
+  }
+  function lot4SourceKindLabel(kind){
+    return kind==='summary'?'SUMMARY · RÉSUMÉ CONNEXION':'LIST OF · LISTE NOMINATIVE';
+  }
+  function lot4Classes(c){
+    const obj=c&&typeof c==='object'?c:{};
+    const order=['F','J','C','W','S','Y'];
+    return order
+      .filter(k=>Object.prototype.hasOwnProperty.call(obj,k))
+      .map(k=>`<span class="imported-class-pill">${k} ${lot4Num(obj[k])}</span>`)
+      .join('');
+  }
+  function lot4NormalizeCards(rawCards){
+    const cards=rawCards&&typeof rawCards==='object'?rawCards:{};
+    const out={};
+    Object.keys(cards).forEach(k=>{
+      const card=cards[k]||{};
+      const sources=Array.isArray(card.sources)&&card.sources.length?card.sources:[card];
+      out[k]={
+        ...card,
+        cardKey:card.cardKey||k,
+        passengerCount:lot4Num(card.passengerCount),
+        sources:sources.map(s=>({...s,cardKey:s.cardKey||card.cardKey||k}))
+      };
+    });
+    return out;
+  }
+  async function lot4FetchFlight(identity){
+    const url=`/api/flights?identity=${encodeURIComponent(identity)}`;
+    const res=await fetch(url,{cache:'no-store'});
+    if(!res.ok)throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  }
+  function lot4RenderPanel(cards){
+    const keys=Object.keys(cards||{}).filter(k=>cards[k]);
+    if(!keys.length)return `
+      <section id="lot4ImportedCards" class="imported-flight-cards">
+        <div class="imported-flight-cards-head">
+          <div class="imported-flight-cards-title"><div><b>CARTES IMPORTÉES</b><span>LOT 4 · AUCUNE CARTE INJECTÉE POUR CE VOL</span></div></div>
+          <span class="imported-flight-chip">BUILD ${LOT4_BUILD}</span>
+        </div>
+        <div class="imported-empty">Aucune carte importée à afficher pour ce vol.</div>
+      </section>`;
+
+    const totalSources=keys.reduce((s,k)=>s+(cards[k].sources||[]).length,0);
+    return `
+      <section id="lot4ImportedCards" class="imported-flight-cards">
+        <div class="imported-flight-cards-head">
+          <div class="imported-flight-cards-title">
+            <div><b>CARTES IMPORTÉES</b><span>SUMMARY = résumé connexion · LIST OF = liste nominative</span></div>
+          </div>
+          <span class="imported-flight-chip">${keys.length} CARTE${keys.length>1?'S':''} · ${totalSources} SOURCE${totalSources>1?'S':''}</span>
+        </div>
+        <div class="imported-flight-cards-grid">
+          ${keys.map(k=>lot4RenderCard(cards[k])).join('')}
+        </div>
+      </section>`;
+  }
+  function lot4RenderCard(card){
+    const sources=Array.isArray(card.sources)?card.sources:[card];
+    const mainKind=sources.some(s=>lot4SourceKind(s)==='summary')?'summary':'listof';
+    return `
+      <button class="imported-flight-card imported-${mainKind}" onclick="openLot4ImportCard('${lot4Esc(card.cardKey)}')">
+        <div class="imported-flight-card-main">
+          <div>
+            <h4>${lot4Esc(card.label||card.cardKey)}</h4>
+            <div class="imported-class-pills">${lot4Classes(card.classCounts)}</div>
+          </div>
+          <div class="imported-count">${lot4Num(card.passengerCount)}</div>
+        </div>
+        <div class="imported-flight-card-meta">
+          ${sources.slice(0,3).map(src=>{
+            const kind=lot4SourceKind(src);
+            return `<div class="imported-source-row">
+              <b>${lot4Esc(src.listName||src.list_name||'—')}<em class="imported-source-type ${kind}">${lot4SourceKindLabel(kind)}</em></b>
+              <span>${lot4Num(src.passengerCount)} PAX · ${lot4Esc(src.mappingScope||'')}</span>
+            </div>`;
+          }).join('')}
+        </div>
+      </button>`;
+  }
+  function lot4InsertPanel(cards){
+    const app=document.getElementById('app');
+    if(!app)return;
+    const old=document.getElementById('lot4ImportedCards');
+    if(old)old.remove();
+    const html=lot4RenderPanel(cards);
+    const head=app.querySelector('.flight-head');
+    if(head)head.insertAdjacentHTML('afterend',html);
+    else app.insertAdjacentHTML('afterbegin',html);
+  }
+  async function lot4DecorateFlightImportCards(){
+    if(window.currentView && window.currentView!=='detail')return;
+    const x=lot4CurrentFlight();
+    const identity=lot4Identity(x);
+    if(!identity)return;
+
+    try{
+      let cards=lot4NormalizeCards(x?.imports?.cards);
+      if(!Object.keys(cards).length || lot4LastIdentity!==identity){
+        const data=await lot4FetchFlight(identity);
+        if(data?.ok && data?.flight){
+          cards=lot4NormalizeCards(data.flight?.imports?.cards);
+          try{
+            Object.assign(x,data.flight);
+          }catch(e){}
+        }
+      }
+      lot4LastIdentity=identity;
+      lot4LastCards=cards;
+      lot4InsertPanel(cards);
+    }catch(e){
+      console.warn('LOT4 IMPORT CARDS',e);
+    }
+  }
+
+  window.openLot4ImportCard=function(cardKey){
+    const card=lot4LastCards[String(cardKey||'')]||null;
+    if(!card)return;
+    const sources=Array.isArray(card.sources)?card.sources:[card];
+    const body=`
+      <div class="imported-modal-kpis">
+        <div class="imported-modal-kpi"><b>${lot4Num(card.passengerCount)}</b><span>TOTAL CARTE</span></div>
+        <div class="imported-modal-kpi"><b>${sources.length}</b><span>SOURCE${sources.length>1?'S':''}</span></div>
+        <div class="imported-modal-kpi"><b>${lot4Esc(card.mappingScope||sources[0]?.mappingScope||'—')}</b><span>MAPPING</span></div>
+      </div>
+      <div class="imported-modal-list">
+        ${sources.map(src=>{
+          const kind=lot4SourceKind(src);
+          return `<div class="imported-modal-source">
+            <h4>${lot4Esc(src.listName||'—')}</h4>
+            <div><span class="imported-source-type ${kind}">${lot4SourceKindLabel(kind)}</span></div>
+            <div class="imported-class-pills">${lot4Classes(src.classCounts)}</div>
+            <div class="imported-modal-kpis">
+              <div class="imported-modal-kpi"><b>${lot4Num(src.passengerCount)}</b><span>PASSAGERS</span></div>
+              <div class="imported-modal-kpi"><b>${lot4Esc(src.documentType||src.cardKey||'—')}</b><span>CARTE</span></div>
+              <div class="imported-modal-kpi"><b>${lot4Esc(src.status||'—')}</b><span>STATUT</span></div>
+            </div>
+            <div class="imported-source-row" style="margin-top:8px">
+              <b>VERSION</b>
+              <span>${lot4Esc(src?.source?.versionId||'—')}</span>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>`;
+    showModal(`IMPORT · ${lot4Esc(card.label||card.cardKey)}`,'SUMMARY = résumé connexion · LIST OF = liste nominative',body);
+  };
+
+  window.refreshLot4ImportCards=function(){
+    lot4LastIdentity='';
+    lot4DecorateFlightImportCards();
+  };
+
+  const start=function(){
+    try{
+      if(typeof render==='function' && !render.__lot4Wrapped){
+        const originalRender=render;
+        render=function(){
+          const r=originalRender.apply(this,arguments);
+          setTimeout(lot4DecorateFlightImportCards,120);
+          return r;
+        };
+        render.__lot4Wrapped=true;
+      }
+      setTimeout(lot4DecorateFlightImportCards,300);
+    }catch(e){
+      console.warn('LOT4 START',e);
+    }
+  };
+
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);
+  else start();
+})();
+</script>
+
 </body></html>`;
 }
 
@@ -8503,7 +9153,89 @@ function sbPrintHtml(s){
  @page{size:A4 portrait;margin:5mm}*{box-sizing:border-box}body{font-family:Arial;margin:0;font-size:8px;color:#111}
  h1{text-align:center;font-size:18px;margin:2px 0 5px}table{width:100%;border-collapse:collapse;margin-bottom:4px}
  td,th{border:1px solid #111;padding:4px;vertical-align:middle}th{background:#eee}.yellow{background:#fff49a}.big{height:42mm;vertical-align:top}.mid{height:24mm;vertical-align:top}.right{text-align:right}.center{text-align:center}
- </style></head><body>
+ </style>
+<style id="alyzia-lot4-import-cards-css">
+/* V50.18 BUILD120 — Lot 4 affichage cartes importées */
+.imported-flight-cards{
+  margin:10px 0 12px;
+  border:1px solid #dce7f2;
+  border-radius:14px;
+  background:linear-gradient(180deg,#ffffff 0%,#f7fbff 100%);
+  box-shadow:0 8px 22px rgba(10,35,70,.06);
+  padding:12px;
+}
+.imported-flight-cards-head{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
+  margin-bottom:10px
+}
+.imported-flight-cards-title{
+  display:flex;align-items:center;gap:8px;min-width:0
+}
+.imported-flight-cards-title b{
+  display:block;font-size:13px;color:#14243a;font-weight:950;letter-spacing:.2px
+}
+.imported-flight-cards-title span{
+  display:block;font-size:9px;color:#677b91;font-weight:850;margin-top:2px
+}
+.imported-flight-chip{
+  border:1px solid #bdd7f6;background:#eef6ff;color:#075fd3;border-radius:999px;
+  padding:6px 9px;font-size:9px;font-weight:950;white-space:nowrap
+}
+.imported-flight-cards-grid{
+  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px
+}
+.imported-flight-card{
+  border:1px solid #d9e4ef;background:#fff;border-radius:12px;padding:11px;
+  cursor:pointer;text-align:left;color:#162840;position:relative;overflow:hidden
+}
+.imported-flight-card:hover{border-color:#86b6ed;background:#f8fbff}
+.imported-flight-card::before{
+  content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:#075fd3
+}
+.imported-flight-card.imported-summary::before{background:#7c3aed}
+.imported-flight-card.imported-listof::before{background:#087749}
+.imported-flight-card-main{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.imported-flight-card h4{margin:0;font-size:12px;color:#14243a;font-weight:950}
+.imported-flight-card .imported-count{font-size:24px;line-height:1;color:#075fd3;font-weight:950}
+.imported-flight-card.imported-summary .imported-count{color:#7c3aed}
+.imported-flight-card.imported-listof .imported-count{color:#087749}
+.imported-flight-card-meta{display:grid;gap:5px;margin-top:9px}
+.imported-source-row{
+  border:1px solid #e4ebf3;background:#f9fbfd;border-radius:8px;padding:7px
+}
+.imported-source-row b{display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:9px;color:#14243a}
+.imported-source-row span{display:block;font-size:8px;color:#687b91;margin-top:3px;font-weight:850}
+.imported-source-type{
+  display:inline-flex;align-items:center;border-radius:999px;padding:3px 6px;font-size:7px;font-weight:950;
+  border:1px solid #d3e2f1;background:#fff;color:#4d6178;white-space:nowrap
+}
+.imported-source-type.summary{border-color:#d8c7ff;background:#f5f0ff;color:#6d28d9}
+.imported-source-type.listof{border-color:#bfe4cf;background:#effaf3;color:#087749}
+.imported-class-pills{display:flex;gap:4px;flex-wrap:wrap;margin-top:7px}
+.imported-class-pill{
+  border:1px solid #d8e2ec;background:#fff;border-radius:999px;padding:3px 6px;
+  font-size:8px;font-weight:950;color:#14243a
+}
+.imported-empty{
+  border:1px dashed #cbd8e5;background:#f8fafc;color:#71849a;border-radius:12px;padding:12px;
+  font-size:10px;font-weight:850;text-align:center
+}
+.imported-modal-list{display:grid;gap:8px;margin-top:12px}
+.imported-modal-source{
+  border:1px solid #dce7f2;border-radius:10px;background:#fff;padding:10px
+}
+.imported-modal-source h4{margin:0 0 6px;font-size:12px;color:#14243a}
+.imported-modal-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:9px}
+.imported-modal-kpi{border:1px solid #e0e8f0;border-radius:9px;background:#f8fbff;padding:9px}
+.imported-modal-kpi b{display:block;font-size:16px;color:#075fd3}
+.imported-modal-kpi span{display:block;font-size:8px;color:#64788e;font-weight:950;margin-top:2px}
+@media(max-width:900px){
+  .imported-flight-cards-grid{grid-template-columns:1fr}
+  .imported-modal-kpis{grid-template-columns:1fr}
+}
+</style>
+
+</head><body>
  <h1>CABIN CREW BRIEFING SHEET</h1>
  <table>
   <tr><th>Flight n°</th><td>${f('sbFlight')||escHtml(x.flight)}</td><th>Date</th><td>${escHtml(data.date)}</td><th>STD</th><td>${f('sbStd')||escHtml(data.std)}</td></tr>
@@ -8546,6 +9278,208 @@ function sbPrintHtml(s){
   <tr><th>ATTN SERVICE PASSAGE</th><td colspan="2">${f('sbPassage')}</td></tr>
  </table>
  <script>window.onload=()=>setTimeout(()=>window.print(),150)<\/script><!-- V49.83: silent multi-device auto-sync 0.5s selected / 1.5s global; TK cards view-only; mobile TYPE header hardened. -->
+
+<script id="alyzia-lot4-import-cards-js">
+/* V50.18 BUILD120 — Lot 4 affichage frontend des cartes importées */
+(function(){
+  const LOT4_BUILD='2026-08-31-120';
+  let lot4LastIdentity='';
+  let lot4LastCards={};
+
+  function lot4Esc(v){
+    return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  }
+  function lot4Num(v){const n=Number(v||0);return Number.isFinite(n)?n:0}
+  function lot4CurrentFlight(){
+    try{return typeof f==='function'?f():null}catch(e){return null}
+  }
+  function lot4Identity(x){
+    if(!x)return '';
+    const date=String(x.date||x.activeDate||HOME_DATE||selectedDate||'').trim();
+    const airline=String(x.airline||'').trim().toUpperCase();
+    const flight=String(x.flight||'').trim().toUpperCase();
+    return date&&airline&&flight?`${date}|${airline}|${flight}`:'';
+  }
+  function lot4SourceKind(src){
+    const list=String(src?.listName||src?.list_name||'').toUpperCase();
+    const label=String(src?.label||'').toUpperCase();
+    if(list.includes('SUMMARY')||label.includes('SUMMARY'))return 'summary';
+    return 'listof';
+  }
+  function lot4SourceKindLabel(kind){
+    return kind==='summary'?'SUMMARY · RÉSUMÉ CONNEXION':'LIST OF · LISTE NOMINATIVE';
+  }
+  function lot4Classes(c){
+    const obj=c&&typeof c==='object'?c:{};
+    const order=['F','J','C','W','S','Y'];
+    return order
+      .filter(k=>Object.prototype.hasOwnProperty.call(obj,k))
+      .map(k=>`<span class="imported-class-pill">${k} ${lot4Num(obj[k])}</span>`)
+      .join('');
+  }
+  function lot4NormalizeCards(rawCards){
+    const cards=rawCards&&typeof rawCards==='object'?rawCards:{};
+    const out={};
+    Object.keys(cards).forEach(k=>{
+      const card=cards[k]||{};
+      const sources=Array.isArray(card.sources)&&card.sources.length?card.sources:[card];
+      out[k]={
+        ...card,
+        cardKey:card.cardKey||k,
+        passengerCount:lot4Num(card.passengerCount),
+        sources:sources.map(s=>({...s,cardKey:s.cardKey||card.cardKey||k}))
+      };
+    });
+    return out;
+  }
+  async function lot4FetchFlight(identity){
+    const url=`/api/flights?identity=${encodeURIComponent(identity)}`;
+    const res=await fetch(url,{cache:'no-store'});
+    if(!res.ok)throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  }
+  function lot4RenderPanel(cards){
+    const keys=Object.keys(cards||{}).filter(k=>cards[k]);
+    if(!keys.length)return `
+      <section id="lot4ImportedCards" class="imported-flight-cards">
+        <div class="imported-flight-cards-head">
+          <div class="imported-flight-cards-title"><div><b>CARTES IMPORTÉES</b><span>LOT 4 · AUCUNE CARTE INJECTÉE POUR CE VOL</span></div></div>
+          <span class="imported-flight-chip">BUILD ${LOT4_BUILD}</span>
+        </div>
+        <div class="imported-empty">Aucune carte importée à afficher pour ce vol.</div>
+      </section>`;
+
+    const totalSources=keys.reduce((s,k)=>s+(cards[k].sources||[]).length,0);
+    return `
+      <section id="lot4ImportedCards" class="imported-flight-cards">
+        <div class="imported-flight-cards-head">
+          <div class="imported-flight-cards-title">
+            <div><b>CARTES IMPORTÉES</b><span>SUMMARY = résumé connexion · LIST OF = liste nominative</span></div>
+          </div>
+          <span class="imported-flight-chip">${keys.length} CARTE${keys.length>1?'S':''} · ${totalSources} SOURCE${totalSources>1?'S':''}</span>
+        </div>
+        <div class="imported-flight-cards-grid">
+          ${keys.map(k=>lot4RenderCard(cards[k])).join('')}
+        </div>
+      </section>`;
+  }
+  function lot4RenderCard(card){
+    const sources=Array.isArray(card.sources)?card.sources:[card];
+    const mainKind=sources.some(s=>lot4SourceKind(s)==='summary')?'summary':'listof';
+    return `
+      <button class="imported-flight-card imported-${mainKind}" onclick="openLot4ImportCard('${lot4Esc(card.cardKey)}')">
+        <div class="imported-flight-card-main">
+          <div>
+            <h4>${lot4Esc(card.label||card.cardKey)}</h4>
+            <div class="imported-class-pills">${lot4Classes(card.classCounts)}</div>
+          </div>
+          <div class="imported-count">${lot4Num(card.passengerCount)}</div>
+        </div>
+        <div class="imported-flight-card-meta">
+          ${sources.slice(0,3).map(src=>{
+            const kind=lot4SourceKind(src);
+            return `<div class="imported-source-row">
+              <b>${lot4Esc(src.listName||src.list_name||'—')}<em class="imported-source-type ${kind}">${lot4SourceKindLabel(kind)}</em></b>
+              <span>${lot4Num(src.passengerCount)} PAX · ${lot4Esc(src.mappingScope||'')}</span>
+            </div>`;
+          }).join('')}
+        </div>
+      </button>`;
+  }
+  function lot4InsertPanel(cards){
+    const app=document.getElementById('app');
+    if(!app)return;
+    const old=document.getElementById('lot4ImportedCards');
+    if(old)old.remove();
+    const html=lot4RenderPanel(cards);
+    const head=app.querySelector('.flight-head');
+    if(head)head.insertAdjacentHTML('afterend',html);
+    else app.insertAdjacentHTML('afterbegin',html);
+  }
+  async function lot4DecorateFlightImportCards(){
+    if(window.currentView && window.currentView!=='detail')return;
+    const x=lot4CurrentFlight();
+    const identity=lot4Identity(x);
+    if(!identity)return;
+
+    try{
+      let cards=lot4NormalizeCards(x?.imports?.cards);
+      if(!Object.keys(cards).length || lot4LastIdentity!==identity){
+        const data=await lot4FetchFlight(identity);
+        if(data?.ok && data?.flight){
+          cards=lot4NormalizeCards(data.flight?.imports?.cards);
+          try{
+            Object.assign(x,data.flight);
+          }catch(e){}
+        }
+      }
+      lot4LastIdentity=identity;
+      lot4LastCards=cards;
+      lot4InsertPanel(cards);
+    }catch(e){
+      console.warn('LOT4 IMPORT CARDS',e);
+    }
+  }
+
+  window.openLot4ImportCard=function(cardKey){
+    const card=lot4LastCards[String(cardKey||'')]||null;
+    if(!card)return;
+    const sources=Array.isArray(card.sources)?card.sources:[card];
+    const body=`
+      <div class="imported-modal-kpis">
+        <div class="imported-modal-kpi"><b>${lot4Num(card.passengerCount)}</b><span>TOTAL CARTE</span></div>
+        <div class="imported-modal-kpi"><b>${sources.length}</b><span>SOURCE${sources.length>1?'S':''}</span></div>
+        <div class="imported-modal-kpi"><b>${lot4Esc(card.mappingScope||sources[0]?.mappingScope||'—')}</b><span>MAPPING</span></div>
+      </div>
+      <div class="imported-modal-list">
+        ${sources.map(src=>{
+          const kind=lot4SourceKind(src);
+          return `<div class="imported-modal-source">
+            <h4>${lot4Esc(src.listName||'—')}</h4>
+            <div><span class="imported-source-type ${kind}">${lot4SourceKindLabel(kind)}</span></div>
+            <div class="imported-class-pills">${lot4Classes(src.classCounts)}</div>
+            <div class="imported-modal-kpis">
+              <div class="imported-modal-kpi"><b>${lot4Num(src.passengerCount)}</b><span>PASSAGERS</span></div>
+              <div class="imported-modal-kpi"><b>${lot4Esc(src.documentType||src.cardKey||'—')}</b><span>CARTE</span></div>
+              <div class="imported-modal-kpi"><b>${lot4Esc(src.status||'—')}</b><span>STATUT</span></div>
+            </div>
+            <div class="imported-source-row" style="margin-top:8px">
+              <b>VERSION</b>
+              <span>${lot4Esc(src?.source?.versionId||'—')}</span>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>`;
+    showModal(`IMPORT · ${lot4Esc(card.label||card.cardKey)}`,'SUMMARY = résumé connexion · LIST OF = liste nominative',body);
+  };
+
+  window.refreshLot4ImportCards=function(){
+    lot4LastIdentity='';
+    lot4DecorateFlightImportCards();
+  };
+
+  const start=function(){
+    try{
+      if(typeof render==='function' && !render.__lot4Wrapped){
+        const originalRender=render;
+        render=function(){
+          const r=originalRender.apply(this,arguments);
+          setTimeout(lot4DecorateFlightImportCards,120);
+          return r;
+        };
+        render.__lot4Wrapped=true;
+      }
+      setTimeout(lot4DecorateFlightImportCards,300);
+    }catch(e){
+      console.warn('LOT4 START',e);
+    }
+  };
+
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);
+  else start();
+})();
+</script>
+
 </body></html>`;
 }
 
@@ -8756,7 +9690,89 @@ function prepaPrintHtml(s){
    html,body{width:210mm;height:297mm}
    .page{width:202mm;height:289mm}
  }
- </style></head><body><div class="page">
+ </style>
+<style id="alyzia-lot4-import-cards-css">
+/* V50.18 BUILD120 — Lot 4 affichage cartes importées */
+.imported-flight-cards{
+  margin:10px 0 12px;
+  border:1px solid #dce7f2;
+  border-radius:14px;
+  background:linear-gradient(180deg,#ffffff 0%,#f7fbff 100%);
+  box-shadow:0 8px 22px rgba(10,35,70,.06);
+  padding:12px;
+}
+.imported-flight-cards-head{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
+  margin-bottom:10px
+}
+.imported-flight-cards-title{
+  display:flex;align-items:center;gap:8px;min-width:0
+}
+.imported-flight-cards-title b{
+  display:block;font-size:13px;color:#14243a;font-weight:950;letter-spacing:.2px
+}
+.imported-flight-cards-title span{
+  display:block;font-size:9px;color:#677b91;font-weight:850;margin-top:2px
+}
+.imported-flight-chip{
+  border:1px solid #bdd7f6;background:#eef6ff;color:#075fd3;border-radius:999px;
+  padding:6px 9px;font-size:9px;font-weight:950;white-space:nowrap
+}
+.imported-flight-cards-grid{
+  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px
+}
+.imported-flight-card{
+  border:1px solid #d9e4ef;background:#fff;border-radius:12px;padding:11px;
+  cursor:pointer;text-align:left;color:#162840;position:relative;overflow:hidden
+}
+.imported-flight-card:hover{border-color:#86b6ed;background:#f8fbff}
+.imported-flight-card::before{
+  content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:#075fd3
+}
+.imported-flight-card.imported-summary::before{background:#7c3aed}
+.imported-flight-card.imported-listof::before{background:#087749}
+.imported-flight-card-main{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.imported-flight-card h4{margin:0;font-size:12px;color:#14243a;font-weight:950}
+.imported-flight-card .imported-count{font-size:24px;line-height:1;color:#075fd3;font-weight:950}
+.imported-flight-card.imported-summary .imported-count{color:#7c3aed}
+.imported-flight-card.imported-listof .imported-count{color:#087749}
+.imported-flight-card-meta{display:grid;gap:5px;margin-top:9px}
+.imported-source-row{
+  border:1px solid #e4ebf3;background:#f9fbfd;border-radius:8px;padding:7px
+}
+.imported-source-row b{display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:9px;color:#14243a}
+.imported-source-row span{display:block;font-size:8px;color:#687b91;margin-top:3px;font-weight:850}
+.imported-source-type{
+  display:inline-flex;align-items:center;border-radius:999px;padding:3px 6px;font-size:7px;font-weight:950;
+  border:1px solid #d3e2f1;background:#fff;color:#4d6178;white-space:nowrap
+}
+.imported-source-type.summary{border-color:#d8c7ff;background:#f5f0ff;color:#6d28d9}
+.imported-source-type.listof{border-color:#bfe4cf;background:#effaf3;color:#087749}
+.imported-class-pills{display:flex;gap:4px;flex-wrap:wrap;margin-top:7px}
+.imported-class-pill{
+  border:1px solid #d8e2ec;background:#fff;border-radius:999px;padding:3px 6px;
+  font-size:8px;font-weight:950;color:#14243a
+}
+.imported-empty{
+  border:1px dashed #cbd8e5;background:#f8fafc;color:#71849a;border-radius:12px;padding:12px;
+  font-size:10px;font-weight:850;text-align:center
+}
+.imported-modal-list{display:grid;gap:8px;margin-top:12px}
+.imported-modal-source{
+  border:1px solid #dce7f2;border-radius:10px;background:#fff;padding:10px
+}
+.imported-modal-source h4{margin:0 0 6px;font-size:12px;color:#14243a}
+.imported-modal-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:9px}
+.imported-modal-kpi{border:1px solid #e0e8f0;border-radius:9px;background:#f8fbff;padding:9px}
+.imported-modal-kpi b{display:block;font-size:16px;color:#075fd3}
+.imported-modal-kpi span{display:block;font-size:8px;color:#64788e;font-weight:950;margin-top:2px}
+@media(max-width:900px){
+  .imported-flight-cards-grid{grid-template-columns:1fr}
+  .imported-modal-kpis{grid-template-columns:1fr}
+}
+</style>
+
+</head><body><div class="page">
  <div class="logo-row">${logoHtml}${isSQ?'':`<span class="brand-text"></span>`}</div>
  <div class="sheet">
    <div class="meta">
@@ -8794,6 +9810,208 @@ function prepaPrintHtml(s){
  </div>
  <div class="print-note">ALYZIA OPS · ${escHtml(x.flight)} · ${escHtml(data.date)}</div>
  </div><script>window.onload=()=>setTimeout(()=>window.print(),180)<\/script><!-- V49.83: silent multi-device auto-sync 0.5s selected / 1.5s global; TK cards view-only; mobile TYPE header hardened. -->
+
+<script id="alyzia-lot4-import-cards-js">
+/* V50.18 BUILD120 — Lot 4 affichage frontend des cartes importées */
+(function(){
+  const LOT4_BUILD='2026-08-31-120';
+  let lot4LastIdentity='';
+  let lot4LastCards={};
+
+  function lot4Esc(v){
+    return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  }
+  function lot4Num(v){const n=Number(v||0);return Number.isFinite(n)?n:0}
+  function lot4CurrentFlight(){
+    try{return typeof f==='function'?f():null}catch(e){return null}
+  }
+  function lot4Identity(x){
+    if(!x)return '';
+    const date=String(x.date||x.activeDate||HOME_DATE||selectedDate||'').trim();
+    const airline=String(x.airline||'').trim().toUpperCase();
+    const flight=String(x.flight||'').trim().toUpperCase();
+    return date&&airline&&flight?`${date}|${airline}|${flight}`:'';
+  }
+  function lot4SourceKind(src){
+    const list=String(src?.listName||src?.list_name||'').toUpperCase();
+    const label=String(src?.label||'').toUpperCase();
+    if(list.includes('SUMMARY')||label.includes('SUMMARY'))return 'summary';
+    return 'listof';
+  }
+  function lot4SourceKindLabel(kind){
+    return kind==='summary'?'SUMMARY · RÉSUMÉ CONNEXION':'LIST OF · LISTE NOMINATIVE';
+  }
+  function lot4Classes(c){
+    const obj=c&&typeof c==='object'?c:{};
+    const order=['F','J','C','W','S','Y'];
+    return order
+      .filter(k=>Object.prototype.hasOwnProperty.call(obj,k))
+      .map(k=>`<span class="imported-class-pill">${k} ${lot4Num(obj[k])}</span>`)
+      .join('');
+  }
+  function lot4NormalizeCards(rawCards){
+    const cards=rawCards&&typeof rawCards==='object'?rawCards:{};
+    const out={};
+    Object.keys(cards).forEach(k=>{
+      const card=cards[k]||{};
+      const sources=Array.isArray(card.sources)&&card.sources.length?card.sources:[card];
+      out[k]={
+        ...card,
+        cardKey:card.cardKey||k,
+        passengerCount:lot4Num(card.passengerCount),
+        sources:sources.map(s=>({...s,cardKey:s.cardKey||card.cardKey||k}))
+      };
+    });
+    return out;
+  }
+  async function lot4FetchFlight(identity){
+    const url=`/api/flights?identity=${encodeURIComponent(identity)}`;
+    const res=await fetch(url,{cache:'no-store'});
+    if(!res.ok)throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  }
+  function lot4RenderPanel(cards){
+    const keys=Object.keys(cards||{}).filter(k=>cards[k]);
+    if(!keys.length)return `
+      <section id="lot4ImportedCards" class="imported-flight-cards">
+        <div class="imported-flight-cards-head">
+          <div class="imported-flight-cards-title"><div><b>CARTES IMPORTÉES</b><span>LOT 4 · AUCUNE CARTE INJECTÉE POUR CE VOL</span></div></div>
+          <span class="imported-flight-chip">BUILD ${LOT4_BUILD}</span>
+        </div>
+        <div class="imported-empty">Aucune carte importée à afficher pour ce vol.</div>
+      </section>`;
+
+    const totalSources=keys.reduce((s,k)=>s+(cards[k].sources||[]).length,0);
+    return `
+      <section id="lot4ImportedCards" class="imported-flight-cards">
+        <div class="imported-flight-cards-head">
+          <div class="imported-flight-cards-title">
+            <div><b>CARTES IMPORTÉES</b><span>SUMMARY = résumé connexion · LIST OF = liste nominative</span></div>
+          </div>
+          <span class="imported-flight-chip">${keys.length} CARTE${keys.length>1?'S':''} · ${totalSources} SOURCE${totalSources>1?'S':''}</span>
+        </div>
+        <div class="imported-flight-cards-grid">
+          ${keys.map(k=>lot4RenderCard(cards[k])).join('')}
+        </div>
+      </section>`;
+  }
+  function lot4RenderCard(card){
+    const sources=Array.isArray(card.sources)?card.sources:[card];
+    const mainKind=sources.some(s=>lot4SourceKind(s)==='summary')?'summary':'listof';
+    return `
+      <button class="imported-flight-card imported-${mainKind}" onclick="openLot4ImportCard('${lot4Esc(card.cardKey)}')">
+        <div class="imported-flight-card-main">
+          <div>
+            <h4>${lot4Esc(card.label||card.cardKey)}</h4>
+            <div class="imported-class-pills">${lot4Classes(card.classCounts)}</div>
+          </div>
+          <div class="imported-count">${lot4Num(card.passengerCount)}</div>
+        </div>
+        <div class="imported-flight-card-meta">
+          ${sources.slice(0,3).map(src=>{
+            const kind=lot4SourceKind(src);
+            return `<div class="imported-source-row">
+              <b>${lot4Esc(src.listName||src.list_name||'—')}<em class="imported-source-type ${kind}">${lot4SourceKindLabel(kind)}</em></b>
+              <span>${lot4Num(src.passengerCount)} PAX · ${lot4Esc(src.mappingScope||'')}</span>
+            </div>`;
+          }).join('')}
+        </div>
+      </button>`;
+  }
+  function lot4InsertPanel(cards){
+    const app=document.getElementById('app');
+    if(!app)return;
+    const old=document.getElementById('lot4ImportedCards');
+    if(old)old.remove();
+    const html=lot4RenderPanel(cards);
+    const head=app.querySelector('.flight-head');
+    if(head)head.insertAdjacentHTML('afterend',html);
+    else app.insertAdjacentHTML('afterbegin',html);
+  }
+  async function lot4DecorateFlightImportCards(){
+    if(window.currentView && window.currentView!=='detail')return;
+    const x=lot4CurrentFlight();
+    const identity=lot4Identity(x);
+    if(!identity)return;
+
+    try{
+      let cards=lot4NormalizeCards(x?.imports?.cards);
+      if(!Object.keys(cards).length || lot4LastIdentity!==identity){
+        const data=await lot4FetchFlight(identity);
+        if(data?.ok && data?.flight){
+          cards=lot4NormalizeCards(data.flight?.imports?.cards);
+          try{
+            Object.assign(x,data.flight);
+          }catch(e){}
+        }
+      }
+      lot4LastIdentity=identity;
+      lot4LastCards=cards;
+      lot4InsertPanel(cards);
+    }catch(e){
+      console.warn('LOT4 IMPORT CARDS',e);
+    }
+  }
+
+  window.openLot4ImportCard=function(cardKey){
+    const card=lot4LastCards[String(cardKey||'')]||null;
+    if(!card)return;
+    const sources=Array.isArray(card.sources)?card.sources:[card];
+    const body=`
+      <div class="imported-modal-kpis">
+        <div class="imported-modal-kpi"><b>${lot4Num(card.passengerCount)}</b><span>TOTAL CARTE</span></div>
+        <div class="imported-modal-kpi"><b>${sources.length}</b><span>SOURCE${sources.length>1?'S':''}</span></div>
+        <div class="imported-modal-kpi"><b>${lot4Esc(card.mappingScope||sources[0]?.mappingScope||'—')}</b><span>MAPPING</span></div>
+      </div>
+      <div class="imported-modal-list">
+        ${sources.map(src=>{
+          const kind=lot4SourceKind(src);
+          return `<div class="imported-modal-source">
+            <h4>${lot4Esc(src.listName||'—')}</h4>
+            <div><span class="imported-source-type ${kind}">${lot4SourceKindLabel(kind)}</span></div>
+            <div class="imported-class-pills">${lot4Classes(src.classCounts)}</div>
+            <div class="imported-modal-kpis">
+              <div class="imported-modal-kpi"><b>${lot4Num(src.passengerCount)}</b><span>PASSAGERS</span></div>
+              <div class="imported-modal-kpi"><b>${lot4Esc(src.documentType||src.cardKey||'—')}</b><span>CARTE</span></div>
+              <div class="imported-modal-kpi"><b>${lot4Esc(src.status||'—')}</b><span>STATUT</span></div>
+            </div>
+            <div class="imported-source-row" style="margin-top:8px">
+              <b>VERSION</b>
+              <span>${lot4Esc(src?.source?.versionId||'—')}</span>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>`;
+    showModal(`IMPORT · ${lot4Esc(card.label||card.cardKey)}`,'SUMMARY = résumé connexion · LIST OF = liste nominative',body);
+  };
+
+  window.refreshLot4ImportCards=function(){
+    lot4LastIdentity='';
+    lot4DecorateFlightImportCards();
+  };
+
+  const start=function(){
+    try{
+      if(typeof render==='function' && !render.__lot4Wrapped){
+        const originalRender=render;
+        render=function(){
+          const r=originalRender.apply(this,arguments);
+          setTimeout(lot4DecorateFlightImportCards,120);
+          return r;
+        };
+        render.__lot4Wrapped=true;
+      }
+      setTimeout(lot4DecorateFlightImportCards,300);
+    }catch(e){
+      console.warn('LOT4 START',e);
+    }
+  };
+
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);
+  else start();
+})();
+</script>
+
 </body></html>`;
 }
 function printPrepaEditing(){const s=editingSnapshot();if(!s)return;const w=window.open('','_blank','width=900,height=1100');if(!w){editingFeedback('AUTORISE LES POP-UPS POUR IMPRIMER.','warn');return}w.document.open();w.document.write(prepaPrintHtml(s));w.document.close()}
@@ -8844,7 +10062,291 @@ function printFlightList(){const rows=FLIGHTS.map((x,i)=>({...x,_index:i})).filt
  .prepa-auto-status{grid-column:2/3;grid-row:1/2}
 }
 
-</style></head><body><h2>ALYZIA OPS · ${formatDateLong(HOME_DATE)}</h2><table><tr><th>STD</th><th>VOL</th><th>ROUTE</th><th>TYPE A/C</th><th>GATE</th><th>BOOKED/CAP</th><th>AVAILABLE</th><th>PREPA</th></tr>${body}</table><script>window.onload=()=>setTimeout(()=>window.print(),120)<\/script><!-- V49.83: silent multi-device auto-sync 0.5s selected / 1.5s global; TK cards view-only; mobile TYPE header hardened. -->
+</style>
+<style id="alyzia-lot4-import-cards-css">
+/* V50.18 BUILD120 — Lot 4 affichage cartes importées */
+.imported-flight-cards{
+  margin:10px 0 12px;
+  border:1px solid #dce7f2;
+  border-radius:14px;
+  background:linear-gradient(180deg,#ffffff 0%,#f7fbff 100%);
+  box-shadow:0 8px 22px rgba(10,35,70,.06);
+  padding:12px;
+}
+.imported-flight-cards-head{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
+  margin-bottom:10px
+}
+.imported-flight-cards-title{
+  display:flex;align-items:center;gap:8px;min-width:0
+}
+.imported-flight-cards-title b{
+  display:block;font-size:13px;color:#14243a;font-weight:950;letter-spacing:.2px
+}
+.imported-flight-cards-title span{
+  display:block;font-size:9px;color:#677b91;font-weight:850;margin-top:2px
+}
+.imported-flight-chip{
+  border:1px solid #bdd7f6;background:#eef6ff;color:#075fd3;border-radius:999px;
+  padding:6px 9px;font-size:9px;font-weight:950;white-space:nowrap
+}
+.imported-flight-cards-grid{
+  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px
+}
+.imported-flight-card{
+  border:1px solid #d9e4ef;background:#fff;border-radius:12px;padding:11px;
+  cursor:pointer;text-align:left;color:#162840;position:relative;overflow:hidden
+}
+.imported-flight-card:hover{border-color:#86b6ed;background:#f8fbff}
+.imported-flight-card::before{
+  content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:#075fd3
+}
+.imported-flight-card.imported-summary::before{background:#7c3aed}
+.imported-flight-card.imported-listof::before{background:#087749}
+.imported-flight-card-main{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.imported-flight-card h4{margin:0;font-size:12px;color:#14243a;font-weight:950}
+.imported-flight-card .imported-count{font-size:24px;line-height:1;color:#075fd3;font-weight:950}
+.imported-flight-card.imported-summary .imported-count{color:#7c3aed}
+.imported-flight-card.imported-listof .imported-count{color:#087749}
+.imported-flight-card-meta{display:grid;gap:5px;margin-top:9px}
+.imported-source-row{
+  border:1px solid #e4ebf3;background:#f9fbfd;border-radius:8px;padding:7px
+}
+.imported-source-row b{display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:9px;color:#14243a}
+.imported-source-row span{display:block;font-size:8px;color:#687b91;margin-top:3px;font-weight:850}
+.imported-source-type{
+  display:inline-flex;align-items:center;border-radius:999px;padding:3px 6px;font-size:7px;font-weight:950;
+  border:1px solid #d3e2f1;background:#fff;color:#4d6178;white-space:nowrap
+}
+.imported-source-type.summary{border-color:#d8c7ff;background:#f5f0ff;color:#6d28d9}
+.imported-source-type.listof{border-color:#bfe4cf;background:#effaf3;color:#087749}
+.imported-class-pills{display:flex;gap:4px;flex-wrap:wrap;margin-top:7px}
+.imported-class-pill{
+  border:1px solid #d8e2ec;background:#fff;border-radius:999px;padding:3px 6px;
+  font-size:8px;font-weight:950;color:#14243a
+}
+.imported-empty{
+  border:1px dashed #cbd8e5;background:#f8fafc;color:#71849a;border-radius:12px;padding:12px;
+  font-size:10px;font-weight:850;text-align:center
+}
+.imported-modal-list{display:grid;gap:8px;margin-top:12px}
+.imported-modal-source{
+  border:1px solid #dce7f2;border-radius:10px;background:#fff;padding:10px
+}
+.imported-modal-source h4{margin:0 0 6px;font-size:12px;color:#14243a}
+.imported-modal-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:9px}
+.imported-modal-kpi{border:1px solid #e0e8f0;border-radius:9px;background:#f8fbff;padding:9px}
+.imported-modal-kpi b{display:block;font-size:16px;color:#075fd3}
+.imported-modal-kpi span{display:block;font-size:8px;color:#64788e;font-weight:950;margin-top:2px}
+@media(max-width:900px){
+  .imported-flight-cards-grid{grid-template-columns:1fr}
+  .imported-modal-kpis{grid-template-columns:1fr}
+}
+</style>
+
+</head><body><h2>ALYZIA OPS · ${formatDateLong(HOME_DATE)}</h2><table><tr><th>STD</th><th>VOL</th><th>ROUTE</th><th>TYPE A/C</th><th>GATE</th><th>BOOKED/CAP</th><th>AVAILABLE</th><th>PREPA</th></tr>${body}</table><script>window.onload=()=>setTimeout(()=>window.print(),120)<\/script><!-- V49.83: silent multi-device auto-sync 0.5s selected / 1.5s global; TK cards view-only; mobile TYPE header hardened. -->
+
+<script id="alyzia-lot4-import-cards-js">
+/* V50.18 BUILD120 — Lot 4 affichage frontend des cartes importées */
+(function(){
+  const LOT4_BUILD='2026-08-31-120';
+  let lot4LastIdentity='';
+  let lot4LastCards={};
+
+  function lot4Esc(v){
+    return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  }
+  function lot4Num(v){const n=Number(v||0);return Number.isFinite(n)?n:0}
+  function lot4CurrentFlight(){
+    try{return typeof f==='function'?f():null}catch(e){return null}
+  }
+  function lot4Identity(x){
+    if(!x)return '';
+    const date=String(x.date||x.activeDate||HOME_DATE||selectedDate||'').trim();
+    const airline=String(x.airline||'').trim().toUpperCase();
+    const flight=String(x.flight||'').trim().toUpperCase();
+    return date&&airline&&flight?`${date}|${airline}|${flight}`:'';
+  }
+  function lot4SourceKind(src){
+    const list=String(src?.listName||src?.list_name||'').toUpperCase();
+    const label=String(src?.label||'').toUpperCase();
+    if(list.includes('SUMMARY')||label.includes('SUMMARY'))return 'summary';
+    return 'listof';
+  }
+  function lot4SourceKindLabel(kind){
+    return kind==='summary'?'SUMMARY · RÉSUMÉ CONNEXION':'LIST OF · LISTE NOMINATIVE';
+  }
+  function lot4Classes(c){
+    const obj=c&&typeof c==='object'?c:{};
+    const order=['F','J','C','W','S','Y'];
+    return order
+      .filter(k=>Object.prototype.hasOwnProperty.call(obj,k))
+      .map(k=>`<span class="imported-class-pill">${k} ${lot4Num(obj[k])}</span>`)
+      .join('');
+  }
+  function lot4NormalizeCards(rawCards){
+    const cards=rawCards&&typeof rawCards==='object'?rawCards:{};
+    const out={};
+    Object.keys(cards).forEach(k=>{
+      const card=cards[k]||{};
+      const sources=Array.isArray(card.sources)&&card.sources.length?card.sources:[card];
+      out[k]={
+        ...card,
+        cardKey:card.cardKey||k,
+        passengerCount:lot4Num(card.passengerCount),
+        sources:sources.map(s=>({...s,cardKey:s.cardKey||card.cardKey||k}))
+      };
+    });
+    return out;
+  }
+  async function lot4FetchFlight(identity){
+    const url=`/api/flights?identity=${encodeURIComponent(identity)}`;
+    const res=await fetch(url,{cache:'no-store'});
+    if(!res.ok)throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  }
+  function lot4RenderPanel(cards){
+    const keys=Object.keys(cards||{}).filter(k=>cards[k]);
+    if(!keys.length)return `
+      <section id="lot4ImportedCards" class="imported-flight-cards">
+        <div class="imported-flight-cards-head">
+          <div class="imported-flight-cards-title"><div><b>CARTES IMPORTÉES</b><span>LOT 4 · AUCUNE CARTE INJECTÉE POUR CE VOL</span></div></div>
+          <span class="imported-flight-chip">BUILD ${LOT4_BUILD}</span>
+        </div>
+        <div class="imported-empty">Aucune carte importée à afficher pour ce vol.</div>
+      </section>`;
+
+    const totalSources=keys.reduce((s,k)=>s+(cards[k].sources||[]).length,0);
+    return `
+      <section id="lot4ImportedCards" class="imported-flight-cards">
+        <div class="imported-flight-cards-head">
+          <div class="imported-flight-cards-title">
+            <div><b>CARTES IMPORTÉES</b><span>SUMMARY = résumé connexion · LIST OF = liste nominative</span></div>
+          </div>
+          <span class="imported-flight-chip">${keys.length} CARTE${keys.length>1?'S':''} · ${totalSources} SOURCE${totalSources>1?'S':''}</span>
+        </div>
+        <div class="imported-flight-cards-grid">
+          ${keys.map(k=>lot4RenderCard(cards[k])).join('')}
+        </div>
+      </section>`;
+  }
+  function lot4RenderCard(card){
+    const sources=Array.isArray(card.sources)?card.sources:[card];
+    const mainKind=sources.some(s=>lot4SourceKind(s)==='summary')?'summary':'listof';
+    return `
+      <button class="imported-flight-card imported-${mainKind}" onclick="openLot4ImportCard('${lot4Esc(card.cardKey)}')">
+        <div class="imported-flight-card-main">
+          <div>
+            <h4>${lot4Esc(card.label||card.cardKey)}</h4>
+            <div class="imported-class-pills">${lot4Classes(card.classCounts)}</div>
+          </div>
+          <div class="imported-count">${lot4Num(card.passengerCount)}</div>
+        </div>
+        <div class="imported-flight-card-meta">
+          ${sources.slice(0,3).map(src=>{
+            const kind=lot4SourceKind(src);
+            return `<div class="imported-source-row">
+              <b>${lot4Esc(src.listName||src.list_name||'—')}<em class="imported-source-type ${kind}">${lot4SourceKindLabel(kind)}</em></b>
+              <span>${lot4Num(src.passengerCount)} PAX · ${lot4Esc(src.mappingScope||'')}</span>
+            </div>`;
+          }).join('')}
+        </div>
+      </button>`;
+  }
+  function lot4InsertPanel(cards){
+    const app=document.getElementById('app');
+    if(!app)return;
+    const old=document.getElementById('lot4ImportedCards');
+    if(old)old.remove();
+    const html=lot4RenderPanel(cards);
+    const head=app.querySelector('.flight-head');
+    if(head)head.insertAdjacentHTML('afterend',html);
+    else app.insertAdjacentHTML('afterbegin',html);
+  }
+  async function lot4DecorateFlightImportCards(){
+    if(window.currentView && window.currentView!=='detail')return;
+    const x=lot4CurrentFlight();
+    const identity=lot4Identity(x);
+    if(!identity)return;
+
+    try{
+      let cards=lot4NormalizeCards(x?.imports?.cards);
+      if(!Object.keys(cards).length || lot4LastIdentity!==identity){
+        const data=await lot4FetchFlight(identity);
+        if(data?.ok && data?.flight){
+          cards=lot4NormalizeCards(data.flight?.imports?.cards);
+          try{
+            Object.assign(x,data.flight);
+          }catch(e){}
+        }
+      }
+      lot4LastIdentity=identity;
+      lot4LastCards=cards;
+      lot4InsertPanel(cards);
+    }catch(e){
+      console.warn('LOT4 IMPORT CARDS',e);
+    }
+  }
+
+  window.openLot4ImportCard=function(cardKey){
+    const card=lot4LastCards[String(cardKey||'')]||null;
+    if(!card)return;
+    const sources=Array.isArray(card.sources)?card.sources:[card];
+    const body=`
+      <div class="imported-modal-kpis">
+        <div class="imported-modal-kpi"><b>${lot4Num(card.passengerCount)}</b><span>TOTAL CARTE</span></div>
+        <div class="imported-modal-kpi"><b>${sources.length}</b><span>SOURCE${sources.length>1?'S':''}</span></div>
+        <div class="imported-modal-kpi"><b>${lot4Esc(card.mappingScope||sources[0]?.mappingScope||'—')}</b><span>MAPPING</span></div>
+      </div>
+      <div class="imported-modal-list">
+        ${sources.map(src=>{
+          const kind=lot4SourceKind(src);
+          return `<div class="imported-modal-source">
+            <h4>${lot4Esc(src.listName||'—')}</h4>
+            <div><span class="imported-source-type ${kind}">${lot4SourceKindLabel(kind)}</span></div>
+            <div class="imported-class-pills">${lot4Classes(src.classCounts)}</div>
+            <div class="imported-modal-kpis">
+              <div class="imported-modal-kpi"><b>${lot4Num(src.passengerCount)}</b><span>PASSAGERS</span></div>
+              <div class="imported-modal-kpi"><b>${lot4Esc(src.documentType||src.cardKey||'—')}</b><span>CARTE</span></div>
+              <div class="imported-modal-kpi"><b>${lot4Esc(src.status||'—')}</b><span>STATUT</span></div>
+            </div>
+            <div class="imported-source-row" style="margin-top:8px">
+              <b>VERSION</b>
+              <span>${lot4Esc(src?.source?.versionId||'—')}</span>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>`;
+    showModal(`IMPORT · ${lot4Esc(card.label||card.cardKey)}`,'SUMMARY = résumé connexion · LIST OF = liste nominative',body);
+  };
+
+  window.refreshLot4ImportCards=function(){
+    lot4LastIdentity='';
+    lot4DecorateFlightImportCards();
+  };
+
+  const start=function(){
+    try{
+      if(typeof render==='function' && !render.__lot4Wrapped){
+        const originalRender=render;
+        render=function(){
+          const r=originalRender.apply(this,arguments);
+          setTimeout(lot4DecorateFlightImportCards,120);
+          return r;
+        };
+        render.__lot4Wrapped=true;
+      }
+      setTimeout(lot4DecorateFlightImportCards,300);
+    }catch(e){
+      console.warn('LOT4 START',e);
+    }
+  };
+
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);
+  else start();
+})();
+</script>
+
 </body></html>`);w.document.close()}
 
 
@@ -17712,7 +19214,7 @@ async function openTools(){
    <button class="tool-card" onclick="openSariaApp()"><span class="tool-icon">✈</span><b>SARIA</b><span>OUVRIR DIRECTEMENT L’OUTIL SARIA CABIN / SEATMAP.</span></button>
    <div class="ops-cloud-card">
      ${(()=>{const st=opsCloudStatusMarkup();return `<div id="opsCloudStatusBox" class="ops-cloud-status ${st.cls}">${st.text}</div>`})()}
-     <div class="ops-cloud-help">D1 PARTAGÉ · 3 TENTATIVES AU DÉMARRAGE · RECONNEXION AUTOMATIQUE · PC, TABLETTE ET TÉLÉPHONE.<br><b style="color:#087749">V50.15 · IMPORTS NOMINATIFS + PREPA DYNAMIQUE</b></div>
+     <div class="ops-cloud-help">D1 PARTAGÉ · 3 TENTATIVES AU DÉMARRAGE · RECONNEXION AUTOMATIQUE · PC, TABLETTE ET TÉLÉPHONE.<br><b style="color:#087749">V50.18 · LOT 4 CARTES IMPORTÉES</b></div>
      <button class="live-refresh" onclick="manualCloudRefresh()">↻ SYNCHRONISER MAINTENANT</button>
    </div>
    ${renderImportsMainCard()}
@@ -22611,6 +24113,208 @@ try{
   setTimeout(decorate,100);
 
   console.log('ALYZIA OPS '+VERSION+' BUILD '+BUILD+' — SAFE MODAL DECORATOR LOADED');
+})();
+</script>
+
+
+<script id="alyzia-lot4-import-cards-js">
+/* V50.18 BUILD120 — Lot 4 affichage frontend des cartes importées */
+(function(){
+  const LOT4_BUILD='2026-08-31-120';
+  let lot4LastIdentity='';
+  let lot4LastCards={};
+
+  function lot4Esc(v){
+    return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  }
+  function lot4Num(v){const n=Number(v||0);return Number.isFinite(n)?n:0}
+  function lot4CurrentFlight(){
+    try{return typeof f==='function'?f():null}catch(e){return null}
+  }
+  function lot4Identity(x){
+    if(!x)return '';
+    const date=String(x.date||x.activeDate||HOME_DATE||selectedDate||'').trim();
+    const airline=String(x.airline||'').trim().toUpperCase();
+    const flight=String(x.flight||'').trim().toUpperCase();
+    return date&&airline&&flight?`${date}|${airline}|${flight}`:'';
+  }
+  function lot4SourceKind(src){
+    const list=String(src?.listName||src?.list_name||'').toUpperCase();
+    const label=String(src?.label||'').toUpperCase();
+    if(list.includes('SUMMARY')||label.includes('SUMMARY'))return 'summary';
+    return 'listof';
+  }
+  function lot4SourceKindLabel(kind){
+    return kind==='summary'?'SUMMARY · RÉSUMÉ CONNEXION':'LIST OF · LISTE NOMINATIVE';
+  }
+  function lot4Classes(c){
+    const obj=c&&typeof c==='object'?c:{};
+    const order=['F','J','C','W','S','Y'];
+    return order
+      .filter(k=>Object.prototype.hasOwnProperty.call(obj,k))
+      .map(k=>`<span class="imported-class-pill">${k} ${lot4Num(obj[k])}</span>`)
+      .join('');
+  }
+  function lot4NormalizeCards(rawCards){
+    const cards=rawCards&&typeof rawCards==='object'?rawCards:{};
+    const out={};
+    Object.keys(cards).forEach(k=>{
+      const card=cards[k]||{};
+      const sources=Array.isArray(card.sources)&&card.sources.length?card.sources:[card];
+      out[k]={
+        ...card,
+        cardKey:card.cardKey||k,
+        passengerCount:lot4Num(card.passengerCount),
+        sources:sources.map(s=>({...s,cardKey:s.cardKey||card.cardKey||k}))
+      };
+    });
+    return out;
+  }
+  async function lot4FetchFlight(identity){
+    const url=`/api/flights?identity=${encodeURIComponent(identity)}`;
+    const res=await fetch(url,{cache:'no-store'});
+    if(!res.ok)throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  }
+  function lot4RenderPanel(cards){
+    const keys=Object.keys(cards||{}).filter(k=>cards[k]);
+    if(!keys.length)return `
+      <section id="lot4ImportedCards" class="imported-flight-cards">
+        <div class="imported-flight-cards-head">
+          <div class="imported-flight-cards-title"><div><b>CARTES IMPORTÉES</b><span>LOT 4 · AUCUNE CARTE INJECTÉE POUR CE VOL</span></div></div>
+          <span class="imported-flight-chip">BUILD ${LOT4_BUILD}</span>
+        </div>
+        <div class="imported-empty">Aucune carte importée à afficher pour ce vol.</div>
+      </section>`;
+
+    const totalSources=keys.reduce((s,k)=>s+(cards[k].sources||[]).length,0);
+    return `
+      <section id="lot4ImportedCards" class="imported-flight-cards">
+        <div class="imported-flight-cards-head">
+          <div class="imported-flight-cards-title">
+            <div><b>CARTES IMPORTÉES</b><span>SUMMARY = résumé connexion · LIST OF = liste nominative</span></div>
+          </div>
+          <span class="imported-flight-chip">${keys.length} CARTE${keys.length>1?'S':''} · ${totalSources} SOURCE${totalSources>1?'S':''}</span>
+        </div>
+        <div class="imported-flight-cards-grid">
+          ${keys.map(k=>lot4RenderCard(cards[k])).join('')}
+        </div>
+      </section>`;
+  }
+  function lot4RenderCard(card){
+    const sources=Array.isArray(card.sources)?card.sources:[card];
+    const mainKind=sources.some(s=>lot4SourceKind(s)==='summary')?'summary':'listof';
+    return `
+      <button class="imported-flight-card imported-${mainKind}" onclick="openLot4ImportCard('${lot4Esc(card.cardKey)}')">
+        <div class="imported-flight-card-main">
+          <div>
+            <h4>${lot4Esc(card.label||card.cardKey)}</h4>
+            <div class="imported-class-pills">${lot4Classes(card.classCounts)}</div>
+          </div>
+          <div class="imported-count">${lot4Num(card.passengerCount)}</div>
+        </div>
+        <div class="imported-flight-card-meta">
+          ${sources.slice(0,3).map(src=>{
+            const kind=lot4SourceKind(src);
+            return `<div class="imported-source-row">
+              <b>${lot4Esc(src.listName||src.list_name||'—')}<em class="imported-source-type ${kind}">${lot4SourceKindLabel(kind)}</em></b>
+              <span>${lot4Num(src.passengerCount)} PAX · ${lot4Esc(src.mappingScope||'')}</span>
+            </div>`;
+          }).join('')}
+        </div>
+      </button>`;
+  }
+  function lot4InsertPanel(cards){
+    const app=document.getElementById('app');
+    if(!app)return;
+    const old=document.getElementById('lot4ImportedCards');
+    if(old)old.remove();
+    const html=lot4RenderPanel(cards);
+    const head=app.querySelector('.flight-head');
+    if(head)head.insertAdjacentHTML('afterend',html);
+    else app.insertAdjacentHTML('afterbegin',html);
+  }
+  async function lot4DecorateFlightImportCards(){
+    if(window.currentView && window.currentView!=='detail')return;
+    const x=lot4CurrentFlight();
+    const identity=lot4Identity(x);
+    if(!identity)return;
+
+    try{
+      let cards=lot4NormalizeCards(x?.imports?.cards);
+      if(!Object.keys(cards).length || lot4LastIdentity!==identity){
+        const data=await lot4FetchFlight(identity);
+        if(data?.ok && data?.flight){
+          cards=lot4NormalizeCards(data.flight?.imports?.cards);
+          try{
+            Object.assign(x,data.flight);
+          }catch(e){}
+        }
+      }
+      lot4LastIdentity=identity;
+      lot4LastCards=cards;
+      lot4InsertPanel(cards);
+    }catch(e){
+      console.warn('LOT4 IMPORT CARDS',e);
+    }
+  }
+
+  window.openLot4ImportCard=function(cardKey){
+    const card=lot4LastCards[String(cardKey||'')]||null;
+    if(!card)return;
+    const sources=Array.isArray(card.sources)?card.sources:[card];
+    const body=`
+      <div class="imported-modal-kpis">
+        <div class="imported-modal-kpi"><b>${lot4Num(card.passengerCount)}</b><span>TOTAL CARTE</span></div>
+        <div class="imported-modal-kpi"><b>${sources.length}</b><span>SOURCE${sources.length>1?'S':''}</span></div>
+        <div class="imported-modal-kpi"><b>${lot4Esc(card.mappingScope||sources[0]?.mappingScope||'—')}</b><span>MAPPING</span></div>
+      </div>
+      <div class="imported-modal-list">
+        ${sources.map(src=>{
+          const kind=lot4SourceKind(src);
+          return `<div class="imported-modal-source">
+            <h4>${lot4Esc(src.listName||'—')}</h4>
+            <div><span class="imported-source-type ${kind}">${lot4SourceKindLabel(kind)}</span></div>
+            <div class="imported-class-pills">${lot4Classes(src.classCounts)}</div>
+            <div class="imported-modal-kpis">
+              <div class="imported-modal-kpi"><b>${lot4Num(src.passengerCount)}</b><span>PASSAGERS</span></div>
+              <div class="imported-modal-kpi"><b>${lot4Esc(src.documentType||src.cardKey||'—')}</b><span>CARTE</span></div>
+              <div class="imported-modal-kpi"><b>${lot4Esc(src.status||'—')}</b><span>STATUT</span></div>
+            </div>
+            <div class="imported-source-row" style="margin-top:8px">
+              <b>VERSION</b>
+              <span>${lot4Esc(src?.source?.versionId||'—')}</span>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>`;
+    showModal(`IMPORT · ${lot4Esc(card.label||card.cardKey)}`,'SUMMARY = résumé connexion · LIST OF = liste nominative',body);
+  };
+
+  window.refreshLot4ImportCards=function(){
+    lot4LastIdentity='';
+    lot4DecorateFlightImportCards();
+  };
+
+  const start=function(){
+    try{
+      if(typeof render==='function' && !render.__lot4Wrapped){
+        const originalRender=render;
+        render=function(){
+          const r=originalRender.apply(this,arguments);
+          setTimeout(lot4DecorateFlightImportCards,120);
+          return r;
+        };
+        render.__lot4Wrapped=true;
+      }
+      setTimeout(lot4DecorateFlightImportCards,300);
+    }catch(e){
+      console.warn('LOT4 START',e);
+    }
+  };
+
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);
+  else start();
 })();
 </script>
 
