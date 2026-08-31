@@ -6,7 +6,7 @@
   <meta http-equiv="Expires" content="0">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V50.20 · GENERIC NO DEFAULT CARDS</title>
+<title>ALYZIA OPS - V50.21 · TW CONFIG CARDS FIX</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -7072,7 +7072,7 @@ html,body{
 
 
 <style id="alyzia-v5020-generic-config-css">
-/* V50.20 BUILD122 — génériques sans cartes par défaut */
+/* V50.21 BUILD123 — génériques sans cartes par défaut */
 .company-config-cards.v5020-all{
   display:grid;
   grid-template-columns:repeat(auto-fit,minmax(230px,1fr));
@@ -7132,13 +7132,13 @@ html,body{
 <body>
 <script>
 /* V49.75 — BJ KPI WEB SBY AVAILABLE. SQ/TK frozen. */
-const ALYZIA_APP_VERSION='V50.20';
+const ALYZIA_APP_VERSION='V50.21';
 const ALYZIA_SQ_LOCK_VERSION='V49.64';
 const ALYZIA_TK_LOCK_VERSION='V49.69';
-const ALYZIA_APP_BUILD='2026-08-31-122';
+const ALYZIA_APP_BUILD='2026-08-31-123';
 </script>
 <header class="topbar">
- <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V50.20</span></div>
+ <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V50.21</span></div>
  <nav class="nav">
    <button class="home-nav" onclick="renderHome()" title="Accueil vols">⌂</button>
    <button onclick="renderHome()">VOLS</button><button onclick="openFlightSearch()">RECHERCHE</button><button onclick="renderPrepa()">PRÉPA</button><button onclick="openTools()">OUTILS</button><button>ADMIN</button>
@@ -14266,7 +14266,7 @@ function syncCompanyConfigFromFlights(records){
  if(!latest?.bundle)return false;
  try{
    const incoming=latest.bundle;
-   ['TK','SQ','BJ'].forEach(a=>{
+   ['TK','SQ','BJ','TW'].forEach(a=>{
      if(incoming[a]){
        COMPANY_CONFIG[a]=JSON.parse(JSON.stringify(incoming[a]));
      }
@@ -14430,6 +14430,17 @@ const COMPANY_PARTICULARITY_DEFS={
    {id:'MEAL',label:'MEAL',codes:[],icon:'🍽️',special:'meal'},
    {id:'EMD',label:'EMD',codes:['EMD'],icon:'•'},
    {id:'FQTV',label:'FQTV',codes:['FQTV'],icon:'▤',special:'fqtv'}
+ ],
+ TW:[
+   {id:'WCH',label:'WCH',codes:['WCH','WCHR','WCHS','WCHC'],icon:'♿'},
+   {id:'MEAL',label:'MEAL',codes:['MEAL','SPML','VGML','AVML','BBML','CHML'],icon:'🍽️',special:'meal'},
+   {id:'FQTV',label:'FQTV',codes:['FQTV'],icon:'▤',special:'fqtv'},
+   {id:'STAFF',label:'STAFF',codes:['STAFF','STAF','CREW'],icon:'✈️'},
+   {id:'EXBG',label:'EXBG',codes:['EXBG','XBAG'],icon:'•'},
+   {id:'TKNE',label:'TKNE',codes:['TKNE'],icon:'•'},
+   {id:'DOOR',label:'DOOR',codes:['DOOR'],icon:'•'},
+   {id:'UPRQ',label:'UPRQ',codes:['UPRQ','UPG','UPGRADE'],icon:'•'},
+   {id:'EXMO',label:'EXMO',codes:['EXMO'],icon:'•'}
  ]
 };
 
@@ -14474,6 +14485,15 @@ const COMPANY_CONFIG_DEFAULT={
      meals:false,particularities:true,inbound:false,outbound:false,notes:true
    },
    particularities:defaultParticularityVisibility('BJ')
+ },
+ TW:{
+   airline:'TW',
+   rules:[{id:'tw_all',pattern:'TW*',classes:['C','Y']}],
+   modules:{
+     header:true,config:true,booked:true,upgrade:true,web:true,available:true,standby:true,
+     meals:true,particularities:true,inbound:true,outbound:true,notes:true
+   },
+   particularities:defaultParticularityVisibility('TW')
  }
 };
 
@@ -14486,7 +14506,7 @@ function loadCompanyConfig(){
    const raw=JSON.parse(localStorage.getItem(COMPANY_CONFIG_KEY)||'null');
    const cfg=deepCloneCompanyConfig(COMPANY_CONFIG_DEFAULT);
    if(raw&&typeof raw==='object'){
-     ['TK','SQ','BJ'].forEach(a=>{
+     ['TK','SQ','BJ','TW'].forEach(a=>{
        if(raw[a]){
          if(Array.isArray(raw[a].rules)&&raw[a].rules.length)cfg[a].rules=raw[a].rules;
          if(raw[a].modules)cfg[a].modules={...cfg[a].modules,...raw[a].modules};
@@ -14688,11 +14708,20 @@ function moduleLabel(key){
  })[key]||key.toUpperCase();
 }
 
+function airlineDisplayName(airline){
+ const names={
+   TK:'TURKISH AIRLINES',SQ:'SINGAPORE AIRLINES',BJ:'NOUVELAIR',TW:'TWAY AIR',
+   LO:'LOT POLISH AIRLINES',FB:'BULGARIA AIR',J2:'AZERBAIJAN AIRLINES'
+ };
+ const a=String(airline||'').toUpperCase();
+ return names[a]||`${a} · AIRLINE`;
+}
+
 function openAirlineConfig(airline){
  const cfg=COMPANY_CONFIG[airline];
  if(!cfg)return;
 
- showModal(`CONFIG ${airline}`,airline==='TK'?'TURKISH AIRLINES':'SINGAPORE AIRLINES',`
+ showModal(`CONFIG ${airline}`,airlineDisplayName(airline),`
    <div class="airline-config-wrap">
      <div class="airline-config-section">
        <div class="airline-config-section-title">
@@ -16167,7 +16196,11 @@ function openBjEmdCategories(){
 }
 function renderCompanyParticularities(x){
  if(String(x?.airline||'').toUpperCase()==='TW'){
-   return ['WCH','MEAL','FQTV','STAFF','EXBG','TKNE','DOOR','UPRQ','EXMO'].map(k=>commonTile(k,k)).join('')+passengerSearchTile();
+   const defs=companyParticularityDefs('TW');
+   return defs
+     .filter(def=>companyParticularityVisible(x,def.id))
+     .map(def=>commonTile(def.id,def.label))
+     .join('') + passengerSearchTile();
  }
  if(isGenericAirlineV50(x?.airline)){
    return renderGenericParticularitiesV50(x);
@@ -17818,7 +17851,7 @@ async function openTools(){
    <button class="tool-card" onclick="openSariaApp()"><span class="tool-icon">✈</span><b>SARIA</b><span>OUVRIR DIRECTEMENT L’OUTIL SARIA CABIN / SEATMAP.</span></button>
    <div class="ops-cloud-card">
      ${(()=>{const st=opsCloudStatusMarkup();return `<div id="opsCloudStatusBox" class="ops-cloud-status ${st.cls}">${st.text}</div>`})()}
-     <div class="ops-cloud-help">D1 PARTAGÉ · 3 TENTATIVES AU DÉMARRAGE · RECONNEXION AUTOMATIQUE · PC, TABLETTE ET TÉLÉPHONE.<br><b style="color:#087749">V50.20 · GENERIC NO DEFAULT CARDS</b></div>
+     <div class="ops-cloud-help">D1 PARTAGÉ · 3 TENTATIVES AU DÉMARRAGE · RECONNEXION AUTOMATIQUE · PC, TABLETTE ET TÉLÉPHONE.<br><b style="color:#087749">V50.21 · TW CONFIG CARDS FIX</b></div>
      <button class="live-refresh" onclick="manualCloudRefresh()">↻ SYNCHRONISER MAINTENANT</button>
    </div>
    ${renderImportsMainCard()}
@@ -22557,8 +22590,8 @@ try{
 (function(){
   'use strict';
 
-  const VERSION='V50.20';
-  const BUILD='2026-08-31-122';
+  const VERSION='V50.21';
+  const BUILD='2026-08-31-123';
 
   function driveStatusInto(btn){
     if(!btn || typeof window.v5013GetDriveStatus!=='function') return;
@@ -22907,13 +22940,13 @@ try{
 
 
 <script id="alyzia-v5020-generic-no-default-cards-js">
-/* V50.20 BUILD122 — génériques sans cartes par défaut
+/* V50.21 BUILD123 — génériques sans cartes par défaut
    Objectif : hors SQ/TK/BJ/TW, aucune carte SSR affichée par défaut.
    Les cartes génériques visibles viendront uniquement de l'import Lot 3 / Lot 4. */
 (function(){
   'use strict';
 
-  const V5020_BUILD='2026-08-31-122';
+  const V5020_BUILD='2026-08-31-123';
   const V5020_SPECIFIC_AIRLINES=new Set(['SQ','TK','BJ','TW']);
   const V5020_ALL_AIRLINES=[
     '3O','6H','A9','AH','AI','AT','AV','BJ','C3','DE','EI','ENT','ET','FB','FI','HF','HM','HU',
@@ -22987,15 +23020,18 @@ try{
         }
       });
 
-      // TW reste spécifique et garde ses cartes actuelles pour l’instant.
+      // TW reste spécifique et garde ses cartes métier configurables.
       if(COMPANY_CONFIG.TW){
         COMPANY_CONFIG.TW.modules={...v5020GenericModules(),particularities:true};
+        if(!COMPANY_CONFIG.TW.particularities || !Object.keys(COMPANY_CONFIG.TW.particularities).length){
+          COMPANY_CONFIG.TW.particularities=typeof defaultParticularityVisibility==='function'?defaultParticularityVisibility('TW'):{};
+        }
       }else{
         COMPANY_CONFIG.TW={
           airline:'TW',
           rules:[{id:'tw_all',pattern:'TW*',classes:['C','Y']}],
           modules:{...v5020GenericModules(),particularities:true},
-          particularities:{}
+          particularities:typeof defaultParticularityVisibility==='function'?defaultParticularityVisibility('TW'):{}
         };
       }
 
@@ -23145,7 +23181,7 @@ try{
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',v5020Start);
   else v5020Start();
 
-  console.log('ALYZIA OPS V50.20 BUILD '+V5020_BUILD+' — GENERIC NO DEFAULT CARDS LOADED');
+  console.log('ALYZIA OPS V50.21 BUILD '+V5020_BUILD+' — TW CONFIG CARDS FIX LOADED');
 })();
 </script>
 
