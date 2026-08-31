@@ -1,4 +1,4 @@
-// ALYZIA OPS V50.17 · Generic Flight Date From Report Line
+// ALYZIA OPS V50.18 · Date Fix No Version Column
 // - Assets statiques public/
 // - API vols partagée D1
 // - Bridge interne vers SARIA
@@ -2497,35 +2497,44 @@ function lot2DetectFlightDateFromReportLine(text,airline,flightNumber,currentIso
 }
 
 async function lot2UpdateJobFlightDate(env,job,version,newIso,reason){
+  /*
+   * V50.18 — D1 schema safe.
+   * import_file_versions n'a pas de colonne flight_date dans la migration Lot 1.
+   * On ne modifie donc plus cette colonne.
+   *
+   * La date corrigée devient authoritative dans :
+   * - gmail_messages.flight_date
+   * - import_files.flight_date
+   * - import_jobs.flight_date
+   * - import_job_results.flight_date via effectiveFlightDate
+   *
+   * On conserve les ids techniques existants file_id/version_id/job_id même s'ils contiennent
+   * l'ancienne date, pour éviter les conflits de clés primaires et ne rien casser.
+   */
   if(!newIso || newIso===job.flight_date)return {changed:false,flightDate:job.flight_date};
+
   const oldDate=job.flight_date||"";
-  const oldFileId=version.file_id||job.file_id||"";
-  const oldVersionId=version.version_id||job.version_id||"";
+  const fileId=version.file_id||job.file_id||"";
+  const versionId=version.version_id||job.version_id||"";
+  const jobId=job.job_id||"";
 
-  const newFileId=String(oldFileId).replace(`|${oldDate}|`,`|${newIso}|`);
-  const newVersionId=String(oldVersionId).replace(`|${oldDate}|`,`|${newIso}|`);
-  const newJobId=String(job.job_id).replace(`|${oldDate}|`,`|${newIso}|`);
+  await env.OPS_DB.prepare(`
+    UPDATE gmail_messages
+    SET flight_date=?, updated_at=CURRENT_TIMESTAMP
+    WHERE gmail_message_id=?
+  `).bind(newIso,job.gmail_message_id||version.gmail_message_id||"").run().catch(()=>{});
 
-  await env.OPS_DB.prepare(`UPDATE gmail_messages SET flight_date=?,updated_at=CURRENT_TIMESTAMP WHERE gmail_message_id=?`)
-    .bind(newIso,job.gmail_message_id||version.gmail_message_id||"").run();
+  await env.OPS_DB.prepare(`
+    UPDATE import_files
+    SET flight_date=?, updated_at=CURRENT_TIMESTAMP
+    WHERE file_id=?
+  `).bind(newIso,fileId).run().catch(()=>{});
 
-  await env.OPS_DB.prepare(`UPDATE import_files SET flight_date=?,file_id=?,updated_at=CURRENT_TIMESTAMP WHERE file_id=?`)
-    .bind(newIso,newFileId,oldFileId).run().catch(async()=>{
-      await env.OPS_DB.prepare(`UPDATE import_files SET flight_date=?,updated_at=CURRENT_TIMESTAMP WHERE file_id=?`)
-        .bind(newIso,oldFileId).run();
-    });
-
-  await env.OPS_DB.prepare(`UPDATE import_file_versions SET flight_date=?,file_id=?,version_id=? WHERE version_id=?`)
-    .bind(newIso,newFileId,newVersionId,oldVersionId).run().catch(async()=>{
-      await env.OPS_DB.prepare(`UPDATE import_file_versions SET flight_date=? WHERE version_id=?`)
-        .bind(newIso,oldVersionId).run();
-    });
-
-  await env.OPS_DB.prepare(`UPDATE import_jobs SET flight_date=?,file_id=?,version_id=?,job_id=?,updated_at=CURRENT_TIMESTAMP WHERE job_id=?`)
-    .bind(newIso,newFileId,newVersionId,newJobId,job.job_id).run().catch(async()=>{
-      await env.OPS_DB.prepare(`UPDATE import_jobs SET flight_date=?,updated_at=CURRENT_TIMESTAMP WHERE job_id=?`)
-        .bind(newIso,job.job_id).run();
-    });
+  await env.OPS_DB.prepare(`
+    UPDATE import_jobs
+    SET flight_date=?, updated_at=CURRENT_TIMESTAMP
+    WHERE job_id=?
+  `).bind(newIso,jobId).run().catch(()=>{});
 
   await recordImportChange(env,{
     scope:"JOB",
@@ -2533,14 +2542,20 @@ async function lot2UpdateJobFlightDate(env,job,version,newIso,reason){
     flightNumber:job.flight_number,
     flightDate:newIso,
     gmailMessageId:job.gmail_message_id,
-    fileId:newFileId,
-    versionId:newVersionId,
+    fileId:fileId,
+    versionId:versionId,
     changeType:"FLIGHT_DATE_FROM_REPORT_LINE",
-    before:{flightDate:oldDate,fileId:oldFileId,versionId:oldVersionId,jobId:job.job_id},
-    after:{flightDate:newIso,fileId:newFileId,versionId:newVersionId,jobId:newJobId,reason}
+    before:{flightDate:oldDate,fileId,versionId,jobId},
+    after:{flightDate:newIso,fileId,versionId,jobId,reason}
   }).catch(()=>{});
 
-  return {changed:true,flightDate:newIso,fileId:newFileId,versionId:newVersionId,jobId:newJobId};
+  return {
+    changed:true,
+    flightDate:newIso,
+    fileId,
+    versionId,
+    jobId
+  };
 }
 
 async function lot2ProcessOneJob(env,job){
@@ -2622,7 +2637,7 @@ async function lot2ProcessOneJob(env,job){
       reason:extracted.reason,
       rules: parserMode==="SPECIFIC_LOCKED"
         ? "Parser spécifique verrouillé : aucune transformation Worker Lot 2."
-        : "GENERIC V50.15 : classCounts uniquement depuis header LIST OF ou summary C/Y ; aucun numéro de vol compté comme classe.",
+        : "GENERIC V50.18 : date vol depuis ligne rapport ; classCounts depuis header LIST OF ou summary C/Y ; aucun numéro de vol compté comme classe.",
       mappingScope:listMapping.mappingScope,
       matchedListName:listMapping.matchedListName
     };
