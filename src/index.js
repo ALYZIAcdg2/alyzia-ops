@@ -1,4 +1,4 @@
-// ALYZIA OPS V50.7 · LOT 2 Import Job Processor + Document Classification
+// ALYZIA OPS V50.8 · LOT 2 Import Job Processor + STRICT LIST OF Classification
 // - Assets statiques public/
 // - API vols partagée D1
 // - Bridge interne vers SARIA
@@ -2010,36 +2010,52 @@ async function lot2ExtractTextFromR2Object(object,filename,mime){
 }
 
 function lot2DetectListName(text,filename){
-  const up=lot2Upper(`${text}\n${filename}`);
-  let m=up.match(/\bLIST\s+OF\s*:\s*([^\n\r]{2,90})/);
-  if(m){
-    return m[1]
+  /*
+   * V50.8 — STRICT LIST OF
+   * On ne déduit plus jamais le nom de liste à partir de mots trouvés
+   * dans le PDF ou dans le nom de fichier.
+   *
+   * Seule une ligne explicite du document fait foi :
+   *   LIST OF: XXXXX
+   *
+   * Si cette ligne n'est pas trouvée, on retourne une chaîne vide.
+   * Le job sera classé GENERIC_LIST_NOT_FOUND, sans carte inventée.
+   */
+  const raw=lot2CleanText(String(text||"")).replace(/\r/g,"\n");
+  const lines=raw.split(/\n+/).map(x=>String(x||"").trim()).filter(Boolean);
+
+  for(const line of lines.slice(0,120)){
+    const m=line.match(/\bLIST\s+OF\s*:\s*(.{2,140})$/i);
+    if(!m)continue;
+
+    const cleaned=String(m[1]||"")
       .replace(/\b(?:TOTAL|TTL)\b.*$/i,"")
-      .replace(/\b[FJCWSY]\s*\d+\b/g,"")
+      .replace(/\b[FJCWSY]\s*\d+\b/gi,"")
       .replace(/\s+/g," ")
       .trim();
+
+    if(cleaned)return cleaned;
   }
-  if(/ALL\s+(CUSTOMERS|PAX|RESERVATION)/.test(up))return "ALL CUSTOMERS";
-  if(/FQTV/.test(up))return "FQTV";
-  if(/\bEMD\b/.test(up))return "EMD";
-  if(/ETKT|TICKET/.test(up))return "ETKT";
-  if(/WCHR|WCHS|WCHC|\bWCH\b/.test(up))return "WCH";
-  if(/INFANT|\bINF\b/.test(up))return "INFANT";
-  if(/CHILD|CHLD|\bKID\b/.test(up))return "CHLD";
-  if(/MEAL|[A-Z]{2}ML/.test(up))return "MEAL";
-  if(/STAFF|REBATE|BOOKABLE/.test(up))return "STAFF";
-  if(/INAD/.test(up))return "INAD";
-  if(/DEPA/.test(up))return "DEPA";
-  if(/DEPU/.test(up))return "DEPU";
-  if(/UMNR|\bUM\b/.test(up))return "UMNR";
-  if(/MAAS/.test(up))return "MAAS";
-  if(/INBOUND|CONNECTION FROM/.test(up))return "INBOUND";
-  if(/OUTBOUND|ONCARRIAGE|CONNECTION TO/.test(up))return "OUTBOUND";
-  return "UNKNOWN";
+
+  // OCR/text extraction peut parfois coller "LIST OF:" au milieu d'une ligne.
+  // On accepte seulement la mention explicite LIST OF:, jamais un mot isolé.
+  const compact=raw.slice(0,12000);
+  const m=compact.match(/\bLIST\s+OF\s*:\s*([^\n\r]{2,140})/i);
+  if(m){
+    const cleaned=String(m[1]||"")
+      .replace(/\b(?:TOTAL|TTL)\b.*$/i,"")
+      .replace(/\b[FJCWSY]\s*\d+\b/gi,"")
+      .replace(/\s+/g," ")
+      .trim();
+    if(cleaned)return cleaned;
+  }
+
+  return "";
 }
 
 function lot2GenericCardFromListName(listName){
   const l=lot2Upper(listName);
+  if(!l)return "NO_LIST";
   if(/ALL\s+(CUSTOMERS|PAX|RESERVATION)/.test(l))return "MASTER";
   if(/FQTV/.test(l))return "FQTV";
   if(/WCHR|WCHS|WCHC|WCMP|WCBD|WCLB|\bWCH\b/.test(l))return "WCH";
@@ -2136,10 +2152,15 @@ async function lot2ProcessOneJob(env,job){
     if(parserMode==="SPECIFIC_LOCKED"){
       resultStatus="READY_SPECIFIC_PARSER";
       changeType="SPECIFIC_READY";
+    }else if(cardKey==="NO_LIST"){
+      resultStatus=extracted.readable?"GENERIC_LIST_NOT_FOUND":"ARCHIVED_ONLY";
+      changeType=extracted.readable?"GENERIC_LIST_NOT_FOUND":"ARCHIVED_ONLY";
     }else if(cardKey==="MASTER"){
       resultStatus="GENERIC_MASTER_READY";
       changeType="GENERIC_MASTER_READY";
     }else if(cardKey==="OTHER"){
+      // OTHER est autorisé uniquement si un vrai "LIST OF: XXXXX" existe
+      // mais que XXXXX n'est pas encore mappé.
       resultStatus=extracted.readable?"GENERIC_CARD_OTHER":"ARCHIVED_ONLY";
       changeType=extracted.readable?"GENERIC_CARD_OTHER":"ARCHIVED_ONLY";
     }else{
@@ -2159,7 +2180,7 @@ async function lot2ProcessOneJob(env,job){
       reason:extracted.reason,
       rules: parserMode==="SPECIFIC_LOCKED"
         ? "Parser spécifique verrouillé : aucune transformation Worker Lot 2."
-        : "GENERIC : ALL CUSTOMERS/ALL PAX = master ; LIST OF = carte."
+        : "GENERIC V50.8 strict : seul le nom explicite LIST OF du fichier est utilisé ; aucune carte inventée."
     };
 
     await env.OPS_DB.prepare(`
