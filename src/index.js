@@ -1,4 +1,4 @@
-// ALYZIA OPS V50.10 · LOT 2 Airline List Mapping
+// ALYZIA OPS V50.11 · LOT 2 PDF Text Extractor Fix
 // - Assets statiques public/
 // - API vols partagée D1
 // - Bridge interne vers SARIA
@@ -1944,40 +1944,214 @@ function lot2DecodeLatin1(bytes){
   return out;
 }
 
-function lot2ExtractPdfStrings(raw){
-  const source=String(raw||"");
-  const out=[];
+function lot2PdfBinaryToBytes(v){
+  const str=String(v||"");
+  const out=new Uint8Array(str.length);
+  for(let i=0;i<str.length;i++)out[i]=str.charCodeAt(i)&255;
+  return out;
+}
 
-  // Texte PDF fréquent : chaînes littérales entre parenthèses.
-  for(const m of source.matchAll(/\((?:\\.|[^\\()]){2,}\)/g)){
-    let v=m[0].slice(1,-1)
-      .replace(/\\n/g,"\n")
-      .replace(/\\r/g,"\n")
-      .replace(/\\t/g," ")
-      .replace(/\\([()\\])/g,"$1")
-      .replace(/\\\d{1,3}/g," ");
-    if(/[A-Za-z0-9]{2}/.test(v))out.push(v);
-  }
+function lot2StripPdfStreamNewlines(bytes){
+  let a=0,b=bytes.length;
+  if(bytes[a]===13 && bytes[a+1]===10)a+=2;
+  else if(bytes[a]===10 || bytes[a]===13)a+=1;
 
-  // Texte hexadécimal PDF simple : <0041004C...> ou <414C...>
-  for(const m of source.matchAll(/<([0-9A-Fa-f]{8,})>/g)){
-    const hex=m[1];
-    if(hex.length>3000)continue;
+  if(bytes[b-2]===13 && bytes[b-1]===10)b-=2;
+  else if(bytes[b-1]===10 || bytes[b-1]===13)b-=1;
+
+  return bytes.slice(a,b);
+}
+
+async function lot2InflatePdfStream(bytes){
+  if(typeof DecompressionStream==="undefined")return null;
+
+  const formats=["deflate","deflate-raw"];
+  for(const format of formats){
     try{
-      const bytes=[];
-      for(let i=0;i<hex.length;i+=2)bytes.push(parseInt(hex.slice(i,i+2),16));
-      let ascii=String.fromCharCode(...bytes).replace(/\u0000/g,"");
-      if(/[A-Za-z]{3}/.test(ascii))out.push(ascii);
+      const stream=new Blob([bytes]).stream().pipeThrough(new DecompressionStream(format));
+      const ab=await new Response(stream).arrayBuffer();
+      if(ab && ab.byteLength)return new Uint8Array(ab);
     }catch(e){}
   }
 
-  // Fallback : blocs ASCII visibles dans le PDF.
-  for(const m of source.matchAll(/[A-Za-z0-9][A-Za-z0-9 .,:;_\-/()#'&]{8,}/g)){
-    const v=m[0];
-    if(!/^(obj|endobj|stream|endstream|xref|trailer)$/i.test(v))out.push(v);
+  return null;
+}
+
+function lot2ExtractPdfStreamCandidates(pdfBytes){
+  const raw=lot2DecodeLatin1(pdfBytes);
+  const streams=[];
+
+  const re=/(<<[\s\S]{0,2500}?\/FlateDecode[\s\S]{0,2500}?>>)\s*stream([\s\S]*?)endstream/g;
+  let m;
+  while((m=re.exec(raw))){
+    const dict=String(m[1]||"");
+    const body=lot2StripPdfStreamNewlines(lot2PdfBinaryToBytes(m[2]||""));
+    streams.push({dict,bytes:body});
   }
 
-  return lot2CleanText(out.join("\n"));
+  return streams;
+}
+
+function lot2ParsePdfToUnicodeMap(decodedText){
+  const cmap={};
+  const src=String(decodedText||"");
+
+  for(const block of src.matchAll(/beginbfchar([\s\S]*?)endbfchar/g)){
+    const body=block[1]||"";
+    for(const m of body.matchAll(/<([0-9A-Fa-f]{2,8})>\s*<([0-9A-Fa-f]{2,12})>/g)){
+      const from=m[1].toUpperCase();
+      const to=m[2].toUpperCase();
+      const ch=lot2PdfDecodeHexWithoutMap(to);
+      if(ch)cmap[from]=ch;
+    }
+  }
+
+  for(const block of src.matchAll(/beginbfrange([\s\S]*?)endbfrange/g)){
+    const body=block[1]||"";
+    for(const m of body.matchAll(/<([0-9A-Fa-f]{2,8})>\s*<([0-9A-Fa-f]{2,8})>\s*<([0-9A-Fa-f]{2,12})>/g)){
+      const start=parseInt(m[1],16);
+      const end=parseInt(m[2],16);
+      const dest=parseInt(m[3],16);
+      if(!Number.isFinite(start)||!Number.isFinite(end)||!Number.isFinite(dest))continue;
+      if(end<start || end-start>300)continue;
+      const width=m[1].length;
+      for(let code=start;code<=end;code++){
+        const from=code.toString(16).toUpperCase().padStart(width,"0");
+        const to=(dest+(code-start)).toString(16).toUpperCase().padStart(4,"0");
+        const ch=lot2PdfDecodeHexWithoutMap(to);
+        if(ch)cmap[from]=ch;
+      }
+    }
+  }
+
+  return cmap;
+}
+
+function lot2PdfDecodeHexWithoutMap(hex){
+  const clean=String(hex||"").replace(/[^0-9A-Fa-f]/g,"");
+  if(clean.length<2)return "";
+
+  try{
+    // UTF-16BE fréquent dans ToUnicode.
+    if(clean.length%4===0){
+      let out="";
+      for(let i=0;i<clean.length;i+=4){
+        const cp=parseInt(clean.slice(i,i+4),16);
+        if(cp)out+=String.fromCharCode(cp);
+      }
+      if(/[A-Za-z0-9 ]/.test(out))return out;
+    }
+
+    let ascii="";
+    for(let i=0;i<clean.length;i+=2){
+      const b=parseInt(clean.slice(i,i+2),16);
+      if(Number.isFinite(b) && b!==0)ascii+=String.fromCharCode(b);
+    }
+    return ascii;
+  }catch(e){
+    return "";
+  }
+}
+
+function lot2PdfDecodeHexWithMap(hex,cmap){
+  const clean=String(hex||"").replace(/[^0-9A-Fa-f]/g,"").toUpperCase();
+  if(!clean)return "";
+
+  const map=cmap||{};
+  if(Object.keys(map).length){
+    // Les PDF Altea Type0 utilisent des codes CID sur 2 octets = 4 hex chars.
+    let out="";
+    for(let i=0;i<clean.length;i+=4){
+      const code=clean.slice(i,i+4);
+      if(code.length<4)continue;
+      out+=map[code] ?? lot2PdfDecodeHexWithoutMap(code);
+    }
+    if(out.trim())return out;
+  }
+
+  return lot2PdfDecodeHexWithoutMap(clean);
+}
+
+function lot2PdfDecodeLiteralString(v){
+  return String(v||"")
+    .replace(/\\n/g,"\n")
+    .replace(/\\r/g,"\n")
+    .replace(/\\t/g," ")
+    .replace(/\\b/g," ")
+    .replace(/\\f/g," ")
+    .replace(/\\([()\\])/g,"$1")
+    .replace(/\\\d{1,3}/g," ");
+}
+
+function lot2ExtractPdfTextOperations(decodedText,cmap){
+  const src=String(decodedText||"");
+  const out=[];
+
+  // Chaînes littérales : (texte) Tj / TJ
+  for(const m of src.matchAll(/\((?:\\.|[^\\()]){1,}\)/g)){
+    const v=lot2PdfDecodeLiteralString(m[0].slice(1,-1));
+    if(/[A-Za-z0-9]{2}/.test(v))out.push(v);
+  }
+
+  // Chaînes hexadécimales : <002f002c...> Tj
+  for(const m of src.matchAll(/<([0-9A-Fa-f]{4,})>/g)){
+    const v=lot2PdfDecodeHexWithMap(m[1],cmap);
+    if(/[A-Za-z0-9]{2}/.test(v))out.push(v);
+  }
+
+  return out.join("\n");
+}
+
+function lot2LooksLikeRealAlteaText(text){
+  const up=lot2Upper(text);
+  if(/\bLIST\s+OF\s*:/.test(up))return true;
+  if(/\b(?:INBOUND|ONCARRIAGE)\s+CUSTOMER\s+SUMMARY\b/.test(up))return true;
+  if(/\bGENERIC\s+REPORT\b/.test(up) && /\bJ\d{1,4}\b/.test(up))return true;
+  if(/\d{1,3}\.[A-Z][A-Z' .-]+\/[A-Z][A-Z' .-]+/.test(up))return true;
+  return false;
+}
+
+async function lot2ExtractPdfTextFromBytes(bytes){
+  const streams=lot2ExtractPdfStreamCandidates(bytes);
+  if(!streams.length){
+    // PDF sans Flate stream : tenter uniquement les chaînes visibles non compressées.
+    const raw=lot2DecodeLatin1(bytes);
+    const text=lot2CleanText(lot2ExtractPdfTextOperations(raw,{}));
+    return {text:lot2LooksLikeRealAlteaText(text)?text:"", readable:lot2LooksLikeRealAlteaText(text), reason:lot2LooksLikeRealAlteaText(text)?"PDF_TEXT_EXTRACTED_RAW":"PDF_TEXT_NOT_EXTRACTED"};
+  }
+
+  const decodedTexts=[];
+  let inflated=0;
+
+  for(const stream of streams){
+    const dec=await lot2InflatePdfStream(stream.bytes);
+    if(!dec)continue;
+    inflated++;
+    decodedTexts.push(lot2DecodeLatin1(dec));
+  }
+
+  if(!decodedTexts.length){
+    return {text:"",readable:false,reason:"PDF_TEXT_NOT_EXTRACTED_FLATE_UNAVAILABLE"};
+  }
+
+  // Construire la table ToUnicode avant de décoder les streams de contenu.
+  const cmap={};
+  for(const txt of decodedTexts){
+    Object.assign(cmap,lot2ParsePdfToUnicodeMap(txt));
+  }
+
+  const pieces=[];
+  for(const txt of decodedTexts){
+    const extracted=lot2ExtractPdfTextOperations(txt,cmap);
+    if(lot2LooksLikeRealAlteaText(extracted))pieces.push(extracted);
+  }
+
+  const text=lot2CleanText(pieces.join("\n"));
+  if(!text){
+    return {text:"",readable:false,reason:`PDF_TEXT_NOT_EXTRACTED_INFLATED_${inflated}`};
+  }
+
+  return {text,readable:true,reason:"PDF_TEXT_EXTRACTED_FLATE_TOUNICODE"};
 }
 
 async function lot2ExtractTextFromR2Object(object,filename,mime){
@@ -1997,9 +2171,7 @@ async function lot2ExtractTextFromR2Object(object,filename,mime){
     return {text:lot2CleanText(lot2DecodeUtf8(bytes).slice(0,200000)),readable:false,reason:`${ext.toUpperCase()} STOCKÉ · PARSING DÉDIÉ À AJOUTER`};
   }
   if(ext==="pdf" || m.includes("pdf")){
-    const raw=lot2DecodeLatin1(bytes);
-    const text=lot2ExtractPdfStrings(raw);
-    return {text,readable:!!text,reason:text?"PDF_TEXT_EXTRACTED":"PDF SANS TEXTE EXPLOITABLE PAR LE WORKER"};
+    return await lot2ExtractPdfTextFromBytes(bytes);
   }
 
   if(m.startsWith("text/") || ["txt","csv","html","htm","eml","json","xml"].includes(ext)){
@@ -2215,8 +2387,8 @@ async function lot2ProcessOneJob(env,job){
       : lot2LookupListMapping(airline,listName);
     const cardKey=listMapping.cardKey;
     const documentType=lot2DocumentTypeFromCard(cardKey,filename,mime);
-    const passengerCount=lot2ExtractPassengerCount(extracted.text,listName);
-    const classCounts=lot2ExtractClassCounts(extracted.text);
+    const passengerCount=extracted.readable?lot2ExtractPassengerCount(extracted.text,listName):0;
+    const classCounts=extracted.readable?lot2ExtractClassCounts(extracted.text):{};
 
     let resultStatus="CLASSIFIED";
     let changeType="DOC_CLASSIFIED";
@@ -2252,7 +2424,7 @@ async function lot2ProcessOneJob(env,job){
       reason:extracted.reason,
       rules: parserMode==="SPECIFIC_LOCKED"
         ? "Parser spécifique verrouillé : aucune transformation Worker Lot 2."
-        : "GENERIC V50.10 : listName = nom exact du fichier ; cardKey = mapping par compagnie puis DEFAULT ; aucune carte inventée.",
+        : "GENERIC V50.11 : extraction PDF réelle Flate/ToUnicode ; listName exact ; mapping compagnie puis DEFAULT ; aucune carte inventée.",
       mappingScope:listMapping.mappingScope,
       matchedListName:listMapping.matchedListName
     };
