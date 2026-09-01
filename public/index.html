@@ -6,7 +6,7 @@
   <meta http-equiv="Expires" content="0">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V50.28 · BUILD136 · CANONICAL PAX ID FIX</title>
+<title>ALYZIA OPS - V50.28 · BUILD137 · WCH FQTV SOURCE FIX</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -24288,6 +24288,215 @@ try{
     };
   }
   setTimeout(()=>{try{setAuthoritativeCounts(x());if(typeof render==='function'&&currentView==='detail')render()}catch(e){}},250);
+})();
+</script>
+
+
+<script id="alyzia-build137-wch-fqtv-source-fix">
+(function(){
+  'use strict';
+
+  const SPECIFIC=new Set(['SQ','TK','BJ','TW']);
+  const A=v=>Array.isArray(v)?v:[];
+  const U=v=>String(v||'').trim().toUpperCase();
+
+  function fx(){try{return typeof f==='function'?f():null}catch(e){return null}}
+  function isGeneric(x=fx()){return !!x&&!SPECIFIC.has(U(x.airline))}
+
+  function canonicalName(v){
+    return U(v)
+      .replace(/[·•]/g,' ')
+      .replace(/[.,;:]+/g,' ')
+      .replace(/\s+/g,' ')
+      .replace(/\s+(MR|MRS|MS|MISS|MSTR)\s*$/,'')
+      .trim()
+      .replace(/[^A-Z0-9]/g,'');
+  }
+
+  function mergeText(a,b){
+    const vals=[];
+    const add=v=>{
+      String(v||'').split(/\s*[·,;|]\s*/).forEach(x=>{
+        const t=String(x||'').trim();
+        if(t&&!vals.includes(t))vals.push(t);
+      });
+    };
+    add(a); add(b);
+    return vals.join(' · ');
+  }
+
+  function canonicalList(list){
+    const out=[], map=new Map();
+    A(list).forEach(raw=>{
+      if(!raw)return;
+      const p={...raw};
+      p.name=String(p.name||p.fullName||'')
+        .replace(/[·•]/g,' ')
+        .replace(/\s+/g,' ')
+        .trim();
+
+      const embedded=(p.name.match(/\s+(MR|MRS|MS|MISS|MSTR)\s*$/i)||[])[1]||'';
+      if(embedded&&!p.title)p.title=embedded.toUpperCase();
+      p.name=p.name.replace(/\s+(MR|MRS|MS|MISS|MSTR)\s*$/i,'').trim();
+
+      const key=canonicalName(p.name);
+      if(!key)return;
+
+      const ssr=A(p.ssr).map(U).filter(Boolean);
+      p.ssr=[...new Set(ssr)];
+
+      if(!map.has(key)){
+        map.set(key,out.length);
+        out.push(p);
+        return;
+      }
+
+      const q=out[map.get(key)];
+      q.ssr=[...new Set([...A(q.ssr),...A(p.ssr).map(U)])];
+      q.specific=mergeText(q.specific,p.specific);
+      q.category=q.category||p.category||'';
+      q.etkt=mergeText(q.etkt,p.etkt);
+      q.emd=mergeText(q.emd,p.emd);
+      q.fqtv={...(q.fqtv||{}),...(p.fqtv||{})};
+      ['seat','class','title','gender'].forEach(k=>{
+        if(!q[k]&&p[k])q[k]=p[k];
+      });
+    });
+    return out;
+  }
+
+  function wchCode(p){
+    const text=[
+      ...A(p?.ssr),
+      p?.category,
+      p?.specific,
+      p?.code,
+      p?.ssrCode
+    ].map(U).join(' ');
+    const m=text.match(/\b(WCHR|WCHS|WCHC)\b/);
+    return m?m[1]:'';
+  }
+
+  function fqtvCategory(p){
+    const candidates=[
+      p?.category,
+      p?.fqtv?.tier,
+      p?.fqtv?.status,
+      p?.specific
+    ].map(U).filter(Boolean);
+
+    const joined=candidates.join(' · ');
+    if(/\bDJURDJURA\b/.test(joined))return 'DJURDJURA';
+    if(/\bTAHAT\b/.test(joined))return 'TAHAT';
+
+    /* Ignore technical/generic FQTV labels. */
+    const clean=candidates.find(v=>v&&!/^(FQTV|FQA|ACCRUAL)$/.test(v));
+    return clean||'FQTV';
+  }
+
+  /* ---------------- WCH ---------------- */
+  const oldGrouped=window.openGroupedParticularity;
+  const oldGroupedList=window.openGroupedParticularityList;
+
+  window.openGroupedParticularity=function(key,label){
+    const x=fx();
+    if(!isGeneric(x)||U(key)!=='WCH'){
+      return oldGrouped?oldGrouped.apply(this,arguments):null;
+    }
+
+    const src=canonicalList(A(x.common_lists?.WCH));
+    const groups={WCHR:[],WCHS:[],WCHC:[]};
+
+    src.forEach(p=>{
+      const code=wchCode(p);
+      if(code)groups[code].push(p);
+    });
+
+    Object.keys(groups).forEach(k=>groups[k]=canonicalList(groups[k]));
+    window.__b137WchGroups=groups;
+
+    const order=['WCHR','WCHS','WCHC'].filter(k=>groups[k].length);
+    showModal(label,x.flight,`
+      <div class="meal-category-list">
+        ${order.length?order.map(code=>`
+          <button class="meal-category-row" onclick="openGroupedParticularityList('WCH','${code}')">
+            <span>${code}</span>
+            <b>${groups[code].length}</b>
+            <small>VOIR LES PASSAGERS</small>
+          </button>`).join(''):'<div class="prepa-empty">AUCUN PASSAGER</div>'}
+      </div>
+    `);
+  };
+
+  window.openGroupedParticularityList=function(key,code){
+    const x=fx();
+    if(!isGeneric(x)||U(key)!=='WCH'){
+      return oldGroupedList?oldGroupedList.apply(this,arguments):null;
+    }
+    const list=canonicalList(window.__b137WchGroups?.[U(code)]||[]);
+    PAX_MODAL_SOURCE=list.slice();
+    PAX_MODAL_ITEMS=list.slice();
+    showModal(`WCH · ${U(code)}`,x.flight,
+      typeof paxRows==='function'
+        ? paxRows(list,list.length)
+        : '<div class="prepa-empty">AUCUN PASSAGER</div>'
+    );
+  };
+
+  /* ---------------- FQTV ---------------- */
+  const oldFqtvCategories=window.openFqtvCategories;
+  const oldV5024List=window.openV5024FqtvPassengerList;
+
+  window.openFqtvCategories=function(){
+    const x=fx();
+    if(!isGeneric(x)){
+      return oldFqtvCategories?oldFqtvCategories.apply(this,arguments):null;
+    }
+
+    const src=canonicalList(A(x.common_lists?.FQTV));
+    const groups={};
+
+    src.forEach(p=>{
+      const cat=fqtvCategory(p);
+      (groups[cat]=groups[cat]||[]).push(p);
+    });
+    Object.keys(groups).forEach(k=>groups[k]=canonicalList(groups[k]));
+
+    window.__b137FqtvGroups=groups;
+
+    const preferred=['DJURDJURA','TAHAT'];
+    const order=[
+      ...preferred.filter(k=>groups[k]?.length),
+      ...Object.keys(groups).filter(k=>!preferred.includes(k)&&groups[k]?.length).sort()
+    ];
+
+    showModal(`FQTV · ${src.length}`,x.flight,`
+      <div class="meal-category-list">
+        ${order.length?order.map(cat=>`
+          <button class="meal-category-row fqtv-cat"
+                  onclick='openV5024FqtvPassengerList(${JSON.stringify(cat)})'>
+            <span>${cat}</span>
+            <b>${groups[cat].length}</b>
+            <small>VOIR LES PASSAGERS</small>
+          </button>`).join(''):'<div class="prepa-empty">AUCUN FQTV IMPORTÉ</div>'}
+      </div>
+    `);
+  };
+
+  window.openV5024FqtvPassengerList=function(cat){
+    const x=fx();
+    if(!isGeneric(x)){
+      return oldV5024List?oldV5024List.apply(this,arguments):null;
+    }
+    const list=canonicalList(window.__b137FqtvGroups?.[cat]||[]);
+    PAX_MODAL_SOURCE=list.slice();
+    PAX_MODAL_ITEMS=list.slice();
+    showModal(`FQTV · ${cat}`,x.flight,
+      typeof paxRows==='function'
+        ? paxRows(list,list.length)
+        : '<div class="prepa-empty">AUCUN PASSAGER</div>'
+    );
+  };
 })();
 </script>
 
