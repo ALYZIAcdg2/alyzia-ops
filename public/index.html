@@ -12432,6 +12432,138 @@ function v50GenericUniquePush(list,item){
  ].join('|')===key))list.push(item);
 }
 
+/* V50.29 — parser nominatif générique "à la SQ" (parseSqNamedReportRows).
+   Au lieu de deviner nom/siège/ETKT ligne par ligne indépendamment pour
+   chaque code (WCH/CHLD/INF/FQTV/EMD...), on reconnaît la structure réelle
+   d'une ligne de rapport Altea nominative :
+     N.NOM[/PRENOMS] [TITRE] SEXE ORIGINE DESTINATION CLASSE+SOUS-CLASSE
+     [SIEGE] [ETK-TICKET13  EMD13] [STATUT]
+   et on découpe le "reste de ligne" (tail) en siège / numéro(s) de billet /
+   statut, comme parseSqNamedReportRows le fait pour SQ. Cela évite que le
+   siège (surtout à 3 chiffres, ex. "005F") ou l'ETKT finissent mélangés
+   dans SPECIFICITE faute d'avoir été reconnus. */
+function genericFindListBlocks(rawOriginal,codes){
+ const raw=String(rawOriginal||'');
+ const esc=(codes||[]).map(c=>String(c).replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|');
+ if(!esc)return [];
+ const headerRe=new RegExp(`LIST\\s+OF\\s*:\\s*(?:${esc})\\b[^\\n]*`,'gi');
+ const blocks=[];
+ let m;
+ while((m=headerRe.exec(raw))){
+  const rest=raw.slice(m.index+m[0].length);
+  const cut=rest.search(/\n\s*(?:LIST\s+OF\s*:|=====+\s*FICHIER\s*:)/i);
+  blocks.push(cut>=0?rest.slice(0,cut):rest);
+ }
+ return blocks;
+}
+
+function parseGenericNamedReportRows(sourceBlock){
+ const raw=String(sourceBlock||'').replace(/\r/g,' ');
+ const flat=raw.replace(/\s+/g,' ').trim();
+ const out=[];
+
+ const rowStart=/\b(\d{1,4})\.\s*([A-ZÀ-ÖØ-Ý][A-ZÀ-ÖØ-Ý0-9 +'/.\-]*?)\s+(?:(MR|MRS|MS|MISS|MSTR|MDM|DR)\s+)?([MFCAI])\s+([A-Z]{3})\s+([A-Z]{3})\s+([FJCWSY])([A-Z])\b/g;
+ const starts=[];
+ let m;
+ while((m=rowStart.exec(flat))){
+  starts.push({
+   index:m.index,after:rowStart.lastIndex,seq:Number(m[1]),
+   left:String(m[2]||'').trim(),title:String(m[3]||'').toUpperCase(),
+   passengerType:String(m[4]||'').toUpperCase(),
+   from:String(m[5]||'').toUpperCase(),to:String(m[6]||'').toUpperCase(),
+   cabin:String(m[7]||'').toUpperCase(),bookingLetter:String(m[8]||'').toUpperCase()
+  });
+ }
+ if(!starts.length)return [];
+
+ for(let i=0;i<starts.length;i++){
+  const s=starts[i];
+  const next=starts[i+1]?.index ?? flat.length;
+  let tail=flat.slice(s.after,next).trim();
+
+  const reportCut=tail.search(/\b(?:LIST\s+OF\s*:|Generic Report\b|Report content\b|=====+\s*FICHIER)/i);
+  if(reportCut>=0)tail=tail.slice(0,reportCut).trim();
+
+  const name=s.left.replace(/\//g,' ').replace(/\s+/g,' ').trim();
+  let cls=s.cabin;
+  if(cls==='C')cls='J';
+  if(cls==='W')cls='S';
+  if(!['F','J','S','Y'].includes(cls))cls='Y';
+
+  // Siège : 1 à 3 chiffres + lettre A-K (ex. "5A", "12F", "005F").
+  let seat='';
+  const seatM=tail.match(/^\s*(\d{1,3}[A-K])\b/i);
+  if(seatM){seat=seatM[1].toUpperCase();tail=tail.slice(seatM[0].length).trim();}
+
+  // Billet : "ETK-<13 chiffres>" suivi éventuellement d'un second numéro à
+  // 13 chiffres = numéro EMD. Sans préfixe ETK-, le premier numéro à 13
+  // chiffres restant est traité comme le billet (ETKT), pas comme l'EMD.
+  let etkt='',emd='';
+  const etkM=tail.match(/\bETK-?\s*(\d{13})\b/i);
+  if(etkM){
+   etkt=etkM[1];
+   tail=(tail.slice(0,etkM.index)+tail.slice(etkM.index+etkM[0].length)).trim();
+   const emdM=tail.match(/\b(\d{13})\b/);
+   if(emdM){
+    emd=emdM[1];
+    tail=(tail.slice(0,emdM.index)+tail.slice(emdM.index+emdM[0].length)).trim();
+   }
+  }else{
+   const bareM=tail.match(/\b(\d{13})\b/);
+   if(bareM){
+    etkt=bareM[1];
+    tail=(tail.slice(0,bareM.index)+tail.slice(bareM.index+bareM[0].length)).trim();
+   }
+  }
+
+  const statusM=tail.match(/\b(AS|RQ|HK|HL|KL|UN|UM)\b/i);
+  const status=statusM?statusM[1].toUpperCase():'';
+
+  out.push({
+   seq:s.seq,name,title:s.title,passengerType:s.passengerType,
+   from:s.from,to:s.to,class:cls,bookingClass:s.cabin+s.bookingLetter,
+   seat,etkt,emd,status,tail
+  });
+ }
+ return out;
+}
+
+function genericRowToPassenger(row,code,key){
+ if(key==='FQTV'){
+  // V50.29 — LIST OF: FQA : après les champs standards, la ligne porte le
+  // niveau de fidélité (ex. "DJURDJURA", "TAHAT") puis le numéro carte
+  // fidélité (préfixe compagnie + chiffres, ex. "AH718974373" — à ne pas
+  // confondre avec un ETKT à 13 chiffres), puis parfois "ACCRUAL".
+  const tail=row.tail||'';
+  const numM=tail.match(/\b([A-Z]{2}\d{6,10})\b/);
+  const fqtvNumber=numM?numM[1]:'';
+  const tier=(numM?tail.slice(0,numM.index):tail)
+   .replace(/\bACCRUAL\b/gi,'')
+   .replace(/\s+/g,' ')
+   .trim();
+  const status=/\bACCRUAL\b/i.test(tail)?'ACCRUAL':'';
+  const specific=tier
+   ?(fqtvNumber?`FQTV ${tier} · ${fqtvNumber}`:`FQTV ${tier}`)
+   :(fqtvNumber?`FQTV ${fqtvNumber}`:'FQTV');
+  return {
+   name:row.name,title:row.title,seat:row.seat,class:row.class,
+   pnr:'',etkt:row.etkt||'',emd:row.emd||'',
+   fqtv:{tier,number:fqtvNumber,status},
+   specific,note:tail.slice(0,220),
+   source:'GENERIC-NAMED'
+  };
+ }
+ const specific=key==='EMD'
+  ?(row.emd?`EMD ${row.emd}`:(row.etkt?`EMD · ETKT ${row.etkt}`:'EMD'))
+  :(key==='ETK'?'ETKT':String(code||key||'').toUpperCase());
+ return {
+  name:row.name,title:row.title,seat:row.seat,class:row.class,
+  pnr:'',etkt:row.etkt||'',emd:row.emd||'',
+  specific,note:row.tail?row.tail.slice(0,220):'',
+  source:'GENERIC-NAMED'
+ };
+}
+
 function v50GenericPassengerFromLine(line,code){
  const raw=String(line||'').replace(/\s+/g,' ').trim();
  if(!raw)return null;
@@ -12699,7 +12831,7 @@ function prepareGenericImportManifest(rawOriginal,airline){
   {key:'DEPU',codes:['DEPU']},
   {key:'UMNR',codes:['UMNR']},
   {key:'MAAS',codes:['MAAS']},
-  {key:'FQTV',codes:['FQTV','FFN','FREQUENT FLYER']},
+  {key:'FQTV',codes:['FQA','FQTV','FFN','FREQUENT FLYER']},
   {key:'STAFF',codes:['STAFF','STF','TED']},
   {key:'EXBG',codes:['EXBG']},
   {key:'TKNE',codes:['TKNE']},
@@ -12718,23 +12850,45 @@ function prepareGenericImportManifest(rawOriginal,airline){
   let occurrenceCount=0;
   let explicit=null;
 
-  for(const c of def.codes){
-   const ec=v50ExplicitCount(upper,c);
-   if(ec!==null)explicit=Math.max(explicit??0,ec);
+  // V50.29 — essaie d'abord le parseur nominatif structuré (blocs "LIST OF: <code>"),
+  // comme pour SQ. Bien plus fiable que le grattage ligne par ligne : reconnaît
+  // vraiment nom/siège/ETKT/EMD au lieu de les deviner indépendamment.
+  let namedRows=[];
+  genericFindListBlocks(raw,def.codes).forEach(block=>{
+   namedRows.push(...parseGenericNamedReportRows(block));
+  });
 
-   const esc=c.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
-   const re=new RegExp(`\\b${esc}\\b`,'i');
-
-   for(const line of lines){
-    if(!re.test(line))continue;
+  if(namedRows.length){
+   namedRows.forEach(row=>{
     occurrenceCount++;
-    const p=v50GenericPassengerFromLine(line,c);
-    if(p && (p.name||p.seat||p.pnr||p.etkt)){
-      if(def.key==='EMD'){
-       const emd=(line.match(/\b(\d{13}(?:C\d+)?)\b/i)||[])[1]||'';
-       if(emd)p.emd=emd;
-      }
-      v50GenericUniquePush(commonLists[def.key],p);
+    const p=genericRowToPassenger(row,def.codes[0],def.key);
+    if(p && (p.name||p.seat||p.etkt))v50GenericUniquePush(commonLists[def.key],p);
+   });
+   for(const c of def.codes){
+    const ec=v50ExplicitCount(upper,c);
+    if(ec!==null)explicit=Math.max(explicit??0,ec);
+   }
+  }else{
+   // Repli : ancienne méthode ligne par ligne, pour les formats sans bloc
+   // "LIST OF: <code>" clairement identifiable.
+   for(const c of def.codes){
+    const ec=v50ExplicitCount(upper,c);
+    if(ec!==null)explicit=Math.max(explicit??0,ec);
+
+    const esc=c.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+    const re=new RegExp(`\\b${esc}\\b`,'i');
+
+    for(const line of lines){
+     if(!re.test(line))continue;
+     occurrenceCount++;
+     const p=v50GenericPassengerFromLine(line,c);
+     if(p && (p.name||p.seat||p.pnr||p.etkt)){
+       if(def.key==='EMD'){
+        const emd=(line.match(/\b(\d{13}(?:C\d+)?)\b/i)||[])[1]||'';
+        if(emd)p.emd=emd;
+       }
+       v50GenericUniquePush(commonLists[def.key],p);
+     }
     }
    }
   }
@@ -12748,19 +12902,65 @@ function prepareGenericImportManifest(rawOriginal,airline){
   }
  }
 
- // ETKT explicites : uniquement numéros 13 chiffres présents dans la source.
- const allTickets=[...upper.matchAll(/\b(\d{13})\b/g)].map(m=>m[1]);
- if(allTickets.length){
-  const unique=[...new Set(allTickets)];
-  // Si la ligne mentionne clairement EMD, elle n'est pas ajoutée comme ETKT.
-  const etkOnly=unique.filter(n=>!lines.some(line=>line.includes(n)&&/\bEMD\b/i.test(line)));
-  etkOnly.forEach(n=>v50GenericUniquePush(commonLists.ETK,{
-   name:'',etkt:n,specific:`ETKT ${n}`,note:`ETKT ${n}`,source:'GENERIC'
-  }));
-  if(commonLists.ETK.length){
-   counts.ETK=Math.max(counts.ETK||0,commonLists.ETK.length);
-   owned.ETK=true;
+ // V50.29 — la liste ETK est désormais lue nominativement (nom + ETKT), comme
+ // les autres catégories ci-dessus. L'ancien scan "tout numéro à 13 chiffres
+ // trouvé dans le texte" ne gardait AUCUN nom (name:'') : impossible ensuite
+ // de relier un ETKT à un passager précis, donc INF/CHLD/WCH/FQTV restaient
+ // sans ETKT même quand la liste ETK en contenait un. On ne garde ce scan
+ // anonyme qu'en tout dernier recours, si aucune ligne nominative n'a pu
+ // être reconnue.
+ if(!commonLists.ETK.length){
+  const allTickets=[...upper.matchAll(/\b(\d{13})\b/g)].map(m=>m[1]);
+  if(allTickets.length){
+   const unique=[...new Set(allTickets)];
+   // Si la ligne mentionne clairement EMD, elle n'est pas ajoutée comme ETKT.
+   const etkOnly=unique.filter(n=>!lines.some(line=>line.includes(n)&&/\bEMD\b/i.test(line)));
+   etkOnly.forEach(n=>v50GenericUniquePush(commonLists.ETK,{
+    name:'',etkt:n,specific:`ETKT ${n}`,note:`ETKT ${n}`,source:'GENERIC'
+   }));
   }
+ }
+ if(commonLists.ETK.length){
+  counts.ETK=Math.max(counts.ETK||0,commonLists.ETK.length);
+  owned.ETK=true;
+ }
+
+ // V50.29 — enrichissement par recoupement, comme enrichSqPassengerFromMaster
+ // pour SQ : un ETKT trouvé dans la liste ETK, la liste EMD, ou la liste
+ // maître (ALL CUSTOMERS) est reporté sur tout passager du même nom dans les
+ // autres catégories (INF/CHLD/WCH/FQTV/UMNR/MAAS/STAFF/...) qui ne l'a pas
+ // déjà. C'est ce qui manquait pour que l'ETKT ne soit plus "oublié" sur ces
+ // catégories : il n'est presque jamais réécrit sur la ligne WCH/CHLD/INF
+ // elle-même, seulement sur les listes ETK/EMD/maîtresse.
+ const identityMap=new Map();
+ const noteIdentity=p=>{
+  const key=sqNormalizeIdentityName(p?.name);
+  if(!key)return;
+  const cur=identityMap.get(key)||{};
+  identityMap.set(key,{
+   etkt:cur.etkt||p.etkt||'',
+   emd:cur.emd||p.emd||'',
+   seat:cur.seat||p.seat||'',
+   class:cur.class||p.class||'',
+   title:cur.title||p.title||''
+  });
+ };
+ commonLists.ETK.forEach(noteIdentity);
+ commonLists.EMD.forEach(noteIdentity);
+ (master.passengers||[]).forEach(noteIdentity);
+
+ if(identityMap.size){
+  Object.keys(commonLists).forEach(key=>{
+   if(key==='ETK')return;
+   commonLists[key].forEach(p=>{
+    const ref=identityMap.get(sqNormalizeIdentityName(p?.name));
+    if(!ref)return;
+    if(!p.etkt && ref.etkt)p.etkt=ref.etkt;
+    if(!p.seat && ref.seat)p.seat=ref.seat;
+    if(!p.class && ref.class)p.class=ref.class;
+    if(!p.title && ref.title)p.title=ref.title;
+   });
+  });
  }
 
  // OTHER : codes SSR explicites non couverts.
