@@ -6,7 +6,7 @@
   <meta http-equiv="Expires" content="0">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V50.28 · BUILD133 · PAX MODAL CLEAN</title>
+<title>ALYZIA OPS - V50.28 · BUILD133 · SQ PAX LOGIC + UI FIX</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -8518,36 +8518,7 @@ function editingSnapshot(){const idx=Number(document.getElementById('editingFlig
 function twPrintHtml(s){
  const {x,data}=s,e=data.extra||{};
  const f=(k)=>escHtml(e[k]||'');
- return `<!doctype html><html><head><meta charset="utf-8"><style>@page{size:A4 portrait;margin:5mm}*{box-sizing:border-box}body{font-family:Arial;margin:0;font-size:9px}h1{text-align:center;background:#d62828;color:#fff;margin:0 auto 6px;width:58mm;padding:5px}h2{text-align:center;margin:3px 0 8px}table{width:100%;border-collapse:collapse}td,th{border:1px solid #111;padding:4px;vertical-align:middle}th{background:#eee}.big{height:54mm;vertical-align:top}.mid{height:26mm;vertical-align:top}.red{color:#d71920;font-weight:900}
-/* BUILD133 — modales passagers génériques + TYPE A/C desktop */
-.v5028-pax-3 .paxlist-head,
-.v5028-pax-3 .paxrow{
-  grid-template-columns:minmax(260px,2fr) 110px 90px!important;
-}
-.v5028-pax-4 .paxlist-head,
-.v5028-pax-4 .paxrow{
-  grid-template-columns:minmax(260px,2fr) 110px 90px minmax(210px,1.35fr)!important;
-}
-@media(max-width:620px){
-  .v5028-pax-3 .paxlist-head{display:none}
-  .v5028-pax-3 .paxrow{grid-template-columns:minmax(0,1fr) 58px 48px!important}
-  .v5028-pax-4 .paxlist-head{display:none}
-  .v5028-pax-4 .paxrow{grid-template-columns:minmax(0,1fr) 58px 48px!important}
-  .v5028-pax-4 .paxrow .v5028-extra{display:none!important}
-}
-@media(min-width:901px){
-  .flight-head .headcell:has(.saria-ac-wrap) .head-label{
-    position:relative;
-    z-index:2;
-    min-height:22px;
-    margin-bottom:10px!important;
-  }
-  .flight-head .headcell:has(.saria-ac-wrap) .saria-ac-wrap{
-    margin-top:8px!important;
-  }
-}
-
-</style></head><body><h1>T'WAY</h1><h2>Briefing Sheet (${escHtml(data.date)})</h2><table>
+ return `<!doctype html><html><head><meta charset="utf-8"><style>@page{size:A4 portrait;margin:5mm}*{box-sizing:border-box}body{font-family:Arial;margin:0;font-size:9px}h1{text-align:center;background:#d62828;color:#fff;margin:0 auto 6px;width:58mm;padding:5px}h2{text-align:center;margin:3px 0 8px}table{width:100%;border-collapse:collapse}td,th{border:1px solid #111;padding:4px;vertical-align:middle}th{background:#eee}.big{height:54mm;vertical-align:top}.mid{height:26mm;vertical-align:top}.red{color:#d71920;font-weight:900}</style></head><body><h1>T'WAY</h1><h2>Briefing Sheet (${escHtml(data.date)})</h2><table>
  <tr><th>FLT NO</th><td>${f('tw401Flight')}</td><th>STA</th><td>${f('tw401Sta')}</td><th>ETA</th><td>${f('tw401Eta')}</td><th>ATA</th><td>${f('tw401Ata')}</td></tr>
  <tr><th>FLT NO</th><td>${f('tw402Flight')}</td><th>STD</th><td>${f('tw402Std')}</td><th>ETD</th><td>${f('tw402Etd')}</td><th>ATD</th><td>${f('tw402Atd')}</td></tr>
  <tr><th>CFG</th><td>${f('twCfg')}</td><th>C/CL</th><td>${escHtml(data.config?.C||'')}</td><th>Y/CL</th><td>${escHtml(data.config?.Y||'')}</td><th>TTL</th><td>${f('twTtl')}</td></tr>
@@ -23500,17 +23471,7 @@ try{
     if(x.cardKey==='WCH'&&x.category){x.ssr=[String(x.category).toUpperCase()]}
     if(x.cardKey==='CHLD')x.ssr=['CHLD'];
     if(x.cardKey==='INF')x.ssr=['INF'];
-    if(x.cardKey==='INBOUND'||x.connection){
-      x.ssr=['INBOUND'];
-      let sp=cleanText(x.specific);
-      const fl=String(x.connection?.flight||'').trim().toUpperCase();
-      if(fl){
-        const safe=fl.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
-        sp=sp.replace(new RegExp(`\\bINBOUND\\s+${safe}\\b[^·,;/|]*`,'gi'),' ');
-      }
-      sp=sp.replace(/\bINBOUND\b/gi,' ').replace(/\s+/g,' ').trim();
-      x.specific=cleanText(sp);
-    }
+    if(x.cardKey==='INBOUND'||x.connection){x.ssr=['INBOUND'];x.specific=cleanText(x.connection?.flight?`INBOUND ${x.connection.flight} ${x.connection.airport||''}`:x.specific)}
     if(x.cardKey==='MASTER'){x.ssr=[];x.specific='';x.note=''}
     if(x.cardKey==='ETKT'){x.ssr=[];x.specific='';x.note=''}
     if(x.cardKey==='EMD'){x.ssr=[];x.specific='';x.note=''}
@@ -23576,65 +23537,24 @@ try{
     if(ck==='WCH')return dedupe(arr(x.passengers).filter(p=>arr(p.ssr).some(s=>/^WCH/.test(s))));
     return it;
   }
-  function cleanSpecificAgainstSsr(p){
-    const x=normalizePax(p);
-    let spec=cleanText(x.specific||x.category||'');
-    cleanSsr(x.ssr).forEach(code=>{
-      const safe=String(code).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
-      spec=spec.replace(new RegExp(`\\b${safe}\\b`,'gi'),' ');
-    });
-    spec=spec.replace(/\bINBOUND\b/gi,' ')
-             .replace(/\s*[·,;/|]\s*/g,' · ')
-             .replace(/(?:\s*·\s*){2,}/g,' · ')
-             .replace(/^\s*·\s*|\s*·\s*$/g,'')
-             .replace(/\s+/g,' ')
-             .trim();
-    return cleanText(spec);
-  }
-
   function infoText(p,label){
-    const x=normalizePax(p);
-    const l=String(label||'').toUpperCase();
-    if(/\bETKT?\b/.test(l))return x.etkt?String(x.etkt):'—';
-    if(/\bEMD\b/.test(l))return x.emd?String(x.emd):'—';
-
+    const x=normalizePax(p); const l=String(label||'').toUpperCase();
+    if(l.includes('ETK')&&x.etkt)return 'ETKT-'+x.etkt;
+    if(l.includes('EMD')&&x.emd)return 'EMD-'+x.emd;
+    if(x.etkt&&l.includes('BOOKED'))return 'ETKT-'+x.etkt;
     const ssr=cleanSsr(x.ssr).join(' · ');
-    const spec=cleanSpecificAgainstSsr(x);
-    if(ssr&&spec)return ssr+' · '+spec;
-    if(ssr)return ssr;
-    if(spec)return spec;
+    if(ssr)return ssr+(x.specific?' · '+x.specific:'');
+    if(x.specific)return x.specific;
+    if(x.etkt)return 'ETKT-'+x.etkt;
+    if(x.emd)return 'EMD-'+x.emd;
     return '—';
   }
 
   window.paxRows=function(items,count){
     const currentLabel=window.__v5027CurrentPaxLabel||'';
-    const upper=String(currentLabel||'').toUpperCase();
-    const isBooked=/\bBOOKED\b/.test(upper);
-    const isEtkt=/\bETKT?\b/.test(upper);
-    const isEmd=/\bEMD\b/.test(upper);
     const list=dedupe(items||[]).map(normalizePax);
-
-    let mode='SSR';
-    if(isBooked)mode='BOOKED';
-    else if(isEtkt)mode='ETKT';
-    else if(isEmd)mode='EMD';
-
-    const rows=list.map((p,i)=>{
-      const base=`<strong>${esc(p.name||'—')}</strong><span class="seat">${esc(p.seat||'—')}</span><span class="class-cell">${esc(p.class||'—')}</span>`;
-      const extra=mode==='BOOKED'?'':`<span class="specific v5028-extra">${esc(infoText(p,currentLabel))}</span>`;
-      return `<button class="paxrow" onclick="openPaxFromModal(${i})">${base}${extra}</button>`;
-    }).join('');
-
-    const cls=mode==='BOOKED'?'v5028-pax-3':'v5028-pax-4';
-    const extraHead=mode==='ETKT'
-      ?'<span>ETKT</span>'
-      :mode==='EMD'
-        ?'<span>EMD</span>'
-        :mode==='BOOKED'
-          ?''
-          :'<span>SSR / SPÉCIFICITÉ</span>';
-
-    return `<div class="paxlist v5027-clean ${cls}"><div class="paxlist-head"><span>NOM / PRÉNOM</span><span>SIÈGE</span><span>CLASSE</span>${extraHead}</div>${rows||'<div class="prepa-empty">AUCUN PASSAGER DÉTAILLÉ</div>'}</div>${count>list.length?`<div style="margin-top:10px;color:#64768b;font-size:11px">AFFICHAGE DE ${list.length} PASSAGER(S) SUR ${count}</div>`:''}`;
+    const rows=list.map((p,i)=>`<button class="paxrow" onclick="openPaxFromModal(${i})"><strong>${esc(p.name||'—')}</strong><span class="seat">${esc(p.seat||'—')}</span><span class="class-cell">${esc(p.class||'—')}</span><span class="specific">${esc(infoText(p,currentLabel))}</span></button>`).join('');
+    return `<div class="paxlist v5027-clean"><div class="paxlist-head"><span>NOM / PRÉNOM</span><span>SIÈGE</span><span>CLASSE</span><span>ETKT / SSR</span></div>${rows||'<div class="prepa-empty">AUCUN PASSAGER DÉTAILLÉ</div>'}</div>${count>list.length?`<div style="margin-top:10px;color:#64768b;font-size:11px">AFFICHAGE DE ${list.length} PASSAGER(S) SUR ${count}</div>`:''}`;
   };
 
   const oldShowPax=window.showPax;
@@ -23654,133 +23574,14 @@ try{
     return oldShowPax?oldShowPax(label,filled,count||filled.length,sort,dir):null;
   };
 
-
-  function sameGenericPassenger(a,b){
-    const norm=v=>String(v||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
-    const ae=String(a?.etkt||''),be=String(b?.etkt||'');
-    if(ae&&be&&ae===be)return true;
-    const an=norm(a?.name||a?.fullName),bn=norm(b?.name||b?.fullName||b?.passenger);
-    if(an&&bn&&an===bn)return true;
-    const as=String(a?.seat||'').toUpperCase(),bs=String(b?.seat||'').toUpperCase();
-    return !!(an&&bn&&an===bn&&as&&bs&&as===bs);
-  }
-
-  function enrichGenericPassenger(raw,x){
-    let p=normalizePax(raw);
-    const pools=[];
-    arr(x?.passengers).forEach(q=>pools.push(q));
-    Object.values(x?.common_lists||{}).forEach(list=>arr(list).forEach(q=>pools.push(q)));
-    [...arr(x?.inbound),...arr(x?.outbound)].forEach(r=>arr(r?.passengers).forEach(q=>pools.push(q)));
-
-    pools.forEach(q=>{
-      if(sameGenericPassenger(p,q))p=merge(p,q);
-    });
-
-    const findDoc=(key)=>{
-      for(const q of pools){
-        if(!sameGenericPassenger(p,q))continue;
-        const v=String(q?.[key]||'').trim();
-        if(v)return v;
-      }
-      return '';
-    };
-    if(!p.etkt)p.etkt=findDoc('etkt');
-    if(!p.emd)p.emd=findDoc('emd');
-
-    p.ssr=cleanSsr(p.ssr);
-    p.specific=cleanSpecificAgainstSsr(p);
-    return p;
-  }
-
-  function genericPassengerConnectionsHtml(p,x){
-    const norm=v=>String(v||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
-    const matches=(q)=>{
-      if(!q)return false;
-      if(p.etkt&&q.etkt&&String(p.etkt)===String(q.etkt))return true;
-      const pn=norm(p.name||p.fullName),qn=norm(q.name||q.fullName||q.passenger);
-      if(pn&&qn&&pn===qn)return true;
-      if(p.seat&&q.seat&&String(p.seat).toUpperCase()===String(q.seat).toUpperCase())return true;
-      return false;
-    };
-
-    const collect=(rows,type)=>{
-      const out=[];
-      arr(rows).forEach(r=>{
-        const nested=arr(r?.passengers);
-        if(!matches(r)&&!nested.some(matches))return;
-        const key=String(r.flight||'').toUpperCase();
-        if(!key||out.some(q=>String(q.flight||'').toUpperCase()===key))return;
-        out.push({
-          flight:r.flight||'—',
-          from:r.from||r.origin||(type==='INBOUND'?'—':x.dep)||'—',
-          to:r.to||r.destination||(type==='INBOUND'?x.dep:'—')||'—',
-          time:r.time||r.arrivalTime||r.std||'—',
-          class:r.class||p.class||'—'
-        });
-      });
-      return out;
-    };
-
-    let ins=collect(x?.inbound,'INBOUND');
-    let outs=collect(x?.outbound,'OUTBOUND');
-
-    if(p.connection?.flight){
-      const c={
-        flight:String(p.connection.flight||'').toUpperCase(),
-        from:p.connection.from||p.connection.origin||p.connection.airport||'—',
-        to:p.connection.to||p.connection.destination||x.dep||'—',
-        time:p.connection.time||'—',
-        class:p.class||'—'
-      };
-      if(!ins.some(r=>r.flight===c.flight))ins.unshift(c);
-    }
-
-    const block=(type,rows)=>{
-      if(!rows.length)return '';
-      const inbound=type==='INBOUND';
-      return `<section class="pax-connection-card ${inbound?'inbound':'outbound'}">
-        <div class="pax-connection-card-head"><div><span class="pax-connection-icon">${inbound?'🛬':'🛫'}</span><b>${type}</b></div><strong>${rows.length} VOL${rows.length>1?'S':''}</strong></div>
-        <div class="pax-connection-columns"><span>VOL</span><span>ROUTE</span><span>HEURE</span><span>CLASSE</span></div>
-        <div class="pax-connection-card-body">${rows.map(r=>`<div class="pax-connection-card-row"><b>${esc(r.flight||'—')}</b><span>${esc(r.from||'—')} <i>→</i> ${esc(r.to||'—')}</span><strong>${esc(r.time||'—')}</strong><small>${esc(r.class||'—')}</small></div>`).join('')}</div>
-      </section>`;
-    };
-
-    return (ins.length||outs.length)
-      ?`<div class="pax-connections pax-connections-v2">${block('INBOUND',ins)}${block('OUTBOUND',outs)}</div>`
-      :'';
-  }
-
   const oldOpenPax=window.openPax;
   window.openPax=function(raw){
     if(!isGeneric()||!raw)return oldOpenPax?oldOpenPax(raw):null;
-    const x=f();
-    const p=enrichGenericPassenger(raw,x);
-    const savedNote=(typeof getPassengerNote==='function'?getPassengerNote(p):p.userNote)||'';
+    const p=normalizePax(raw);const x=f();const savedNote=(typeof getPassengerNote==='function'?getPassengerNote(p):p.userNote)||'';
     const ssr=cleanSsr(p.ssr).join(' · ')||'—';
-    const spec=cleanSpecificAgainstSsr(p)||'—';
+    const spec=cleanText(p.specific||p.category||p.fqtv?.tier||'')||'—';
     const fqtv=p.fqtv?`<div><small>FQTV</small><b>${esc(p.fqtv.number||p.fqtv.ffid||'—')}</b></div>`:'';
-    const emd=p.emd?`<div><small>EMD</small><b>${esc(p.emd)}</b></div>`:'';
-    const connections=genericPassengerConnectionsHtml(p,x);
-
-    showModal(p.name||'PASSAGER',x.flight,`
-      <div class="profile">
-        <div><small>SIÈGE</small><b>${esc(p.seat||'—')}</b></div>
-        <div><small>CLASSE</small><b>${esc(p.class||'—')}</b></div>
-        <div><small>GENRE / TITRE</small><b>${esc(titleGender(p))}</b></div>
-        <div><small>ETKT</small><b>${esc(p.etkt||'—')}</b></div>
-        ${emd}
-        ${fqtv}
-        <div><small>SSR</small><b>${esc(ssr)}</b></div>
-        <div class="profile-specificity"><small>SPÉCIFICITÉ</small><b>${esc(spec)}</b></div>
-      </div>
-      ${connections}
-      <div class="passenger-note-wrap">
-        <label>NOTE PASSAGER</label>
-        <textarea id="passengerNoteInput" class="passenger-note" placeholder="AJOUTER UNE INFORMATION OPÉRATIONNELLE...">${esc(savedNote)}</textarea>
-        <div class="passenger-note-actions">
-          <button class="note-save" onclick='savePassengerNote(${JSON.stringify(p)})'>ENREGISTRER NOTE</button>
-        </div>
-      </div>`);
+    showModal(p.name||'PASSAGER',x.flight,`<div class="profile"><div><small>SIÈGE</small><b>${esc(p.seat||'—')}</b></div><div><small>CLASSE</small><b>${esc(p.class||'—')}</b></div><div><small>GENRE / TITRE</small><b>${esc(titleGender(p))}</b></div><div><small>ETKT</small><b>${esc(p.etkt||'—')}</b></div><div><small>EMD</small><b>${esc(p.emd||'—')}</b></div>${fqtv}<div><small>SSR</small><b>${esc(ssr)}</b></div><div class="profile-specificity"><small>SPÉCIFICITÉ</small><b>${esc(spec)}</b></div></div><div class="passenger-note-wrap"><label>NOTE PASSAGER</label><textarea id="passengerNoteInput" class="passenger-note" placeholder="AJOUTER UNE INFORMATION OPÉRATIONNELLE...">${esc(savedNote)}</textarea><div class="passenger-note-actions"><button class="note-save" onclick='savePassengerNote(${JSON.stringify(p)})'>ENREGISTRER NOTE</button></div></div>`);
   };
 
   // BUILD132: openToolsLite + listener global neutralisés — OUTILS V50.21 reste actif.
@@ -23883,6 +23684,364 @@ try{
       }
     }catch(e){}
   },700);
+})();
+</script>
+
+
+<style id="alyzia-v5028-build133-ui">
+/* BUILD133 — TYPE A/C desktop: title and selector must never overlap */
+@media(min-width:621px){
+  .flight-head .headcell:nth-child(5){
+    display:flex!important;
+    flex-direction:column!important;
+    align-items:stretch!important;
+    justify-content:flex-start!important;
+    gap:10px!important;
+    padding-top:16px!important;
+    overflow:visible!important;
+  }
+  .flight-head .headcell:nth-child(5) .head-label{
+    position:relative!important;
+    z-index:6!important;
+    display:block!important;
+    width:100%!important;
+    min-height:20px!important;
+    margin:0!important;
+    line-height:20px!important;
+    background:#fff!important;
+  }
+  .flight-head .headcell:nth-child(5) .aircraft-select,
+  .flight-head .headcell:nth-child(5) .saria-ac-select{
+    position:relative!important;
+    z-index:2!important;
+    display:block!important;
+    width:100%!important;
+    margin:0!important;
+    min-height:44px!important;
+    flex:0 0 auto!important;
+  }
+}
+
+/* Lists generated by BUILD133 have their own explicit column models. */
+.paxlist.v5028-b133.booked .paxlist-head,
+.paxlist.v5028-b133.booked .paxrow{
+  grid-template-columns:minmax(280px,1fr) 115px 100px!important;
+}
+.paxlist.v5028-b133.card .paxlist-head,
+.paxlist.v5028-b133.card .paxrow{
+  grid-template-columns:minmax(280px,1fr) 115px 100px minmax(240px,1fr)!important;
+}
+.paxlist.v5028-b133.document .paxlist-head,
+.paxlist.v5028-b133.document .paxrow{
+  grid-template-columns:minmax(280px,1fr) 115px 100px minmax(240px,1fr)!important;
+}
+.paxlist.v5028-b133 .paxlist-head span,
+.paxlist.v5028-b133 .paxrow>*{min-width:0}
+
+/* Restore the missing visual prominence of the INBOUND card. */
+.connection-card.connection-inbound{
+  border:2px solid #bdd8f4!important;
+  box-shadow:0 3px 12px rgba(12,84,150,.08)!important;
+}
+
+/* Generic passenger connection block follows SQ visual language. */
+.pax-connection-card.inbound{
+  border:2px solid #bdd8f4!important;
+  border-left:4px solid #1b73e8!important;
+}
+
+@media(max-width:620px){
+  .paxlist.v5028-b133.booked .paxlist-head,
+  .paxlist.v5028-b133.booked .paxrow{
+    grid-template-columns:minmax(0,1fr) 58px 48px!important;
+  }
+  .paxlist.v5028-b133.card .paxlist-head,
+  .paxlist.v5028-b133.card .paxrow,
+  .paxlist.v5028-b133.document .paxlist-head,
+  .paxlist.v5028-b133.document .paxrow{
+    grid-template-columns:minmax(0,1fr) 58px 48px!important;
+  }
+  .paxlist.v5028-b133.card .paxlist-head span:nth-child(4),
+  .paxlist.v5028-b133.card .paxrow>*:nth-child(4),
+  .paxlist.v5028-b133.document .paxlist-head span:nth-child(4),
+  .paxlist.v5028-b133.document .paxrow>*:nth-child(4){
+    display:none!important;
+  }
+}
+</style>
+
+<script id="alyzia-v5028-build133-sq-pax-logic">
+(function(){
+  'use strict';
+  const SPECIFIC=new Set(['SQ','TK','BJ','TW']);
+  const A=v=>Array.isArray(v)?v:[];
+  const U=v=>String(v||'').trim().toUpperCase();
+  const E=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+
+  function current(){try{return typeof f==='function'?f():null}catch(e){return null}}
+  function generic(x=current()){return !!x&&!SPECIFIC.has(U(x.airline))}
+  function pkey(p){
+    const et=String(p?.etkt||'').replace(/\D/g,'');
+    if(et)return 'E:'+et;
+    const nm=U(p?.name||p?.fullName).replace(/[^A-Z0-9]/g,'');
+    const st=U(p?.seat);
+    return nm?`N:${nm}|${st}`:'';
+  }
+  function dedupe(list){
+    const out=[],map=new Map();
+    A(list).forEach(raw=>{
+      if(!raw)return;
+      const p={...raw};
+      p.name=String(p.name||p.fullName||'').replace(/\s+/g,' ').trim();
+      p.class=U(p.class||p.cabinClass);
+      p.ssr=[...new Set(A(p.ssr).map(U).filter(Boolean).filter(v=>!['MASTER','AS','TKNE'].includes(v)&&!/^ETK/.test(v)&&!/^EMD/.test(v)))];
+      const k=pkey(p);
+      if(!k)return;
+      if(!map.has(k)){map.set(k,out.length);out.push(p);return}
+      const q=out[map.get(k)];
+      q.ssr=[...new Set([...A(q.ssr),...A(p.ssr)])];
+      if(!q.etkt&&p.etkt)q.etkt=p.etkt;
+      if(!q.emd&&p.emd)q.emd=p.emd;
+      if(!q.seat&&p.seat)q.seat=p.seat;
+      if(!q.class&&p.class)q.class=p.class;
+      if(!q.title&&p.title)q.title=p.title;
+      if(!q.gender&&p.gender)q.gender=p.gender;
+      if(!q.specific&&p.specific)q.specific=p.specific;
+      if(!q.connection&&p.connection)q.connection=p.connection;
+    });
+    return out;
+  }
+
+  function listFor(key,x=current()){
+    if(!x)return [];
+    const k=U(key)==='ETKT'?'ETK':U(key);
+    let list=dedupe(A(x.common_lists?.[k]));
+    const pax=dedupe(A(x.passengers));
+    if(k==='ETK') list=dedupe([...list,...pax.filter(p=>p.etkt)]);
+    else if(k==='EMD') list=dedupe([...list,...pax.filter(p=>p.emd)]);
+    else if(k==='WCH') list=dedupe([...list,...pax.filter(p=>A(p.ssr).some(v=>/^WCH/.test(U(v))))]);
+    else if(k==='INF') list=dedupe([...list,...pax.filter(p=>A(p.ssr).includes('INF')||U(p.type||p.passengerType)==='INF')]);
+    else if(k==='CHLD') list=dedupe([...list,...pax.filter(p=>A(p.ssr).includes('CHLD')||U(p.type||p.passengerType)==='CHLD')]);
+    else if(k==='FQTV') list=dedupe([...list,...pax.filter(p=>A(p.ssr).includes('FQTV')||p.fqtv)]);
+    return list;
+  }
+
+  function syncCounts(x=current()){
+    if(!generic(x))return;
+    x.common=x.common||{};
+    x.common_lists=x.common_lists||{};
+    const keys=['INF','CHLD','WCH','FQTV','STAFF','WEB','EMD','ETK','MEAL','INAD','DEPA','DEPU','UMNR','MAAS'];
+    keys.forEach(k=>{
+      const l=listFor(k,x);
+      if(l.length || Number(x.common[k]||0)>0 || A(x.common_lists[k]).length){
+        x.common_lists[k]=l;
+        x.common[k]=l.length;
+      }
+    });
+    x.emd=x.common.EMD||0;
+    x.etk=x.common.ETK||0;
+    x.etkt=x.common.ETK||0;
+  }
+
+  function ssrText(p){
+    return [...new Set(A(p?.ssr).map(U).filter(Boolean).filter(v=>!['MASTER','AS','TKNE'].includes(v)&&!/^ETK/.test(v)&&!/^EMD/.test(v)))].join(' · ');
+  }
+
+  function connectionFlightsFor(p,x=current()){
+    if(!x)return [];
+    const norm=v=>U(v).replace(/[^A-Z0-9]/g,'');
+    const pk=pkey(p),name=norm(p?.name||p?.fullName),et=String(p?.etkt||'');
+    const rows=[...A(x.inbound),...A(x.outbound)];
+    const found=[];
+    rows.forEach(r=>{
+      const direct=A(r.passengers).some(q=>pkey(q)===pk);
+      const rowName=norm(r.passenger||r.name||r.fullName);
+      const match=direct || (et&&r.etkt&&String(r.etkt)===et) || (name&&rowName===name);
+      if(match && r.flight && !found.includes(U(r.flight)))found.push(U(r.flight));
+    });
+    if(p?.connection?.flight&&!found.includes(U(p.connection.flight)))found.push(U(p.connection.flight));
+    return found;
+  }
+
+  function specificityText(p,x=current()){
+    let t='';
+    try{
+      if(typeof cleanPassengerSpecificity==='function')t=String(cleanPassengerSpecificity(p)||'');
+      else t=String(p?.specific||p?.note||'');
+    }catch(e){t=String(p?.specific||p?.note||'')}
+    const codes=ssrText(p).split(' · ').filter(Boolean);
+    codes.forEach(c=>{
+      const safe=c.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+      t=t.replace(new RegExp(`(^|\\s*[·,;/]\\s*|\\s+)${safe}(?=\\s*[·,;/]|\\s*$)`,'gi'),' ');
+    });
+    connectionFlightsFor(p,x).forEach(fl=>{
+      const safe=fl.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+      t=t.replace(new RegExp(`\\b${safe}\\b`,'gi'),' ');
+    });
+    return t.replace(/\b(?:MASTER|AS|TKNE)\b/gi,' ')
+      .replace(/\bETKT?\s*\d{10,}\b/gi,' ')
+      .replace(/\bEMD\s*\d{10,}\b/gi,' ')
+      .replace(/\s*[·,;/]\s*[·,;/]\s*/g,' · ')
+      .replace(/^\s*[·,;/]\s*|\s*[·,;/]\s*$/g,'')
+      .replace(/\s{2,}/g,' ').trim();
+  }
+
+  // Card counts are the number of real, unique passenger dossiers.
+  const baseCommonTile=window.commonTile;
+  window.commonTile=function(key,label){
+    const x=current();
+    if(!generic(x)||typeof baseCommonTile!=='function')return baseCommonTile?baseCommonTile(key,label):'';
+    syncCounts(x);
+    return baseCommonTile(key,label);
+  };
+
+  // WCH category counts/list are based on the unique linked passengers, not raw source totals.
+  const baseGrouped=window.openGroupedParticularity;
+  window.openGroupedParticularity=function(key,label){
+    const x=current();
+    if(!generic(x)||U(key)!=='WCH')return baseGrouped?baseGrouped(key,label):null;
+    syncCounts(x);
+    const arr=listFor('WCH',x);
+    const codes=['WCHR','WCHS','WCHC'];
+    window.__b133WchGroups={};
+    const groups=codes.map(code=>{
+      const l=dedupe(arr.filter(p=>A(p.ssr).map(U).includes(code)));
+      window.__b133WchGroups[code]=l;
+      return [code,l];
+    }).filter(([,l])=>l.length);
+    showModal(label,x.flight,`<div class="meal-category-list">${groups.length?groups.map(([code,l])=>`
+      <button class="meal-category-row" onclick="openGroupedParticularityList('WCH','${code}')">
+        <span>${code}</span><b>${l.length}</b><small>VOIR LES PASSAGERS</small>
+      </button>`).join(''):'<div class="prepa-empty">AUCUN PASSAGER</div>'}</div>`);
+  };
+
+  const baseGroupedList=window.openGroupedParticularityList;
+  window.openGroupedParticularityList=function(key,code){
+    const x=current();
+    if(!generic(x)||U(key)!=='WCH')return baseGroupedList?baseGroupedList(key,code):null;
+    const list=dedupe(window.__b133WchGroups?.[U(code)]||listFor('WCH',x).filter(p=>A(p.ssr).map(U).includes(U(code))));
+    PAX_MODAL_SOURCE=list.slice(); PAX_MODAL_ITEMS=list.slice();
+    window.__b133PaxContext='CARD';
+    window.__b133PaxLabel='WCH';
+    showModal(`WCH · ${U(code)}`,x.flight,paxRows(list,list.length),true);
+  };
+
+  function renderRows(items,count,mode,label){
+    const list=dedupe(items);
+    const rows=list.map((p,i)=>{
+      const name=typeof passengerDisplayName==='function'?passengerDisplayName(p):(p.name||'PASSAGER');
+      const base=`<strong>${E(name)}</strong><span class="seat">${E(p.seat||'—')}</span><span class="class-cell">${E(p.class||'—')}</span>`;
+      if(mode==='BOOKED')return `<button class="paxrow" onclick="openPaxFromModal(${i})">${base}</button>`;
+      if(mode==='ETK')return `<button class="paxrow" onclick="openPaxFromModal(${i})">${base}<span class="specific">${E(p.etkt||'—')}</span></button>`;
+      if(mode==='EMD')return `<button class="paxrow" onclick="openPaxFromModal(${i})">${base}<span class="specific">${E(p.emd||'—')}</span></button>`;
+      const info=[ssrText(p),specificityText(p)].filter(Boolean).join(' · ')||'—';
+      return `<button class="paxrow" onclick="openPaxFromModal(${i})">${base}<span class="specific">${E(info)}</span></button>`;
+    }).join('');
+    let head='',cls='card';
+    if(mode==='BOOKED'){cls='booked';head='<div class="paxlist-head"><span>NOM / PRÉNOM</span><span>SIÈGE</span><span>CLASSE</span></div>'}
+    else if(mode==='ETK'){cls='document';head='<div class="paxlist-head"><span>NOM / PRÉNOM</span><span>SIÈGE</span><span>CLASSE</span><span>ETKT</span></div>'}
+    else if(mode==='EMD'){cls='document';head='<div class="paxlist-head"><span>NOM / PRÉNOM</span><span>SIÈGE</span><span>CLASSE</span><span>EMD</span></div>'}
+    else head='<div class="paxlist-head"><span>NOM / PRÉNOM</span><span>SIÈGE</span><span>CLASSE</span><span>SSR / SPÉCIFICITÉ</span></div>';
+    const shown=list.length, total=Number(count||shown);
+    return `<div class="paxlist v5028-b133 ${cls}">${head}${rows||'<div class="prepa-empty">AUCUN PASSAGER DÉTAILLÉ</div>'}</div>${total>shown?`<div style="margin-top:10px;color:#64768b;font-size:11px">AFFICHAGE DE ${shown} PASSAGER(S) SUR ${total}</div>`:''}`;
+  }
+
+  const basePaxRows=window.paxRows;
+  window.paxRows=function(items,count){
+    const x=current();
+    if(!generic(x))return basePaxRows?basePaxRows(items,count):'';
+    const label=U(window.__b133PaxLabel||window.__v5027CurrentPaxLabel||'');
+    const mode=window.__b133PaxContext==='BOOKED'?'BOOKED':label==='ETK'||label==='ETKT'?'ETK':label==='EMD'?'EMD':'CARD';
+    return renderRows(items,count,mode,label);
+  };
+
+  const baseShowPax=window.showPax;
+  window.showPax=function(label,items,count,sort='name',dir='asc'){
+    const x=current();
+    if(!generic(x))return baseShowPax?baseShowPax(label,items,count,sort,dir):null;
+    syncCounts(x);
+    const L=U(label);
+    const filled=listFor(L,x).length?listFor(L,x):dedupe(items);
+    window.__b133PaxContext='CARD';
+    window.__b133PaxLabel=L;
+    PAX_MODAL_SOURCE=filled.slice();
+    PAX_MODAL_ITEMS=typeof sortPaxItems==='function'?sortPaxItems(PAX_MODAL_SOURCE,sort,dir):filled.slice();
+    const enc=encodeURIComponent(label);
+    const next=k=>sort===k?(dir==='asc'?'desc':'asc'):'asc';
+    const arrow=a=>a?(dir==='asc'?' ▲':' ▼'):'';
+    const sortbar=`<div class="sortbar compact-sortbar">
+      <button class="${sort==='name'?'active':''}" onclick="showPax(decodeURIComponent('${enc}'),PAX_MODAL_SOURCE,${filled.length},'name','${next('name')}')">NOM${arrow(sort==='name')}</button>
+      <button class="${sort==='class'?'active':''}" onclick="showPax(decodeURIComponent('${enc}'),PAX_MODAL_SOURCE,${filled.length},'class','${next('class')}')">CLASSE${arrow(sort==='class')}</button>
+      <button class="${sort==='seat'?'active':''}" onclick="showPax(decodeURIComponent('${enc}'),PAX_MODAL_SOURCE,${filled.length},'seat','${next('seat')}')">SIÈGE${arrow(sort==='seat')}</button>
+    </div>`;
+    showModal(`${label} · ${filled.length}`,x.flight,sortbar+paxRows(PAX_MODAL_ITEMS,filled.length),true);
+  };
+
+  // BOOKED list gets only Name / Seat / Class.
+  const baseOpenBooked=window.openBooked;
+  if(typeof baseOpenBooked==='function'){
+    window.openBooked=function(){
+      window.__b133PaxContext='BOOKED';
+      window.__b133PaxLabel='BOOKED';
+      try{return baseOpenBooked.apply(this,arguments)}
+      finally{setTimeout(()=>{window.__b133PaxContext='';},0)}
+    };
+  }
+
+  // Passenger dossier: same operational split as SQ.
+  const baseOpenPax=window.openPax;
+  window.openPax=function(raw){
+    const x=current();
+    if(!generic(x)||!raw)return baseOpenPax?baseOpenPax(raw):null;
+    syncCounts(x);
+    let p=raw;
+    try{if(typeof resolvePassengerForDisplay==='function')p=resolvePassengerForDisplay(raw,x)}catch(e){}
+    p={...p};
+    const saved=typeof getPassengerNote==='function'?getPassengerNote(p):(p.userNote||'');
+    const ssr=ssrText(p)||'—';
+    const spec=specificityText(p,x)||'—';
+    const title=U(p.title||p.gender||p.passengerType)||'—';
+    const fq=p.fqtv?`<div><small>FQTV</small><b>${E(p.fqtv.number||p.fqtv.ffid||'—')}</b></div>`:'';
+    const connections=typeof passengerConnectionsHtml==='function'?passengerConnectionsHtml(p):'';
+    showModal(
+      E(typeof passengerDisplayName==='function'?passengerDisplayName(p):(p.name||'PASSAGER')),
+      x.flight,
+      `<div class="profile">
+        <div><small>SIÈGE</small><b>${E(p.seat||'—')}</b></div>
+        <div><small>CLASSE</small><b>${E(p.class||'—')}</b></div>
+        <div><small>GENRE / TITRE</small><b>${E(title)}</b></div>
+        <div><small>ETKT</small><b>${E(p.etkt||'—')}</b></div>
+        <div><small>EMD</small><b>${E(p.emd||'—')}</b></div>
+        ${fq}
+        <div><small>SSR</small><b>${E(ssr)}</b></div>
+        <div class="profile-specificity"><small>SPÉCIFICITÉ</small><b>${E(spec)}</b></div>
+      </div>
+      ${connections}
+      <div class="passenger-note-wrap">
+        <label>NOTE PASSAGER</label>
+        <textarea id="passengerNoteInput" class="passenger-note" placeholder="AJOUTER UNE INFORMATION OPÉRATIONNELLE...">${E(saved)}</textarea>
+        <div class="passenger-note-actions"><button class="note-save" onclick='savePassengerNote(${JSON.stringify(p)})'>ENREGISTRER NOTE</button></div>
+      </div>`,
+      true
+    );
+  };
+
+  // Mark INBOUND main card so its border is deterministic.
+  const baseFlightTable=window.flightTable;
+  if(typeof baseFlightTable==='function'){
+    window.flightTable=function(title,rows,inbound){
+      const html=baseFlightTable(title,rows,inbound);
+      return inbound?html.replace('connection-card compact-connections','connection-card compact-connections connection-inbound'):html;
+    };
+  }
+
+  // Keep counts synchronized before every generic render.
+  const baseRender=window.render;
+  if(typeof baseRender==='function'&&!baseRender.__b133){
+    window.render=function(){try{syncCounts(current())}catch(e){}return baseRender.apply(this,arguments)};
+    window.render.__b133=true;
+  }
+  setTimeout(()=>{try{syncCounts(current());if(typeof render==='function'&&currentView==='detail')render()}catch(e){}},250);
 })();
 </script>
 
