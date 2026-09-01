@@ -6,7 +6,7 @@
   <meta http-equiv="Expires" content="0">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V50.28 · BUILD134 · COUNTERS + MODAL BACK FIX</title>
+<title>ALYZIA OPS - V50.28 · BUILD135 · LIST DEDUP FIX</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -23771,11 +23771,31 @@ try{
   function normName(v){return U(v).replace(/[^A-Z0-9]/g,'')}
 
   function paxKey(p){
+    /* BUILD135:
+       The passenger dossier identity must not depend on ETKT/EMD.
+       Repeated imports can carry the same passenger several times with
+       different document fragments. Use the passenger identity first. */
+    const nm=normName(p?.name||p?.fullName);
+    const cls=U(p?.class||p?.cabinClass);
+    const st=U(p?.seat);
+    if(nm)return `P:${nm}|${cls}|${st}`;
     const et=String(p?.etkt||'').replace(/\D/g,'');
     if(et)return 'E:'+et;
-    const nm=normName(p?.name||p?.fullName);
-    const st=U(p?.seat);
-    return nm?`N:${nm}|${st}`:'';
+    const em=String(p?.emd||'').replace(/\D/g,'');
+    if(em)return 'M:'+em;
+    return '';
+  }
+
+  function mergeDocValues(a,b){
+    const vals=[];
+    const push=v=>{
+      String(v||'').split(/\s*[·,;|]\s*/).forEach(x=>{
+        const t=String(x||'').trim();
+        if(t&&!vals.includes(t))vals.push(t);
+      });
+    };
+    push(a); push(b);
+    return vals.join(' · ');
   }
 
   function cleanOne(raw){
@@ -23797,7 +23817,9 @@ try{
       if(!seen.has(k)){seen.set(k,out.length);out.push(p);return}
       const q=out[seen.get(k)];
       q.ssr=[...new Set([...A(q.ssr),...A(p.ssr)])];
-      ['etkt','emd','seat','class','title','gender','specific','note'].forEach(key=>{
+      q.etkt=mergeDocValues(q.etkt,p.etkt);
+      q.emd=mergeDocValues(q.emd,p.emd);
+      ['seat','class','title','gender','specific','note'].forEach(key=>{
         if(!q[key]&&p[key])q[key]=p[key];
       });
     });
