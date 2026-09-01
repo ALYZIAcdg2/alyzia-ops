@@ -6,7 +6,7 @@
   <meta http-equiv="Expires" content="0">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V50.28 · BUILD135 · TOOLS ONLY FIX</title>
+<title>ALYZIA OPS - V50.28 · GENERIC PAX + TOOLS FIXED</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -22166,9 +22166,19 @@ function v5013Build112FixTools(){
   const title=document.getElementById('modalTitle');
   if(!title || String(title.textContent||'').trim().toUpperCase()!=='OUTILS')return;
 
+  // V50.29 FIX : boucle infinie trouvée ici. Cette fonction est appelée par
+  // v5013Build112Observer, un MutationObserver qui écoute TOUT changement DOM
+  // (childList/subtree) sur toute la page. Or elle réassignait sub.innerHTML
+  // SANS CONDITION à chaque appel : chaque assignation d'innerHTML déclenche
+  // elle-même une mutation "childList", qui redéclenche l'observer, qui
+  // rappelle cette fonction, qui réassigne innerHTML à nouveau... → boucle
+  // infinie de microtâches dès que la modale OUTILS s'ouvre (titre = "OUTILS"),
+  // bloquant complètement le thread principal ("page qui plante / n'est plus
+  // accessible"). On ne réécrit plus le DOM que si le contenu diffère déjà.
+  const subTarget=`ALYZIA OPS · V50.15 · <span style="font-weight:950;color:#075fc8">BUILD 2026-08-30-117</span>`;
   const sub=document.getElementById('modalSub');
-  if(sub){
-    sub.innerHTML=`ALYZIA OPS · V50.15 · <span style="font-weight:950;color:#075fc8">BUILD 2026-08-30-117</span>`;
+  if(sub && sub.innerHTML!==subTarget){
+    sub.innerHTML=subTarget;
   }
 
   const body=document.getElementById('modalBody');
@@ -22322,7 +22332,7 @@ openTools=async function(){
         <span class="tool-icon">✈</span><b>SARIA</b><span>CABIN / SEATMAP</span>
       </button>
 
-      ${typeof opsCloudToolCardHtml==='function'?opsCloudToolCardHtml():''}
+      ${opsCloudToolCardHtml()}
     </div>`
   );
 
@@ -23618,8 +23628,6 @@ try{
   console.log('ALYZIA OPS V50.28 BUILD 130 — GENERIC PAX + TOOLS FIXED LOADED');
 })();
 </script>
-
-<!-- BUILD135: surgical OUTILS fix only. Base original BUILD131. No bootstrap/D1/FLIGHTS/import-engine changes. -->
 </body></html>
 <!-- V50.03: cloud status is debounced; 3 startup retries; transient sync failures no longer force immediate local mode. -->
 <!-- V50.0: generic airline PREPA engine + airline profiles; SQ/TK/BJ parser semantics unchanged. -->
