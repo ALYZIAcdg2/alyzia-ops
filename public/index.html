@@ -6,7 +6,7 @@
   <meta http-equiv="Expires" content="0">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V50.28 · GENERIC PAX + TOOLS FIXED</title>
+<title>ALYZIA OPS - V50.28 · BUILD132 · LEGACY TOOLS + AH1003</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -22280,6 +22280,35 @@ try{
 
 const V5014_BUILD='2026-08-30-117';
 
+
+/* BUILD132 — helper manquant du modal OUTILS V50.21.
+   Aucun nouveau moteur : uniquement rendu des cartes techniques existantes. */
+if(typeof window.opsCloudToolCardHtml!=='function'){
+  window.opsCloudToolCardHtml=function(){
+    const st=(typeof opsCloudStatusMarkup==='function')
+      ? opsCloudStatusMarkup()
+      : {cls:'warn',text:'⚠ ÉTAT CLOUD INDISPONIBLE'};
+
+    return `
+      <div class="ops-cloud-card">
+        <div id="opsCloudStatusBox" class="ops-cloud-status ${st.cls}">${st.text}</div>
+        <div class="ops-cloud-help">
+          D1 PARTAGÉ · RECONNEXION AUTOMATIQUE · PC, TABLETTE ET TÉLÉPHONE.
+        </div>
+        <button class="live-refresh" onclick="manualCloudRefresh()">↻ SYNCHRONISER</button>
+      </div>
+
+      <div class="adb-usage-card">
+        <div id="adbUsageBox">
+          <button class="live-refresh" onclick="loadAeroUsage()">AERODATABOX</button>
+        </div>
+      </div>
+
+      <button class="clear-all-flights-btn" onclick="openFullReset()">🗑 REMETTRE TOUT À ZÉRO</button>
+    `;
+  };
+}
+
 /* ---------- OUTILS ----------
    Rebuild complet : pas de bloc VERSION.
    Le BUILD est placé juste sous ALYZIA OPS · V50.15.
@@ -22969,31 +22998,8 @@ try{
     return typeof window[name]==='function'?window[name]:fallback;
   }
 
-  // OUTILS robuste : ne dépend pas des fonctions de stats imports qui peuvent casser le modal.
-  window.openTools=async function(){
-    const body='<div class="tools-grid">'+
-      '<button class="tool-card tools-imports-featured" onclick="openImportsDashboard()">'+
-        '<span class="tool-icon">⇩</span><b>IMPORTS GMAIL</b><span>PIPELINE GMAIL / R2 / D1</span>'+
-      '</button>'+
-      '<button class="tool-card" onclick="openFlightImport()">'+
-        '<span class="tool-icon">⇩</span><b>IMPORTER VOLS</b><span>EXCEL XLS / XLSX</span>'+
-      '</button>'+
-      '<button class="tool-card" onclick="openCreateFlight()">'+
-        '<span class="tool-icon">＋</span><b>CRÉER VOL</b><span>AJOUT MANUEL</span>'+
-      '</button>'+
-      '<button class="tool-card company-config-tool" onclick="openCompanyConfig()">'+
-        '<span class="tool-icon">⚙</span><b>CONFIG COMPAGNIE</b><span>CLASSES, MODULES, CARTES SSR</span>'+
-      '</button>'+
-      '<button class="tool-card" onclick="openSeatmap()">'+
-        '<span class="tool-icon">▦</span><b>SEATMAP</b><span>PLAN CABINE</span>'+
-      '</button>'+
-      '<button class="tool-card" onclick="openSaria()">'+
-        '<span class="tool-icon">✈</span><b>SARIA</b><span>CABIN / SEATMAP</span>'+
-      '</button>'+
-      (typeof opsCloudToolCardHtml==='function'?opsCloudToolCardHtml():'')+
-    '</div>';
-    showModal('OUTILS','ALYZIA OPS · '+(window.ALYZIA_APP_VERSION||'V50.24')+' · BUILD '+(window.ALYZIA_APP_BUILD||V5024_BUILD),body);
-  };
+
+  // BUILD132: surcharge OUTILS V50.24 neutralisée — retour au modal structuré V50.21.
 
   // FQTV générique : une seule carte existante FQTV, mais catégories internes
   // depuis les fichiers (ex AH : DJURDJURA / TAHAT).
@@ -23578,47 +23584,7 @@ try{
     showModal(p.name||'PASSAGER',x.flight,`<div class="profile"><div><small>SIÈGE</small><b>${esc(p.seat||'—')}</b></div><div><small>CLASSE</small><b>${esc(p.class||'—')}</b></div><div><small>GENRE / TITRE</small><b>${esc(titleGender(p))}</b></div><div><small>ETKT</small><b>${esc(p.etkt||'—')}</b></div><div><small>EMD</small><b>${esc(p.emd||'—')}</b></div>${fqtv}<div><small>SSR</small><b>${esc(ssr)}</b></div><div class="profile-specificity"><small>SPÉCIFICITÉ</small><b>${esc(spec)}</b></div></div><div class="passenger-note-wrap"><label>NOTE PASSAGER</label><textarea id="passengerNoteInput" class="passenger-note" placeholder="AJOUTER UNE INFORMATION OPÉRATIONNELLE...">${esc(savedNote)}</textarea><div class="passenger-note-actions"><button class="note-save" onclick='savePassengerNote(${JSON.stringify(p)})'>ENREGISTRER NOTE</button></div></div>`);
   };
 
-  function openToolsLite(){
-    try{
-      // V50.28 BUILD130 — ouverture directe du modal OUTILS.
-      // On ne dépend plus des anciennes surcharges openTools()/showModal().
-      const modal=document.getElementById('modal');
-      const title=document.getElementById('modalTitle');
-      const sub=document.getElementById('modalSub');
-      const body=document.getElementById('modalBody');
-      if(!modal||!title||!sub||!body){
-        console.error('V50.28 OUTILS: structure modal introuvable');
-        return;
-      }
-      try{ if(Array.isArray(window.modalStack)) window.modalStack.length=0; }catch(e){}
-      title.textContent='OUTILS';
-      sub.textContent='ALYZIA OPS · V50.28 · BUILD 130';
-      body.innerHTML=`<div class="tools-grid">
-        <button class="tool-card tools-imports-featured" onclick="openImportsDashboard()"><span class="tool-icon">⇩</span><b>IMPORTS GMAIL</b><span>PIPELINE GMAIL / R2 / D1</span></button>
-        <button class="tool-card company-config-tool" onclick="openCompanyConfig()"><span class="tool-icon">⚙</span><b>CONFIG COMPAGNIE</b><span>CLASSES, MODULES, CARTES SSR</span></button>
-        <button class="tool-card" onclick="openFlightImport()"><span class="tool-icon">⇩</span><b>IMPORTER VOLS</b><span>EXCEL XLS / XLSX</span></button>
-        <button class="tool-card" onclick="openCreateFlight()"><span class="tool-icon">＋</span><b>CRÉER VOL</b><span>AJOUT MANUEL</span></button>
-        <button class="tool-card" onclick="openSeatmap()"><span class="tool-icon">▦</span><b>SEATMAP</b><span>PLAN CABINE</span></button>
-        <button class="tool-card" onclick="openSaria()"><span class="tool-icon">✈</span><b>SARIA</b><span>CABIN / SEATMAP</span></button>
-      </div>`;
-      modal.classList.add('open');
-      const back=document.getElementById('modalBackBtn');
-      if(back)back.style.display='none';
-    }catch(err){
-      console.error('V50.28 OUTILS',err);
-    }
-  }
-  window.openTools=openToolsLite;
-  document.addEventListener('click',function(e){
-    const b=e.target&&e.target.closest&&e.target.closest('button');
-    if(!b)return;
-    const txt=(b.textContent||'').trim().toUpperCase();
-    const oc=String(b.getAttribute('onclick')||'');
-    if(txt==='OUTILS'||oc.includes('openTools')){
-      e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
-      setTimeout(openToolsLite,0);
-    }
-  },true);
+  // BUILD132: openToolsLite + listener global neutralisés — OUTILS V50.21 reste actif.
   const oldRender=window.render;
   if(typeof oldRender==='function'&&!oldRender.__v5027){
     window.render=function(){try{applyClean(typeof f==='function'?f():null)}catch(e){};return oldRender.apply(this,arguments)};
@@ -23628,6 +23594,99 @@ try{
   console.log('ALYZIA OPS V50.28 BUILD 130 — GENERIC PAX + TOOLS FIXED LOADED');
 })();
 </script>
+
+<script id="alyzia-build132-ah1003-fallback">
+/* BUILD132 — AH1003 test fallback.
+   Local only until a real AH1003 exists in D1/imports.
+   Known locked values:
+   01SEP2026 · AH1003 · CDG-ALG · 738 · TOTAL ELAPSED TIME 02:15.
+   GATE/IMMAT remain manual. STD/STA/config/capacity are NOT invented. */
+(function(){
+  'use strict';
+
+  function hasAh1003(){
+    return Array.isArray(window.FLIGHTS || (typeof FLIGHTS!=='undefined'?FLIGHTS:null)) &&
+      (window.FLIGHTS || FLIGHTS).some(x =>
+        String(x?.airline||'').toUpperCase()==='AH' &&
+        String(x?.flight||'').toUpperCase()==='AH1003' &&
+        String(x?.date||'')==='2026-09-01'
+      );
+  }
+
+  function ensureAh1003Test(){
+    try{
+      if(typeof FLIGHTS==='undefined' || !Array.isArray(FLIGHTS) || hasAh1003()) return false;
+
+      let x;
+      if(typeof defaultFlightObject==='function'){
+        x=defaultFlightObject(['738','AH','AH1003','ALG','','','','2026-09-01']);
+      }else{
+        x={
+          airline:'AH',flight:'AH1003',dep:'CDG',dest:'ALG',date:'2026-09-01',
+          std:'',sta:'',aircraft:'738',reg:'—',gate:'—',parking:'—',
+          config:{Y:0},booked:{Y:0},web:{Y:0},meals:{Y:0},
+          common:{},common_lists:{},passengers:[],inbound:[],outbound:[]
+        };
+      }
+
+      x.airline='AH';
+      x.flight='AH1003';
+      x.dep='CDG';
+      x.dest='ALG';
+      x.date='2026-09-01';
+      x.aircraft='738';
+      x.std=x.std||'';
+      x.sta=x.sta||'';
+      x.duration=135;
+      x.durationSource='JFE_TOTAL_ELAPSED_TIME';
+      x.reg='—';
+      x.gate='—';
+      x.parking=x.parking||'—';
+      x.localTestFallback=true;
+      x.genericTestFlight=true;
+
+      FLIGHTS.push(x);
+      FLIGHTS.sort((a,b)=>
+        String(a?.date||'').localeCompare(String(b?.date||'')) ||
+        String(a?.std||'').localeCompare(String(b?.std||'')) ||
+        String(a?.flight||'').localeCompare(String(b?.flight||''))
+      );
+      return true;
+    }catch(e){
+      console.warn('BUILD132 AH1003 FALLBACK',e);
+      return false;
+    }
+  }
+
+  // Keep the test shell available after D1 realtime replacements,
+  // but never replace a real AH1003 returned by D1.
+  if(typeof window.renderHome==='function'){
+    const baseRenderHome=window.renderHome;
+    window.renderHome=function(){
+      ensureAh1003Test();
+      return baseRenderHome.apply(this,arguments);
+    };
+  }
+
+  if(typeof window.render==='function'){
+    const baseRender=window.render;
+    window.render=function(){
+      ensureAh1003Test();
+      return baseRender.apply(this,arguments);
+    };
+  }
+
+  setTimeout(function(){
+    const added=ensureAh1003Test();
+    try{
+      if(added && typeof renderHome==='function' && (typeof currentView==='undefined' || currentView==='home')){
+        renderHome();
+      }
+    }catch(e){}
+  },700);
+})();
+</script>
+
 </body></html>
 <!-- V50.03: cloud status is debounced; 3 startup retries; transient sync failures no longer force immediate local mode. -->
 <!-- V50.0: generic airline PREPA engine + airline profiles; SQ/TK/BJ parser semantics unchanged. -->
