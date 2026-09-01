@@ -12432,6 +12432,31 @@ function v50GenericUniquePush(list,item){
  ].join('|')===key))list.push(item);
 }
 
+function v50NamedIdentityPush(list,item){
+ // V50.30 — dédoublonnage par identité (nom normalisé) pour les entrées
+ // issues du parseur nominatif structuré : deux occurrences de la même
+ // personne dans une même catégorie sont fusionnées (on garde les champs
+ // déjà renseignés) plutôt que dupliquées si le texte source diffère
+ // légèrement entre deux captures du même rapport (cf. genericRowToPassenger).
+ if(!item)return;
+ const idKey=sqNormalizeIdentityName(item.name);
+ if(!idKey){v50GenericUniquePush(list,item);return;}
+ const idx=list.findIndex(p=>sqNormalizeIdentityName(p.name)===idKey);
+ if(idx===-1){list.push(item);return;}
+ const cur=list[idx];
+ list[idx]={
+  ...cur,
+  seat:cur.seat||item.seat,
+  class:cur.class||item.class,
+  title:cur.title||item.title,
+  etkt:cur.etkt||item.etkt,
+  emd:cur.emd||item.emd,
+  fqtv:cur.fqtv||item.fqtv,
+  specific:cur.specific||item.specific,
+  note:cur.note||item.note
+ };
+}
+
 /* V50.29 — parser nominatif générique "à la SQ" (parseSqNamedReportRows).
    Au lieu de deviner nom/siège/ETKT ligne par ligne indépendamment pour
    chaque code (WCH/CHLD/INF/FQTV/EMD...), on reconnaît la structure réelle
@@ -12528,7 +12553,17 @@ function parseGenericNamedReportRows(sourceBlock){
  return out;
 }
 
-function genericRowToPassenger(row,code,key){
+function genericRowToPassenger(row,codes,key){
+ // V50.30 FIX : l'appelant passait toujours codes[0] (ex. "WCHR" en premier
+ // dans la liste des codes WCH) au lieu du VRAI code présent sur la ligne.
+ // Résultat : TOUS les passagers WCH (qu'ils soient WCHR, WCHS ou WCHC dans
+ // le rapport source) se retrouvaient étiquetés "WCHR", donc la répartition
+ // WCHR/WCHS/WCHC affichée à l'écran était fausse. On cherche maintenant le
+ // code réellement présent dans row.tail parmi tous les codes candidats.
+ const codeList=Array.isArray(codes)?codes:[codes];
+ const tailUpper=String(row.tail||'').toUpperCase();
+ let code=codeList.find(c=>new RegExp(`\\b${String(c).replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}\\b`).test(tailUpper))||codeList[0]||key;
+
  if(key==='FQTV'){
   // V50.29 — LIST OF: FQA : après les champs standards, la ligne porte le
   // niveau de fidélité (ex. "DJURDJURA", "TAHAT") puis le numéro carte
@@ -12861,8 +12896,16 @@ function prepareGenericImportManifest(rawOriginal,airline){
   if(namedRows.length){
    namedRows.forEach(row=>{
     occurrenceCount++;
-    const p=genericRowToPassenger(row,def.codes[0],def.key);
-    if(p && (p.name||p.seat||p.etkt))v50GenericUniquePush(commonLists[def.key],p);
+    const p=genericRowToPassenger(row,def.codes,def.key);
+    // V50.30 FIX : dédoublonnage par identité (nom), pas par égalité stricte
+    // de tout le texte (note/specific). Si le même rapport source apparaît
+    // deux fois dans le message (pièce jointe dupliquée, ré-extraction PDF
+    // avec un espacement légèrement différent...), l'ancien dédoublonnage
+    // (basé sur name+pnr+seat+etkt+emd+specific+note) ne matchait plus dès
+    // que le texte différait d'un caractère, doublant les effectifs affichés
+    // (ex. FQTV 21 au lieu de 11). Un même passager ne doit apparaître
+    // qu'une fois dans une même catégorie.
+    if(p && (p.name||p.seat||p.etkt))v50NamedIdentityPush(commonLists[def.key],p);
    });
    for(const c of def.codes){
     const ec=v50ExplicitCount(upper,c);
