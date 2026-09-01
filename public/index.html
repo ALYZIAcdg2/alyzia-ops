@@ -6,7 +6,7 @@
   <meta http-equiv="Expires" content="0">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V50.28 · BUILD133 · TOOLS NATIVE FIX</title>
+<title>ALYZIA OPS - V50.28 · BUILD135 · TOOLS ONLY FIX</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -7082,7 +7082,7 @@ html,body{
 const ALYZIA_APP_VERSION='V50.27';
 const ALYZIA_SQ_LOCK_VERSION='V49.64';
 const ALYZIA_TK_LOCK_VERSION='V49.69';
-const ALYZIA_APP_BUILD='2026-08-31-133';
+const ALYZIA_APP_BUILD='2026-08-31-129';
 </script>
 <header class="topbar">
  <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V50.27</span></div>
@@ -8531,7 +8531,6 @@ function twPrintHtml(s){
  </table><script>window.onload=()=>setTimeout(()=>window.print(),150)<\/script><!-- V49.83: silent multi-device auto-sync 0.5s selected / 1.5s global; TK cards view-only; mobile TYPE header hardened. -->
 <!-- V49.88: compact mobile WSA KPI; named standby list when an explicit TK standby report is available. -->
 <!-- V50.15: stabilisation imports nominative, PREPA dynamic generic/specific, sticky desktop nav, editable flight notes, A/C selector fix. -->
-<!-- V50.28 BUILD133: OUTILS final active override replaced with native stable renderer; no opsCloudToolCardHtml dependency; no capture click interception. -->
 </body></html>`;
 }
 function ozPrintHtml(s){
@@ -22278,55 +22277,71 @@ const V5014_BUILD='2026-08-30-117';
 openTools=async function(){
   await fetchRecentPrepaImports().catch(()=>{});
 
-  showModal('OUTILS','ALYZIA OPS',`<div class="tools-grid">
-    <div class="tools-version-card">
-      <div class="version-main">
-        <small>VERSION DE L’APPLICATION</small>
-        <b>${ALYZIA_APP_VERSION}</b>
-        <span class="version-build">BUILD ${ALYZIA_APP_BUILD}</span>
+  const g=impGlobal();
+
+  showModal(
+    'OUTILS',
+    `ALYZIA OPS · V50.15`,
+    `<div class="tools-grid">
+      <div class="imports-main-card" style="cursor:default">
+        <div class="imports-main-top">
+          <span class="imports-main-icon">⇩</span>
+          <span class="imports-main-state">${g.errors?'À VÉRIFIER':'ACTIF'}</span>
+        </div>
+        <h3>IMPORTS GMAIL</h3>
+        <p>MULTI-COMPAGNIES — DÉTECTION, CRÉATION DU VOL SI NÉCESSAIRE ET INJECTION AUTOMATIQUE.</p>
+        <div class="imports-main-stats">
+          <div class="imports-main-stat"><b>${g.files}</b><span>FICHIERS</span></div>
+          <div class="imports-main-stat"><b>${g.injected}/${g.flights}</b><span>VOLS INJECTÉS</span></div>
+          <div class="imports-main-stat"><b>${g.unidentified}</b><span>À IDENTIFIER</span></div>
+        </div>
+        <div class="v5014-import-actions">
+          <button class="v5013-admin-btn" onclick="openImportsDashboard()">VOIR IMPORTS</button>
+          <button class="v5013-admin-btn repair" onclick="v5013OpenRepair()">↻ REPAIR</button>
+          <button id="v5014ToolsDriveBtn" class="v5013-admin-btn drive bad" onclick="v5013ConfigureDrive()">⚙ CONFIGURER GOOGLE DRIVE</button>
+        </div>
       </div>
-      <span class="app-version-badge">${ALYZIA_APP_VERSION}</span>
-    </div>
 
-    ${renderImportsMainCard()}
+      <button class="tool-card" onclick="openFlightImport()">
+        <span class="tool-icon">⇩</span><b>IMPORTER VOLS</b><span>EXCEL XLS / XLSX</span>
+      </button>
 
-    <button class="tool-card" onclick="openFlightImport()">
-      <span class="tool-icon">⇩</span><b>IMPORTER VOLS</b><span>EXCEL XLS / XLSX</span>
-    </button>
+      <button class="tool-card" onclick="openCreateFlight()">
+        <span class="tool-icon">＋</span><b>CRÉER VOL</b><span>AJOUT MANUEL</span>
+      </button>
 
-    <button class="tool-card" onclick="openCreateFlight()">
-      <span class="tool-icon">＋</span><b>CRÉER VOL</b><span>AJOUT MANUEL</span>
-    </button>
+      <button class="tool-card company-config-tool" onclick="openCompanyConfig()">
+        <span class="tool-icon">⚙</span><b>CONFIG COMPAGNIE</b><span>CLASSES ET MODULES</span>
+      </button>
 
-    <button class="tool-card company-config-tool" onclick="openCompanyConfig()">
-      <span class="tool-icon">⚙</span><b>CONFIG COMPAGNIE</b><span>CLASSES ET MODULES</span>
-    </button>
+      <button class="tool-card" onclick="openSeatmap()">
+        <span class="tool-icon">▦</span><b>SEATMAP</b><span>PLAN CABINE</span>
+      </button>
 
-    <button class="tool-card" onclick="openSeatmap()">
-      <span class="tool-icon">▦</span><b>SEATMAP</b><span>PLAN CABINE</span>
-    </button>
+      <button class="tool-card" onclick="openSaria()">
+        <span class="tool-icon">✈</span><b>SARIA</b><span>CABIN / SEATMAP</span>
+      </button>
 
-    <button class="tool-card" onclick="openSariaApp()">
-      <span class="tool-icon">✈</span><b>SARIA</b><span>CABIN / SEATMAP</span>
-    </button>
+      ${typeof opsCloudToolCardHtml==='function'?opsCloudToolCardHtml():''}
+    </div>`
+  );
 
-    <div class="ops-cloud-card">
-      ${(()=>{const st=opsCloudStatusMarkup();return `<div id="opsCloudStatusBox" class="ops-cloud-status ${st.cls}">${st.text}</div>`})()}
-      <div class="ops-cloud-help">
-        D1 PARTAGÉ · RECONNEXION AUTOMATIQUE · PC, TABLETTE ET TÉLÉPHONE.
-        <br><b style="color:#087749">V50.28 · BUILD133 · OUTILS NATIVE FIX</b>
-      </div>
-      <button class="live-refresh" onclick="manualCloudRefresh()">↻ SYNCHRONISER</button>
-    </div>
+  /* modalSub est rempli avec textContent par le moteur historique :
+     on force donc ici les deux lignes souhaitées. */
+  const sub=document.getElementById('modalSub');
+  if(sub){
+    sub.innerHTML=`ALYZIA OPS · V50.15<br><span style="font-size:9px;font-weight:950;color:#075fc8">BUILD ${V5014_BUILD}</span>`;
+  }
 
-    <div class="adb-usage-card">
-      <div id="adbUsageBox">
-        <button class="live-refresh" onclick="loadAeroUsage()">AERODATABOX</button>
-      </div>
-    </div>
-
-    <button class="clear-all-flights-btn" onclick="openFullReset()">🗑 REMETTRE TOUT À ZÉRO</button>
-  </div>`);
+  setTimeout(async()=>{
+    const btn=document.getElementById('v5014ToolsDriveBtn');
+    if(!btn)return;
+    const drive=await v5013GetDriveStatus();
+    btn.className=`v5013-admin-btn drive ${drive.configured?'ok':'bad'}`;
+    btn.textContent=drive.configured
+      ? `✓ GOOGLE DRIVE DIRECT${drive.connectedEmail?' · '+drive.connectedEmail:''}`
+      : (drive.oauthClientConfigured?'⚙ CONFIGURER GOOGLE DRIVE':'⚠ OAUTH GOOGLE À FINALISER');
+  },0);
 };
 
 
@@ -22944,6 +22959,32 @@ try{
     return typeof window[name]==='function'?window[name]:fallback;
   }
 
+  // OUTILS robuste : ne dépend pas des fonctions de stats imports qui peuvent casser le modal.
+  window.openTools=async function(){
+    const body='<div class="tools-grid">'+
+      '<button class="tool-card tools-imports-featured" onclick="openImportsDashboard()">'+
+        '<span class="tool-icon">⇩</span><b>IMPORTS GMAIL</b><span>PIPELINE GMAIL / R2 / D1</span>'+
+      '</button>'+
+      '<button class="tool-card" onclick="openFlightImport()">'+
+        '<span class="tool-icon">⇩</span><b>IMPORTER VOLS</b><span>EXCEL XLS / XLSX</span>'+
+      '</button>'+
+      '<button class="tool-card" onclick="openCreateFlight()">'+
+        '<span class="tool-icon">＋</span><b>CRÉER VOL</b><span>AJOUT MANUEL</span>'+
+      '</button>'+
+      '<button class="tool-card company-config-tool" onclick="openCompanyConfig()">'+
+        '<span class="tool-icon">⚙</span><b>CONFIG COMPAGNIE</b><span>CLASSES, MODULES, CARTES SSR</span>'+
+      '</button>'+
+      '<button class="tool-card" onclick="openSeatmap()">'+
+        '<span class="tool-icon">▦</span><b>SEATMAP</b><span>PLAN CABINE</span>'+
+      '</button>'+
+      '<button class="tool-card" onclick="openSaria()">'+
+        '<span class="tool-icon">✈</span><b>SARIA</b><span>CABIN / SEATMAP</span>'+
+      '</button>'+
+      (typeof opsCloudToolCardHtml==='function'?opsCloudToolCardHtml():'')+
+    '</div>';
+    showModal('OUTILS','ALYZIA OPS · '+(window.ALYZIA_APP_VERSION||'V50.24')+' · BUILD '+(window.ALYZIA_APP_BUILD||V5024_BUILD),body);
+  };
+
   // FQTV générique : une seule carte existante FQTV, mais catégories internes
   // depuis les fichiers (ex AH : DJURDJURA / TAHAT).
   const originalOpenFqtvCategories=typeof openFqtvCategories==='function'?openFqtvCategories:null;
@@ -23527,6 +23568,47 @@ try{
     showModal(p.name||'PASSAGER',x.flight,`<div class="profile"><div><small>SIÈGE</small><b>${esc(p.seat||'—')}</b></div><div><small>CLASSE</small><b>${esc(p.class||'—')}</b></div><div><small>GENRE / TITRE</small><b>${esc(titleGender(p))}</b></div><div><small>ETKT</small><b>${esc(p.etkt||'—')}</b></div><div><small>EMD</small><b>${esc(p.emd||'—')}</b></div>${fqtv}<div><small>SSR</small><b>${esc(ssr)}</b></div><div class="profile-specificity"><small>SPÉCIFICITÉ</small><b>${esc(spec)}</b></div></div><div class="passenger-note-wrap"><label>NOTE PASSAGER</label><textarea id="passengerNoteInput" class="passenger-note" placeholder="AJOUTER UNE INFORMATION OPÉRATIONNELLE...">${esc(savedNote)}</textarea><div class="passenger-note-actions"><button class="note-save" onclick='savePassengerNote(${JSON.stringify(p)})'>ENREGISTRER NOTE</button></div></div>`);
   };
 
+  function openToolsLite(){
+    try{
+      // V50.28 BUILD130 — ouverture directe du modal OUTILS.
+      // On ne dépend plus des anciennes surcharges openTools()/showModal().
+      const modal=document.getElementById('modal');
+      const title=document.getElementById('modalTitle');
+      const sub=document.getElementById('modalSub');
+      const body=document.getElementById('modalBody');
+      if(!modal||!title||!sub||!body){
+        console.error('V50.28 OUTILS: structure modal introuvable');
+        return;
+      }
+      try{ if(Array.isArray(window.modalStack)) window.modalStack.length=0; }catch(e){}
+      title.textContent='OUTILS';
+      sub.textContent='ALYZIA OPS · V50.28 · BUILD 130';
+      body.innerHTML=`<div class="tools-grid">
+        <button class="tool-card tools-imports-featured" onclick="openImportsDashboard()"><span class="tool-icon">⇩</span><b>IMPORTS GMAIL</b><span>PIPELINE GMAIL / R2 / D1</span></button>
+        <button class="tool-card company-config-tool" onclick="openCompanyConfig()"><span class="tool-icon">⚙</span><b>CONFIG COMPAGNIE</b><span>CLASSES, MODULES, CARTES SSR</span></button>
+        <button class="tool-card" onclick="openFlightImport()"><span class="tool-icon">⇩</span><b>IMPORTER VOLS</b><span>EXCEL XLS / XLSX</span></button>
+        <button class="tool-card" onclick="openCreateFlight()"><span class="tool-icon">＋</span><b>CRÉER VOL</b><span>AJOUT MANUEL</span></button>
+        <button class="tool-card" onclick="openSeatmap()"><span class="tool-icon">▦</span><b>SEATMAP</b><span>PLAN CABINE</span></button>
+        <button class="tool-card" onclick="openSaria()"><span class="tool-icon">✈</span><b>SARIA</b><span>CABIN / SEATMAP</span></button>
+      </div>`;
+      modal.classList.add('open');
+      const back=document.getElementById('modalBackBtn');
+      if(back)back.style.display='none';
+    }catch(err){
+      console.error('V50.28 OUTILS',err);
+    }
+  }
+  window.openTools=openToolsLite;
+  document.addEventListener('click',function(e){
+    const b=e.target&&e.target.closest&&e.target.closest('button');
+    if(!b)return;
+    const txt=(b.textContent||'').trim().toUpperCase();
+    const oc=String(b.getAttribute('onclick')||'');
+    if(txt==='OUTILS'||oc.includes('openTools')){
+      e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
+      setTimeout(openToolsLite,0);
+    }
+  },true);
   const oldRender=window.render;
   if(typeof oldRender==='function'&&!oldRender.__v5027){
     window.render=function(){try{applyClean(typeof f==='function'?f():null)}catch(e){};return oldRender.apply(this,arguments)};
@@ -23536,6 +23618,8 @@ try{
   console.log('ALYZIA OPS V50.28 BUILD 130 — GENERIC PAX + TOOLS FIXED LOADED');
 })();
 </script>
+
+<!-- BUILD135: surgical OUTILS fix only. Base original BUILD131. No bootstrap/D1/FLIGHTS/import-engine changes. -->
 </body></html>
 <!-- V50.03: cloud status is debounced; 3 startup retries; transient sync failures no longer force immediate local mode. -->
 <!-- V50.0: generic airline PREPA engine + airline profiles; SQ/TK/BJ parser semantics unchanged. -->
