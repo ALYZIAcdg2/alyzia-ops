@@ -6,7 +6,7 @@
   <meta http-equiv="Expires" content="0">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V50.28 · BUILD135 · LIST DEDUP FIX</title>
+<title>ALYZIA OPS - V50.28 · BUILD136 · CANONICAL PAX ID FIX</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -23768,7 +23768,22 @@ try{
   const H=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
   function x(){try{return typeof f==='function'?f():null}catch(e){return null}}
   function generic(fx=x()){return !!fx&&!SPECIFIC.has(U(fx.airline))}
-  function normName(v){return U(v).replace(/[^A-Z0-9]/g,'')}
+  function normName(v){
+    /* BUILD136 — canonical passenger identity.
+       Titles may be embedded in the imported name in several forms:
+       "NAME · MRS", "NAME MRS", while another source has only "NAME".
+       They must resolve to the same passenger dossier. */
+    let t=U(v)
+      .replace(/[·•]/g,' ')
+      .replace(/[.,;:]+/g,' ')
+      .replace(/\s+/g,' ')
+      .trim();
+
+    /* Remove only terminal passenger titles, never arbitrary name tokens. */
+    t=t.replace(/\s+(MR|MRS|MS|MISS|MSTR)\s*$/,'').trim();
+
+    return t.replace(/[^A-Z0-9]/g,'');
+  }
 
   function paxKey(p){
     /* BUILD135:
@@ -23776,9 +23791,7 @@ try{
        Repeated imports can carry the same passenger several times with
        different document fragments. Use the passenger identity first. */
     const nm=normName(p?.name||p?.fullName);
-    const cls=U(p?.class||p?.cabinClass);
-    const st=U(p?.seat);
-    if(nm)return `P:${nm}|${cls}|${st}`;
+    if(nm)return `P:${nm}`;
     const et=String(p?.etkt||'').replace(/\D/g,'');
     if(et)return 'E:'+et;
     const em=String(p?.emd||'').replace(/\D/g,'');
@@ -23800,7 +23813,15 @@ try{
 
   function cleanOne(raw){
     const p={...(raw||{})};
-    p.name=String(p.name||p.fullName||'').replace(/\s+/g,' ').trim();
+    p.name=String(p.name||p.fullName||'')
+      .replace(/[·•]/g,' ')
+      .replace(/\s+/g,' ')
+      .trim();
+
+    /* Preserve title as data, but do not duplicate it inside the displayed name. */
+    const embeddedTitle=(p.name.match(/\s+(MR|MRS|MS|MISS|MSTR)\s*$/i)||[])[1]||'';
+    if(embeddedTitle && !p.title)p.title=embeddedTitle.toUpperCase();
+    p.name=p.name.replace(/\s+(MR|MRS|MS|MISS|MSTR)\s*$/i,'').trim();
     p.class=U(p.class||p.cabinClass);
     p.ssr=[...new Set(A(p.ssr).map(U).filter(Boolean).filter(v=>
       !['MASTER','AS','TKNE'].includes(v) && !/^ETK/.test(v) && !/^EMD/.test(v)
