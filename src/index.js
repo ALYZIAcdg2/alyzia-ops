@@ -1552,7 +1552,7 @@ function guessDocumentType(filename,mime,textProbe){
   if(/INFANT|\bINF\b/.test(p)||/INFANT|\bINF\b/.test(f))return "INF";
   if(/CHILD|CHLD|\bKID\b/.test(p)||/CHILD|CHLD|\bKID\b/.test(f))return "CHLD";
   if(/MEAL|[A-Z]{2}ML/.test(p)||/MEAL|[A-Z]{2}ML/.test(f))return "MEAL";
-  if(/STAFF|REBATE|BOOKABLE/.test(p)||/STAFF|REBATE|BOOKABLE/.test(f))return "STAFF";
+  if(/STAFF|REBATE|BOOKABLE|\bBS-SA\b/.test(p)||/STAFF|REBATE|BOOKABLE|\bBS-SA\b/.test(f))return "STAFF";
   if(/INAD/.test(p)||/INAD/.test(f))return "INAD";
   if(/DEPA/.test(p)||/DEPA/.test(f))return "DEPA";
   if(/DEPU/.test(p)||/DEPU/.test(f))return "DEPU";
