@@ -4104,7 +4104,7 @@ async function lot3FlightCards(env,url){
  * - le Cron appelle les mêmes fonctions validées que les routes manuelles.
  * ========================================================= */
 
-const LOT5_VERSION="V50.29_LOT5_AUTOPILOT_1";
+const LOT5_VERSION="V50.29_LOT5_AUTOPILOT_1_1";
 const LOT5_PROTECTED_AIRLINES=new Set(["SQ","TK","BJ","TW"]);
 
 async function ensureLot5Tables(env){
@@ -4271,6 +4271,27 @@ async function lot5EnsureFlightDriveFolder(env,{airline,flightNumber,flightDate}
   return {identity,airlineFolderId,dateFolderId,flightFolderId};
 }
 
+async function lot5PrepaStatusForMessage(env,messageId){
+  const {results=[]}=await env.OPS_DB.prepare(`
+    SELECT status,COUNT(*) AS n
+    FROM import_jobs
+    WHERE gmail_message_id=?
+    GROUP BY status
+  `).bind(messageId).all();
+  if(!results.length)return {status:'PROCESSED',error:''};
+  const counts=Object.fromEntries(results.map(r=>[String(r.status||'').toUpperCase(),Number(r.n||0)]));
+  if((counts.ERROR||0)>0){
+    const er=await env.OPS_DB.prepare(`
+      SELECT error_message FROM import_jobs
+      WHERE gmail_message_id=? AND status='ERROR' AND error_message IS NOT NULL AND error_message<>''
+      ORDER BY updated_at DESC LIMIT 1
+    `).bind(messageId).first();
+    return {status:'ERROR',error:String(er?.error_message||'AUTO PILOT : ERREUR PIPELINE')};
+  }
+  if((counts.QUEUED||0)>0 || (counts.PROCESSING||0)>0)return {status:'PROCESSING',error:''};
+  return {status:'PROCESSED',error:''};
+}
+
 async function lot5SyncPrepaInboxForMessage(env,messageId,driveFolderId=''){
   const gm=await env.OPS_DB.prepare(`SELECT * FROM gmail_messages WHERE gmail_message_id=? LIMIT 1`).bind(messageId).first();
   if(!gm||!gm.airline||!gm.flight_number||!gm.flight_date)return;
@@ -4298,11 +4319,26 @@ async function lot5SyncPrepaInboxForMessage(env,messageId,driveFolderId=''){
     subject:String(gm.subject||''),
     sender:String(gm.sender||''),
     receivedAt:String(gm.received_at||''),
-    bodyText:'',
+    bodyText:String(gm.body_text||''),
     driveFolderId:String(driveFolderId||''),
     driveEmailPdfId:'',
     attachments
   });
+
+  // LOT 5.1 — le backend AUTO PILOT est désormais le propriétaire du traitement.
+  // Ne jamais laisser une ligne GMAIL_AUTOPILOT en PENDING : l'ancien moteur
+  // navigateur V50.04 essaierait de la retraiter sans payload et générerait
+  // "SOURCES PREPA DU GROUPE VIDES". On garde la ligne visible dans IMPORT GMAIL
+  // avec le statut réel du pipeline backend.
+  const ps=await lot5PrepaStatusForMessage(env,messageId);
+  await env.OPS_DB.prepare(`
+    UPDATE prepa_inbox
+    SET status=?,
+        error_message=?,
+        processed_at=CASE WHEN ?='PROCESSED' THEN COALESCE(processed_at,CURRENT_TIMESTAMP) ELSE processed_at END,
+        updated_at=CURRENT_TIMESTAMP
+    WHERE gmail_message_id=? AND source='GMAIL_AUTOPILOT'
+  `).bind(ps.status,ps.error,ps.status,messageId).run();
 }
 
 async function lot5ArchiveDrive(env){
