@@ -915,6 +915,11 @@ async function getPrepaInbox(env, url) {
   const includePayload =
     String(url.searchParams.get("includePayload") || "") === "1";
 
+  // LOT 5.2.1 — historique IMPORT GMAIL complet pour l'interface.
+  // Par défaut on conserve 120 pour compatibilité, mais le BUILD140 demande 2000.
+  const limit = Math.max(1, Math.min(2000, Number(url.searchParams.get("limit") || 120)));
+  const offset = Math.max(0, Number(url.searchParams.get("offset") || 0));
+
 
   let sql = `
     SELECT
@@ -974,17 +979,16 @@ async function getPrepaInbox(env, url) {
 
   sql += `
     ORDER BY received_at DESC, id DESC
-    LIMIT 120
+    LIMIT ? OFFSET ?
   `;
+  binds.push(limit, offset);
 
 
   const statement =
     env.OPS_DB.prepare(sql);
 
   const result =
-    binds.length
-      ? await statement.bind(...binds).all()
-      : await statement.all();
+    await statement.bind(...binds).all();
 
 
   const rows =
@@ -4121,7 +4125,7 @@ async function lot3FlightCards(env,url){
  * ========================================================= */
 
 // LOT 5.2 FULL MAILBOX CONTINUOUS — whole Gmail mailbox + newest-first + resumable pagination + non-blocking errors.
-const LOT5_VERSION="V50.29_LOT5_AUTOPILOT_2_0_FULL_MAILBOX_CONTINUOUS";
+const LOT5_VERSION="V50.29_LOT5_AUTOPILOT_2_1_FULL_PREPA_HISTORY";
 const LOT5_PROTECTED_AIRLINES=new Set(["SQ","TK","BJ","TW"]);
 
 async function ensureLot5Tables(env){
