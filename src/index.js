@@ -1,4 +1,4 @@
-// V50.28 RULE: INC/INCARRIAGE = INBOUND PAX; INBOUND SUMMARY = FLIGHT METADATA; route inbound terminates at main origin (CDG).
+/ V50.28 RULE: INC/INCARRIAGE = INBOUND PAX; INBOUND SUMMARY = FLIGHT METADATA; route inbound terminates at main origin (CDG).
 // V50.27 RULE: INCARRIAGE/INC = INBOUND PASSENGERS; INBOUND CUSTOMER SUMMARY = INBOUND FLIGHTS.
 // Passenger dossier displays linked INBOUND/OUTBOUND flight exactly via the shared connection rows.
 // ALYZIA OPS V50.28 · Generic Connections + Full Passenger Consolidation
@@ -4104,7 +4104,7 @@ async function lot3FlightCards(env,url){
  * - le Cron appelle les mêmes fonctions validées que les routes manuelles.
  * ========================================================= */
 
-const LOT5_VERSION="V50.29_LOT5_AUTOPILOT_1_1";
+const LOT5_VERSION="V50.29_LOT5_AUTOPILOT_1_2_DRIVE_PREPA_DATE_FIX";
 const LOT5_PROTECTED_AIRLINES=new Set(["SQ","TK","BJ","TW"]);
 
 async function ensureLot5Tables(env){
@@ -4169,6 +4169,8 @@ function lot5Config(env){
     processLoops:Math.max(1,Math.min(10,Number(env.ALYZIA_AUTOPILOT_PROCESS_LOOPS||5))),
     injectBatch:Math.max(1,Math.min(100,Number(env.ALYZIA_AUTOPILOT_INJECT_BATCH||100))),
     driveEnabled:lot5Bool(env.ALYZIA_AUTOPILOT_DRIVE_ENABLED,true),
+    // Si ALYZIA_DRIVE_ROOT_FOLDER_ID est fourni, il est considéré comme le dossier PRÉPA cible.
+    // Sinon AUTO PILOT cherche/réutilise automatiquement "PRÉPA" (ou "PREPA") dans Mon Drive.
     driveRootFolderId:String(env.ALYZIA_DRIVE_ROOT_FOLDER_ID||'root').trim()||'root'
   };
 }
@@ -4212,6 +4214,39 @@ async function lot5EnsureDriveFolder(env,parentId,name){
   return String(data.id);
 }
 
+
+function lot5CanonicalFlightDate(value,contextIso=''){
+  const raw=String(value||'').trim().toUpperCase();
+  if(!raw)return '';
+  if(/^\d{4}-\d{2}-\d{2}$/.test(raw))return raw;
+  const compact=raw.replace(/[\s/_-]+/g,'');
+  if(/^\d{1,2}(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)$/.test(compact)){
+    try{
+      const iso=lot2DateRawToIso(compact,String(contextIso||'').slice(0,10));
+      if(iso)return iso;
+    }catch(e){}
+    const months={JAN:'01',FEB:'02',MAR:'03',APR:'04',MAY:'05',JUN:'06',JUL:'07',AUG:'08',SEP:'09',OCT:'10',NOV:'11',DEC:'12'};
+    const m=compact.match(/^(\d{1,2})([A-Z]{3})$/);
+    if(m){
+      const year=Number(String(contextIso||'').slice(0,4))||new Date().getUTCFullYear();
+      return `${year}-${months[m[2]]}-${String(Number(m[1])).padStart(2,'0')}`;
+    }
+  }
+  return raw;
+}
+
+async function lot5ResolvePrepaRootFolder(env){
+  const cfg=lot5Config(env);
+  // Un ID explicite reste prioritaire : il doit pointer directement vers le dossier PRÉPA voulu.
+  if(cfg.driveRootFolderId && cfg.driveRootFolderId!=='root')return cfg.driveRootFolderId;
+  const root='root';
+  const accented=await lot5FindChildFolder(env,root,'PRÉPA');
+  if(accented?.id)return String(accented.id);
+  const plain=await lot5FindChildFolder(env,root,'PREPA');
+  if(plain?.id)return String(plain.id);
+  return lot5EnsureDriveFolder(env,root,'PRÉPA');
+}
+
 function lot5ConcatBytes(parts){
   let total=0;
   for(const p of parts)total+=p.byteLength;
@@ -4251,14 +4286,16 @@ async function lot5FlightRoute(env,identity){
   }catch(e){return {dep:'',dest:''}}
 }
 
-async function lot5EnsureFlightDriveFolder(env,{airline,flightNumber,flightDate}){
-  const identity=[flightDate,airline,flightNumber].join('|');
+async function lot5EnsureFlightDriveFolder(env,{airline,flightNumber,flightDate,contextIso=''}){
+  const canonicalDate=lot5CanonicalFlightDate(flightDate,contextIso);
+  if(!canonicalDate)throw new Error('DRIVE DATE VOL MANQUANTE');
+  const identity=[canonicalDate,airline,flightNumber].join('|');
   const cached=await env.OPS_DB.prepare(`SELECT * FROM lot5_drive_folders WHERE identity=? LIMIT 1`).bind(identity).first();
-  if(cached?.flight_folder_id)return {identity,airlineFolderId:cached.airline_folder_id,dateFolderId:cached.date_folder_id,flightFolderId:cached.flight_folder_id};
+  if(cached?.flight_folder_id)return {identity,flightDate:canonicalDate,airlineFolderId:cached.airline_folder_id,dateFolderId:cached.date_folder_id,flightFolderId:cached.flight_folder_id};
 
-  const cfg=lot5Config(env);
-  const airlineFolderId=await lot5EnsureDriveFolder(env,cfg.driveRootFolderId,airline);
-  const dateFolderId=await lot5EnsureDriveFolder(env,airlineFolderId,flightDate);
+  const prepaRootFolderId=await lot5ResolvePrepaRootFolder(env);
+  const airlineFolderId=await lot5EnsureDriveFolder(env,prepaRootFolderId,airline);
+  const dateFolderId=await lot5EnsureDriveFolder(env,airlineFolderId,canonicalDate);
   const route=await lot5FlightRoute(env,identity);
   const flightName=route.dep&&route.dest?`${flightNumber} ${route.dep}-${route.dest}`:flightNumber;
   const flightFolderId=await lot5EnsureDriveFolder(env,dateFolderId,flightName);
@@ -4267,8 +4304,8 @@ async function lot5EnsureFlightDriveFolder(env,{airline,flightNumber,flightDate}
     INSERT INTO lot5_drive_folders(identity,airline,flight_number,flight_date,airline_folder_id,date_folder_id,flight_folder_id,updated_at)
     VALUES (?,?,?,?,?,?,?,CURRENT_TIMESTAMP)
     ON CONFLICT(identity) DO UPDATE SET airline_folder_id=excluded.airline_folder_id,date_folder_id=excluded.date_folder_id,flight_folder_id=excluded.flight_folder_id,updated_at=CURRENT_TIMESTAMP
-  `).bind(identity,airline,flightNumber,flightDate,airlineFolderId,dateFolderId,flightFolderId).run();
-  return {identity,airlineFolderId,dateFolderId,flightFolderId};
+  `).bind(identity,airline,flightNumber,canonicalDate,airlineFolderId,dateFolderId,flightFolderId).run();
+  return {identity,flightDate:canonicalDate,airlineFolderId,dateFolderId,flightFolderId};
 }
 
 async function lot5PrepaStatusForMessage(env,messageId){
@@ -4315,7 +4352,7 @@ async function lot5SyncPrepaInboxForMessage(env,messageId,driveFolderId=''){
     detectionStatus:'IDENTIFIED',
     airline:String(gm.airline||'').toUpperCase(),
     flightNumber:String(gm.flight_number||'').toUpperCase(),
-    flightDate:String(gm.flight_date||''),
+    flightDate:lot5CanonicalFlightDate(gm.flight_date,gm.received_at||gm.internal_date||''),
     subject:String(gm.subject||''),
     sender:String(gm.sender||''),
     receivedAt:String(gm.received_at||''),
@@ -4348,7 +4385,7 @@ async function lot5ArchiveDrive(env){
   if(!st.configured)return {ok:true,skipped:true,reason:'DRIVE_NOT_CONFIGURED',uploaded:0,folders:0};
 
   const {results=[]}=await env.OPS_DB.prepare(`
-    SELECT v.version_id,v.gmail_message_id,v.filename_original,v.filename_normalized,v.mime_type,v.file_size,v.r2_key,
+    SELECT v.version_id,v.gmail_message_id,v.filename_original,v.filename_normalized,v.mime_type,v.file_size,v.r2_key,v.received_at,
            f.airline,f.flight_number,f.flight_date
     FROM import_file_versions v
     JOIN import_files f ON f.file_id=v.file_id
@@ -4370,8 +4407,8 @@ async function lot5ArchiveDrive(env){
     try{
       const airline=String(row.airline||'').toUpperCase();
       const flightNumber=String(row.flight_number||'').toUpperCase();
-      const flightDate=String(row.flight_date||'');
-      const folder=await lot5EnsureFlightDriveFolder(env,{airline,flightNumber,flightDate});
+      const flightDate=lot5CanonicalFlightDate(row.flight_date,row.received_at||'');
+      const folder=await lot5EnsureFlightDriveFolder(env,{airline,flightNumber,flightDate,contextIso:row.received_at||''});
       folders.add(folder.identity);
       const file=await lot5UploadR2VersionToDrive(env,row,folder.flightFolderId);
       await env.OPS_DB.prepare(`
@@ -4394,7 +4431,7 @@ async function lot5ArchiveDrive(env){
 
 async function lot5SyncPrepaInboxRecent(env){
   const {results=[]}=await env.OPS_DB.prepare(`
-    SELECT gmail_message_id FROM gmail_messages
+    SELECT gmail_message_id,airline,flight_number,flight_date,received_at,internal_date FROM gmail_messages
     WHERE airline IS NOT NULL AND airline<>''
       AND flight_number IS NOT NULL AND flight_number<>''
       AND flight_date IS NOT NULL AND flight_date<>''
@@ -4406,12 +4443,13 @@ async function lot5SyncPrepaInboxRecent(env){
     const id=String(r.gmail_message_id||'');
     if(!id)continue;
     let folderId='';
+    const canonicalDate=lot5CanonicalFlightDate(r.flight_date,r.received_at||r.internal_date||'');
     const pf=await env.OPS_DB.prepare(`
-      SELECT d.flight_folder_id
-      FROM gmail_messages g
-      JOIN lot5_drive_folders d ON d.airline=UPPER(g.airline) AND d.flight_number=UPPER(g.flight_number) AND d.flight_date=g.flight_date
-      WHERE g.gmail_message_id=? LIMIT 1
-    `).bind(id).first().catch(()=>null);
+      SELECT flight_folder_id
+      FROM lot5_drive_folders
+      WHERE airline=? AND flight_number=? AND flight_date=?
+      ORDER BY updated_at DESC LIMIT 1
+    `).bind(String(r.airline||'').toUpperCase(),String(r.flight_number||'').toUpperCase(),canonicalDate).first().catch(()=>null);
     folderId=String(pf?.flight_folder_id||'');
     await lot5SyncPrepaInboxForMessage(env,id,folderId).catch(()=>{});
     synced++;
