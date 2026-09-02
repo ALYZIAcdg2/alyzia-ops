@@ -24621,6 +24621,282 @@ console.log('ALYZIA OPS BUILD139 FIXED — IMPORT GMAIL CLEAR UI LOADED');
 })();
 </script>
 
+
+<style id="alyzia-build140-import-history-ui-css">
+/* BUILD140 — modal OUTILS/IMPORT GMAIL plus large et plus lisible */
+#modal.import140-wide .modalbox{
+  width:min(1380px,96vw)!important;
+  max-width:1380px!important;
+  height:min(900px,92vh)!important;
+  max-height:92vh!important;
+}
+#modal.import140-wide #modalBody{
+  font-size:13px!important;
+  line-height:1.45!important;
+  overflow:auto!important;
+  padding-bottom:22px!important;
+}
+#modal.import140-wide #modalTitle{font-size:22px!important}
+#modal.import140-wide #modalSub{font-size:12px!important}
+#modal.import140-wide button{font-size:11px}
+#modal.import140-wide .import139-company-id{font-size:15px}
+#modal.import140-wide .import139-company-metrics b{font-size:16px}
+#modal.import140-wide .import139-flight-id b{font-size:13px}
+#modal.import140-wide .import139-flight-id span{font-size:11px}
+#modal.import140-wide .import139-pill,
+#modal.import140-wide .import139-actions button,
+#modal.import140-wide .import139-mini{font-size:10px}
+.import140-section-title{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  margin:16px 0 9px;font-size:12px;font-weight:950;color:#173a5e
+}
+.import140-date-block{margin:0 0 14px}
+.import140-date-head{
+  position:sticky;top:-1px;z-index:2;background:#edf5ff;border:1px solid #d8e7f7;
+  border-radius:10px;padding:8px 10px;margin-bottom:7px;
+  font-size:11px;font-weight:950;color:#164f86
+}
+.import140-company-list{display:grid;gap:8px}
+.import140-auto{
+  display:inline-flex;gap:6px;align-items:center;color:#0b7a42;
+  font-size:10px;font-weight:900
+}
+.import140-auto:before{content:"";width:7px;height:7px;border-radius:50%;background:#18a957}
+.import140-back{
+  min-height:36px;border:1px solid #cfddec;background:#fff;border-radius:10px;
+  padding:0 13px;font-weight:950;color:#234d72;cursor:pointer
+}
+@media(max-width:760px){
+  #modal.import140-wide .modalbox{width:98vw!important;height:94vh!important;max-height:94vh!important}
+}
+</style>
+
+<script id="alyzia-build140-import-history-sync">
+(()=>{
+'use strict';
+
+let import140Timer=null;
+let import140View={type:'',company:''};
+const IMPORT140_REFRESH_MS=30000;
+
+function import140SetWide(on=true){
+  const modal=document.getElementById('modal');
+  if(modal)modal.classList.toggle('import140-wide',!!on);
+}
+function import140StopTimer(){
+  if(import140Timer){clearInterval(import140Timer);import140Timer=null}
+}
+async function fetchAllPrepaImports140(){
+  try{
+    const r=await fetch(opsApiUrl('/api/prepa?limit=2000'),{
+      method:'GET',cache:'no-store',headers:{Accept:'application/json'}
+    });
+    if(!r.ok)throw new Error(`HTTP ${r.status}`);
+    const j=await r.json();
+    PREPA_IMPORTS_UI_ITEMS=Array.isArray(j?.items)?j.items:[];
+    return PREPA_IMPORTS_UI_ITEMS;
+  }catch(e){
+    console.warn('BUILD140 IMPORT GMAIL REFRESH',e);
+    return PREPA_IMPORTS_UI_ITEMS||[];
+  }
+}
+function import140StartTimer(){
+  import140StopTimer();
+  import140Timer=setInterval(async()=>{
+    const modal=document.getElementById('modal');
+    if(!modal?.classList.contains('open')){import140StopTimer();return}
+    const title=String(document.getElementById('modalTitle')?.textContent||'').toUpperCase();
+    if(!/IMPORT GMAIL|IMPORTS [A-Z0-9]{2,3}/.test(title)){import140StopTimer();return}
+    await fetchAllPrepaImports140();
+    if(import140View.type==='company'&&import140View.company){
+      renderImportsCompany140(import140View.company,true);
+    }else if(import140View.type==='dashboard'){
+      renderImportsDashboard140(true);
+    }
+  },IMPORT140_REFRESH_MS);
+}
+function import140InjectedRows(){
+  const companies=impCompanies();
+  return companies.flatMap(c=>impFlights(c).filter(r=>String(r.status||'').toUpperCase()==='PROCESSED'));
+}
+function import140Metrics(){
+  const g=impGlobal();
+  const injected=import140InjectedRows();
+  const allRows=(g.companies||[]).flatMap(c=>impFlights(c));
+  return {
+    files:g.files||0,
+    flights:allRows.length,
+    injected:injected.length,
+    todo:allRows.filter(r=>String(r.status||'').toUpperCase()!=='PROCESSED').length,
+    unidentified:g.unidentified||0,
+    companies:g.companies||[]
+  };
+}
+function import140GroupRowsByDate(rows){
+  const map=new Map();
+  for(const r of rows){
+    const d=String(r.flightDate||'DATE INCONNUE');
+    if(!map.has(d))map.set(d,[]);
+    map.get(d).push(r);
+  }
+  return [...map.entries()].sort((a,b)=>String(b[0]).localeCompare(String(a[0])));
+}
+function import140CompanyCards(){
+  return impCompanies().map(c=>{
+    const s=impStats(c);
+    return `<button class="import139-company" onclick="openImportsCompany('${c}')">
+      <div class="import139-company-top">
+        <div class="import139-company-id">${airlineLogo(c)} <span>${escapeHtml(c)}</span></div>
+        <span class="import139-mode">${v50DefaultImportMode(c)==='SPECIFIC'?'SPECIFIC':'GENERIC'}</span>
+      </div>
+      <div class="import139-company-metrics">
+        <div><b>${s.files}</b><span>DOCUMENTS</span></div>
+        <div><b>${s.flights}</b><span>VOLS</span></div>
+        <div><b>${s.injected}</b><span>INJECTÉS</span></div>
+      </div>
+    </button>`;
+  }).join('');
+}
+function renderImportsDashboard140(replace=false){
+  import140SetWide(true);
+  import140View={type:'dashboard',company:''};
+  const m=import140Metrics();
+  const html=`<div class="import139-toolbar">
+      <div class="import139-toolbar-left">
+        <button class="import139-mini" onclick="refreshImports140()">↻ ACTUALISER</button>
+        <button id="b140DriveBtn" class="import139-mini" onclick="v5013ConfigureDrive()">GOOGLE DRIVE</button>
+        <button class="import139-mini" onclick="v5013OpenRepair()">MAINTENANCE</button>
+      </div>
+      <span class="import140-auto">ACTUALISATION AUTO · 30 S</span>
+    </div>
+
+    <div class="imports-summary">
+      <button class="v5009-summary-btn" onclick="v5009OpenAllFiles()"><b>${m.files}</b><span>DOCUMENTS</span></button>
+      <button class="v5009-summary-btn" onclick="v5009OpenGlobalList('ALL')"><b>${m.flights}</b><span>VOLS DÉTECTÉS</span></button>
+      <button class="v5009-summary-btn" onclick="v5009OpenGlobalList('INJECTED')"><b>${m.injected}</b><span>VOLS INJECTÉS</span></button>
+      <button class="v5009-summary-btn" onclick="v5009OpenGlobalList('TODO')"><b>${m.todo}</b><span>À CONTRÔLER</span></button>
+    </div>
+
+    ${m.unidentified?`<div class="imports-unidentified"><b>${m.unidentified} À IDENTIFIER</b> · identité compagnie / vol / date incomplète.</div>`:''}
+
+    <div class="import140-section-title">
+      <span>FICHES DE VOL INJECTÉES PAR COMPAGNIE</span>
+      <span>${m.injected} FICHE${m.injected>1?'S':''}</span>
+    </div>
+    <div class="import139-companies">${import140CompanyCards()||'<div class="import-status">AUCUNE COMPAGNIE IDENTIFIÉE.</div>'}</div>`;
+  if(replace)replaceModal('IMPORT GMAIL','CENTRE AUTO PILOT · HISTORIQUE COMPLET',html);
+  else showModal('IMPORT GMAIL','CENTRE AUTO PILOT · HISTORIQUE COMPLET',html);
+  import140SetWide(true);
+  import140StartTimer();
+
+  setTimeout(async()=>{
+    const btn=document.getElementById('b140DriveBtn');
+    if(!btn||typeof v5013GetDriveStatus!=='function')return;
+    try{const d=await v5013GetDriveStatus();btn.textContent=d?.configured?'✓ DRIVE CONNECTÉ':'⚙ CONFIGURER DRIVE'}catch(e){}
+  },0);
+}
+async function refreshImports140(){
+  await fetchAllPrepaImports140();
+  if(import140View.type==='company'&&import140View.company)renderImportsCompany140(import140View.company,true);
+  else renderImportsDashboard140(true);
+}
+window.refreshImports140=refreshImports140;
+
+function renderImportsCompany140(c,replace=false){
+  import140SetWide(true);
+  import140View={type:'company',company:c};
+  const s=impStats(c);
+  const flights=impFlights(c);
+  const groups=import140GroupRowsByDate(flights);
+
+  const blocks=groups.map(([date,rows])=>{
+    const lineRows=rows.map(row=>{
+      const st=impRowState(row);
+      const idx=findImpFlightIndex(row);
+      const processed=String(row.status||'').toUpperCase()==='PROCESSED';
+      const canOpen=idx>=0&&processed;
+      return `<div class="import139-flight-row">
+        <div class="import139-flight-id">
+          <b>${airlineLogo(c)} ${escapeHtml(row.flightNumber)}</b>
+          <span>${escapeHtml(impDate(row.flightDate))}</span>
+        </div>
+        <button class="import139-pill" onclick="openImportFlightFiles('${c}','${row.key}')">${row.files} FICHIER${row.files>1?'S':''}</button>
+        <button class="import139-pill imports-flight-status ${st.cls}" onclick="openImportFlightDiagnostics('${c}','${row.key}')">${st.label}</button>
+        <div class="import139-actions">
+          <button class="primary" ${canOpen?'':'disabled'} onclick="openImpFlight('${c}','${row.key}')">FICHE VOL</button>
+          <button onclick="openImport139Advanced('${c}','${row.key}')">GESTION</button>
+        </div>
+      </div>`;
+    }).join('');
+    return `<section class="import140-date-block">
+      <div class="import140-date-head">${escapeHtml(impDate(date))} · ${rows.length} VOL${rows.length>1?'S':''}</div>
+      <div class="import140-company-list">${lineRows}</div>
+    </section>`;
+  }).join('');
+
+  const html=`<div class="import139-toolbar">
+      <div class="import139-toolbar-left">
+        <button class="import140-back" onclick="backToImports140()">← RETOUR IMPORT GMAIL</button>
+        <button class="import139-mini" onclick="refreshImports140()">↻ ACTUALISER</button>
+      </div>
+      <span class="import140-auto">ACTUALISATION AUTO · 30 S</span>
+    </div>
+    <div class="imports-summary">
+      <div class="imports-summary-card"><b>${s.files}</b><span>DOCUMENTS</span></div>
+      <div class="imports-summary-card"><b>${s.flights}</b><span>VOLS</span></div>
+      <div class="imports-summary-card"><b>${s.injected}</b><span>INJECTÉS</span></div>
+      <div class="imports-summary-card"><b>${s.pending+s.errors+s.toCreate}</b><span>À CONTRÔLER</span></div>
+    </div>
+    <div class="import140-section-title"><span>FICHES DE VOL · ${escapeHtml(c)}</span><span>TRIÉES PAR DATE</span></div>
+    ${blocks||`<div class="import-status">AUCUN VOL IMPORTÉ POUR ${escapeHtml(c)}.</div>`}`;
+
+  if(replace)replaceModal(`IMPORTS ${c}`,`${s.flights} VOLS · ${s.injected} INJECTÉS`,html);
+  else showModal(`IMPORTS ${c}`,`${s.flights} VOLS · ${s.injected} INJECTÉS`,html);
+  import140SetWide(true);
+  import140StartTimer();
+}
+window.openImportsCompany=function(c){renderImportsCompany140(c,false)};
+window.backToImports140=function(){
+  renderImportsDashboard140(true);
+};
+window.openImportsDashboard=async function(){
+  await fetchAllPrepaImports140();
+  renderImportsDashboard140(false);
+};
+
+/* OUTILS : plus grand + police lisible */
+const import140OpenToolsBase=window.openTools||openTools;
+window.openTools=async function(){
+  import140StopTimer();
+  await import140OpenToolsBase();
+  import140SetWide(true);
+};
+
+/* Le bouton RETOUR natif ne doit plus restituer une vieille copie de l'écran IMPORT. */
+const import140ModalBackBase=window.modalBack||modalBack;
+window.modalBack=function(){
+  const title=String(document.getElementById('modalTitle')?.textContent||'').toUpperCase();
+  if(/^IMPORTS [A-Z0-9]{2,3}$/.test(title)){
+    backToImports140();
+    return;
+  }
+  import140StopTimer();
+  import140ModalBackBase();
+  const newTitle=String(document.getElementById('modalTitle')?.textContent||'').toUpperCase();
+  import140SetWide(/OUTILS|IMPORT GMAIL|^IMPORTS /.test(newTitle));
+};
+
+const import140CloseAllBase=window.closeAllModals||closeAllModals;
+window.closeAllModals=function(){
+  import140StopTimer();
+  import140SetWide(false);
+  return import140CloseAllBase();
+};
+
+console.log('ALYZIA OPS BUILD140 — IMPORT GMAIL HISTORY SYNC LOADED');
+})();
+</script>
+
 </body></html>
 <!-- V50.03: cloud status is debounced; 3 startup retries; transient sync failures no longer force immediate local mode. -->
 <!-- V50.0: generic airline PREPA engine + airline profiles; SQ/TK/BJ parser semantics unchanged. -->
