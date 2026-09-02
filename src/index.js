@@ -3122,7 +3122,7 @@ async function lot2ProcessNext(env,body){
     FROM import_jobs
     WHERE status='QUEUED'
       AND (run_after IS NULL OR run_after='' OR run_after<=CURRENT_TIMESTAMP)
-    ORDER BY priority ASC, created_at ASC
+    ORDER BY priority ASC, created_at DESC
     LIMIT ?
   `).bind(limit).all();
 
@@ -4041,7 +4041,7 @@ async function lot3InjectNext(env,body){
     SELECT *
     FROM import_job_results
     WHERE ${wh.join(" AND ")}
-    ORDER BY updated_at ASC
+    ORDER BY updated_at DESC
     LIMIT ?
   `).bind(...binds).all();
 
@@ -4104,7 +4104,8 @@ async function lot3FlightCards(env,url){
  * - le Cron appelle les mêmes fonctions validées que les routes manuelles.
  * ========================================================= */
 
-const LOT5_VERSION="V50.29_LOT5_AUTOPILOT_1_2_DRIVE_PREPA_DATE_FIX";
+// LOT 5.3 — NEWEST FIRST: newest Gmail-derived work is processed/injected/archived first.
+const LOT5_VERSION="V50.29_LOT5_AUTOPILOT_1_3_NEWEST_FIRST";
 const LOT5_PROTECTED_AIRLINES=new Set(["SQ","TK","BJ","TW"]);
 
 async function ensureLot5Tables(env){
@@ -4337,7 +4338,7 @@ async function lot5SyncPrepaInboxForMessage(env,messageId,driveFolderId=''){
     FROM import_file_versions v
     LEFT JOIN lot5_drive_files d ON d.version_id=v.version_id
     WHERE v.gmail_message_id=? AND v.is_active=1
-    ORDER BY v.created_at ASC
+    ORDER BY v.created_at DESC
   `).bind(messageId).all();
   const attachments=results.map(r=>({
     name:String(r.filename_original||''),
@@ -4395,7 +4396,7 @@ async function lot5ArchiveDrive(env){
       AND f.airline IS NOT NULL AND f.airline<>'' AND f.airline<>'UNK'
       AND f.flight_number IS NOT NULL AND f.flight_number<>'' AND f.flight_number<>'UNIDENTIFIED'
       AND f.flight_date IS NOT NULL AND f.flight_date<>'' AND f.flight_date<>'UNKNOWN_DATE'
-    ORDER BY v.created_at ASC
+    ORDER BY v.created_at DESC
     LIMIT 50
   `).all();
 
@@ -4466,7 +4467,7 @@ async function lot5InjectAvailable(env,cfg){
     WHERE parser_mode='GENERIC'
       AND card_key='OPERATIONAL_INFO'
       AND status IN ('OPERATIONAL_INFO_READY','WAITING_FLIGHT')
-    ORDER BY updated_at ASC
+    ORDER BY updated_at DESC
     LIMIT ?
   `).bind(cfg.injectBatch).all()).results||[];
   for(const row of op){
@@ -4482,7 +4483,7 @@ async function lot5InjectAvailable(env,cfg){
     WHERE parser_mode='GENERIC'
       AND card_key IS NOT NULL AND card_key<>'' AND card_key<>'NO_LIST' AND card_key<>'OPERATIONAL_INFO'
       AND status IN ('GENERIC_CARD_READY','GENERIC_MASTER_READY','GENERIC_CARD_OTHER','WAITING_FLIGHT')
-    ORDER BY updated_at ASC
+    ORDER BY updated_at DESC
     LIMIT ?
   `).bind(cfg.injectBatch).all()).results||[];
   for(const row of cards){
