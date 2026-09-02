@@ -1876,8 +1876,14 @@ async function gmailSyncNow(env,body){
   const list=await gmailFetch(env,`/messages?${params.toString()}`);
   const messages=list.messages||[];
   const results=[];
+  const errors=[];
   for(const m of messages){
-    results.push(await storeGmailMessage(env,m.id));
+    try{
+      results.push(await storeGmailMessage(env,m.id));
+    }catch(e){
+      // LOT 5.2 : un mail défectueux ne bloque jamais le reste de la page.
+      errors.push({messageId:String(m?.id||""),error:String(e?.message||e)});
+    }
   }
   await env.OPS_DB.prepare(`
     INSERT INTO gmail_sync_state (mailbox,last_full_sync_at,backfill_query,backfill_page_token,backfill_status,updated_at)
@@ -1889,7 +1895,17 @@ async function gmailSyncNow(env,body){
       backfill_status=excluded.backfill_status,
       updated_at=CURRENT_TIMESTAMP
   `).bind(query,String(list.nextPageToken||""),list.nextPageToken?"RUNNING":"DONE").run();
-  return {ok:true,query,maxMessages,processed:results.length,nextPageToken:list.nextPageToken||"",results};
+  return {
+    ok:errors.length===0,
+    query,
+    maxMessages,
+    processed:results.length,
+    attempted:messages.length,
+    failed:errors.length,
+    nextPageToken:list.nextPageToken||"",
+    results,
+    errors
+  };
 }
 
 async function gmailOAuthStart(request,env){
@@ -4104,8 +4120,8 @@ async function lot3FlightCards(env,url){
  * - le Cron appelle les mêmes fonctions validées que les routes manuelles.
  * ========================================================= */
 
-// LOT 5.3 — NEWEST FIRST: newest Gmail-derived work is processed/injected/archived first.
-const LOT5_VERSION="V50.29_LOT5_AUTOPILOT_1_3_NEWEST_FIRST";
+// LOT 5.2 FULL MAILBOX CONTINUOUS — whole Gmail mailbox + newest-first + resumable pagination + non-blocking errors.
+const LOT5_VERSION="V50.29_LOT5_AUTOPILOT_2_0_FULL_MAILBOX_CONTINUOUS";
 const LOT5_PROTECTED_AIRLINES=new Set(["SQ","TK","BJ","TW"]);
 
 async function ensureLot5Tables(env){
@@ -4164,10 +4180,17 @@ function lot5Bool(v,def=true){
 function lot5Config(env){
   return {
     enabled:lot5Bool(env.ALYZIA_AUTOPILOT_ENABLED,true),
-    gmailQuery:String(env.ALYZIA_AUTOPILOT_GMAIL_QUERY||'newer_than:3d {has:attachment "JFE SCREEN COPY"}').trim(),
-    gmailMax:Math.max(1,Math.min(100,Number(env.ALYZIA_AUTOPILOT_GMAIL_MAX||50))),
+
+    // LOT 5.2 FULL MAILBOX :
+    // - aucune fenêtre newer_than
+    // - toute la boîte Gmail, y compris archives / spam / corbeille via in:anywhere
+    // - corps mail + JFE SCREEN COPY + PDF + TXT + EML sont tous collectés
+    gmailQuery:String(env.ALYZIA_AUTOPILOT_GMAIL_QUERY||'in:anywhere').trim()||'in:anywhere',
+    gmailMax:Math.max(1,Math.min(100,Number(env.ALYZIA_AUTOPILOT_GMAIL_MAX||100))),
+    gmailPagesPerRun:Math.max(1,Math.min(10,Number(env.ALYZIA_AUTOPILOT_GMAIL_PAGES_PER_RUN||5))),
+
     processBatch:Math.max(1,Math.min(50,Number(env.ALYZIA_AUTOPILOT_PROCESS_BATCH||50))),
-    processLoops:Math.max(1,Math.min(10,Number(env.ALYZIA_AUTOPILOT_PROCESS_LOOPS||5))),
+    processLoops:Math.max(1,Math.min(10,Number(env.ALYZIA_AUTOPILOT_PROCESS_LOOPS||10))),
     injectBatch:Math.max(1,Math.min(100,Number(env.ALYZIA_AUTOPILOT_INJECT_BATCH||100))),
     driveEnabled:lot5Bool(env.ALYZIA_AUTOPILOT_DRIVE_ENABLED,true),
     // Si ALYZIA_DRIVE_ROOT_FOLDER_ID est fourni, il est considéré comme le dossier PRÉPA cible.
@@ -4495,6 +4518,106 @@ async function lot5InjectAvailable(env,cfg){
   return {ok:errors.length===0,injected,waiting,errors};
 }
 
+
+/* =========================================================
+ * LOT 5.2 — FULL MAILBOX CONTINUOUS GMAIL SWEEP
+ * ---------------------------------------------------------
+ * Objectifs :
+ * - parcourir toute la boîte Gmail sans filtre de date ;
+ * - toujours lire d'abord la page la plus récente ;
+ * - reprendre ensuite le backfill à partir du pageToken D1 ;
+ * - limiter le nombre de pages par Cron pour ne pas bloquer le Worker ;
+ * - une erreur sur un mail n'arrête jamais la page ni le cycle ;
+ * - lorsque la fin de boîte est atteinte, le prochain Cron repart du début
+ *   et détecte immédiatement les nouveaux mails.
+ * ========================================================= */
+async function lot5GmailContinuousSweep(env,cfg,{query='',maxMessages=0}={}){
+  await ensureGmailPipelineTables(env);
+  const q=String(query||cfg.gmailQuery||'in:anywhere').trim()||'in:anywhere';
+  const pageSize=Math.max(1,Math.min(100,Number(maxMessages||cfg.gmailMax||100)));
+  const pagesMax=Math.max(1,Math.min(10,Number(cfg.gmailPagesPerRun||5)));
+
+  const state=await env.OPS_DB.prepare(`
+    SELECT backfill_query,backfill_page_token,backfill_status
+    FROM gmail_sync_state
+    WHERE mailbox='me'
+    LIMIT 1
+  `).first().catch(()=>null);
+
+  const sameQuery=String(state?.backfill_query||'')===q;
+  const savedToken=sameQuery?String(state?.backfill_page_token||''):'';
+
+  let processed=0,attempted=0,failed=0,pages=0;
+  let newestNext='';
+  let backfillNext=savedToken;
+  const errors=[];
+
+  // 1) Toujours la page la plus récente : les nouveaux mails ne doivent jamais
+  // attendre la fin d'un backfill historique.
+  try{
+    const newest=await gmailSyncNow(env,{query:q,maxMessages:pageSize,pageToken:''});
+    pages++;
+    processed+=Number(newest.processed||0);
+    attempted+=Number(newest.attempted||newest.processed||0);
+    failed+=Number(newest.failed||0);
+    newestNext=String(newest.nextPageToken||'');
+    if(Array.isArray(newest.errors))errors.push(...newest.errors);
+
+    // Si aucun backfill n'était en cours, la suite commence après la page récente.
+    if(!backfillNext)backfillNext=newestNext;
+  }catch(e){
+    errors.push({scope:'NEWEST_PAGE',error:String(e?.message||e)});
+  }
+
+  // 2) Continuer l'historique sans jamais monopoliser un Cron entier.
+  // La première page récente compte déjà dans pagesMax.
+  while(backfillNext && pages<pagesMax){
+    const token=backfillNext;
+    try{
+      const page=await gmailSyncNow(env,{query:q,maxMessages:pageSize,pageToken:token});
+      pages++;
+      processed+=Number(page.processed||0);
+      attempted+=Number(page.attempted||page.processed||0);
+      failed+=Number(page.failed||0);
+      if(Array.isArray(page.errors))errors.push(...page.errors);
+      backfillNext=String(page.nextPageToken||'');
+    }catch(e){
+      // Un problème de page est journalisé. On ne fait pas tomber tout AUTO PILOT.
+      errors.push({scope:'BACKFILL_PAGE',pageToken:token,error:String(e?.message||e)});
+      // On garde le token actuel pour retenter ce segment au prochain Cron.
+      backfillNext=token;
+      break;
+    }
+  }
+
+  // gmailSyncNow met lui-même à jour gmail_sync_state à chaque page.
+  // On force ici le curseur réellement retenu pour le prochain Cron.
+  await env.OPS_DB.prepare(`
+    INSERT INTO gmail_sync_state
+      (mailbox,last_full_sync_at,backfill_query,backfill_page_token,backfill_status,updated_at)
+    VALUES ('me',CURRENT_TIMESTAMP,?,?,?,CURRENT_TIMESTAMP)
+    ON CONFLICT(mailbox) DO UPDATE SET
+      last_full_sync_at=CURRENT_TIMESTAMP,
+      backfill_query=excluded.backfill_query,
+      backfill_page_token=excluded.backfill_page_token,
+      backfill_status=excluded.backfill_status,
+      updated_at=CURRENT_TIMESTAMP
+  `).bind(q,backfillNext,backfillNext?'RUNNING':'DONE').run();
+
+  return {
+    ok:true, // les erreurs unitaires sont non bloquantes par conception
+    query:q,
+    pageSize,
+    pagesProcessed:pages,
+    processed,
+    attempted,
+    failed,
+    backfillDone:!backfillNext,
+    nextPageToken:backfillNext,
+    errors
+  };
+}
+
 async function lot5AutoPilotRun(env,{triggerType='MANUAL',gmailQuery='',gmailMax=0}={}){
   await ensureLot5Tables(env);
   const cfg=lot5Config(env);
@@ -4506,8 +4629,11 @@ async function lot5AutoPilotRun(env,{triggerType='MANUAL',gmailQuery='',gmailMax
   try{
     if(!cfg.enabled)throw new Error('AUTO PILOT DÉSACTIVÉ');
 
-    const gmail=await gmailSyncNow(env,{query:gmailQuery||cfg.gmailQuery,maxMessages:gmailMax||cfg.gmailMax});
-    details.gmail={processed:gmail.processed,nextPageToken:gmail.nextPageToken||''};
+    const gmail=await lot5GmailContinuousSweep(env,cfg,{
+      query:gmailQuery||cfg.gmailQuery,
+      maxMessages:gmailMax||cfg.gmailMax
+    });
+    details.gmail=gmail;
     gmailProcessed=Number(gmail.processed||0);
 
     const processRuns=[];
