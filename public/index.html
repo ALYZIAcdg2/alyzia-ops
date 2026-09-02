@@ -8531,6 +8531,270 @@ function twPrintHtml(s){
  </table><script>window.onload=()=>setTimeout(()=>window.print(),150)<\/script><!-- V49.83: silent multi-device auto-sync 0.5s selected / 1.5s global; TK cards view-only; mobile TYPE header hardened. -->
 <!-- V49.88: compact mobile WSA KPI; named standby list when an explicit TK standby report is available. -->
 <!-- V50.15: stabilisation imports nominative, PREPA dynamic generic/specific, sticky desktop nav, editable flight notes, A/C selector fix. -->
+
+<style id="alyzia-build139-import-gmail-clear-ui-css">
+/* BUILD139 — IMPORT GMAIL : une seule hiérarchie, actions sans doublons */
+.import139-card{
+  grid-column:1/-1;
+  border:1px solid #d7e6f7;
+  border-radius:18px;
+  background:#fff;
+  padding:16px;
+  box-shadow:0 8px 24px rgba(15,50,85,.06);
+}
+.import139-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.import139-title{display:flex;gap:11px;align-items:center}
+.import139-icon{
+  width:42px;height:42px;border-radius:13px;background:#edf5ff;color:#0867c9;
+  display:grid;place-items:center;font-size:20px;font-weight:950;flex:0 0 auto
+}
+.import139-title h3{margin:0;font-size:16px;letter-spacing:.02em}
+.import139-title p{margin:3px 0 0;color:#64748b;font-size:10px;font-weight:750}
+.import139-live{
+  display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:6px 9px;
+  background:#ecfdf3;color:#087749;font-size:9px;font-weight:950;white-space:nowrap
+}
+.import139-live:before{content:"";width:7px;height:7px;border-radius:50%;background:#16a34a}
+.import139-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:14px}
+.import139-stat{border:1px solid #e4edf7;background:#f8fbff;border-radius:12px;padding:10px}
+.import139-stat b{display:block;font-size:17px;color:#0f2741}
+.import139-stat span{display:block;margin-top:2px;font-size:8px;font-weight:950;color:#718096;letter-spacing:.05em}
+.import139-format{
+  margin-top:10px;padding:8px 10px;border-radius:10px;background:#f6f8fb;
+  color:#53657a;font-size:9px;font-weight:850
+}
+.import139-primary{
+  width:100%;margin-top:12px;min-height:42px;border:0;border-radius:12px;
+  background:#0b73e0;color:#fff;font-weight:950;cursor:pointer
+}
+.import139-primary:hover{filter:brightness(.97)}
+.import139-toolbar{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;
+  margin-bottom:12px
+}
+.import139-toolbar-left{display:flex;gap:7px;flex-wrap:wrap}
+.import139-mini{
+  min-height:34px;border:1px solid #d6e3f1;background:#fff;border-radius:10px;
+  padding:0 11px;font-size:9px;font-weight:950;color:#27445f;cursor:pointer
+}
+.import139-mini.danger{color:#a83b3b;border-color:#f0cdcd}
+.import139-note{font-size:9px;font-weight:800;color:#6b7c90}
+.import139-companies{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.import139-company{
+  border:1px solid #dce8f4;background:#fff;border-radius:14px;padding:12px;text-align:left;
+  cursor:pointer;display:grid;gap:8px
+}
+.import139-company:hover{border-color:#a9c9ec;box-shadow:0 6px 18px rgba(10,70,130,.06)}
+.import139-company-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.import139-company-id{display:flex;align-items:center;gap:8px;font-weight:950;font-size:13px}
+.import139-mode{font-size:8px;font-weight:950;color:#51708d;background:#eef4fa;border-radius:999px;padding:4px 7px}
+.import139-company-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.import139-company-metrics div{background:#f7faff;border-radius:9px;padding:7px}
+.import139-company-metrics b{display:block;font-size:13px}
+.import139-company-metrics span{font-size:7px;font-weight:950;color:#718096}
+.import139-flight-row{
+  display:grid;grid-template-columns:minmax(145px,1.2fr) 92px 92px minmax(160px,1fr);
+  gap:8px;align-items:center;border:1px solid #e0e9f3;border-radius:12px;padding:9px;margin-bottom:7px
+}
+.import139-flight-id b{display:block;font-size:11px}.import139-flight-id span{font-size:9px;color:#718096}
+.import139-pill{
+  border:1px solid #d9e5f1;border-radius:9px;background:#fff;min-height:32px;
+  padding:0 8px;font-size:8px;font-weight:950;cursor:pointer
+}
+.import139-actions{display:flex;gap:6px;justify-content:flex-end}
+.import139-actions button{min-height:32px;border-radius:9px;border:1px solid #d9e5f1;background:#fff;padding:0 9px;font-size:8px;font-weight:950;cursor:pointer}
+.import139-actions .primary{background:#0b73e0;color:#fff;border-color:#0b73e0}
+@media(max-width:760px){
+  .import139-stats{grid-template-columns:repeat(2,1fr)}
+  .import139-companies{grid-template-columns:1fr}
+  .import139-flight-row{grid-template-columns:1fr 1fr}
+  .import139-actions{grid-column:1/-1;justify-content:stretch}
+  .import139-actions button{flex:1}
+}
+</style>
+
+<script id="alyzia-build139-import-gmail-clear-ui">
+(()=>{
+  'use strict';
+
+  function b139Metrics(g){
+    const rows=(typeof v5009GlobalRows==='function')?v5009GlobalRows():[];
+    const todo=(typeof v5009ToTreatRows==='function')?v5009ToTreatRows():[];
+    const injected=rows.filter(r=>
+      String(r?.status||'').toUpperCase()==='PROCESSED' &&
+      !(typeof v5006GenericNeedsRecovery==='function' && v5006GenericNeedsRecovery(r))
+    ).length;
+    return {
+      files:Number(g?.files||0),
+      flights:rows.length||Number(g?.flights||0),
+      injected,
+      todo:todo.length,
+      unidentified:Number(g?.unidentified||0)
+    };
+  }
+
+  window.openImport139Advanced=function(c,key){
+    const row=typeof getImpRow==='function'?getImpRow(c,key):null;
+    if(!row)return;
+    const idx=typeof findImpFlightIndex==='function'?findImpFlightIndex(row):-1;
+    const processed=String(row.status||'').toUpperCase()==='PROCESSED';
+    const canOpen=idx>=0&&processed;
+    const canResume=['ERROR','PROCESSING','PENDING'].includes(String(row.status||'').toUpperCase()) ||
+      (processed && typeof isGenericAirlineV50==='function' && isGenericAirlineV50(c) &&
+       idx>=0 && typeof v5006FlightHasMissingNamedLists==='function' &&
+       v5006FlightHasMissingNamedLists(FLIGHTS[idx]));
+
+    showModal(
+      `${row.flightNumber} · GESTION IMPORT`,
+      `${impDate(row.flightDate)} · ${row.files} fichier${row.files>1?'s':''}`,
+      `<div style="display:grid;gap:8px">
+        <button class="import139-mini" onclick="openImportFlightDiagnostics('${c}','${row.key}')">DIAGNOSTIC</button>
+        <button class="import139-mini" onclick="openImportFlightFiles('${c}','${row.key}')">VOIR LES FICHIERS</button>
+        <button class="import139-mini" ${canOpen?'':'disabled'} onclick="openImpPrepa('${c}','${row.key}')">OUVRIR PRÉPA</button>
+        ${canResume?`<button class="import139-mini" onclick="v5011ResumeImport('${c}','${row.key}')">${processed?'RÉINJECTER':'REPRENDRE'}</button>`:''}
+        <button class="import139-mini danger" onclick="v5011AskDelete('${c}','${row.key}')">SUPPRIMER DRIVE + DB</button>
+      </div>`
+    );
+  };
+
+  openTools=async function(){
+    await fetchRecentPrepaImports().catch(()=>{});
+    const g=impGlobal();
+    const m=b139Metrics(g);
+
+    showModal('OUTILS','ALYZIA OPS',`
+      <div class="tools-grid">
+        <div class="import139-card">
+          <div class="import139-head">
+            <div class="import139-title">
+              <div class="import139-icon">⇩</div>
+              <div>
+                <h3>IMPORT GMAIL</h3>
+                <p>AUTO PILOT · COLLECTE, ANALYSE ET INJECTION AUTOMATIQUE</p>
+              </div>
+            </div>
+            <span class="import139-live">${g.errors?'À CONTRÔLER':'ACTIF'}</span>
+          </div>
+
+          <div class="import139-stats">
+            <div class="import139-stat"><b>${m.files}</b><span>DOCUMENTS</span></div>
+            <div class="import139-stat"><b>${m.flights}</b><span>VOLS DÉTECTÉS</span></div>
+            <div class="import139-stat"><b>${m.injected}</b><span>VOLS INJECTÉS</span></div>
+            <div class="import139-stat"><b>${m.todo}</b><span>À CONTRÔLER</span></div>
+          </div>
+
+          <div class="import139-format">CORPS MAIL · JFE SCREEN COPY · PDF · TXT · EML</div>
+          <button class="import139-primary" onclick="openImportsDashboard()">OUVRIR LE CENTRE IMPORT GMAIL</button>
+        </div>
+
+        <button class="tool-card" onclick="openFlightImport()">
+          <span class="tool-icon">⇩</span><b>IMPORTER VOLS</b><span>EXCEL XLS / XLSX</span>
+        </button>
+        <button class="tool-card" onclick="openCreateFlight()">
+          <span class="tool-icon">＋</span><b>CRÉER VOL</b><span>AJOUT MANUEL</span>
+        </button>
+        <button class="tool-card company-config-tool" onclick="openCompanyConfig()">
+          <span class="tool-icon">⚙</span><b>CONFIG COMPAGNIE</b><span>CLASSES ET MODULES</span>
+        </button>
+        <button class="tool-card" onclick="openSeatmap()">
+          <span class="tool-icon">▦</span><b>SEATMAP</b><span>PLAN CABINE</span>
+        </button>
+        <button class="tool-card" onclick="openSaria()">
+          <span class="tool-icon">✈</span><b>SARIA</b><span>CABIN / SEATMAP</span>
+        </button>
+        ${opsCloudToolCardHtml()}
+      </div>`
+    );
+  };
+
+  openImportsDashboard=async function(){
+    await fetchRecentPrepaImports().catch(()=>{});
+    const g=impGlobal();
+    const m=b139Metrics(g);
+
+    const cards=(g.companies||[]).map(c=>{
+      const s=impStats(c);
+      return `<button class="import139-company" onclick="openImportsCompany('${c}')">
+        <div class="import139-company-top">
+          <div class="import139-company-id">${airlineLogo(c)} <span>${escapeHtml(c)}</span></div>
+          <span class="import139-mode">${v50DefaultImportMode(c)==='SPECIFIC'?'SPECIFIC':'GENERIC'}</span>
+        </div>
+        <div class="import139-company-metrics">
+          <div><b>${s.files}</b><span>DOCUMENTS</span></div>
+          <div><b>${s.flights}</b><span>VOLS</span></div>
+          <div><b>${s.injected}</b><span>INJECTÉS</span></div>
+        </div>
+      </button>`;
+    }).join('');
+
+    showModal('IMPORT GMAIL','CENTRE AUTO PILOT',`
+      <div class="import139-toolbar">
+        <div class="import139-toolbar-left">
+          <button class="import139-mini" onclick="openImportsDashboard()">↻ ACTUALISER</button>
+          <button id="b139DriveBtn" class="import139-mini" onclick="v5013ConfigureDrive()">GOOGLE DRIVE</button>
+          <button class="import139-mini" onclick="v5013OpenRepair()">MAINTENANCE</button>
+        </div>
+        <span class="import139-note">Les actions avancées sont rangées dans chaque vol.</span>
+      </div>
+
+      <div class="imports-summary">
+        <button class="v5009-summary-btn" onclick="v5009OpenAllFiles()"><b>${m.files}</b><span>DOCUMENTS</span></button>
+        <button class="v5009-summary-btn" onclick="v5009OpenGlobalList('ALL')"><b>${m.flights}</b><span>VOLS DÉTECTÉS</span></button>
+        <button class="v5009-summary-btn" onclick="v5009OpenGlobalList('INJECTED')"><b>${m.injected}</b><span>INJECTÉS</span></button>
+        <button class="v5009-summary-btn" onclick="v5009OpenGlobalList('TODO')"><b>${m.todo}</b><span>À CONTRÔLER</span></button>
+      </div>
+
+      ${m.unidentified?`<div class="imports-unidentified"><b>${m.unidentified} À IDENTIFIER</b> · identité compagnie / vol / date incomplète.</div>`:''}
+      <div class="import139-companies" style="margin-top:12px">${cards||'<div class="import-status">AUCUNE COMPAGNIE IDENTIFIÉE.</div>'}</div>
+    `);
+
+    setTimeout(async()=>{
+      const btn=document.getElementById('b139DriveBtn');
+      if(!btn||typeof v5013GetDriveStatus!=='function')return;
+      try{
+        const d=await v5013GetDriveStatus();
+        btn.textContent=d?.configured?'✓ DRIVE CONNECTÉ':'⚙ CONFIGURER DRIVE';
+      }catch(e){}
+    },0);
+  };
+
+  openImportsCompany=function(c){
+    const s=impStats(c);
+    const flights=impFlights(c);
+
+    const rows=flights.map(row=>{
+      const st=impRowState(row);
+      const idx=findImpFlightIndex(row);
+      const processed=String(row.status||'').toUpperCase()==='PROCESSED';
+      const canOpen=idx>=0&&processed;
+      return `<div class="import139-flight-row">
+        <div class="import139-flight-id">
+          <b>${airlineLogo(c)} ${escapeHtml(row.flightNumber)}</b>
+          <span>${escapeHtml(impDate(row.flightDate))}</span>
+        </div>
+        <button class="import139-pill" onclick="openImportFlightFiles('${c}','${row.key}')">${row.files} FICHIER${row.files>1?'S':''}</button>
+        <button class="import139-pill imports-flight-status ${st.cls}" onclick="openImportFlightDiagnostics('${c}','${row.key}')">${st.label}</button>
+        <div class="import139-actions">
+          <button class="primary" ${canOpen?'':'disabled'} onclick="openImpFlight('${c}','${row.key}')">FICHE VOL</button>
+          <button onclick="openImport139Advanced('${c}','${row.key}')">GESTION</button>
+        </div>
+      </div>`;
+    }).join('');
+
+    showModal(
+      `IMPORTS ${c}`,
+      `${s.flights} VOLS · ${s.files} DOCUMENTS`,
+      `<div class="import139-toolbar">
+         <span class="import139-note">FICHIERS · STATUT · FICHE VOL · GESTION</span>
+       </div>
+       <div class="imports-flight-list">${rows||`<div class="import-status">AUCUN VOL IMPORTÉ POUR ${c}.</div>`}</div>`
+    );
+  };
+
+  console.log('ALYZIA OPS BUILD139 — IMPORT GMAIL CLEAR UI LOADED');
+})();
+</script>
+
 </body></html>`;
 }
 function ozPrintHtml(s){
