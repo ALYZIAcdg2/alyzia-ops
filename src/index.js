@@ -4087,6 +4087,418 @@ async function lot3FlightCards(env,url){
 }
 
 
+/* =========================================================
+ * ALYZIA OPS V50.29 — LOT 5 AUTO PILOT
+ * ---------------------------------------------------------
+ * But :
+ * - synchroniser Gmail automatiquement
+ * - traiter les jobs Lot 2
+ * - créer la fiche vol depuis OPERATIONAL_INFO quand disponible
+ * - injecter les cartes génériques Lot 3
+ * - archiver les fichiers sources dans Google Drive
+ * - alimenter PREPA / IMPORT GMAIL sans intervention manuelle
+ *
+ * VERROUILLAGE :
+ * - SQ / TK / BJ / TW restent protégés par les Lots 2/3 existants.
+ * - aucune règle parser spécifique n'est modifiée ici.
+ * - le Cron appelle les mêmes fonctions validées que les routes manuelles.
+ * ========================================================= */
+
+const LOT5_VERSION="V50.29_LOT5_AUTOPILOT_1";
+const LOT5_PROTECTED_AIRLINES=new Set(["SQ","TK","BJ","TW"]);
+
+async function ensureLot5Tables(env){
+  await ensureLot3Tables(env);
+  await ensurePrepaControlTables(env);
+  await env.OPS_DB.batch([
+    env.OPS_DB.prepare(`
+      CREATE TABLE IF NOT EXISTS lot5_autopilot_runs (
+        run_id TEXT PRIMARY KEY,
+        trigger_type TEXT NOT NULL DEFAULT 'CRON',
+        status TEXT NOT NULL DEFAULT 'RUNNING',
+        gmail_processed INTEGER NOT NULL DEFAULT 0,
+        jobs_processed INTEGER NOT NULL DEFAULT 0,
+        results_injected INTEGER NOT NULL DEFAULT 0,
+        drive_files_uploaded INTEGER NOT NULL DEFAULT 0,
+        error_message TEXT,
+        details_json TEXT NOT NULL DEFAULT '{}',
+        started_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        finished_at TEXT
+      )
+    `),
+    env.OPS_DB.prepare(`
+      CREATE TABLE IF NOT EXISTS lot5_drive_folders (
+        identity TEXT PRIMARY KEY,
+        airline TEXT NOT NULL,
+        flight_number TEXT NOT NULL,
+        flight_date TEXT NOT NULL,
+        airline_folder_id TEXT,
+        date_folder_id TEXT,
+        flight_folder_id TEXT NOT NULL,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `),
+    env.OPS_DB.prepare(`
+      CREATE TABLE IF NOT EXISTS lot5_drive_files (
+        version_id TEXT PRIMARY KEY,
+        identity TEXT NOT NULL,
+        drive_file_id TEXT NOT NULL,
+        drive_folder_id TEXT NOT NULL,
+        filename TEXT,
+        uploaded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `),
+    env.OPS_DB.prepare(`CREATE INDEX IF NOT EXISTS idx_lot5_drive_files_identity ON lot5_drive_files(identity,uploaded_at)`)
+  ]);
+}
+
+function lot5Bool(v,def=true){
+  if(v===undefined||v===null||v==='')return def;
+  const x=String(v).trim().toLowerCase();
+  if(["0","false","no","off"].includes(x))return false;
+  if(["1","true","yes","on"].includes(x))return true;
+  return def;
+}
+
+function lot5Config(env){
+  return {
+    enabled:lot5Bool(env.ALYZIA_AUTOPILOT_ENABLED,true),
+    gmailQuery:String(env.ALYZIA_AUTOPILOT_GMAIL_QUERY||'newer_than:3d {has:attachment "JFE SCREEN COPY"}').trim(),
+    gmailMax:Math.max(1,Math.min(100,Number(env.ALYZIA_AUTOPILOT_GMAIL_MAX||50))),
+    processBatch:Math.max(1,Math.min(50,Number(env.ALYZIA_AUTOPILOT_PROCESS_BATCH||50))),
+    processLoops:Math.max(1,Math.min(10,Number(env.ALYZIA_AUTOPILOT_PROCESS_LOOPS||5))),
+    injectBatch:Math.max(1,Math.min(100,Number(env.ALYZIA_AUTOPILOT_INJECT_BATCH||100))),
+    driveEnabled:lot5Bool(env.ALYZIA_AUTOPILOT_DRIVE_ENABLED,true),
+    driveRootFolderId:String(env.ALYZIA_DRIVE_ROOT_FOLDER_ID||'root').trim()||'root'
+  };
+}
+
+function lot5DriveEscapeQuery(v){
+  return String(v||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+}
+
+async function lot5DriveJson(env,path,opts={}){
+  const token=await getGoogleDriveAccessToken(env);
+  const resp=await fetch(`https://www.googleapis.com/drive/v3${path}`,{
+    ...opts,
+    headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json',...(opts.headers||{})}
+  });
+  const data=await resp.json().catch(()=>({}));
+  if(!resp.ok)throw new Error(data?.error?.message||`GOOGLE DRIVE HTTP ${resp.status}`);
+  return data;
+}
+
+async function lot5FindChildFolder(env,parentId,name){
+  const q=[
+    `'${lot5DriveEscapeQuery(parentId)}' in parents`,
+    `name='${lot5DriveEscapeQuery(name)}'`,
+    `mimeType='application/vnd.google-apps.folder'`,
+    `trashed=false`
+  ].join(' and ');
+  const p=new URLSearchParams({q,fields:'files(id,name)',pageSize:'10',spaces:'drive'});
+  const data=await lot5DriveJson(env,`/files?${p.toString()}`);
+  return data?.files?.[0]||null;
+}
+
+async function lot5EnsureDriveFolder(env,parentId,name){
+  const existing=await lot5FindChildFolder(env,parentId,name);
+  if(existing?.id)return String(existing.id);
+  const data=await lot5DriveJson(env,'/files?fields=id,name',{method:'POST',body:JSON.stringify({
+    name,
+    mimeType:'application/vnd.google-apps.folder',
+    parents:[parentId]
+  })});
+  if(!data?.id)throw new Error(`DRIVE DOSSIER NON CRÉÉ: ${name}`);
+  return String(data.id);
+}
+
+function lot5ConcatBytes(parts){
+  let total=0;
+  for(const p of parts)total+=p.byteLength;
+  const out=new Uint8Array(total);
+  let o=0;
+  for(const p of parts){out.set(p,o);o+=p.byteLength;}
+  return out;
+}
+
+async function lot5UploadR2VersionToDrive(env,row,folderId){
+  const object=await env.OPS_FILES.get(String(row.r2_key||''));
+  if(!object)throw new Error(`R2 INTROUVABLE: ${row.r2_key||row.version_id}`);
+  const ab=await new Response(object.body).arrayBuffer();
+  const bytes=new Uint8Array(ab);
+  const mime=String(row.mime_type||object.httpMetadata?.contentType||'application/octet-stream');
+  const filename=String(row.filename_original||row.filename_normalized||'document').replace(/[\\/:*?"<>|]+/g,'_').trim()||'document';
+  const boundary=`alyzia_${crypto.randomUUID().replace(/-/g,'')}`;
+  const enc=new TextEncoder();
+  const meta=JSON.stringify({name:filename,parents:[folderId]});
+  const pre=enc.encode(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n--${boundary}\r\nContent-Type: ${mime}\r\n\r\n`);
+  const post=enc.encode(`\r\n--${boundary}--`);
+  const body=lot5ConcatBytes([pre,bytes,post]);
+  const token=await getGoogleDriveAccessToken(env);
+  const resp=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name',{method:'POST',headers:{
+    Authorization:`Bearer ${token}`,
+    'Content-Type':`multipart/related; boundary=${boundary}`
+  },body});
+  const data=await resp.json().catch(()=>({}));
+  if(!resp.ok||!data?.id)throw new Error(data?.error?.message||`DRIVE UPLOAD HTTP ${resp.status}`);
+  return {id:String(data.id),name:String(data.name||filename)};
+}
+
+async function lot5FlightRoute(env,identity){
+  try{
+    const f=await getFlightByIdentity(env,identity);
+    return {dep:String(f?.dep||f?.origin||'').toUpperCase(),dest:String(f?.dest||f?.destination||'').toUpperCase()};
+  }catch(e){return {dep:'',dest:''}}
+}
+
+async function lot5EnsureFlightDriveFolder(env,{airline,flightNumber,flightDate}){
+  const identity=[flightDate,airline,flightNumber].join('|');
+  const cached=await env.OPS_DB.prepare(`SELECT * FROM lot5_drive_folders WHERE identity=? LIMIT 1`).bind(identity).first();
+  if(cached?.flight_folder_id)return {identity,airlineFolderId:cached.airline_folder_id,dateFolderId:cached.date_folder_id,flightFolderId:cached.flight_folder_id};
+
+  const cfg=lot5Config(env);
+  const airlineFolderId=await lot5EnsureDriveFolder(env,cfg.driveRootFolderId,airline);
+  const dateFolderId=await lot5EnsureDriveFolder(env,airlineFolderId,flightDate);
+  const route=await lot5FlightRoute(env,identity);
+  const flightName=route.dep&&route.dest?`${flightNumber} ${route.dep}-${route.dest}`:flightNumber;
+  const flightFolderId=await lot5EnsureDriveFolder(env,dateFolderId,flightName);
+
+  await env.OPS_DB.prepare(`
+    INSERT INTO lot5_drive_folders(identity,airline,flight_number,flight_date,airline_folder_id,date_folder_id,flight_folder_id,updated_at)
+    VALUES (?,?,?,?,?,?,?,CURRENT_TIMESTAMP)
+    ON CONFLICT(identity) DO UPDATE SET airline_folder_id=excluded.airline_folder_id,date_folder_id=excluded.date_folder_id,flight_folder_id=excluded.flight_folder_id,updated_at=CURRENT_TIMESTAMP
+  `).bind(identity,airline,flightNumber,flightDate,airlineFolderId,dateFolderId,flightFolderId).run();
+  return {identity,airlineFolderId,dateFolderId,flightFolderId};
+}
+
+async function lot5SyncPrepaInboxForMessage(env,messageId,driveFolderId=''){
+  const gm=await env.OPS_DB.prepare(`SELECT * FROM gmail_messages WHERE gmail_message_id=? LIMIT 1`).bind(messageId).first();
+  if(!gm||!gm.airline||!gm.flight_number||!gm.flight_date)return;
+  const {results=[]}=await env.OPS_DB.prepare(`
+    SELECT v.version_id,v.filename_original,v.mime_type,v.file_size,d.drive_file_id
+    FROM import_file_versions v
+    LEFT JOIN lot5_drive_files d ON d.version_id=v.version_id
+    WHERE v.gmail_message_id=? AND v.is_active=1
+    ORDER BY v.created_at ASC
+  `).bind(messageId).all();
+  const attachments=results.map(r=>({
+    name:String(r.filename_original||''),
+    mimeType:String(r.mime_type||''),
+    size:Number(r.file_size||0),
+    driveId:String(r.drive_file_id||'')
+  }));
+  await savePrepaInbox(env,{
+    gmailMessageId:String(gm.gmail_message_id||''),
+    gmailThreadId:String(gm.gmail_thread_id||''),
+    source:'GMAIL_AUTOPILOT',
+    detectionStatus:'IDENTIFIED',
+    airline:String(gm.airline||'').toUpperCase(),
+    flightNumber:String(gm.flight_number||'').toUpperCase(),
+    flightDate:String(gm.flight_date||''),
+    subject:String(gm.subject||''),
+    sender:String(gm.sender||''),
+    receivedAt:String(gm.received_at||''),
+    bodyText:'',
+    driveFolderId:String(driveFolderId||''),
+    driveEmailPdfId:'',
+    attachments
+  });
+}
+
+async function lot5ArchiveDrive(env){
+  const cfg=lot5Config(env);
+  if(!cfg.driveEnabled)return {ok:true,skipped:true,reason:'DRIVE_DISABLED',uploaded:0,folders:0};
+  const st=await googleDriveStatus(env);
+  if(!st.configured)return {ok:true,skipped:true,reason:'DRIVE_NOT_CONFIGURED',uploaded:0,folders:0};
+
+  const {results=[]}=await env.OPS_DB.prepare(`
+    SELECT v.version_id,v.gmail_message_id,v.filename_original,v.filename_normalized,v.mime_type,v.file_size,v.r2_key,
+           f.airline,f.flight_number,f.flight_date
+    FROM import_file_versions v
+    JOIN import_files f ON f.file_id=v.file_id
+    LEFT JOIN lot5_drive_files d ON d.version_id=v.version_id
+    WHERE v.is_active=1
+      AND d.version_id IS NULL
+      AND f.airline IS NOT NULL AND f.airline<>'' AND f.airline<>'UNK'
+      AND f.flight_number IS NOT NULL AND f.flight_number<>'' AND f.flight_number<>'UNIDENTIFIED'
+      AND f.flight_date IS NOT NULL AND f.flight_date<>'' AND f.flight_date<>'UNKNOWN_DATE'
+    ORDER BY v.created_at ASC
+    LIMIT 50
+  `).all();
+
+  let uploaded=0;
+  const folders=new Set();
+  const messages=new Map();
+  const errors=[];
+  for(const row of results){
+    try{
+      const airline=String(row.airline||'').toUpperCase();
+      const flightNumber=String(row.flight_number||'').toUpperCase();
+      const flightDate=String(row.flight_date||'');
+      const folder=await lot5EnsureFlightDriveFolder(env,{airline,flightNumber,flightDate});
+      folders.add(folder.identity);
+      const file=await lot5UploadR2VersionToDrive(env,row,folder.flightFolderId);
+      await env.OPS_DB.prepare(`
+        INSERT INTO lot5_drive_files(version_id,identity,drive_file_id,drive_folder_id,filename,uploaded_at)
+        VALUES (?,?,?,?,?,CURRENT_TIMESTAMP)
+        ON CONFLICT(version_id) DO NOTHING
+      `).bind(String(row.version_id),folder.identity,file.id,folder.flightFolderId,file.name).run();
+      uploaded++;
+      if(row.gmail_message_id)messages.set(String(row.gmail_message_id),folder.flightFolderId);
+      await recordImportChange(env,{scope:'DRIVE',airline,flightNumber,flightDate,gmailMessageId:row.gmail_message_id,fileId:'',versionId:row.version_id,changeType:'LOT5_DRIVE_UPLOADED',after:{driveFileId:file.id,driveFolderId:folder.flightFolderId,filename:file.name}}).catch(()=>{});
+    }catch(e){
+      errors.push({versionId:String(row.version_id||''),error:String(e?.message||e)});
+    }
+  }
+  for(const [messageId,folderId] of messages){
+    await lot5SyncPrepaInboxForMessage(env,messageId,folderId).catch(()=>{});
+  }
+  return {ok:errors.length===0,uploaded,folders:folders.size,errors};
+}
+
+async function lot5SyncPrepaInboxRecent(env){
+  const {results=[]}=await env.OPS_DB.prepare(`
+    SELECT gmail_message_id FROM gmail_messages
+    WHERE airline IS NOT NULL AND airline<>''
+      AND flight_number IS NOT NULL AND flight_number<>''
+      AND flight_date IS NOT NULL AND flight_date<>''
+    ORDER BY updated_at DESC
+    LIMIT 100
+  `).all();
+  let synced=0;
+  for(const r of results){
+    const id=String(r.gmail_message_id||'');
+    if(!id)continue;
+    let folderId='';
+    const pf=await env.OPS_DB.prepare(`
+      SELECT d.flight_folder_id
+      FROM gmail_messages g
+      JOIN lot5_drive_folders d ON d.airline=UPPER(g.airline) AND d.flight_number=UPPER(g.flight_number) AND d.flight_date=g.flight_date
+      WHERE g.gmail_message_id=? LIMIT 1
+    `).bind(id).first().catch(()=>null);
+    folderId=String(pf?.flight_folder_id||'');
+    await lot5SyncPrepaInboxForMessage(env,id,folderId).catch(()=>{});
+    synced++;
+  }
+  return synced;
+}
+
+async function lot5InjectAvailable(env,cfg){
+  let injected=0,waiting=0,errors=[];
+
+  // 1) OPERATIONAL_INFO crée le vol réel lorsqu'il n'existe pas encore.
+  const op=(await env.OPS_DB.prepare(`
+    SELECT * FROM import_job_results
+    WHERE parser_mode='GENERIC'
+      AND card_key='OPERATIONAL_INFO'
+      AND status IN ('OPERATIONAL_INFO_READY','WAITING_FLIGHT')
+    ORDER BY updated_at ASC
+    LIMIT ?
+  `).bind(cfg.injectBatch).all()).results||[];
+  for(const row of op){
+    try{
+      const r=await lot3InjectOneResult(env,row,{createMissingFlights:true});
+      if(r?.status==='INJECTED')injected++; else waiting++;
+    }catch(e){errors.push({jobId:row.job_id,error:String(e?.message||e)})}
+  }
+
+  // 2) Les cartes sont injectées uniquement sur une fiche vol existante.
+  const cards=(await env.OPS_DB.prepare(`
+    SELECT * FROM import_job_results
+    WHERE parser_mode='GENERIC'
+      AND card_key IS NOT NULL AND card_key<>'' AND card_key<>'NO_LIST' AND card_key<>'OPERATIONAL_INFO'
+      AND status IN ('GENERIC_CARD_READY','GENERIC_MASTER_READY','GENERIC_CARD_OTHER','WAITING_FLIGHT')
+    ORDER BY updated_at ASC
+    LIMIT ?
+  `).bind(cfg.injectBatch).all()).results||[];
+  for(const row of cards){
+    try{
+      const r=await lot3InjectOneResult(env,row,{createMissingFlights:false});
+      if(r?.status==='INJECTED')injected++; else waiting++;
+    }catch(e){errors.push({jobId:row.job_id,error:String(e?.message||e)})}
+  }
+  return {ok:errors.length===0,injected,waiting,errors};
+}
+
+async function lot5AutoPilotRun(env,{triggerType='MANUAL',gmailQuery='',gmailMax=0}={}){
+  await ensureLot5Tables(env);
+  const cfg=lot5Config(env);
+  const runId=crypto.randomUUID();
+  await env.OPS_DB.prepare(`INSERT INTO lot5_autopilot_runs(run_id,trigger_type,status,started_at) VALUES (?,?,'RUNNING',CURRENT_TIMESTAMP)`).bind(runId,triggerType).run();
+
+  const details={version:LOT5_VERSION,config:{...cfg,driveRootFolderId:cfg.driveRootFolderId==='root'?'root':'CUSTOM'}};
+  let gmailProcessed=0,jobsProcessed=0,resultsInjected=0,driveUploaded=0;
+  try{
+    if(!cfg.enabled)throw new Error('AUTO PILOT DÉSACTIVÉ');
+
+    const gmail=await gmailSyncNow(env,{query:gmailQuery||cfg.gmailQuery,maxMessages:gmailMax||cfg.gmailMax});
+    details.gmail={processed:gmail.processed,nextPageToken:gmail.nextPageToken||''};
+    gmailProcessed=Number(gmail.processed||0);
+
+    const processRuns=[];
+    for(let i=0;i<cfg.processLoops;i++){
+      const r=await lot2ProcessNext(env,{limit:cfg.processBatch});
+      processRuns.push({found:r.found,processed:r.processed?.length||0});
+      jobsProcessed+=Number(r.processed?.length||0);
+      if(!r.found)break;
+    }
+    details.process=processRuns;
+
+    const inj=await lot5InjectAvailable(env,cfg);
+    details.inject=inj;
+    resultsInjected=Number(inj.injected||0);
+
+    const drive=await lot5ArchiveDrive(env);
+    details.drive=drive;
+    driveUploaded=Number(drive.uploaded||0);
+
+    details.prepaSynced=await lot5SyncPrepaInboxRecent(env);
+
+    await env.OPS_DB.prepare(`
+      UPDATE lot5_autopilot_runs
+      SET status='DONE',gmail_processed=?,jobs_processed=?,results_injected=?,drive_files_uploaded=?,details_json=?,finished_at=CURRENT_TIMESTAMP
+      WHERE run_id=?
+    `).bind(gmailProcessed,jobsProcessed,resultsInjected,driveUploaded,JSON.stringify(details),runId).run();
+    await setIntegrationJson(env,'lot5_autopilot_last_run',{runId,status:'DONE',finishedAt:new Date().toISOString(),details});
+    return {ok:true,runId,...details,gmailProcessed,jobsProcessed,resultsInjected,driveUploaded};
+  }catch(e){
+    const error=String(e?.message||e);
+    details.error=error;
+    await env.OPS_DB.prepare(`
+      UPDATE lot5_autopilot_runs SET status='ERROR',gmail_processed=?,jobs_processed=?,results_injected=?,drive_files_uploaded=?,error_message=?,details_json=?,finished_at=CURRENT_TIMESTAMP WHERE run_id=?
+    `).bind(gmailProcessed,jobsProcessed,resultsInjected,driveUploaded,error,JSON.stringify(details),runId).run().catch(()=>{});
+    await setIntegrationJson(env,'lot5_autopilot_last_run',{runId,status:'ERROR',finishedAt:new Date().toISOString(),details}).catch(()=>{});
+    return {ok:false,runId,error,...details,gmailProcessed,jobsProcessed,resultsInjected,driveUploaded};
+  }
+}
+
+async function lot5Status(env){
+  await ensureLot5Tables(env);
+  const cfg=lot5Config(env);
+  const last=await env.OPS_DB.prepare(`SELECT * FROM lot5_autopilot_runs ORDER BY started_at DESC LIMIT 1`).first();
+  const counters=await env.OPS_DB.prepare(`
+    SELECT
+      (SELECT COUNT(*) FROM import_jobs WHERE status='QUEUED') AS queuedJobs,
+      (SELECT COUNT(*) FROM import_job_results WHERE status='WAITING_FLIGHT') AS waitingFlight,
+      (SELECT COUNT(*) FROM lot5_drive_folders) AS driveFolders,
+      (SELECT COUNT(*) FROM lot5_drive_files) AS driveFiles
+  `).first();
+  return {ok:true,version:LOT5_VERSION,config:{...cfg,driveRootFolderId:cfg.driveRootFolderId==='root'?'root':'CUSTOM'},lastRun:last?{...last,details:safeJsonParse(last.details_json,{})}:null,counters:counters||{},googleDrive:await googleDriveStatus(env)};
+}
+
+async function handleLot5(request,env,url){
+  if(!url.pathname.startsWith('/api/autopilot'))return null;
+  try{
+    if(url.pathname==='/api/autopilot/status'&&request.method==='GET')return json(await lot5Status(env));
+    if(url.pathname==='/api/autopilot/run'&&request.method==='POST'){
+      const body=await request.json().catch(()=>({}));
+      return json(await lot5AutoPilotRun(env,{triggerType:'MANUAL',gmailQuery:String(body?.query||''),gmailMax:Number(body?.maxMessages||0)}));
+    }
+    return json({ok:false,error:'ROUTE AUTO PILOT INCONNUE'},404);
+  }catch(e){return json({ok:false,error:String(e?.message||e)},500)}
+}
+
+
 async function handleGmailPipeline(request,env,url){
   if(!url.pathname.startsWith("/api/gmail") && !url.pathname.startsWith("/api/import-pipeline"))return null;
   try{
@@ -4680,6 +5092,11 @@ export default {
         if(result)return result;
       }
 
+      if(url.pathname.startsWith("/api/autopilot")){
+        const result=await handleLot5(request,env,url);
+        if(result)return result;
+      }
+
       if(url.pathname.startsWith("/api/gmail") || url.pathname.startsWith("/api/import-pipeline")){
         const result=await handleGmailPipeline(request,env,url);
         if(result)return result;
@@ -4715,5 +5132,12 @@ export default {
         error:err?.message||String(err)
       },500);
     }
+  },
+
+  async scheduled(controller,env,ctx){
+    ctx.waitUntil((async()=>{
+      const result=await lot5AutoPilotRun(env,{triggerType:"CRON"});
+      if(!result?.ok)console.error("ALYZIA LOT5 AUTO PILOT",result?.error||result);
+    })());
   }
 };
