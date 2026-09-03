@@ -5119,85 +5119,10 @@ async function lot5SpecificBrowserCompleteV535(env,body){
   return {ok:true,identity,confirmed:rows.length,messages:touched.length};
 }
 
-
-async function lot5ArchiveDriveForMessagesV535(env,messageIds){
-  const ids=[...new Set((messageIds||[]).map(x=>String(x||'').trim()).filter(Boolean))].slice(0,20);
-  const cfg=lot5Config(env);
-  if(!cfg.driveEnabled)return {ok:true,skipped:true,reason:'DRIVE_DISABLED',uploaded:0,folders:0};
-  const st=await googleDriveStatus(env);
-  if(!st.configured)return {ok:true,skipped:true,reason:'DRIVE_NOT_CONFIGURED',uploaded:0,folders:0};
-  if(!ids.length)return {ok:true,uploaded:0,folders:0,errors:[]};
-  const qs=ids.map(()=>'?').join(',');
-  const {results=[]}=await env.OPS_DB.prepare(`
-    SELECT v.version_id,v.gmail_message_id,v.filename_original,v.filename_normalized,v.mime_type,v.file_size,v.r2_key,v.received_at,
-           COALESCE(NULLIF(g.airline,''),f.airline) AS airline,
-           COALESCE(NULLIF(g.flight_number,''),f.flight_number) AS flight_number,
-           COALESCE(NULLIF(g.flight_date,''),f.flight_date) AS flight_date
-    FROM import_file_versions v
-    JOIN import_files f ON f.file_id=v.file_id
-    LEFT JOIN gmail_messages g ON g.gmail_message_id=v.gmail_message_id
-    LEFT JOIN lot5_drive_files d ON d.version_id=v.version_id
-    WHERE d.version_id IS NULL AND v.gmail_message_id IN (${qs})
-    ORDER BY v.created_at ASC
-  `).bind(...ids).all();
-  let uploaded=0; const folders=new Set(); const errors=[];
-  for(const row of results){
-    try{
-      const airline=String(row.airline||'').toUpperCase();
-      const flightNumber=String(row.flight_number||'').toUpperCase();
-      const flightDate=lot5CanonicalFlightDate(row.flight_date,row.received_at||'');
-      const folder=await lot5EnsureFlightDriveFolder(env,{airline,flightNumber,flightDate,contextIso:row.received_at||''});
-      folders.add(folder.identity);
-      const file=await lot5UploadR2VersionToDrive(env,row,folder.flightFolderId);
-      await env.OPS_DB.prepare(`INSERT INTO lot5_drive_files(version_id,identity,drive_file_id,drive_folder_id,filename,uploaded_at) VALUES (?,?,?,?,?,CURRENT_TIMESTAMP) ON CONFLICT(version_id) DO NOTHING`).bind(String(row.version_id),folder.identity,file.id,folder.flightFolderId,file.name).run();
-      uploaded++;
-      if(row.gmail_message_id)await lot5SyncPrepaInboxForMessage(env,String(row.gmail_message_id),folder.flightFolderId).catch(()=>{});
-    }catch(e){errors.push({versionId:String(row.version_id||''),error:String(e?.message||e)})}
-  }
-  return {ok:errors.length===0,uploaded,folders:folders.size,errors};
-}
-
-async function lot5TestBatchV535(env,body){
-  await ensureLot5Tables(env);
-  const ids=[...new Set((body?.messageIds||[]).map(x=>String(x||'').trim()).filter(Boolean))];
-  if(!ids.length)return {ok:false,error:'messageIds requis'};
-  if(ids.length>20)return {ok:false,error:'Maximum 20 messages'};
-  const stored=[];
-  for(const id of ids){
-    try{stored.push(await storeGmailMessage(env,id));}
-    catch(e){stored.push({messageId:id,status:'ERROR_IMPORT',error:String(e?.message||e)})}
-    await lot5RepairMessageIdentityV533(env,id).catch(()=>{});
-  }
-  const driveBefore=await lot5ArchiveDriveForMessagesV535(env,ids);
-  const qs=ids.map(()=>'?').join(',');
-  const jobs=(await env.OPS_DB.prepare(`SELECT * FROM import_jobs WHERE status='QUEUED' AND gmail_message_id IN (${qs}) ORDER BY priority ASC,created_at ASC`).bind(...ids).all()).results||[];
-  const processed=[];
-  for(const job of jobs){
-    try{processed.push(await lot2ProcessOneJob(env,job));}
-    catch(e){processed.push({job_id:job.job_id,error:String(e?.message||e)})}
-  }
-  const driveAfter=await lot5ArchiveDriveForMessagesV535(env,ids);
-  const resultRows=(await env.OPS_DB.prepare(`SELECT r.* FROM import_job_results r JOIN import_jobs j ON j.job_id=r.job_id WHERE j.gmail_message_id IN (${qs}) ORDER BY r.updated_at ASC`).bind(...ids).all()).results||[];
-  let injected=0,waiting=0; const injectionErrors=[];
-  for(const row of resultRows){
-    if(String(row.parser_mode||'')!=='GENERIC')continue;
-    try{const r=await lot3InjectOneResult(env,row,{createMissingFlights:true}); if(r?.status==='INJECTED')injected++; else waiting++;}
-    catch(e){injectionErrors.push({jobId:row.job_id,error:String(e?.message||e)})}
-  }
-  const audits=[];
-  for(const id of ids){
-    await lot5ReconcileOneGmailStateV53(env,id).catch(()=>{});
-    await lot5SyncPrepaInboxForMessage(env,id).catch(()=>{});
-    audits.push(await lot5AuditMessageV534(env,id).catch(e=>({messageId:id,error:String(e?.message||e)})));
-  }
-  return {ok:true,testMode:true,messageCount:ids.length,stored,processedJobs:processed.length,driveUploaded:Number(driveBefore.uploaded||0)+Number(driveAfter.uploaded||0),injected,waiting,injectionErrors,audits};
-}
-
 async function handleLot5(request,env,url){
   if(!url.pathname.startsWith('/api/autopilot'))return null;
   try{
     if(url.pathname==='/api/autopilot/status'&&request.method==='GET')return json(await lot5Status(env));
-    if(url.pathname==='/api/autopilot/test-batch'&&request.method==='POST'){ const body=await request.json().catch(()=>({})); return json(await lot5TestBatchV535(env,body)); }
     if(url.pathname==='/api/autopilot/run'&&request.method==='POST'){
       const body=await request.json().catch(()=>({}));
       return json(await lot5AutoPilotRun(env,{triggerType:'MANUAL',gmailQuery:String(body?.query||''),gmailMax:Number(body?.maxMessages||0)}));
