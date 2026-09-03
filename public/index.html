@@ -25157,7 +25157,7 @@ console.log('ALYZIA OPS BUILD141 — IMPORT PIPELINE SYNC LOADED');
 <script id="alyzia-build143-fast-lazy">
 (()=>{
 'use strict';
-const BUILD143='ALYZIA OPS BUILD143 R3 — IMPORT GMAIL FAST LAZY TK PAYLOAD';
+const BUILD143='ALYZIA OPS BUILD143 R4 — IMPORT GMAIL SPECIFIC PROCESSED RECOVERY';
 let import143Summary=null;
 let import143SummaryAt=0;
 const IMPORT143_SUMMARY_TTL=15000;
@@ -25327,10 +25327,14 @@ async function import143RecoverSpecificBacklog(){
   import143SpecificRecoveryBusy=true;
   try{
     const j=await import143FetchSummary(true);
-    const todo=(j?.flights||[]).filter(f=>['SQ','TK','BJ','TW'].includes(String(f.airline||'').toUpperCase()) && ['IMPORTED','RECEIVED','PENDING','PROCESSING'].includes(String(f.status||'').toUpperCase()));
+    const todo=(j?.flights||[]).filter(f=>['SQ','TK','BJ','TW'].includes(String(f.airline||'').toUpperCase()) && ['IMPORTED','PROCESSED','RECEIVED','PENDING','PROCESSING'].includes(String(f.status||'').toUpperCase()));
     for(const f of todo){
       if(document.hidden)break;
-      try{await import143RecoverOneSpecificFlight(f)}catch(e){console.warn(BUILD143,'SPECIFIC RECOVERY',f?.airline,f?.flightNumber,f?.flightDate,e)}
+      console.info('ALYZIA OPS BUILD143 R4 — SPECIFIC RECOVERY START',f?.airline,f?.flightNumber,f?.flightDate,f?.status);
+      try{
+        const ok=await import143RecoverOneSpecificFlight(f);
+        console.info('ALYZIA OPS BUILD143 R4 — SPECIFIC RECOVERY OK',f?.airline,f?.flightNumber,f?.flightDate,'ok=',ok);
+      }catch(e){console.warn(BUILD143,'SPECIFIC RECOVERY',f?.airline,f?.flightNumber,f?.flightDate,e)}
       await new Promise(r=>setTimeout(r,350));
     }
     import143SummaryAt=0;
@@ -25346,7 +25350,7 @@ window.openImportsDashboard=function(){
 };
 
 console.log(BUILD143);
-console.log('BUILD143 R3: TK/TW direct base64 payload recovery active');
+console.log('BUILD143 R4: PROCESSED specific recovery + TK/TW base64 payload active');
 })();
 </script>
 </body></html>
