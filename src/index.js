@@ -1965,7 +1965,7 @@ async function storeGmailMessage(env,messageId){
     await recordImportChange(env,{scope:"MESSAGE",gmailMessageId:messageId,changeType:"TEXT_BODY_ERROR",after:{error:String(e?.message||e)}}).catch(()=>{});
   }
 
-  const finalStatus=error?"ERROR_IMPORT":(added||updated||virtualText)?"IMPORTED":duplicate?"DUPLICATE":"REVIEW";
+  const finalStatus=error?"ERROR_IMPORT":(added||updated||virtualText)?"RECEIVED":duplicate?"DUPLICATE":"REVIEW";
   await env.OPS_DB.prepare(`UPDATE gmail_messages SET status=?,label_state=?,processed_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE gmail_message_id=?`).bind(finalStatus,finalStatus,messageId).run();
   await setGmailPipelineState(env,messageId,finalStatus,{archive:true}).catch(()=>{});
 
@@ -4227,8 +4227,9 @@ async function lot3FlightCards(env,url){
  * ========================================================= */
 
 // LOT 5.2 FULL MAILBOX CONTINUOUS — whole Gmail mailbox + newest-first + resumable pagination + non-blocking errors.
-const LOT5_VERSION="V50.29_LOT5_AUTOPILOT_3_3_IDENTITY_DRIVE_STATE_FIX";
-// 5.3.3 scope: orchestration only (identity repair / Drive gate / exclusive Gmail state / bounded run).
+const LOT5_VERSION="V50.29_LOT5_AUTOPILOT_3_4_END_TO_END_TRACE_FIX";
+// 5.3.4 scope: end-to-end orchestration only.
+// Gmail -> identity -> R2/D1 -> Drive -> existing parser -> flight injection -> exclusive Gmail state.
 // Parsers TK/BJ/VF/SQ/TW are intentionally untouched.
 const LOT5_PROTECTED_AIRLINES=new Set(["SQ","TK","BJ","VF","TW"]);
 
@@ -4295,7 +4296,7 @@ function lot5Config(env){
     // - corps mail + JFE SCREEN COPY + PDF + TXT + EML sont tous collectés
     gmailQuery:String(env.ALYZIA_AUTOPILOT_GMAIL_QUERY||'in:anywhere').trim()||'in:anywhere',
     gmailMax:Math.max(1,Math.min(100,Number(env.ALYZIA_AUTOPILOT_GMAIL_MAX||100))),
-    gmailPagesPerRun:Math.max(1,Math.min(2,Number(env.ALYZIA_AUTOPILOT_GMAIL_PAGES_PER_RUN||1))),
+    gmailPagesPerRun:Math.max(1,Math.min(3,Number(env.ALYZIA_AUTOPILOT_GMAIL_PAGES_PER_RUN||2))),
 
     processBatch:Math.max(1,Math.min(50,Number(env.ALYZIA_AUTOPILOT_PROCESS_BATCH||50))),
     processLoops:Math.max(1,Math.min(4,Number(env.ALYZIA_AUTOPILOT_PROCESS_LOOPS||4))),
@@ -4533,9 +4534,14 @@ async function lot5ReconcileOneGmailStateV53(env,messageId){
     JOIN import_jobs j ON j.job_id=r.job_id
     WHERE j.gmail_message_id=?
   `).bind(messageId).all()).results||[];
+  const jobStatuses=jobs.map(j=>String(j.status||"").toUpperCase());
+  if(jobStatuses.some(x=>x==="QUEUED"||x==="PROCESSING")){
+    await transition("RECEIVED");
+    return {messageId,state:"RECEIVED",parsePending:true};
+  }
   if(!results.length){
-    await transition("IMPORTED");
-    return {messageId,state:"IMPORTED"};
+    await transition("REVIEW");
+    return {messageId,state:"REVIEW",reason:"PARSER_DONE_WITHOUT_RESULT"};
   }
   const statuses=results.map(r=>String(r.status||"").toUpperCase());
   const generic=results.filter(r=>String(r.parser_mode||"").toUpperCase()==="GENERIC");
@@ -4568,8 +4574,8 @@ async function lot5ReconcileGmailStatesV53(env,limit=200){
   const rows=(await env.OPS_DB.prepare(`
     SELECT gmail_message_id FROM gmail_messages
     WHERE status<>'IGNORED_NON_OPERATIONAL'
-    ORDER BY updated_at DESC LIMIT ?
-  `).bind(Math.max(1,Math.min(500,Number(limit||200)))).all()).results||[];
+    ORDER BY updated_at ASC LIMIT ?
+  `).bind(Math.max(1,Math.min(2000,Number(limit||500)))).all()).results||[];
   const counts={}; const errors=[];
   for(const r of rows){
     const id=String(r.gmail_message_id||""); if(!id)continue;
@@ -4640,6 +4646,89 @@ async function lot5SyncPrepaInboxForMessage(env,messageId,driveFolderId=''){
   `).bind(ps.status,ps.error,ps.status,messageId).run();
 }
 
+
+async function lot5RepairIdentityBacklogV534(env,limit=1000){
+  const rows=(await env.OPS_DB.prepare(`
+    SELECT gmail_message_id FROM gmail_messages
+    WHERE status<>'IGNORED_NON_OPERATIONAL'
+    ORDER BY updated_at ASC
+    LIMIT ?
+  `).bind(Math.max(1,Math.min(2000,Number(limit||1000)))).all()).results||[];
+  let checked=0,repaired=0,valid=0,invalid=0; const errors=[];
+  for(const row of rows){
+    const id=String(row.gmail_message_id||''); if(!id)continue;
+    checked++;
+    try{
+      const before=await env.OPS_DB.prepare(`SELECT airline,flight_number,flight_date FROM gmail_messages WHERE gmail_message_id=?`).bind(id).first();
+      const after=await lot5RepairMessageIdentityV533(env,id);
+      if(after?.identityValid)valid++; else invalid++;
+      if(after && (String(before?.airline||'')!==String(after.airline||'') || String(before?.flight_number||'')!==String(after.flight_number||'') || String(before?.flight_date||'')!==String(after.flight_date||''))) repaired++;
+    }catch(e){errors.push({messageId:id,error:String(e?.message||e)})}
+  }
+  return {ok:errors.length===0,checked,repaired,valid,invalid,errors};
+}
+
+async function lot5StopRequestedV534(env){
+  const row=await getIntegrationJson(env,'lot5_autopilot_stop_requested').catch(()=>null);
+  return !!row?.requested;
+}
+async function lot5CheckpointV534(env,stage){
+  if(await lot5StopRequestedV534(env)){
+    const e=new Error(`AUTO PILOT ARRÊT DEMANDÉ @ ${stage}`); e.code='STOP_REQUESTED'; throw e;
+  }
+}
+
+async function lot5AuditMessageV534(env,messageId){
+  const gm=await env.OPS_DB.prepare(`SELECT * FROM gmail_messages WHERE gmail_message_id=? LIMIT 1`).bind(messageId).first();
+  if(!gm)return {messageId,found:false};
+  const versions=(await env.OPS_DB.prepare(`
+    SELECT v.version_id,v.filename_original,v.mime_type,v.file_size,v.sha256,v.r2_key,
+           d.drive_file_id,d.drive_folder_id,d.filename AS drive_filename
+    FROM import_file_versions v
+    LEFT JOIN lot5_drive_files d ON d.version_id=v.version_id
+    WHERE v.gmail_message_id=? ORDER BY v.created_at ASC
+  `).bind(messageId).all()).results||[];
+  const jobs=(await env.OPS_DB.prepare(`SELECT job_id,status,job_type,file_id,version_id,error_message FROM import_jobs WHERE gmail_message_id=? ORDER BY created_at ASC`).bind(messageId).all()).results||[];
+  const results=(await env.OPS_DB.prepare(`
+    SELECT r.job_id,r.status,r.parser_mode,r.card_key,r.list_name,r.airline,r.flight_number,r.flight_date,r.error_message
+    FROM import_job_results r JOIN import_jobs j ON j.job_id=r.job_id
+    WHERE j.gmail_message_id=? ORDER BY r.updated_at ASC
+  `).bind(messageId).all()).results||[];
+  const prepa=await env.OPS_DB.prepare(`SELECT status,error_message,airline,flight_number,flight_date,drive_folder_id FROM prepa_inbox WHERE gmail_message_id=? ORDER BY updated_at DESC LIMIT 1`).bind(messageId).first().catch(()=>null);
+  const identityValid=isValidAirlineCodeV53(gm.airline) && String(gm.flight_number||'').toUpperCase().startsWith(String(gm.airline||'').toUpperCase()) && /^20\d{2}-\d{2}-\d{2}$/.test(lot5CanonicalFlightDate(gm.flight_date,gm.received_at||gm.internal_date||''));
+  let flight=null;
+  if(identityValid){
+    const identity=[lot5CanonicalFlightDate(gm.flight_date,gm.received_at||gm.internal_date||''),String(gm.airline||'').toUpperCase(),String(gm.flight_number||'').toUpperCase()].join('|');
+    flight=await getFlightByIdentity(env,identity).catch(()=>null);
+  }
+  const driveArchived=versions.filter(v=>v.drive_file_id).length;
+  return {
+    messageId,found:true,subject:String(gm.subject||''),status:String(gm.status||''),
+    identity:{airline:String(gm.airline||''),flightNumber:String(gm.flight_number||''),flightDate:String(gm.flight_date||''),valid:identityValid},
+    acquisition:{versions:versions.length,r2Stored:versions.filter(v=>v.r2_key).length},
+    drive:{archived:driveArchived,total:versions.length,complete:versions.length>0&&driveArchived===versions.length,folderId:String(prepa?.drive_folder_id||'')},
+    parser:{jobsTotal:jobs.length,jobsDone:jobs.filter(j=>String(j.status||'').toUpperCase()==='DONE').length,jobsError:jobs.filter(j=>String(j.status||'').toUpperCase()==='ERROR').length,resultsTotal:results.length,modes:[...new Set(results.map(r=>String(r.parser_mode||'')))].filter(Boolean)},
+    injection:{resultsInjected:results.filter(r=>String(r.status||'').toUpperCase()==='INJECTED').length,waitingFlight:results.filter(r=>String(r.status||'').toUpperCase()==='WAITING_FLIGHT').length,flightExists:!!flight},
+    prepa:prepa||null,
+    versions,jobs,results
+  };
+}
+
+async function lot5AuditBacklogV534(env,limit=100){
+  const rows=(await env.OPS_DB.prepare(`SELECT gmail_message_id FROM gmail_messages WHERE status<>'IGNORED_NON_OPERATIONAL' ORDER BY updated_at DESC LIMIT ?`).bind(Math.max(1,Math.min(500,Number(limit||100)))).all()).results||[];
+  const summary={checked:0,received:0,imported:0,injected:0,validated:0,review:0,error:0,driveComplete:0,drivePending:0,flightMissing:0};
+  const items=[];
+  for(const r of rows){
+    const a=await lot5AuditMessageV534(env,String(r.gmail_message_id||'')); if(!a?.found)continue;
+    summary.checked++; const st=String(a.status||'').toUpperCase();
+    if(st==='RECEIVED')summary.received++; else if(st==='IMPORTED')summary.imported++; else if(st==='INJECTED')summary.injected++; else if(st==='VALIDATED')summary.validated++; else if(st==='REVIEW')summary.review++; else if(st.startsWith('ERROR'))summary.error++;
+    if(a.drive.complete)summary.driveComplete++; else if(a.acquisition.versions>0)summary.drivePending++;
+    if(a.identity.valid && !a.injection.flightExists)summary.flightMissing++;
+    items.push({messageId:a.messageId,subject:a.subject,status:a.status,identity:a.identity,drive:a.drive,parser:a.parser,injection:a.injection});
+  }
+  return {ok:true,summary,items};
+}
+
 async function lot5ArchiveDrive(env){
   const cfg=lot5Config(env);
   if(!cfg.driveEnabled)return {ok:true,skipped:true,reason:'DRIVE_DISABLED',uploaded:0,folders:0};
@@ -4648,18 +4737,19 @@ async function lot5ArchiveDrive(env){
 
   const {results=[]}=await env.OPS_DB.prepare(`
     SELECT v.version_id,v.gmail_message_id,v.filename_original,v.filename_normalized,v.mime_type,v.file_size,v.r2_key,v.received_at,
-           f.airline,f.flight_number,f.flight_date
+           COALESCE(NULLIF(g.airline,''),f.airline) AS airline,
+           COALESCE(NULLIF(g.flight_number,''),f.flight_number) AS flight_number,
+           COALESCE(NULLIF(g.flight_date,''),f.flight_date) AS flight_date
     FROM import_file_versions v
     JOIN import_files f ON f.file_id=v.file_id
+    LEFT JOIN gmail_messages g ON g.gmail_message_id=v.gmail_message_id
     LEFT JOIN lot5_drive_files d ON d.version_id=v.version_id
     WHERE d.version_id IS NULL
-      AND f.airline IS NOT NULL AND f.airline<>'' AND f.airline<>'UNK'
-      AND f.airline GLOB '*[A-Z]*'
-      AND length(f.airline)=2
-      AND f.flight_number IS NOT NULL AND f.flight_number<>'' AND f.flight_number<>'UNIDENTIFIED'
-      AND f.flight_date IS NOT NULL AND f.flight_date<>'' AND f.flight_date<>'UNKNOWN_DATE'
-    ORDER BY v.created_at DESC
-    LIMIT 50
+      AND COALESCE(NULLIF(g.airline,''),f.airline) IS NOT NULL
+      AND COALESCE(NULLIF(g.flight_number,''),f.flight_number) IS NOT NULL
+      AND COALESCE(NULLIF(g.flight_date,''),f.flight_date) IS NOT NULL
+    ORDER BY v.created_at ASC
+    LIMIT 100
   `).all();
 
   let uploaded=0;
@@ -4872,18 +4962,31 @@ async function lot5AutoPilotRun(env,{triggerType='MANUAL',gmailQuery='',gmailMax
   try{
     if(!cfg.enabled)throw new Error('AUTO PILOT DÉSACTIVÉ');
 
+    await setIntegrationJson(env,'lot5_autopilot_stop_requested',{requested:false,runId,updatedAt:new Date().toISOString()}).catch(()=>{});
     const gmail=await lot5GmailContinuousSweep(env,cfg,{
       query:gmailQuery||cfg.gmailQuery,
       maxMessages:gmailMax||cfg.gmailMax
     });
     details.gmail=gmail;
     gmailProcessed=Number(gmail.processed||0);
+    await lot5CheckpointV534(env,'GMAIL');
+
+    // 5.3.4 : réparer l'identité AVANT Drive et AVANT toute décision de statut.
+    details.identityRepair=await lot5RepairIdentityBacklogV534(env,1200);
+    await lot5CheckpointV534(env,'IDENTITY');
+
+    // Archiver les sources physiques dès que l'identité canonique est disponible.
+    const driveBefore=await lot5ArchiveDrive(env);
+    details.driveBeforeParse=driveBefore;
+    driveUploaded+=Number(driveBefore.uploaded||0);
+    await lot5CheckpointV534(env,'DRIVE_BEFORE_PARSE');
 
     const processRuns=[];
     for(let i=0;i<cfg.processLoops;i++){
       const r=await lot2ProcessNext(env,{limit:cfg.processBatch});
       processRuns.push({found:r.found,processed:r.processed?.length||0});
       jobsProcessed+=Number(r.processed?.length||0);
+      await lot5CheckpointV534(env,`PROCESS_${i+1}`);
       if(!r.found)break;
     }
     details.process=processRuns;
@@ -4891,17 +4994,20 @@ async function lot5AutoPilotRun(env,{triggerType='MANUAL',gmailQuery='',gmailMax
     const inj=await lot5InjectAvailable(env,cfg);
     details.inject=inj;
     resultsInjected=Number(inj.injected||0);
+    await lot5CheckpointV534(env,'INJECT');
 
-    // LOT 5.3.2 — archiver d'abord toutes les versions distinctes dans Drive.
-    // Ainsi Gmail ne passe pas à IMPORTÉ avant la tentative d'archivage Drive du cycle.
-    const drive=await lot5ArchiveDrive(env);
-    details.drive=drive;
-    driveUploaded=Number(drive.uploaded||0);
+    // Deuxième passe Drive pour toute source devenue admissible pendant le traitement.
+    const driveAfter=await lot5ArchiveDrive(env);
+    details.driveAfterParse=driveAfter;
+    details.drive={ok:!!(driveBefore.ok&&driveAfter.ok),uploaded:Number(driveBefore.uploaded||0)+Number(driveAfter.uploaded||0),errors:[...(driveBefore.errors||[]),...(driveAfter.errors||[])]};
+    driveUploaded+=Number(driveAfter.uploaded||0);
 
-    const labels=await lot5ReconcileGmailStatesV53(env,500);
+    // Réconcilier un backlog large, pas seulement les 500 derniers messages.
+    const labels=await lot5ReconcileGmailStatesV53(env,1500);
     details.gmailStates=labels;
 
     details.prepaSynced=await lot5SyncPrepaInboxRecent(env);
+    details.audit=await lot5AuditBacklogV534(env,100);
 
     await env.OPS_DB.prepare(`
       UPDATE lot5_autopilot_runs
@@ -4912,12 +5018,14 @@ async function lot5AutoPilotRun(env,{triggerType='MANUAL',gmailQuery='',gmailMax
     return {ok:true,runId,...details,gmailProcessed,jobsProcessed,resultsInjected,driveUploaded};
   }catch(e){
     const error=String(e?.message||e);
+    const stopped=String(e?.code||'')==='STOP_REQUESTED';
+    const finalRunStatus=stopped?'STOPPED':'ERROR';
     details.error=error;
     await env.OPS_DB.prepare(`
-      UPDATE lot5_autopilot_runs SET status='ERROR',gmail_processed=?,jobs_processed=?,results_injected=?,drive_files_uploaded=?,error_message=?,details_json=?,finished_at=CURRENT_TIMESTAMP WHERE run_id=?
-    `).bind(gmailProcessed,jobsProcessed,resultsInjected,driveUploaded,error,JSON.stringify(details),runId).run().catch(()=>{});
-    await setIntegrationJson(env,'lot5_autopilot_last_run',{runId,status:'ERROR',finishedAt:new Date().toISOString(),details}).catch(()=>{});
-    return {ok:false,runId,error,...details,gmailProcessed,jobsProcessed,resultsInjected,driveUploaded};
+      UPDATE lot5_autopilot_runs SET status=?,gmail_processed=?,jobs_processed=?,results_injected=?,drive_files_uploaded=?,error_message=?,details_json=?,finished_at=CURRENT_TIMESTAMP WHERE run_id=?
+    `).bind(finalRunStatus,gmailProcessed,jobsProcessed,resultsInjected,driveUploaded,error,JSON.stringify(details),runId).run().catch(()=>{});
+    await setIntegrationJson(env,'lot5_autopilot_last_run',{runId,status:finalRunStatus,finishedAt:new Date().toISOString(),details}).catch(()=>{});
+    return {ok:false,stopped,runId,error,...details,gmailProcessed,jobsProcessed,resultsInjected,driveUploaded};
   }
 }
 
@@ -4949,9 +5057,23 @@ async function handleLot5(request,env,url){
     }
     if(url.pathname==='/api/autopilot/reconcile-labels'&&request.method==='POST'){
       const body=await request.json().catch(()=>({}));
-      const result=await lot5ReconcileGmailStatesV53(env,Number(body?.limit||500));
+      const result=await lot5ReconcileGmailStatesV53(env,Number(body?.limit||1500));
       const synced=await lot5SyncPrepaInboxRecent(env);
       return json({ok:result.ok,result,prepaSynced:synced});
+    }
+    if(url.pathname==='/api/autopilot/repair-identities'&&request.method==='POST'){
+      const body=await request.json().catch(()=>({}));
+      return json(await lot5RepairIdentityBacklogV534(env,Number(body?.limit||1200)));
+    }
+    if(url.pathname==='/api/autopilot/audit'&&request.method==='GET'){
+      const messageId=String(url.searchParams.get('messageId')||'').trim();
+      if(messageId)return json(await lot5AuditMessageV534(env,messageId));
+      return json(await lot5AuditBacklogV534(env,Number(url.searchParams.get('limit')||100)));
+    }
+    if(url.pathname==='/api/autopilot/stop'&&request.method==='POST'){
+      const active=await env.OPS_DB.prepare(`SELECT run_id FROM lot5_autopilot_runs WHERE status='RUNNING' ORDER BY started_at DESC LIMIT 1`).first();
+      await setIntegrationJson(env,'lot5_autopilot_stop_requested',{requested:true,runId:String(active?.run_id||''),requestedAt:new Date().toISOString()});
+      return json({ok:true,requested:true,activeRunId:String(active?.run_id||''),message:'ARRÊT DEMANDÉ — prise en compte au prochain checkpoint'});
     }
     return json({ok:false,error:'ROUTE AUTO PILOT INCONNUE'},404);
   }catch(e){return json({ok:false,error:String(e?.message||e)},500)}
