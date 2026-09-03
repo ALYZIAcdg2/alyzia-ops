@@ -24986,10 +24986,12 @@ window.impCompany=function(it){const a=String(it?.airline||'').trim().toUpperCas
 window.impAttachCount=import141DocCount;
 window.impStatus=function(s){return import141Status(s)};
 window.impCompanies=function(){
+  // BUILD142: le centre IMPORT GMAIL est piloté uniquement par l'état courant du pipeline.
+  // Les fiches métier D1 existantes servent à enrichir/ouvrir une fiche liée à un import,
+  // mais ne doivent jamais recréer artificiellement des IMPORTÉS après un reset du pipeline.
   const fromPrepa=PREPA_IMPORTS_UI_ITEMS.map(impCompany).filter(x=>x&&x!=='A_IDENTIFIER');
-  const fromD1=import141D1Flights.filter(import141HasImportEvidence).map(x=>String(x?.airline||'').toUpperCase()).filter(import141ValidCompany);
   const p=['SQ','TK','BJ','TW','VF'];
-  return [...new Set([...fromPrepa,...fromD1])].sort((a,b)=>{const ia=p.indexOf(a),ib=p.indexOf(b);if(ia>=0||ib>=0)return (ia<0?99:ia)-(ib<0?99:ib);return a.localeCompare(b)});
+  return [...new Set(fromPrepa)].sort((a,b)=>{const ia=p.indexOf(a),ib=p.indexOf(b);if(ia>=0||ib>=0)return (ia<0?99:ia)-(ib<0?99:ib);return a.localeCompare(b)});
 };
 window.impItems=function(c){return PREPA_IMPORTS_UI_ITEMS.filter(x=>impCompany(x)===c)};
 window.impFlights=function(c){
@@ -25004,9 +25006,12 @@ window.impFlights=function(c){
   }
   for(const x of import141D1Flights){
     const ac=String(x?.airline||'').toUpperCase(),f=String(x?.flight||'').toUpperCase(),d=String(x?.date||'');
-    if(ac!==c||!f||!d||!import141HasImportEvidence(x))continue;
-    const key=`${d}|${f}`;let row=map.get(key);
-    if(!row){row={key,company:c,flightNumber:f,flightDate:d,messages:0,files:0,status:'IMPORTED',items:[],d1:true};map.set(key,row)}
+    if(ac!==c||!f||!d)continue;
+    const key=`${d}|${f}`;
+    const row=map.get(key);
+    // BUILD142: une fiche D1 seule n'est pas un état d'import.
+    // On l'attache uniquement à une ligne déjà créée par /api/prepa.
+    if(!row)continue;
     row.d1=true;row.d1Flight=x;
   }
   return [...map.values()].sort((a,b)=>String(b.flightDate).localeCompare(String(a.flightDate))||String(a.flightNumber).localeCompare(String(b.flightNumber)));
