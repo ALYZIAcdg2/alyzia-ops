@@ -25071,7 +25071,7 @@ window.impGlobal=function(){
 };
 
 function import141Metrics(){const g=impGlobal();return {...g,todo:g.review+g.errors+g.unidentified+g.received+g.imported}}
-function import141CompanyCards(){return impCompanies().map(c=>{const s=impStats(c);return `<button class="import139-company" onclick="openImportsCompany('${c}')"><div class="import139-company-top"><div class="import139-company-id">${airlineLogo(c)} <span>${escapeHtml(c)}</span></div><span class="import139-mode">${v50DefaultImportMode(c)==='SPECIFIC'?'SPECIFIC':'GENERIC'}</span></div><div class="import139-company-metrics"><div><b>${s.files}</b><span>DOCUMENTS</span></div><div><b>${s.flights}</b><span>VOLS</span></div><div><b>${s.validated}</b><span>VALIDÉS</span></div></div></button>`}).join('')}
+function import141CompanyCards(){return impCompanies().map(c=>{const s=impStats(c);return `<button class="import139-company" onclick="openImportsCompany('${c}')"><div class="import139-company-top"><div class="import139-company-id">${airlineLogo(c)} <span>${escapeHtml(c)}</span></div><span class="import139-mode">${v50DefaultImportMode(c)==='SPECIFIC'?'SPECIFIC':'GENERIC'}</span></div><div class="import139-company-metrics"><div><b>${s.files}</b><span>DOCUMENTS</span></div><div><b>${s.flights}</b><span>VOLS</span></div><div><b>${s.validated}</b><span>FICHE VOL OK</span></div></div></button>`}).join('')}
 function import141InvalidCount(){return PREPA_IMPORTS_UI_ITEMS.filter(x=>!import141ValidCompany(String(x?.airline||'').toUpperCase())).length}
 
 async function import141RefreshData({reconcile=true}={}){
@@ -25083,11 +25083,11 @@ window.refreshImports141=window.refreshImports140;
 
 function import141SummaryHtml(m){
  return `<div class="imports-summary" style="grid-template-columns:repeat(5,minmax(0,1fr))">
-  <div class="imports-summary-card"><b>${m.received}</b><span>REÇUS</span></div>
+  <div class="imports-summary-card"><b>${m.received}</b><span>MAIL TRAITÉ</span></div>
   <div class="imports-summary-card"><b>${m.imported}</b><span>IMPORTÉS</span></div>
   <div class="imports-summary-card"><b>${m.injected}</b><span>INJECTÉS</span></div>
-  <div class="imports-summary-card"><b>${m.validated}</b><span>VALIDÉS</span></div>
-  <div class="imports-summary-card"><b>${m.errors+m.review+m.unidentified}</b><span>ERREURS / À REVOIR</span></div>
+  <div class="imports-summary-card"><b>${m.validated}</b><span>FICHE VOL OK</span></div>
+  <div class="imports-summary-card"><b>${m.errors+m.review+m.unidentified}</b><span>ERREURS</span></div>
  </div>`;
 }
 function renderImportsDashboard141(replace=false){
@@ -25213,17 +25213,17 @@ function import143StateMeta(st){
 function import143SummaryHtml(j){
  const c=j?.counters||{};
  return `<div class="imports-summary" style="grid-template-columns:repeat(5,minmax(0,1fr))">
-  <div class="imports-summary-card"><b>${Number(c.received||0)}</b><span>REÇUS</span></div>
+  <div class="imports-summary-card"><b>${Number(c.received||0)}</b><span>MAIL TRAITÉ</span></div>
   <div class="imports-summary-card"><b>${Number(c.imported||0)}</b><span>IMPORTÉS</span></div>
   <div class="imports-summary-card"><b>${Number(c.injected||0)}</b><span>INJECTÉS</span></div>
-  <div class="imports-summary-card"><b>${Number(c.validated||0)}</b><span>VALIDÉS</span></div>
-  <div class="imports-summary-card"><b>${Number(c.errors||0)+Number(c.review||0)+Number(j?.unidentified||0)}</b><span>ERREURS / À REVOIR</span></div>
+  <div class="imports-summary-card"><b>${Number(c.validated||0)}</b><span>FICHE VOL OK</span></div>
+  <div class="imports-summary-card"><b>${Number(c.errors||0)+Number(c.review||0)+Number(j?.unidentified||0)}</b><span>ERREURS</span></div>
  </div>`;
 }
 function import143CompanyCards(j){
   const preferred=['SQ','TK','BJ','TW','VF'];
   const rows=[...(j?.companies||[])].sort((a,b)=>{const ia=preferred.indexOf(a.airline),ib=preferred.indexOf(b.airline);if(ia>=0||ib>=0)return (ia<0?99:ia)-(ib<0?99:ib);return String(a.airline).localeCompare(String(b.airline))});
-  return rows.map(x=>`<button class="import139-company" onclick="openImportsCompany('${escapeHtml(x.airline)}')"><div class="import139-company-top"><div class="import139-company-id">${airlineLogo(x.airline)} <span>${escapeHtml(x.airline)}</span></div><span class="import139-mode">${v50DefaultImportMode(x.airline)==='SPECIFIC'?'SPECIFIC':'GENERIC'}</span></div><div class="import139-company-metrics"><div><b>${Number(x.documents||0)}</b><span>DOCUMENTS</span></div><div><b>${Number(x.flights||0)}</b><span>VOLS</span></div><div><b>${Number(x.validated||0)}</b><span>VALIDÉS</span></div></div></button>`).join('');
+  return rows.map(x=>`<button class="import139-company" onclick="openImportsCompany('${escapeHtml(x.airline)}')"><div class="import139-company-top"><div class="import139-company-id">${airlineLogo(x.airline)} <span>${escapeHtml(x.airline)}</span></div><span class="import139-mode">${v50DefaultImportMode(x.airline)==='SPECIFIC'?'SPECIFIC':'GENERIC'}</span></div><div class="import139-company-metrics"><div><b>${Number(x.documents||0)}</b><span>DOCUMENTS</span></div><div><b>${Number(x.flights||0)}</b><span>VOLS</span></div><div><b>${Number(x.validated||0)}</b><span>FICHE VOL OK</span></div></div></button>`).join('');
 }
 async function import143RenderDashboard(replace=false,force=false){
   document.getElementById('modal')?.classList.add('import140-wide');
@@ -25442,6 +25442,11 @@ console.log('BUILD143 R5: IMPORT GMAIL modal state/scroll preserved during backg
 console.log('BUILD143 R6: IMPORT GMAIL stays visible during specific parser D1 persistence (no modal flash)');
 console.log('BUILD143 R7: ZERO FLICKER sandbox modal + strict specific confirmation active');
 })();
+</script>
+
+<script>
+console.log('ALYZIA OPS BUILD144 — GMAIL CLEAN UI V1');
+console.log('BUILD144: MAIL TRAITÉ / IMPORTÉ / FICHE VOL OK / ERREUR / IGNORÉ_DOUBLON');
 </script>
 </body></html>
 <!-- V50.03: cloud status is debounced; 3 startup retries; transient sync failures no longer force immediate local mode. -->
