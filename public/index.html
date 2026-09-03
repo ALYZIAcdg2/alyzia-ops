@@ -19337,6 +19337,26 @@ async function applyInboxRawWithExistingParser(item,idx,raw){
  const modal=document.getElementById('modal');
  const oldVisibility=modal?.style?.visibility||'';
  const oldPointer=modal?.style?.pointerEvents||'';
+ // BUILD143 R6: préserver le modal IMPORT GMAIL avant d'utiliser temporairement
+ // le modal PREPA pour capturer le contexte du parser existant.
+ const preservedImportUi=modal?{
+  html:modal.innerHTML,
+  className:modal.className,
+  style:modal.getAttribute('style')||'',
+  scrollTop:modal.scrollTop||0,
+  bodyOverflow:document.body?.style?.overflow||''
+ }:null;
+ let preservedImportUiRestored=false;
+ const restorePreservedImportUi=()=>{
+  if(!modal||!preservedImportUi||preservedImportUiRestored)return;
+  modal.innerHTML=preservedImportUi.html;
+  modal.className=preservedImportUi.className;
+  if(preservedImportUi.style)modal.setAttribute('style',preservedImportUi.style);
+  else modal.removeAttribute('style');
+  modal.scrollTop=preservedImportUi.scrollTop;
+  if(document.body)document.body.style.overflow=preservedImportUi.bodyOverflow;
+  preservedImportUiRestored=true;
+ };
 
  try{
   if(modal){
@@ -19388,6 +19408,12 @@ async function applyInboxRawWithExistingParser(item,idx,raw){
   PREPA_PENDING_MANIFEST=null;
   PREPA_PENDING_CONTEXT=null;
 
+  // Le travail parser/apply est terminé. Fermer le PREPA caché puis restaurer
+  // immédiatement IMPORT GMAIL AVANT les écritures asynchrones D1/cache.
+  // Ainsi le centre d'import ne disparaît plus plusieurs secondes.
+  try{closeAllModals()}catch(e){}
+  restorePreservedImportUi();
+
   await cacheFlightsLocallyOnly(FLIGHTS).catch(()=>false);
   const d1Ok=await persistOneFlightVerifiedToD1(x,{label:'PREPA GMAIL'});
   if(!d1Ok)throw new Error('D1 NON CONFIRME APRES IMPORT');
@@ -19396,8 +19422,13 @@ async function applyInboxRawWithExistingParser(item,idx,raw){
   PREPA_PENDING_INJECTION=null;
   PREPA_PENDING_MANIFEST=null;
   PREPA_PENDING_CONTEXT=null;
-  try{closeAllModals()}catch(e){}
-  if(modal){
+  // Si une erreur survient avant la restauration normale, remettre malgré tout
+  // le centre IMPORT GMAIL. Ne pas le fermer après restauration.
+  if(!preservedImportUiRestored){
+   try{closeAllModals()}catch(e){}
+   restorePreservedImportUi();
+  }
+  if(modal&&!preservedImportUi){
    modal.style.visibility=oldVisibility;
    modal.style.pointerEvents=oldPointer;
   }
@@ -25381,6 +25412,7 @@ window.openImportsDashboard=function(){
 console.log(BUILD143);
 console.log('BUILD143 R5: modal persistence + PROCESSED specific recovery + TK/TW base64 payload active');
 console.log('BUILD143 R5: IMPORT GMAIL modal state/scroll preserved during background specific parser injection');
+console.log('BUILD143 R6: IMPORT GMAIL stays visible during specific parser D1 persistence (no modal flash)');
 })();
 </script>
 </body></html>
