@@ -25195,7 +25195,7 @@ function import143CompanyCards(j){
   return rows.map(x=>`<button class="import139-company" onclick="openImportsCompany('${escapeHtml(x.airline)}')"><div class="import139-company-top"><div class="import139-company-id">${airlineLogo(x.airline)} <span>${escapeHtml(x.airline)}</span></div><span class="import139-mode">${v50DefaultImportMode(x.airline)==='SPECIFIC'?'SPECIFIC':'GENERIC'}</span></div><div class="import139-company-metrics"><div><b>${Number(x.documents||0)}</b><span>DOCUMENTS</span></div><div><b>${Number(x.flights||0)}</b><span>VOLS</span></div><div><b>${Number(x.validated||0)}</b><span>VALIDÉS</span></div></div></button>`).join('');
 }
 async function import143RenderDashboard(replace=false,force=false){
-  import141SetWide?.(true);
+  document.getElementById('modal')?.classList.add('import140-wide');
   if(!replace)showModal('IMPORT GMAIL','CENTRE AUTO PILOT · CHARGEMENT RAPIDE','<div class="import143-loading">CHARGEMENT DU RÉSUMÉ…</div>');
   try{
     const j=await import143FetchSummary(force);
@@ -25205,7 +25205,7 @@ async function import143RenderDashboard(replace=false,force=false){
     ${j.unidentified?`<div class="import141-invalid-note">${j.unidentified} ÉLÉMENT${j.unidentified>1?'S':''} À IDENTIFIER.</div>`:''}
     <div class="import139-companies">${import143CompanyCards(j)||'<div class="import-status">AUCUNE COMPAGNIE IDENTIFIÉE.</div>'}</div>`;
     replaceModal('IMPORT GMAIL','CENTRE AUTO PILOT · ÉTATS EXCLUSIFS',html);
-    import141SetWide?.(true);
+    document.getElementById('modal')?.classList.add('import140-wide');
     setTimeout(async()=>{const b=document.getElementById('b143DriveBtn');if(!b||typeof v5013GetDriveStatus!=='function')return;try{const d=await v5013GetDriveStatus();b.textContent=d?.configured?'✓ DRIVE CONNECTÉ':'⚙ CONFIGURER DRIVE'}catch(e){}},0);
   }catch(e){replaceModal('IMPORT GMAIL','ERREUR RÉSUMÉ',`<div class="import-status error">${escapeHtml(String(e?.message||e))}</div><button class="import139-mini" onclick="openImportsDashboard()">RÉESSAYER</button>`)}
 }
@@ -25223,12 +25223,13 @@ async function import143FetchCompany(c){
 window.openImportsCompany=async function(c){
   c=String(c||'').toUpperCase();
   showModal(`IMPORTS ${c}`,'CHARGEMENT À LA DEMANDE','<div class="import143-loading">CHARGEMENT DES VOLS '+escapeHtml(c)+'…</div>');
-  import141SetWide?.(true);
+  document.getElementById('modal')?.classList.add('import140-wide');
   try{
     await import143FetchCompany(c);
-    // D1 n'est chargé que maintenant, quand l'utilisateur demande une compagnie.
-    if(typeof import141FetchD1Flights==='function')await import141FetchD1Flights().catch(()=>{});
-    renderImportsCompany141(c,true);
+    // BUILD143 R2 : ne dépend plus des fonctions lexicales internes de BUILD141.
+    // Le renderer public BUILD141 reste utilisé, sans recharger les 2000 lignes au moment d'ouvrir le modal.
+    if(typeof window.renderImportsCompany140==='function')window.renderImportsCompany140(c,true);
+    else throw new Error('RENDU IMPORT COMPAGNIE INDISPONIBLE');
   }catch(e){replaceModal(`IMPORTS ${c}`,'ERREUR',`<div class="import-status error">${escapeHtml(String(e?.message||e))}</div><button class="import140-back" onclick="backToImports140()">← RETOUR</button>`)}
 };
 
@@ -25252,6 +25253,37 @@ window.openTools=async function(){
 
 
 let import143SpecificRecoveryBusy=false;
+async function import143BuildSpecificRaw(items,airline){
+  const grouped=await buildGroupedPrepaInboxText(items).catch(()=>"");
+  if(String(grouped||"").trim())return grouped;
+
+  // TK/TW BODY recovery : les lignes PREPA peuvent ne pas avoir body_text,
+  // alors que V3.5 restitue le corps opérationnel depuis R2 comme fichier .txt.
+  // On reconstruit uniquement la SOURCE ; aucun parser spécifique n'est modifié ici.
+  const blocks=[];
+  for(const item of Array.isArray(items)?items:[]){
+    const body=String(item?.bodyText||"").trim();
+    if(body){
+      blocks.push(`===== EMAIL : ${String(item?.subject||'PREPA').toUpperCase()} =====\n${body}`);
+    }
+    for(const att of Array.isArray(item?.attachments)?item.attachments:[]){
+      try{
+        let raw="";
+        if(typeof base64ToPrepaFile==='function' && typeof extractPrepaFileText==='function'){
+          const file=base64ToPrepaFile(att);
+          if(file)raw=await extractPrepaFileText(file);
+        }
+        if(!String(raw||"").trim() && att?.base64 && /(?:text\/plain|\.txt$)/i.test(String(att?.mimeType||'')+' '+String(att?.name||''))){
+          try{raw=decodeURIComponent(escape(atob(String(att.base64||''))))}catch(_){try{raw=atob(String(att.base64||''))}catch(__){}}
+        }
+        if(String(raw||"").trim()){
+          blocks.push(`===== FICHIER : ${String(att?.name||'SOURCE').toUpperCase()} =====\n${String(raw).trim()}`);
+        }
+      }catch(e){console.warn(BUILD143,'SOURCE R2',airline,att?.name,e)}
+    }
+  }
+  return blocks.join('\n\n');
+}
 async function import143RecoverOneSpecificFlight(f){
   const c=String(f?.airline||'').toUpperCase();
   if(!['SQ','TK','BJ','TW'].includes(c))return false;
@@ -25261,7 +25293,7 @@ async function import143RecoverOneSpecificFlight(f){
   const j=await r.json();
   const items=(Array.isArray(j?.items)?j.items:[]).filter(x=>String(x?.flightDate||'')===String(f.flightDate||''));
   if(!items.length)return false;
-  const raw=await buildGroupedPrepaInboxText(items);
+  const raw=await import143BuildSpecificRaw(items,c);
   if(!String(raw||'').trim())throw new Error(`SOURCES ${c} VIDES`);
   let idx=findFlightIndexForInbox(items[0]);
   if(idx<0)idx=await v5002EnsureFlightFromInbox(items[0],raw,{allowSpecific:true});
@@ -25299,6 +25331,7 @@ window.openImportsDashboard=function(){
 };
 
 console.log(BUILD143);
+console.log('BUILD143 R2: modal scope fixed; TK/TW R2 text-source fallback active');
 })();
 </script>
 </body></html>
