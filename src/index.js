@@ -4292,7 +4292,7 @@ async function lot3FlightCards(env,url){
  * ========================================================= */
 
 // LOT 5.2 FULL MAILBOX CONTINUOUS — whole Gmail mailbox + newest-first + resumable pagination + non-blocking errors.
-const LOT5_VERSION="V50.29_LOT5_AUTOPILOT_3_5_R4_CANONICAL_STATUS_VALIDATION";
+const LOT5_VERSION="V50.29_LOT5_AUTOPILOT_3_5_R5_STRICT_SPECIFIC_INJECTION_STATUS";
 // 5.3.5 scope: pipeline recovery + Gmail body + historical replay + Drive archive + fast summary.
 // Specific parsers remain byte-for-byte untouched.
 // Gmail -> identity -> R2/D1 -> Drive -> existing parser -> flight injection -> exclusive Gmail state.
@@ -5139,14 +5139,28 @@ async function lot5SpecificBrowserCompleteV535(env,body){
   const identity=[flightDate,airline,flightNumber].join('|');
   const flight=await getFlightByIdentity(env,identity).catch(()=>null);
   if(!flight)return {ok:false,error:'FICHE VOL D1 NON CONFIRMÉE'};
-  const wh=["r.parser_mode='SPECIFIC_LOCKED'","r.airline=?","r.flight_number=?","r.flight_date=?","r.status='READY_SPECIFIC_PARSER'"];
-  const binds=[airline,flightNumber,flightDate];
+  // R5 : ne plus dépendre d'une égalité SQL fragile sur flight_date. Les anciens
+  // résultats peuvent encore porter 03SEP/02SEP26 alors que l'identité canonique est ISO.
+  // On charge les résultats SPECIFIC_LOCKED du vol/message puis on compare la date canonique en JS.
+  const wh=["r.parser_mode='SPECIFIC_LOCKED'","UPPER(r.airline)=?","UPPER(r.flight_number)=?"];
+  const binds=[airline,flightNumber];
   if(messageIds.length){wh.push(`j.gmail_message_id IN (${messageIds.map(()=>'?').join(',')})`);binds.push(...messageIds)}
-  const rows=(await env.OPS_DB.prepare(`SELECT r.job_id,j.gmail_message_id FROM import_job_results r JOIN import_jobs j ON j.job_id=r.job_id WHERE ${wh.join(' AND ')}`).bind(...binds).all()).results||[];
+  const candidates=(await env.OPS_DB.prepare(`
+    SELECT r.job_id,r.status,r.flight_date,j.gmail_message_id
+    FROM import_job_results r JOIN import_jobs j ON j.job_id=r.job_id
+    WHERE ${wh.join(' AND ')}
+  `).bind(...binds).all()).results||[];
+  const matched=candidates.filter(r=>lot5CanonicalFlightDate(r.flight_date||'', '')===flightDate);
+  const rows=matched.filter(r=>String(r.status||'').toUpperCase()==='READY_SPECIFIC_PARSER');
+  const already=matched.filter(r=>String(r.status||'').toUpperCase()==='INJECTED');
   for(const r of rows){
-    await env.OPS_DB.prepare(`UPDATE import_job_results SET status='INJECTED',updated_at=CURRENT_TIMESTAMP WHERE job_id=?`).bind(String(r.job_id||'')).run();
+    await env.OPS_DB.prepare(`UPDATE import_job_results SET status='INJECTED',flight_date=?,updated_at=CURRENT_TIMESTAMP WHERE job_id=?`).bind(flightDate,String(r.job_id||'')).run();
   }
-  const touched=[...new Set(rows.map(r=>String(r.gmail_message_id||'')).filter(Boolean))];
+  // Canonicaliser également les résultats déjà injectés afin que les résumés ne se scindent plus.
+  for(const r of already){
+    if(String(r.flight_date||'')!==flightDate)await env.OPS_DB.prepare(`UPDATE import_job_results SET flight_date=?,updated_at=CURRENT_TIMESTAMP WHERE job_id=?`).bind(flightDate,String(r.job_id||'')).run();
+  }
+  const touched=[...new Set(matched.map(r=>String(r.gmail_message_id||'')).filter(Boolean))];
   for(const id of touched){await lot5ReconcileOneGmailStateV53(env,id).catch(()=>{});await lot5SyncPrepaInboxForMessage(env,id).catch(()=>{})}
   // R4 : recalcul canonique de tous les mails actuellement rattachés à cette identité.
   const sameFlight=(await env.OPS_DB.prepare(`SELECT gmail_message_id FROM gmail_messages WHERE UPPER(airline)=? AND UPPER(flight_number)=?`).bind(airline,flightNumber).all()).results||[];
@@ -5159,7 +5173,8 @@ async function lot5SpecificBrowserCompleteV535(env,body){
     await lot5SyncPrepaInboxForMessage(env,id).catch(()=>{});
     reconciledIdentity++;
   }
-  return {ok:true,r4:true,identity,confirmed:rows.length,messages:touched.length,reconciledIdentity};
+  if(!rows.length&&!already.length)return {ok:false,r5:true,error:'AUCUN RESULTAT SPECIFIC A CONFIRMER',identity,candidates:candidates.length,matched:matched.length};
+  return {ok:true,r5:true,identity,confirmed:rows.length,alreadyInjected:already.length,messages:touched.length,reconciledIdentity};
 }
 
 
