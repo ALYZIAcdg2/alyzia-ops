@@ -25147,6 +25147,160 @@ window.import141StartTimer=import141StartTimer;
 console.log('ALYZIA OPS BUILD141 — IMPORT PIPELINE SYNC LOADED');
 })();
 </script>
+
+
+<!-- ALYZIA OPS BUILD143 — IMPORT GMAIL FAST / LAZY -->
+<style id="alyzia-build143-fast-css">
+.import143-loading{padding:28px;text-align:center;font-weight:900;color:#58718a}
+.import143-sub{font-size:10px;color:#72859a;font-weight:800;margin-top:3px}
+</style>
+<script id="alyzia-build143-fast-lazy">
+(()=>{
+'use strict';
+const BUILD143='ALYZIA OPS BUILD143 — IMPORT GMAIL FAST LAZY';
+let import143Summary=null;
+let import143SummaryAt=0;
+const IMPORT143_SUMMARY_TTL=15000;
+
+async function import143FetchSummary(force=false){
+  if(!force && import143Summary && Date.now()-import143SummaryAt<IMPORT143_SUMMARY_TTL)return import143Summary;
+  const r=await fetch(opsApiUrl('/api/prepa/summary'),{cache:'no-store',headers:{Accept:'application/json'}});
+  if(!r.ok)throw new Error(`SUMMARY HTTP ${r.status}`);
+  const j=await r.json();
+  if(!j?.ok)throw new Error(j?.error||'SUMMARY ERROR');
+  import143Summary=j;import143SummaryAt=Date.now();return j;
+}
+function import143StateMeta(st){
+  st=String(st||'RECEIVED').toUpperCase();
+  if(st==='VALIDATED')return {label:'VALIDÉ',cls:'ok'};
+  if(st==='INJECTED')return {label:'INJECTÉ',cls:'ok'};
+  if(['IMPORTED','PROCESSED'].includes(st))return {label:'IMPORTÉ',cls:'wait'};
+  if(['RECEIVED','PENDING','PROCESSING'].includes(st))return {label:'REÇU',cls:'wait'};
+  if(st.startsWith('ERROR'))return {label:st.replaceAll('_',' '),cls:'err'};
+  return {label:'À REVOIR',cls:'wait'};
+}
+function import143SummaryHtml(j){
+ const c=j?.counters||{};
+ return `<div class="imports-summary" style="grid-template-columns:repeat(5,minmax(0,1fr))">
+  <div class="imports-summary-card"><b>${Number(c.received||0)}</b><span>REÇUS</span></div>
+  <div class="imports-summary-card"><b>${Number(c.imported||0)}</b><span>IMPORTÉS</span></div>
+  <div class="imports-summary-card"><b>${Number(c.injected||0)}</b><span>INJECTÉS</span></div>
+  <div class="imports-summary-card"><b>${Number(c.validated||0)}</b><span>VALIDÉS</span></div>
+  <div class="imports-summary-card"><b>${Number(c.errors||0)+Number(c.review||0)+Number(j?.unidentified||0)}</b><span>ERREURS / À REVOIR</span></div>
+ </div>`;
+}
+function import143CompanyCards(j){
+  const preferred=['SQ','TK','BJ','TW','VF'];
+  const rows=[...(j?.companies||[])].sort((a,b)=>{const ia=preferred.indexOf(a.airline),ib=preferred.indexOf(b.airline);if(ia>=0||ib>=0)return (ia<0?99:ia)-(ib<0?99:ib);return String(a.airline).localeCompare(String(b.airline))});
+  return rows.map(x=>`<button class="import139-company" onclick="openImportsCompany('${escapeHtml(x.airline)}')"><div class="import139-company-top"><div class="import139-company-id">${airlineLogo(x.airline)} <span>${escapeHtml(x.airline)}</span></div><span class="import139-mode">${v50DefaultImportMode(x.airline)==='SPECIFIC'?'SPECIFIC':'GENERIC'}</span></div><div class="import139-company-metrics"><div><b>${Number(x.documents||0)}</b><span>DOCUMENTS</span></div><div><b>${Number(x.flights||0)}</b><span>VOLS</span></div><div><b>${Number(x.validated||0)}</b><span>VALIDÉS</span></div></div></button>`).join('');
+}
+async function import143RenderDashboard(replace=false,force=false){
+  import141SetWide?.(true);
+  if(!replace)showModal('IMPORT GMAIL','CENTRE AUTO PILOT · CHARGEMENT RAPIDE','<div class="import143-loading">CHARGEMENT DU RÉSUMÉ…</div>');
+  try{
+    const j=await import143FetchSummary(force);
+    const html=`<div class="import139-toolbar"><div class="import139-toolbar-left"><button class="import139-mini" onclick="refreshImports143()">↻ ACTUALISER</button><button id="b143DriveBtn" class="import139-mini" onclick="v5013ConfigureDrive()">GOOGLE DRIVE</button><button class="import139-mini" onclick="v5013OpenRepair()">MAINTENANCE</button></div><span class="import143-sub">RÉSUMÉ SERVEUR · DÉTAILS CHARGÉS À LA DEMANDE</span></div>
+    ${import143SummaryHtml(j)}
+    <div class="import140-section-title"><span>FICHES DE VOL PAR COMPAGNIE</span><span>${Number(j.flightCount||0)} FICHE${Number(j.flightCount||0)>1?'S':''}</span></div>
+    ${j.unidentified?`<div class="import141-invalid-note">${j.unidentified} ÉLÉMENT${j.unidentified>1?'S':''} À IDENTIFIER.</div>`:''}
+    <div class="import139-companies">${import143CompanyCards(j)||'<div class="import-status">AUCUNE COMPAGNIE IDENTIFIÉE.</div>'}</div>`;
+    replaceModal('IMPORT GMAIL','CENTRE AUTO PILOT · ÉTATS EXCLUSIFS',html);
+    import141SetWide?.(true);
+    setTimeout(async()=>{const b=document.getElementById('b143DriveBtn');if(!b||typeof v5013GetDriveStatus!=='function')return;try{const d=await v5013GetDriveStatus();b.textContent=d?.configured?'✓ DRIVE CONNECTÉ':'⚙ CONFIGURER DRIVE'}catch(e){}},0);
+  }catch(e){replaceModal('IMPORT GMAIL','ERREUR RÉSUMÉ',`<div class="import-status error">${escapeHtml(String(e?.message||e))}</div><button class="import139-mini" onclick="openImportsDashboard()">RÉESSAYER</button>`)}
+}
+window.openImportsDashboard=function(){return import143RenderDashboard(false,false)};
+window.refreshImports143=function(){return import143RenderDashboard(true,true)};
+window.refreshImports141=window.refreshImports143;
+window.backToImports140=function(){return import143RenderDashboard(true,false)};
+
+async function import143FetchCompany(c){
+  const q=new URLSearchParams({airline:String(c||'').toUpperCase(),limit:'500'});
+  const r=await fetch(opsApiUrl('/api/prepa?'+q.toString()),{cache:'no-store',headers:{Accept:'application/json'}});
+  if(!r.ok)throw new Error(`PREPA ${c} HTTP ${r.status}`);
+  const j=await r.json();PREPA_IMPORTS_UI_ITEMS=Array.isArray(j?.items)?j.items:[];return PREPA_IMPORTS_UI_ITEMS;
+}
+window.openImportsCompany=async function(c){
+  c=String(c||'').toUpperCase();
+  showModal(`IMPORTS ${c}`,'CHARGEMENT À LA DEMANDE','<div class="import143-loading">CHARGEMENT DES VOLS '+escapeHtml(c)+'…</div>');
+  import141SetWide?.(true);
+  try{
+    await import143FetchCompany(c);
+    // D1 n'est chargé que maintenant, quand l'utilisateur demande une compagnie.
+    if(typeof import141FetchD1Flights==='function')await import141FetchD1Flights().catch(()=>{});
+    renderImportsCompany141(c,true);
+  }catch(e){replaceModal(`IMPORTS ${c}`,'ERREUR',`<div class="import-status error">${escapeHtml(String(e?.message||e))}</div><button class="import140-back" onclick="backToImports140()">← RETOUR</button>`)}
+};
+
+// OUTILS : résumé léger uniquement ; ne télécharge jamais l'historique complet.
+const oldOpenTools143=window.openTools;
+window.openTools=async function(){
+  try{
+    const j=await import143FetchSummary(false), c=j?.counters||{};
+    showModal('OUTILS','ALYZIA OPS',`<div class="tools-grid">
+      <div class="import139-card"><div class="import139-head"><div class="import139-title"><div class="import139-icon">⇩</div><div><h3>IMPORT GMAIL</h3><p>AUTO PILOT · COLLECTE, ANALYSE ET INJECTION AUTOMATIQUE</p></div></div><span class="import139-live">${Number(c.errors||0)+Number(c.review||0)?'À CONTRÔLER':'ACTIF'}</span></div>
+      <div class="import139-stats"><div class="import139-stat"><b>${Number(j.documents||0)}</b><span>DOCUMENTS</span></div><div class="import139-stat"><b>${Number(j.flightCount||0)}</b><span>VOLS DÉTECTÉS</span></div><div class="import139-stat"><b>${Number(c.injected||0)+Number(c.validated||0)}</b><span>VOLS INJECTÉS</span></div><div class="import139-stat"><b>${Number(c.errors||0)+Number(c.review||0)+Number(j.unidentified||0)}</b><span>À CONTRÔLER</span></div></div>
+      <div class="import139-format">CORPS MAIL · JFE SCREEN COPY · PDF · TXT · EML</div><button class="import139-primary" onclick="openImportsDashboard()">OUVRIR LE CENTRE IMPORT GMAIL</button></div>
+      <button class="tool-card" onclick="openFlightImport()"><span class="tool-icon">⇩</span><b>IMPORTER VOLS</b><span>EXCEL XLS / XLSX</span></button>
+      <button class="tool-card" onclick="openCreateFlight()"><span class="tool-icon">＋</span><b>CRÉER VOL</b><span>AJOUT MANUEL</span></button>
+      <button class="tool-card company-config-tool" onclick="openCompanyConfig()"><span class="tool-icon">⚙</span><b>CONFIG COMPAGNIE</b><span>CLASSES ET MODULES</span></button>
+      <button class="tool-card" onclick="openSeatmap()"><span class="tool-icon">▦</span><b>SEATMAP</b><span>PLAN CABINE</span></button>
+      <button class="tool-card" onclick="openSaria()"><span class="tool-icon">✈</span><b>SARIA</b><span>CABIN / SEATMAP</span></button>${opsCloudToolCardHtml()}
+    </div>`);
+  }catch(e){return oldOpenTools143?.()}
+};
+
+
+let import143SpecificRecoveryBusy=false;
+async function import143RecoverOneSpecificFlight(f){
+  const c=String(f?.airline||'').toUpperCase();
+  if(!['SQ','TK','BJ','TW'].includes(c))return false;
+  const q=new URLSearchParams({airline:c,flight:String(f.flightNumber||''),limit:'100',includePayload:'1'});
+  const r=await fetch(opsApiUrl('/api/prepa?'+q.toString()),{cache:'no-store',headers:{Accept:'application/json'}});
+  if(!r.ok)throw new Error(`SPECIFIC PAYLOAD ${c} HTTP ${r.status}`);
+  const j=await r.json();
+  const items=(Array.isArray(j?.items)?j.items:[]).filter(x=>String(x?.flightDate||'')===String(f.flightDate||''));
+  if(!items.length)return false;
+  const raw=await buildGroupedPrepaInboxText(items);
+  if(!String(raw||'').trim())throw new Error(`SOURCES ${c} VIDES`);
+  let idx=findFlightIndexForInbox(items[0]);
+  if(idx<0)idx=await v5002EnsureFlightFromInbox(items[0],raw,{allowSpecific:true});
+  if(idx<0)throw new Error(`VOL ${c} NON CRÉÉ`);
+  if(c==='TW' && typeof v5009ApplyTwDirect==='function')await v5009ApplyTwDirect(items[0],idx,raw);
+  else await applyInboxRawWithExistingParser(items[0],idx,raw);
+  await setPrepaInboxGroupStatus(items,'PROCESSED');
+  await fetch(opsApiUrl('/api/autopilot/specific-browser-complete'),{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({airline:c,flightNumber:f.flightNumber,flightDate:f.flightDate,messageIds:items.map(x=>x.gmailMessageId).filter(Boolean)})
+  }).then(async rr=>{const x=await rr.json().catch(()=>({}));if(!rr.ok||!x?.ok)throw new Error(x?.error||`CONFIRM HTTP ${rr.status}`)});
+  return true;
+}
+async function import143RecoverSpecificBacklog(){
+  if(import143SpecificRecoveryBusy||document.hidden||!navigator.onLine)return;
+  import143SpecificRecoveryBusy=true;
+  try{
+    const j=await import143FetchSummary(true);
+    const todo=(j?.flights||[]).filter(f=>['SQ','TK','BJ','TW'].includes(String(f.airline||'').toUpperCase()) && ['IMPORTED','RECEIVED','PENDING','PROCESSING'].includes(String(f.status||'').toUpperCase()));
+    for(const f of todo){
+      if(document.hidden)break;
+      try{await import143RecoverOneSpecificFlight(f)}catch(e){console.warn(BUILD143,'SPECIFIC RECOVERY',f?.airline,f?.flightNumber,f?.flightDate,e)}
+      await new Promise(r=>setTimeout(r,350));
+    }
+    import143SummaryAt=0;
+  }finally{import143SpecificRecoveryBusy=false}
+}
+// Le bridge ne modifie aucun parser : il appelle exclusivement les fonctions déjà présentes dans BUILD142.
+// Il démarre après l'affichage du modal afin de ne jamais ralentir son ouverture.
+const import143DashboardBase=window.openImportsDashboard;
+window.openImportsDashboard=function(){
+  const p=import143DashboardBase();
+  setTimeout(()=>import143RecoverSpecificBacklog().catch(()=>{}),700);
+  return p;
+};
+
+console.log(BUILD143);
+})();
+</script>
 </body></html>
 <!-- V50.03: cloud status is debounced; 3 startup retries; transient sync failures no longer force immediate local mode. -->
 <!-- V50.0: generic airline PREPA engine + airline profiles; SQ/TK/BJ parser semantics unchanged. -->
