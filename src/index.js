@@ -1401,11 +1401,18 @@ const GMAIL_API_BASE="https://gmail.googleapis.com/gmail/v1/users/me";
 const GMAIL_LABELS={
   RECEIVED:"ALYZIA/REÇU",
   IMPORTED:"ALYZIA/IMPORTÉ",
-  UPDATED:"ALYZIA/MIS_A_JOUR",
+  INJECTED:"ALYZIA/INJECTÉ",
+  VALIDATED:"ALYZIA/VALIDÉ",
+  REVIEW:"ALYZIA/À_REVOIR",
   DUPLICATE:"ALYZIA/IGNORÉ_DOUBLON",
   ERROR:"ALYZIA/ERREUR",
+  ERROR_IMPORT:"ALYZIA/ERREUR IMPORT",
+  ERROR_INJECT:"ALYZIA/ERREUR INJECTE",
+  UPDATED:"ALYZIA/MIS_A_JOUR", // ancien libellé : retiré lors d'une transition V5.3
   SUPPRESSED:"ALYZIA/SUPPRIMÉ_NEUTRALISÉ"
 };
+const GMAIL_PIPELINE_STATE_KEYS=new Set(["RECEIVED","IMPORTED","INJECTED","VALIDATED","REVIEW","DUPLICATE","ERROR","ERROR_IMPORT","ERROR_INJECT"]);
+let GMAIL_LABEL_ID_CACHE=null;
 
 async function ensureGmailPipelineTables(env){
   await ensurePrepaControlTables(env);
@@ -1573,17 +1580,68 @@ function guessDocumentType(filename,mime,textProbe){
   return String(mime||"").split("/").pop()?.toUpperCase() || "OTHER";
 }
 
-function detectMailFlight(subject,filename,body){
-  const source=`${subject||""} ${filename||""} ${body||""}`.toUpperCase();
-  const out={airline:"",flightNumber:"",flightDate:""};
-  const fm=source.match(/\b([A-Z0-9]{2})\s*[- ]?\s*(\d{2,4}[A-Z]?)\b/);
-  if(fm){
-    out.airline=fm[1];
-    out.flightNumber=`${fm[1]}${fm[2]}`.replace(/\s+/g,"");
+function isValidAirlineCodeV53(code){
+  const c=String(code||"").toUpperCase().trim();
+  return /^[A-Z0-9]{2}$/.test(c) && /[A-Z]/.test(c);
+}
+function extractFlightTokenV53(text){
+  const src=String(text||"").toUpperCase();
+  const re=/\b([A-Z0-9]{2})\s*[- ]?\s*(\d{1,4}[A-Z]?)\b/g;
+  let m;
+  while((m=re.exec(src))){
+    const airline=String(m[1]||"").toUpperCase();
+    if(!isValidAirlineCodeV53(airline))continue;
+    const num=String(m[2]||"").toUpperCase();
+    if(!/\d/.test(num))continue;
+    return {airline,flightNumber:`${airline}${num}`};
   }
-  const dm=source.match(/\b(\d{1,2}(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC))\b|\b(20\d{2}[-_/]\d{2}[-_/]\d{2})\b/);
-  if(dm)out.flightDate=String(dm[1]||dm[2]||"").replace(/[\/]/g,"-");
+  return null;
+}
+function extractFlightDateTokenV53(text){
+  const src=String(text||"").toUpperCase();
+  // LOT 5.3.1 : les sujets historiques PREPASQ utilisent par ex.
+  // SQ335/20260905/CDG 2026/09/02 14:49.
+  // 20260905 = DATE DU VOL ; 2026/09/02 = horodatage du document/mail.
+  // On prend donc d'abord la date compacte placée dans l'identité du vol.
+  const d0=src.match(/(?:^|\b[A-Z0-9]{2}\s*[- ]?\s*\d{1,4}[A-Z]?\s*[\/_-])((?:20)\d{2})(\d{2})(\d{2})(?=[\/_-]|\b)/);
+  if(d0)return `${d0[1]}-${d0[2]}-${d0[3]}`;
+  const dCompact=src.match(/\b((?:20)\d{2})(\d{2})(\d{2})\b/);
+  if(dCompact)return `${dCompact[1]}-${dCompact[2]}-${dCompact[3]}`;
+  const d1=src.match(/\b(\d{1,2}(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC))\b/);
+  if(d1)return d1[1];
+  const d2=src.match(/\b(20\d{2}[-_/]\d{2}[-_/]\d{2})\b/);
+  return d2?String(d2[1]).replace(/[\/_]/g,"-"):"";
+}
+function detectMailFlight(subject,filename,body){
+  // V5.3 : l'identité du vol ne doit jamais être déduite d'abord d'un horodatage de fichier.
+  // Priorité stricte : SUJET -> CORPS MAIL -> NOM DE FICHIER.
+  const sources=[String(subject||""),String(body||""),String(filename||"")];
+  const out={airline:"",flightNumber:"",flightDate:""};
+  for(const src of sources){
+    const f=extractFlightTokenV53(src);
+    if(f){out.airline=f.airline;out.flightNumber=f.flightNumber;break}
+  }
+  for(const src of sources){
+    const d=extractFlightDateTokenV53(src);
+    if(d){out.flightDate=d;break}
+  }
   return out;
+}
+
+function isOperationalCandidateMailV53(subject,bodyText,parts,flightBase){
+  // PREPASQ Historique est une source opérationnelle normale de backfill :
+  // aucune exclusion par expéditeur ; les mêmes règles d'identité et de contenu s'appliquent.
+  const subjectText=String(subject||"");
+  const body=String(bodyText||"");
+  const src=lot2Upper(`${subjectText}\n${body}`);
+  const hasFlight=!!(flightBase?.airline&&flightBase?.flightNumber&&isValidAirlineCodeV53(flightBase.airline));
+  if(!hasFlight)return false;
+  if(/\bPREPA\b|\bCHECK\s+IN\s+INFORMATION\b|\bJFE\s+SCREEN\s+COPY\b|\bLIST\s+OF\s*:|\bALTEA\b|\bSSR\b|\bFQTV\b|\bETKT\b|\bOUTBOUND\b|\bINBOUND\b/.test(src))return true;
+  return (parts||[]).some(p=>{
+    const f=String(p?.filename||"").toLowerCase();
+    const mime=String(p?.mimeType||"").toLowerCase();
+    return /(?:altea_report|^pdf_.*(?:list|summary)|\.(?:pdf|eml|txt))/.test(f) || /(?:application\/pdf|message\/rfc822|text\/plain)/.test(mime);
+  });
 }
 
 async function sha256Hex(bytes){
@@ -1631,10 +1689,13 @@ async function gmailStatus(env){
 }
 
 async function ensureGmailLabel(env,name){
+  if(GMAIL_LABEL_ID_CACHE?.has(name))return GMAIL_LABEL_ID_CACHE.get(name);
   const labels=await gmailFetch(env,"/labels");
-  const found=(labels.labels||[]).find(l=>String(l.name||"")===name);
-  if(found)return found.id;
+  GMAIL_LABEL_ID_CACHE=new Map((labels.labels||[]).map(l=>[String(l.name||""),String(l.id||"")]));
+  const found=GMAIL_LABEL_ID_CACHE.get(name);
+  if(found)return found;
   const created=await gmailFetch(env,"/labels",{method:"POST",body:JSON.stringify({name,labelListVisibility:"labelShow",messageListVisibility:"show"})});
+  if(created?.id)GMAIL_LABEL_ID_CACHE.set(name,String(created.id));
   return created.id;
 }
 
@@ -1642,6 +1703,39 @@ async function applyGmailLabel(env,messageId,labelName){
   if(!messageId||!labelName)return;
   const labelId=await ensureGmailLabel(env,labelName);
   await gmailFetch(env,`/messages/${encodeURIComponent(messageId)}/modify`,{method:"POST",body:JSON.stringify({addLabelIds:[labelId]})});
+}
+
+async function setGmailPipelineState(env,messageId,state,{archive=true}={}){
+  const key=String(state||"").toUpperCase();
+  if(!messageId||!GMAIL_PIPELINE_STATE_KEYS.has(key))return;
+  if(!GMAIL_LABEL_ID_CACHE){
+    const labels=await gmailFetch(env,"/labels");
+    GMAIL_LABEL_ID_CACHE=new Map((labels.labels||[]).map(x=>[String(x.name||""),String(x.id||"")]));
+  }
+  const byName=GMAIL_LABEL_ID_CACHE;
+  const desiredName=GMAIL_LABELS[key];
+  let desiredId=byName.get(desiredName)||"";
+  if(!desiredId){desiredId=await ensureGmailLabel(env,desiredName);byName.set(desiredName,desiredId)}
+  const removeNames=Object.values(GMAIL_LABELS).filter(n=>n&&n!==desiredName);
+  const removeLabelIds=removeNames.map(n=>byName.get(n)).filter(Boolean);
+  if(archive && key!=="RECEIVED")removeLabelIds.push("INBOX");
+  const uniqueRemove=[...new Set(removeLabelIds)].filter(id=>id&&id!==desiredId);
+  await gmailFetch(env,`/messages/${encodeURIComponent(messageId)}/modify`,{
+    method:"POST",
+    body:JSON.stringify({addLabelIds:[desiredId],removeLabelIds:uniqueRemove})
+  });
+  await env.OPS_DB.prepare(`UPDATE gmail_messages SET status=?,label_state=?,updated_at=CURRENT_TIMESTAMP WHERE gmail_message_id=?`).bind(key,key,messageId).run().catch(()=>{});
+}
+
+async function clearAlyziaPipelineLabels(env,messageId){
+  if(!messageId)return;
+  if(!GMAIL_LABEL_ID_CACHE){
+    const labels=await gmailFetch(env,"/labels");
+    GMAIL_LABEL_ID_CACHE=new Map((labels.labels||[]).map(x=>[String(x.name||""),String(x.id||"")]));
+  }
+  const byName=GMAIL_LABEL_ID_CACHE;
+  const remove=[...new Set(Object.values(GMAIL_LABELS).map(n=>byName.get(n)).filter(Boolean))];
+  if(remove.length)await gmailFetch(env,`/messages/${encodeURIComponent(messageId)}/modify`,{method:"POST",body:JSON.stringify({removeLabelIds:remove})});
 }
 
 function extractHeader(message,name){
@@ -1690,14 +1784,15 @@ function mailRawDateToIso(raw,receivedAt){
   return `${y}-${months[m[2]]}-${String(Number(m[1])).padStart(2,"0")}`;
 }
 
-function isPlainTextOperationalMail(subject,body){
+function plainTextOperationalKindV53(subject,body){
   const src=lot2Upper(`${subject||""}\n${body||""}`);
-  return /\bJFE\s+SCREEN\s+COPY\b/.test(src)
-    && /\bSTD\s*:?\s*\d{1,2}[:.]?\d{2}\b/.test(src)
-    && /\bAIRCRAFT\b/.test(src)
-    && /\bCONFIG\b/.test(src)
-    && /\bCABIN\s+CAPACITY\b/.test(src);
+  const tk=/\bTK\d{1,4}\b/.test(src) && /\bCHECK\s+IN\s+INFORMATION\b/.test(src);
+  if(tk)return "TK_TEXT";
+  const jfe=/\bJFE\s+SCREEN\s+COPY\b/.test(src);
+  if(jfe)return "JFE_SCREEN_COPY";
+  return "";
 }
+function isPlainTextOperationalMail(subject,body){return !!plainTextOperationalKindV53(subject,body)}
 
 async function storeVirtualPlainTextImport(env,{messageId,subject,receivedAt,bodyText,flightBase}){
   const text=String(bodyText||"");
@@ -1709,8 +1804,9 @@ async function storeVirtualPlainTextImport(env,{messageId,subject,receivedAt,bod
   const airline=flight.airline||"UNK";
   const flightNumber=flight.flightNumber||"UNIDENTIFIED";
   const flightDate=mailRawDateToIso(flight.flightDate||flightBase?.flightDate||"UNKNOWN_DATE",receivedAt);
-  const docType="OPERATIONAL_INFO";
-  const filename="jfe_screen_copy_plain_text.txt";
+  const textKind=plainTextOperationalKindV53(subject,text);
+  const docType=textKind==="TK_TEXT"?"TK_TEXT":"OPERATIONAL_INFO";
+  const filename=textKind==="TK_TEXT"?"tk_prepa_plain_text.txt":"jfe_screen_copy_plain_text.txt";
   const norm=normalizeFilename(filename);
   const bytes=new TextEncoder().encode(text);
   const sha=await sha256Hex(bytes);
@@ -1770,17 +1866,22 @@ async function storeGmailMessage(env,messageId){
   const sender=extractHeader(message,"From");
   const receivedAt=extractHeader(message,"Date");
   const bodyText=extractPlainBody(message);
+  const parts=walkParts(message.payload,[]);
   const flightBase=detectMailFlight(subject,"",bodyText);
+  const operational=isOperationalCandidateMailV53(subject,bodyText,parts,flightBase);
 
   await env.OPS_DB.prepare(`
     INSERT INTO gmail_messages
       (gmail_message_id,gmail_thread_id,history_id,internal_date,subject,sender,received_at,snippet,label_state,airline,flight_number,flight_date,status,updated_at)
     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)
-  `).bind(message.id||messageId,message.threadId||"",message.historyId||"",message.internalDate||"",subject,sender,receivedAt,message.snippet||"","RECEIVED",flightBase.airline,flightBase.flightNumber,flightBase.flightDate,"RECEIVED").run();
+  `).bind(message.id||messageId,message.threadId||"",message.historyId||"",message.internalDate||"",subject,sender,receivedAt,message.snippet||"",operational?"RECEIVED":"IGNORED_NON_OPERATIONAL",flightBase.airline,flightBase.flightNumber,flightBase.flightDate,operational?"RECEIVED":"IGNORED_NON_OPERATIONAL").run();
 
-  await applyGmailLabel(env,messageId,GMAIL_LABELS.RECEIVED).catch(()=>{});
+  if(!operational){
+    await clearAlyziaPipelineLabels(env,messageId).catch(()=>{});
+    return {status:"IGNORED_NON_OPERATIONAL",messageId,attachments:parts.length};
+  }
 
-  const parts=walkParts(message.payload,[]);
+  await setGmailPipelineState(env,messageId,"RECEIVED",{archive:false}).catch(()=>{});
   let added=0,updated=0,duplicate=0,error=0,virtualText=0;
 
   for(const part of parts){
@@ -1802,6 +1903,9 @@ async function storeGmailMessage(env,messageId){
       const versionId=`${fileId}|${sha}`;
       const r2Key=`prepa/${flightDate}/${airline}/${flightNumber}/${messageId}/${sha}_${norm}`.replace(/\s+/g,"_");
 
+      // LOT 5.3.1 : un doublon n'est reconnu que si la version exacte existe,
+      // donc même identité logique + même SHA-256. Même sujet/nom de fichier/vol/date
+      // avec un contenu différent reste une nouvelle version à traiter normalement.
       const existingVersion=await env.OPS_DB.prepare(`SELECT version_id FROM import_file_versions WHERE version_id=? LIMIT 1`).bind(versionId).first();
       if(existingVersion){
         duplicate++;
@@ -1861,11 +1965,9 @@ async function storeGmailMessage(env,messageId){
     await recordImportChange(env,{scope:"MESSAGE",gmailMessageId:messageId,changeType:"TEXT_BODY_ERROR",after:{error:String(e?.message||e)}}).catch(()=>{});
   }
 
-  const finalStatus=error?"ERROR":updated?"UPDATED":added?"IMPORTED":duplicate?"DUPLICATE":virtualText?"IMPORTED":"NO_ATTACHMENT";
+  const finalStatus=error?"ERROR_IMPORT":(added||updated||virtualText)?"IMPORTED":duplicate?"DUPLICATE":"REVIEW";
   await env.OPS_DB.prepare(`UPDATE gmail_messages SET status=?,label_state=?,processed_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE gmail_message_id=?`).bind(finalStatus,finalStatus,messageId).run();
-
-  const label=finalStatus==="ERROR"?GMAIL_LABELS.ERROR:finalStatus==="UPDATED"?GMAIL_LABELS.UPDATED:finalStatus==="DUPLICATE"?GMAIL_LABELS.DUPLICATE:GMAIL_LABELS.IMPORTED;
-  await applyGmailLabel(env,messageId,label).catch(()=>{});
+  await setGmailPipelineState(env,messageId,finalStatus,{archive:true}).catch(()=>{});
 
   return {status:finalStatus,messageId,attachments:parts.length,virtualText,added,updated,duplicate,error};
 }
@@ -4125,7 +4227,7 @@ async function lot3FlightCards(env,url){
  * ========================================================= */
 
 // LOT 5.2 FULL MAILBOX CONTINUOUS — whole Gmail mailbox + newest-first + resumable pagination + non-blocking errors.
-const LOT5_VERSION="V50.29_LOT5_AUTOPILOT_2_1_FULL_PREPA_HISTORY";
+const LOT5_VERSION="V50.29_LOT5_AUTOPILOT_3_1_HISTORICAL_BACKFILL_FIX";
 const LOT5_PROTECTED_AIRLINES=new Set(["SQ","TK","BJ","TW"]);
 
 async function ensureLot5Tables(env){
@@ -4315,8 +4417,12 @@ async function lot5FlightRoute(env,identity){
 }
 
 async function lot5EnsureFlightDriveFolder(env,{airline,flightNumber,flightDate,contextIso=''}){
+  airline=String(airline||'').toUpperCase().trim();
+  flightNumber=String(flightNumber||'').toUpperCase().replace(/\s+/g,'').trim();
+  if(!isValidAirlineCodeV53(airline))throw new Error(`DRIVE CODE COMPAGNIE INVALIDE: ${airline||'VIDE'}`);
+  if(!flightNumber.startsWith(airline) || !/^\d{1,4}[A-Z]?$/.test(flightNumber.slice(airline.length)))throw new Error(`DRIVE NUMÉRO VOL INVALIDE: ${flightNumber||'VIDE'}`);
   const canonicalDate=lot5CanonicalFlightDate(flightDate,contextIso);
-  if(!canonicalDate)throw new Error('DRIVE DATE VOL MANQUANTE');
+  if(!canonicalDate||!/^20\d{2}-\d{2}-\d{2}$/.test(canonicalDate))throw new Error('DRIVE DATE VOL MANQUANTE/INVALIDE');
   const identity=[canonicalDate,airline,flightNumber].join('|');
   const cached=await env.OPS_DB.prepare(`SELECT * FROM lot5_drive_folders WHERE identity=? LIMIT 1`).bind(identity).first();
   if(cached?.flight_folder_id)return {identity,flightDate:canonicalDate,airlineFolderId:cached.airline_folder_id,dateFolderId:cached.date_folder_id,flightFolderId:cached.flight_folder_id};
@@ -4336,25 +4442,96 @@ async function lot5EnsureFlightDriveFolder(env,{airline,flightNumber,flightDate,
   return {identity,flightDate:canonicalDate,airlineFolderId,dateFolderId,flightFolderId};
 }
 
-async function lot5PrepaStatusForMessage(env,messageId){
-  const {results=[]}=await env.OPS_DB.prepare(`
-    SELECT status,COUNT(*) AS n
-    FROM import_jobs
-    WHERE gmail_message_id=?
-    GROUP BY status
-  `).bind(messageId).all();
-  if(!results.length)return {status:'PROCESSED',error:''};
-  const counts=Object.fromEntries(results.map(r=>[String(r.status||'').toUpperCase(),Number(r.n||0)]));
-  if((counts.ERROR||0)>0){
-    const er=await env.OPS_DB.prepare(`
-      SELECT error_message FROM import_jobs
-      WHERE gmail_message_id=? AND status='ERROR' AND error_message IS NOT NULL AND error_message<>''
-      ORDER BY updated_at DESC LIMIT 1
-    `).bind(messageId).first();
-    return {status:'ERROR',error:String(er?.error_message||'AUTO PILOT : ERREUR PIPELINE')};
+function lot5UiStatusFromGmailStateV53(state){
+  const s=String(state||"").toUpperCase();
+  if(s==="VALIDATED")return "VALIDATED";
+  if(s==="INJECTED")return "INJECTED";
+  if(s==="ERROR_IMPORT")return "ERROR_IMPORT";
+  if(s==="ERROR_INJECT")return "ERROR_INJECT";
+  if(s==="ERROR")return "ERROR";
+  if(s==="REVIEW")return "REVIEW";
+  if(s==="DUPLICATE")return "DUPLICATE";
+  if(s==="IMPORTED")return "IMPORTED";
+  if(s==="RECEIVED")return "RECEIVED";
+  return s||"RECEIVED";
+}
+
+async function lot5ReconcileOneGmailStateV53(env,messageId){
+  const gm=await env.OPS_DB.prepare(`SELECT status,airline,flight_number,flight_date FROM gmail_messages WHERE gmail_message_id=? LIMIT 1`).bind(messageId).first();
+  if(!gm)return {messageId,state:"MISSING"};
+  if(String(gm.status||"")==="IGNORED_NON_OPERATIONAL")return {messageId,state:"IGNORED_NON_OPERATIONAL"};
+  const currentState=String(gm.status||"").toUpperCase();
+  const transition=async(state)=>{if(currentState!==state)await setGmailPipelineState(env,messageId,state,{archive:true}).catch(()=>{})};
+  if(!gm.airline||!gm.flight_number||!gm.flight_date||!isValidAirlineCodeV53(gm.airline)){
+    await transition("REVIEW");
+    return {messageId,state:"REVIEW"};
   }
-  if((counts.QUEUED||0)>0 || (counts.PROCESSING||0)>0)return {status:'PROCESSING',error:''};
-  return {status:'PROCESSED',error:''};
+  const jobs=(await env.OPS_DB.prepare(`SELECT status,error_message,job_id FROM import_jobs WHERE gmail_message_id=?`).bind(messageId).all()).results||[];
+  if(!jobs.length){
+    const f=await env.OPS_DB.prepare(`SELECT COUNT(*) AS n FROM import_file_versions WHERE gmail_message_id=?`).bind(messageId).first();
+    const state=Number(f?.n||0)>0?"IMPORTED":"REVIEW";
+    await transition(state);
+    return {messageId,state};
+  }
+  if(jobs.some(j=>String(j.status||"").toUpperCase()==="ERROR")){
+    await transition("ERROR_IMPORT");
+    return {messageId,state:"ERROR_IMPORT"};
+  }
+  const results=(await env.OPS_DB.prepare(`
+    SELECT r.status,r.parser_mode,r.job_id
+    FROM import_job_results r
+    JOIN import_jobs j ON j.job_id=r.job_id
+    WHERE j.gmail_message_id=?
+  `).bind(messageId).all()).results||[];
+  if(!results.length){
+    await transition("IMPORTED");
+    return {messageId,state:"IMPORTED"};
+  }
+  const statuses=results.map(r=>String(r.status||"").toUpperCase());
+  if(statuses.some(x=>x==="WAITING_FLIGHT")){
+    await transition("REVIEW");
+    return {messageId,state:"REVIEW"};
+  }
+  const generic=results.filter(r=>String(r.parser_mode||"").toUpperCase()==="GENERIC");
+  const specific=results.filter(r=>String(r.parser_mode||"").toUpperCase()==="SPECIFIC_LOCKED");
+  if(generic.length && generic.every(r=>String(r.status||"").toUpperCase()==="INJECTED") && !specific.length){
+    await transition("VALIDATED");
+    return {messageId,state:"VALIDATED"};
+  }
+  if(generic.some(r=>String(r.status||"").toUpperCase()==="INJECTED")){
+    await transition("INJECTED");
+    return {messageId,state:"INJECTED"};
+  }
+  // Les parsers spécifiques restent volontairement verrouillés : le Worker ne prétend pas les avoir injectés.
+  await transition("IMPORTED");
+  return {messageId,state:"IMPORTED"};
+}
+
+async function lot5ReconcileGmailStatesV53(env,limit=200){
+  const rows=(await env.OPS_DB.prepare(`
+    SELECT gmail_message_id FROM gmail_messages
+    WHERE status<>'IGNORED_NON_OPERATIONAL'
+    ORDER BY updated_at DESC LIMIT ?
+  `).bind(Math.max(1,Math.min(500,Number(limit||200)))).all()).results||[];
+  const counts={}; const errors=[];
+  for(const r of rows){
+    const id=String(r.gmail_message_id||""); if(!id)continue;
+    try{const x=await lot5ReconcileOneGmailStateV53(env,id);counts[x.state]=(counts[x.state]||0)+1}
+    catch(e){errors.push({messageId:id,error:String(e?.message||e)})}
+  }
+  return {ok:errors.length===0,checked:rows.length,counts,errors};
+}
+
+async function lot5PrepaStatusForMessage(env,messageId){
+  const gm=await env.OPS_DB.prepare(`SELECT status FROM gmail_messages WHERE gmail_message_id=? LIMIT 1`).bind(messageId).first();
+  const state=lot5UiStatusFromGmailStateV53(gm?.status||"");
+  if(state==="ERROR_IMPORT"){
+    const er=await env.OPS_DB.prepare(`SELECT error_message FROM import_jobs WHERE gmail_message_id=? AND status='ERROR' ORDER BY updated_at DESC LIMIT 1`).bind(messageId).first();
+    return {status:"ERROR_IMPORT",error:String(er?.error_message||"ERREUR IMPORT")};
+  }
+  if(state==="ERROR_INJECT")return {status:"ERROR_INJECT",error:"ERREUR INJECTION"};
+  if(state==="REVIEW")return {status:"REVIEW",error:"IDENTITÉ OU INJECTION À REVOIR"};
+  return {status:state||"RECEIVED",error:""};
 }
 
 async function lot5SyncPrepaInboxForMessage(env,messageId,driveFolderId=''){
@@ -4400,7 +4577,7 @@ async function lot5SyncPrepaInboxForMessage(env,messageId,driveFolderId=''){
     UPDATE prepa_inbox
     SET status=?,
         error_message=?,
-        processed_at=CASE WHEN ?='PROCESSED' THEN COALESCE(processed_at,CURRENT_TIMESTAMP) ELSE processed_at END,
+        processed_at=CASE WHEN ? IN ('IMPORTED','INJECTED','VALIDATED','DUPLICATE','ERROR_IMPORT','ERROR_INJECT','REVIEW') THEN COALESCE(processed_at,CURRENT_TIMESTAMP) ELSE processed_at END,
         updated_at=CURRENT_TIMESTAMP
     WHERE gmail_message_id=? AND source='GMAIL_AUTOPILOT'
   `).bind(ps.status,ps.error,ps.status,messageId).run();
@@ -4421,6 +4598,8 @@ async function lot5ArchiveDrive(env){
     WHERE v.is_active=1
       AND d.version_id IS NULL
       AND f.airline IS NOT NULL AND f.airline<>'' AND f.airline<>'UNK'
+      AND f.airline GLOB '*[A-Z]*'
+      AND length(f.airline)=2
       AND f.flight_number IS NOT NULL AND f.flight_number<>'' AND f.flight_number<>'UNIDENTIFIED'
       AND f.flight_date IS NOT NULL AND f.flight_date<>'' AND f.flight_date<>'UNKNOWN_DATE'
     ORDER BY v.created_at DESC
@@ -4653,6 +4832,9 @@ async function lot5AutoPilotRun(env,{triggerType='MANUAL',gmailQuery='',gmailMax
     details.inject=inj;
     resultsInjected=Number(inj.injected||0);
 
+    const labels=await lot5ReconcileGmailStatesV53(env,100);
+    details.gmailStates=labels;
+
     const drive=await lot5ArchiveDrive(env);
     details.drive=drive;
     driveUploaded=Number(drive.uploaded||0);
@@ -4698,6 +4880,12 @@ async function handleLot5(request,env,url){
     if(url.pathname==='/api/autopilot/run'&&request.method==='POST'){
       const body=await request.json().catch(()=>({}));
       return json(await lot5AutoPilotRun(env,{triggerType:'MANUAL',gmailQuery:String(body?.query||''),gmailMax:Number(body?.maxMessages||0)}));
+    }
+    if(url.pathname==='/api/autopilot/reconcile-labels'&&request.method==='POST'){
+      const body=await request.json().catch(()=>({}));
+      const result=await lot5ReconcileGmailStatesV53(env,Number(body?.limit||500));
+      const synced=await lot5SyncPrepaInboxRecent(env);
+      return json({ok:result.ok,result,prepaSynced:synced});
     }
     return json({ok:false,error:'ROUTE AUTO PILOT INCONNUE'},404);
   }catch(e){return json({ok:false,error:String(e?.message||e)},500)}
