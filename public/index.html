@@ -25365,21 +25365,48 @@ async function import143RecoverOneSpecificFlight(f){
   let idx=findFlightIndexForInbox(items[0]);
   if(idx<0)idx=await v5002EnsureFlightFromInbox(items[0],raw,{allowSpecific:true});
   if(idx<0)throw new Error(`VOL ${c} NON CRÉÉ`);
-  // BUILD143 R5: le parser existant réutilise le modal PREPA et closeAllModals().
-  // On préserve donc exactement le modal IMPORT GMAIL / IMPORTS COMPAGNIE ouvert
-  // (contenu, classe, scroll), puis on le restaure après l'injection.
-  const importUiState=import143CaptureModalUi();
+  // BUILD143 R7 — ZERO FLICKER : le parser historique exige #modal.
+  // On ne touche plus au modal IMPORT GMAIL visible. On renomme temporairement
+  // celui-ci et on fournit au parser un #modal sandbox invisible hors écran.
+  const liveModal=document.getElementById('modal');
+  const liveWasOpen=!!liveModal?.classList?.contains('open');
+  const liveScroll=liveModal?.scrollTop||0;
+  const stackSnapshot=Array.isArray(window.modalStack)?window.modalStack.slice():(typeof modalStack!=='undefined'&&Array.isArray(modalStack)?modalStack.slice():null);
+  let sandbox=null;
+  if(liveModal&&liveWasOpen){
+    liveModal.id='modal-import-live-r7';
+    sandbox=document.createElement('div');
+    sandbox.id='modal';
+    sandbox.className='modal';
+    sandbox.setAttribute('aria-hidden','true');
+    sandbox.style.cssText='position:fixed!important;left:-300vw!important;top:-300vh!important;width:2px!important;height:2px!important;overflow:hidden!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important;z-index:-1!important;';
+    document.body.appendChild(sandbox);
+  }
   try{
     if(c==='TW' && typeof v5009ApplyTwDirect==='function')await v5009ApplyTwDirect(items[0],idx,raw);
     else await applyInboxRawWithExistingParser(items[0],idx,raw);
   }finally{
-    import143RestoreModalUi(importUiState);
+    try{sandbox?.remove()}catch(e){}
+    if(liveModal&&liveWasOpen){
+      liveModal.id='modal';
+      liveModal.classList.add('open');
+      liveModal.scrollTop=liveScroll;
+      try{
+        if(stackSnapshot){
+          if(typeof modalStack!=='undefined'&&Array.isArray(modalStack)){modalStack.length=0;modalStack.push(...stackSnapshot)}
+          else window.modalStack=stackSnapshot.slice();
+        }
+      }catch(e){}
+    }
   }
   await setPrepaInboxGroupStatus(items,'PROCESSED');
-  await fetch(opsApiUrl('/api/autopilot/specific-browser-complete'),{
+  const confirmResult=await fetch(opsApiUrl('/api/autopilot/specific-browser-complete'),{
     method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({airline:c,flightNumber:f.flightNumber,flightDate:f.flightDate,messageIds:items.map(x=>x.gmailMessageId).filter(Boolean)})
-  }).then(async rr=>{const x=await rr.json().catch(()=>({}));if(!rr.ok||!x?.ok)throw new Error(x?.error||`CONFIRM HTTP ${rr.status}`)});
+  }).then(async rr=>{const x=await rr.json().catch(()=>({}));if(!rr.ok||!x?.ok)throw new Error(x?.error||`CONFIRM HTTP ${rr.status}`);return x});
+  const confirmed=Number(confirmResult?.confirmed||0),alreadyInjected=Number(confirmResult?.alreadyInjected||0);
+  if(confirmed<1&&alreadyInjected<1)throw new Error('CONFIRMATION SPECIFIC SANS RESULTAT INJECTE');
+  import143SummaryAt=0;
   return true;
 }
 async function import143RecoverSpecificBacklog(){
@@ -25413,6 +25440,7 @@ console.log(BUILD143);
 console.log('BUILD143 R5: modal persistence + PROCESSED specific recovery + TK/TW base64 payload active');
 console.log('BUILD143 R5: IMPORT GMAIL modal state/scroll preserved during background specific parser injection');
 console.log('BUILD143 R6: IMPORT GMAIL stays visible during specific parser D1 persistence (no modal flash)');
+console.log('BUILD143 R7: ZERO FLICKER sandbox modal + strict specific confirmation active');
 })();
 </script>
 </body></html>
