@@ -997,7 +997,7 @@ async function getPrepaInbox(env, url) {
       : [];
 
 
-  const items =
+  let items =
     rows.map(row => {
 
       let attachments = [];
@@ -1100,6 +1100,34 @@ async function getPrepaInbox(env, url) {
 
     });
 
+  // V3.5 : includePayload=1 reconstruit les pièces jointes depuis R2.
+  // Les lignes GMAIL_AUTOPILOT ne stockent volontairement que les métadonnées dans prepa_inbox ;
+  // le payload complet est fourni à la demande au moteur navigateur existant, sans gonfler D1.
+  if(includePayload && env.OPS_FILES){
+    const enriched=[];
+    for(const item of items){
+      try{
+        const versions=(await env.OPS_DB.prepare(`
+          SELECT version_id,filename_original,mime_type,file_size,r2_key
+          FROM import_file_versions
+          WHERE gmail_message_id=?
+          ORDER BY created_at ASC
+        `).bind(String(item.gmailMessageId||'')).all()).results||[];
+        const payload=[];
+        for(const v of versions){
+          const obj=await env.OPS_FILES.get(String(v.r2_key||''));
+          if(!obj)continue;
+          const bytes=new Uint8Array(await obj.arrayBuffer());
+          let bin='';
+          const CH=0x8000;
+          for(let i=0;i<bytes.length;i+=CH)bin+=String.fromCharCode(...bytes.subarray(i,i+CH));
+          payload.push({name:String(v.filename_original||'prepa.bin'),mimeType:String(v.mime_type||'application/octet-stream'),size:Number(v.file_size||bytes.length),base64:btoa(bin),versionId:String(v.version_id||'')});
+        }
+        enriched.push({...item,attachments:payload.length?payload:item.attachments});
+      }catch(e){enriched.push(item)}
+    }
+    items=enriched;
+  }
 
   return items;
 }
@@ -1790,6 +1818,11 @@ function plainTextOperationalKindV53(subject,body){
   if(tk)return "TK_TEXT";
   const jfe=/\bJFE\s+SCREEN\s+COPY\b/.test(src);
   if(jfe)return "JFE_SCREEN_COPY";
+  // V3.5: TW et autres prépas texte reconnues par identité vol + marqueurs opérationnels.
+  // On ne change aucun parser spécifique : on transforme seulement le corps Gmail en vraie source importable.
+  const hasFlight=/\b(?:[A-Z][A-Z0-9]|[0-9][A-Z0-9])\s?\d{2,4}\b/.test(src);
+  const hasOps=/\b(?:PREPA|CHECK\s*IN|STD|ETD|ATD|BOARD(?:ING)?|CFG|CONFIG|PAX|SSR|LIST\s+OF|BOOKED|ACCEPTED|INBOUND|OUTBOUND|FQTV|ETKT|EMD)\b/.test(src);
+  if(hasFlight && hasOps)return /\bTW\s?\d{2,4}\b/.test(src)?"TW_TEXT":"MAIL_BODY_TEXT";
   return "";
 }
 function isPlainTextOperationalMail(subject,body){return !!plainTextOperationalKindV53(subject,body)}
@@ -1805,8 +1838,8 @@ async function storeVirtualPlainTextImport(env,{messageId,subject,receivedAt,bod
   const flightNumber=flight.flightNumber||"UNIDENTIFIED";
   const flightDate=mailRawDateToIso(flight.flightDate||flightBase?.flightDate||"UNKNOWN_DATE",receivedAt);
   const textKind=plainTextOperationalKindV53(subject,text);
-  const docType=textKind==="TK_TEXT"?"TK_TEXT":"OPERATIONAL_INFO";
-  const filename=textKind==="TK_TEXT"?"tk_prepa_plain_text.txt":"jfe_screen_copy_plain_text.txt";
+  const docType=textKind==="TK_TEXT"?"TK_TEXT":(textKind==="TW_TEXT"?"TW_TEXT":"OPERATIONAL_INFO");
+  const filename=textKind==="TK_TEXT"?"tk_prepa_plain_text.txt":(textKind==="TW_TEXT"?"tw_prepa_plain_text.txt":(textKind==="JFE_SCREEN_COPY"?"jfe_screen_copy_plain_text.txt":"mail_body_operational.txt"));
   const norm=normalizeFilename(filename);
   const bytes=new TextEncoder().encode(text);
   const sha=await sha256Hex(bytes);
@@ -1857,9 +1890,10 @@ async function storeGmailMessage(env,messageId){
   await ensureGmailPipelineTables(env);
 
   const existing=await env.OPS_DB.prepare(`SELECT gmail_message_id,status FROM gmail_messages WHERE gmail_message_id=? LIMIT 1`).bind(messageId).first();
-  if(existing){
-    return {status:"DUPLICATE_MESSAGE",messageId,attachments:0};
-  }
+  // V3.5 RECOVERY: un gmail_message_id déjà connu n'est PAS un doublon de contenu.
+  // On rejoue le message afin que les corrections d'identité, corps texte, Drive et injection
+  // puissent réparer les imports historiques. Le SHA-256 des versions reste l'unique dédoublonnage contenu.
+  const replaying=!!existing;
 
   const message=await gmailFetch(env,`/messages/${encodeURIComponent(messageId)}?format=full`);
   const subject=extractHeader(message,"Subject");
@@ -1874,11 +1908,24 @@ async function storeGmailMessage(env,messageId){
     INSERT INTO gmail_messages
       (gmail_message_id,gmail_thread_id,history_id,internal_date,subject,sender,received_at,snippet,label_state,airline,flight_number,flight_date,status,updated_at)
     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)
+    ON CONFLICT(gmail_message_id) DO UPDATE SET
+      gmail_thread_id=excluded.gmail_thread_id,
+      history_id=excluded.history_id,
+      internal_date=excluded.internal_date,
+      subject=excluded.subject,
+      sender=excluded.sender,
+      received_at=excluded.received_at,
+      snippet=excluded.snippet,
+      airline=CASE WHEN excluded.airline<>'' THEN excluded.airline ELSE gmail_messages.airline END,
+      flight_number=CASE WHEN excluded.flight_number<>'' THEN excluded.flight_number ELSE gmail_messages.flight_number END,
+      flight_date=CASE WHEN excluded.flight_date<>'' THEN excluded.flight_date ELSE gmail_messages.flight_date END,
+      status=CASE WHEN gmail_messages.status IN ('VALIDATED','INJECTED') THEN gmail_messages.status ELSE excluded.status END,
+      updated_at=CURRENT_TIMESTAMP
   `).bind(message.id||messageId,message.threadId||"",message.historyId||"",message.internalDate||"",subject,sender,receivedAt,message.snippet||"",operational?"RECEIVED":"IGNORED_NON_OPERATIONAL",flightBase.airline,flightBase.flightNumber,flightBase.flightDate,operational?"RECEIVED":"IGNORED_NON_OPERATIONAL").run();
 
   if(!operational){
     await clearAlyziaPipelineLabels(env,messageId).catch(()=>{});
-    return {status:"IGNORED_NON_OPERATIONAL",messageId,attachments:parts.length};
+    return {status:"IGNORED_NON_OPERATIONAL",messageId,attachments:parts.length,replaying};
   }
 
   await setGmailPipelineState(env,messageId,"RECEIVED",{archive:false}).catch(()=>{});
@@ -3148,7 +3195,7 @@ async function lot2ProcessOneJob(env,job){
       changeType="OPERATIONAL_INFO_READY";
     }else if(parserMode==="SPECIFIC_LOCKED"){
       resultStatus="READY_SPECIFIC_PARSER";
-      changeType="SPECIFIC_READY";
+      changeType="SPECIFIC_READY"; // V3.5: conservé, parser existant inchangé; source désormais rejouable/archivable.
     }else if(cardKey==="NO_LIST"){
       resultStatus=extracted.readable?"GENERIC_LIST_NOT_FOUND":"ARCHIVED_ONLY";
       changeType=extracted.readable?"GENERIC_LIST_NOT_FOUND":"ARCHIVED_ONLY";
@@ -4227,8 +4274,9 @@ async function lot3FlightCards(env,url){
  * ========================================================= */
 
 // LOT 5.2 FULL MAILBOX CONTINUOUS — whole Gmail mailbox + newest-first + resumable pagination + non-blocking errors.
-const LOT5_VERSION="V50.29_LOT5_AUTOPILOT_3_4_END_TO_END_TRACE_FIX";
-// 5.3.4 scope: end-to-end orchestration only.
+const LOT5_VERSION="V50.29_LOT5_AUTOPILOT_3_5_PIPELINE_RECOVERY_DRIVE_BODY_HISTORY";
+// 5.3.5 scope: pipeline recovery + Gmail body + historical replay + Drive archive + fast summary.
+// Specific parsers remain byte-for-byte untouched.
 // Gmail -> identity -> R2/D1 -> Drive -> existing parser -> flight injection -> exclusive Gmail state.
 // Parsers TK/BJ/VF/SQ/TW are intentionally untouched.
 const LOT5_PROTECTED_AIRLINES=new Set(["SQ","TK","BJ","VF","TW"]);
@@ -5047,6 +5095,30 @@ async function lot5Status(env){
   return {ok:true,version:LOT5_VERSION,config:{...cfg,driveRootFolderId:cfg.driveRootFolderId==='root'?'root':'CUSTOM'},lastRun:last?{...last,details:safeJsonParse(last.details_json,{})}:null,counters:counters||{},googleDrive:await googleDriveStatus(env)};
 }
 
+
+async function lot5SpecificBrowserCompleteV535(env,body){
+  const airline=String(body?.airline||'').trim().toUpperCase();
+  const flightNumber=String(body?.flightNumber||body?.flight||'').trim().toUpperCase();
+  const flightDate=lot5CanonicalFlightDate(body?.flightDate||body?.date||'');
+  const messageIds=Array.isArray(body?.messageIds)?body.messageIds.map(x=>String(x||'')).filter(Boolean):[];
+  if(!LOT5_PROTECTED_AIRLINES.has(airline)||!flightNumber||!flightDate)return {ok:false,error:'IDENTITÉ SPECIFIC INVALIDE'};
+  // Le parser est exécuté dans BUILD143 avec le code existant inchangé ; ici on confirme uniquement
+  // que son résultat a bien été persisté dans la fiche vol D1.
+  const identity=[flightDate,airline,flightNumber].join('|');
+  const flight=await getFlightByIdentity(env,identity).catch(()=>null);
+  if(!flight)return {ok:false,error:'FICHE VOL D1 NON CONFIRMÉE'};
+  const wh=["r.parser_mode='SPECIFIC_LOCKED'","r.airline=?","r.flight_number=?","r.flight_date=?","r.status='READY_SPECIFIC_PARSER'"];
+  const binds=[airline,flightNumber,flightDate];
+  if(messageIds.length){wh.push(`j.gmail_message_id IN (${messageIds.map(()=>'?').join(',')})`);binds.push(...messageIds)}
+  const rows=(await env.OPS_DB.prepare(`SELECT r.job_id,j.gmail_message_id FROM import_job_results r JOIN import_jobs j ON j.job_id=r.job_id WHERE ${wh.join(' AND ')}`).bind(...binds).all()).results||[];
+  for(const r of rows){
+    await env.OPS_DB.prepare(`UPDATE import_job_results SET status='INJECTED',updated_at=CURRENT_TIMESTAMP WHERE job_id=?`).bind(String(r.job_id||'')).run();
+  }
+  const touched=[...new Set(rows.map(r=>String(r.gmail_message_id||'')).filter(Boolean))];
+  for(const id of touched){await lot5ReconcileOneGmailStateV53(env,id).catch(()=>{});await lot5SyncPrepaInboxForMessage(env,id).catch(()=>{})}
+  return {ok:true,identity,confirmed:rows.length,messages:touched.length};
+}
+
 async function handleLot5(request,env,url){
   if(!url.pathname.startsWith('/api/autopilot'))return null;
   try{
@@ -5064,6 +5136,10 @@ async function handleLot5(request,env,url){
     if(url.pathname==='/api/autopilot/repair-identities'&&request.method==='POST'){
       const body=await request.json().catch(()=>({}));
       return json(await lot5RepairIdentityBacklogV534(env,Number(body?.limit||1200)));
+    }
+    if(url.pathname==='/api/autopilot/specific-browser-complete'&&request.method==='POST'){
+      const body=await request.json().catch(()=>({}));
+      return json(await lot5SpecificBrowserCompleteV535(env,body));
     }
     if(url.pathname==='/api/autopilot/audit'&&request.method==='GET'){
       const messageId=String(url.searchParams.get('messageId')||'').trim();
@@ -5111,6 +5187,56 @@ async function handleGmailPipeline(request,env,url){
   }
 }
 
+
+
+async function lot5PrepaFastSummaryV535(env){
+  await ensurePrepaControlTables(env);
+  const rows=(await env.OPS_DB.prepare(`
+    SELECT airline,flight_number,flight_date,status,attachments_json,received_at,updated_at
+    FROM prepa_inbox
+    WHERE source='GMAIL_AUTOPILOT'
+    ORDER BY updated_at DESC
+  `).all()).results||[];
+  const statusRank={ERROR_IMPORT:90,ERROR_INJECT:90,REVIEW:80,UNIDENTIFIED:80,VALIDATED:70,INJECTED:60,IMPORTED:50,PROCESSED:50,RECEIVED:20,PENDING:20,PROCESSING:20};
+  const byFlight=new Map();
+  let documents=0,unidentified=0;
+  for(const r of rows){
+    let at=[]; try{at=JSON.parse(r.attachments_json||'[]')||[]}catch(e){}
+    documents+=Array.isArray(at)?at.length:0;
+    const a=String(r.airline||'').toUpperCase(), f=String(r.flight_number||'').toUpperCase(), d=String(r.flight_date||'');
+    if(!a||!f||!d){unidentified++;continue}
+    const key=`${a}|${f}|${d}`;
+    const st=String(r.status||'RECEIVED').toUpperCase();
+    const cur=byFlight.get(key);
+    if(!cur){byFlight.set(key,{airline:a,flightNumber:f,flightDate:d,status:st,messages:1,documents:Array.isArray(at)?at.length:0,updatedAt:r.updated_at||r.received_at||''});}
+    else{
+      cur.messages++; cur.documents+=Array.isArray(at)?at.length:0;
+      if((statusRank[st]||0)>(statusRank[cur.status]||0))cur.status=st;
+      if(String(r.updated_at||'')>String(cur.updatedAt||''))cur.updatedAt=r.updated_at||r.received_at||'';
+    }
+  }
+  const flights=[...byFlight.values()].sort((x,y)=>String(y.flightDate).localeCompare(String(x.flightDate))||String(x.airline).localeCompare(String(y.airline))||String(x.flightNumber).localeCompare(String(y.flightNumber)));
+  const counters={received:0,imported:0,injected:0,validated:0,errors:0,review:0};
+  const companies={};
+  for(const f of flights){
+    const st=f.status;
+    if(['RECEIVED','PENDING','PROCESSING'].includes(st))counters.received++;
+    else if(['IMPORTED','PROCESSED'].includes(st))counters.imported++;
+    else if(st==='INJECTED')counters.injected++;
+    else if(st==='VALIDATED')counters.validated++;
+    else if(st.startsWith('ERROR'))counters.errors++;
+    else if(['REVIEW','UNIDENTIFIED'].includes(st))counters.review++;
+    const c=companies[f.airline]||(companies[f.airline]={airline:f.airline,flights:0,documents:0,received:0,imported:0,injected:0,validated:0,errors:0,review:0});
+    c.flights++; c.documents+=f.documents;
+    if(['RECEIVED','PENDING','PROCESSING'].includes(st))c.received++;
+    else if(['IMPORTED','PROCESSED'].includes(st))c.imported++;
+    else if(st==='INJECTED')c.injected++;
+    else if(st==='VALIDATED')c.validated++;
+    else if(st.startsWith('ERROR'))c.errors++;
+    else if(['REVIEW','UNIDENTIFIED'].includes(st))c.review++;
+  }
+  return {ok:true,documents,flightCount:flights.length,unidentified,counters,companies:Object.values(companies).sort((a,b)=>a.airline.localeCompare(b.airline)),flights};
+}
 
 async function handlePrepa(request, env, url) {
 
@@ -5577,6 +5703,10 @@ async function handlePrepa(request, env, url) {
   /*
    * ALYZIA OPS -> lecture boîte PRÉPA
    */
+  if (url.pathname === "/api/prepa/summary" && request.method === "GET") {
+    return json(await lot5PrepaFastSummaryV535(env));
+  }
+
   if (
     url.pathname === "/api/prepa" &&
     request.method === "GET"
