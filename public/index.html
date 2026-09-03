@@ -25157,7 +25157,7 @@ console.log('ALYZIA OPS BUILD141 — IMPORT PIPELINE SYNC LOADED');
 <script id="alyzia-build143-fast-lazy">
 (()=>{
 'use strict';
-const BUILD143='ALYZIA OPS BUILD143 — IMPORT GMAIL FAST LAZY';
+const BUILD143='ALYZIA OPS BUILD143 R3 — IMPORT GMAIL FAST LAZY TK PAYLOAD';
 let import143Summary=null;
 let import143SummaryAt=0;
 const IMPORT143_SUMMARY_TTL=15000;
@@ -25253,13 +25253,24 @@ window.openTools=async function(){
 
 
 let import143SpecificRecoveryBusy=false;
+function import143DecodeBase64Utf8(b64){
+  const clean=String(b64||'').replace(/\s+/g,'');
+  if(!clean)return '';
+  const bin=atob(clean);
+  const bytes=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);
+  try{return new TextDecoder('utf-8',{fatal:false}).decode(bytes)}catch(_){
+    let s=''; for(const b of bytes)s+=String.fromCharCode(b); return s;
+  }
+}
 async function import143BuildSpecificRaw(items,airline){
   const grouped=await buildGroupedPrepaInboxText(items).catch(()=>"");
   if(String(grouped||"").trim())return grouped;
 
-  // TK/TW BODY recovery : les lignes PREPA peuvent ne pas avoir body_text,
-  // alors que V3.5 restitue le corps opérationnel depuis R2 comme fichier .txt.
-  // On reconstruit uniquement la SOURCE ; aucun parser spécifique n'est modifié ici.
+  // BUILD143 R3 : pour TK/TW, V3.5 R3 restitue le corps historique dans
+  // attachments[].base64 (tk_prepa_plain_text.txt / tw_prepa_plain_text.txt).
+  // On lit ce payload directement AVANT toute extraction générique.
+  // Aucun parser spécifique n'est modifié.
   const blocks=[];
   for(const item of Array.isArray(items)?items:[]){
     const body=String(item?.bodyText||"").trim();
@@ -25268,16 +25279,20 @@ async function import143BuildSpecificRaw(items,airline){
     }
     for(const att of Array.isArray(item?.attachments)?item.attachments:[]){
       try{
+        const meta=String(att?.mimeType||'')+' '+String(att?.name||'');
         let raw="";
-        if(typeof base64ToPrepaFile==='function' && typeof extractPrepaFileText==='function'){
+        if(att?.base64 && /(?:text\/plain|\.txt$)/i.test(meta)){
+          raw=import143DecodeBase64Utf8(att.base64);
+        }
+        if(!String(raw||"").trim() && typeof base64ToPrepaFile==='function' && typeof extractPrepaFileText==='function'){
           const file=base64ToPrepaFile(att);
           if(file)raw=await extractPrepaFileText(file);
         }
-        if(!String(raw||"").trim() && att?.base64 && /(?:text\/plain|\.txt$)/i.test(String(att?.mimeType||'')+' '+String(att?.name||''))){
-          try{raw=decodeURIComponent(escape(atob(String(att.base64||''))))}catch(_){try{raw=atob(String(att.base64||''))}catch(__){}}
-        }
         if(String(raw||"").trim()){
           blocks.push(`===== FICHIER : ${String(att?.name||'SOURCE').toUpperCase()} =====\n${String(raw).trim()}`);
+          if(['TK','TW'].includes(String(airline||'').toUpperCase())){
+            console.info('ALYZIA OPS BUILD143 R3 — SOURCE TEXT R2',airline,att?.name,'chars=',String(raw).length);
+          }
         }
       }catch(e){console.warn(BUILD143,'SOURCE R2',airline,att?.name,e)}
     }
@@ -25331,7 +25346,7 @@ window.openImportsDashboard=function(){
 };
 
 console.log(BUILD143);
-console.log('BUILD143 R2: modal scope fixed; TK/TW R2 text-source fallback active');
+console.log('BUILD143 R3: TK/TW direct base64 payload recovery active');
 })();
 </script>
 </body></html>
