@@ -1,3 +1,4 @@
+// R1 FIX: allow /api/gmail-clean/* routes through handleLot5.
 // V50.28 RULE: INC/INCARRIAGE = INBOUND PAX; INBOUND SUMMARY = FLIGHT METADATA; route inbound terminates at main origin (CDG).
 // V50.27 RULE: INCARRIAGE/INC = INBOUND PASSENGERS; INBOUND CUSTOMER SUMMARY = INBOUND FLIGHTS.
 // Passenger dossier displays linked INBOUND/OUTBOUND flight exactly via the shared connection rows.
@@ -5362,7 +5363,7 @@ async function lot5ReconcileCanonicalStatusesR4(env,limit=2000){
 }
 
 async function handleLot5(request,env,url){
-  if(!url.pathname.startsWith('/api/autopilot'))return null;
+  if(!url.pathname.startsWith('/api/autopilot') && !url.pathname.startsWith('/api/gmail-clean'))return null;
   try{
     if(url.pathname==='/api/autopilot/status'&&request.method==='GET')return json(await lot5Status(env));
     if(url.pathname==='/api/autopilot/test-batch'&&request.method==='POST'){ const body=await request.json().catch(()=>({})); return json(await lot5TestBatchV535(env,body)); }
