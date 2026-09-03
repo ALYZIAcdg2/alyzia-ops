@@ -1616,10 +1616,18 @@ function detectMailFlight(subject,filename,body){
   // V5.3 : l'identité du vol ne doit jamais être déduite d'abord d'un horodatage de fichier.
   // Priorité stricte : SUJET -> CORPS MAIL -> NOM DE FICHIER.
   const sources=[String(subject||""),String(body||""),String(filename||"")];
-  const out={airline:"",flightNumber:"",flightDate:""};
-  for(const src of sources){
-    const f=extractFlightTokenV53(src);
+  const out={airline:"",flightNumber:"",flightDate:"",identityConflict:false,identityConflictDetail:null};
+  const tokens=sources.map(extractFlightTokenV53);
+  for(const f of tokens){
     if(f){out.airline=f.airline;out.flightNumber=f.flightNumber;break}
+  }
+  // V5.4 — LOT5 IDENTITY CONFLICT : si le sujet et le corps désignent chacun un vol
+  // complet mais DIFFÉRENT, on ne tranche plus en silence par priorité : le conflit
+  // est signalé pour que le mail soit renvoyé À_REVOIR plutôt qu'injecté sur une identité fausse.
+  const [subjectFlight,bodyFlight]=tokens;
+  if(subjectFlight && bodyFlight && subjectFlight.flightNumber!==bodyFlight.flightNumber){
+    out.identityConflict=true;
+    out.identityConflictDetail={subject:subjectFlight.flightNumber,body:bodyFlight.flightNumber};
   }
   for(const src of sources){
     const d=extractFlightDateTokenV53(src);
@@ -4227,7 +4235,7 @@ async function lot3FlightCards(env,url){
  * ========================================================= */
 
 // LOT 5.2 FULL MAILBOX CONTINUOUS — whole Gmail mailbox + newest-first + resumable pagination + non-blocking errors.
-const LOT5_VERSION="V50.29_LOT5_AUTOPILOT_3_3_IDENTITY_DRIVE_STATE_FIX";
+const LOT5_VERSION="V50.29_LOT5_AUTOPILOT_3_4_IDENTITY_CONFLICT_UNCLASSIFIED_FIX";
 // 5.3.3 scope: orchestration only (identity repair / Drive gate / exclusive Gmail state / bounded run).
 // Parsers TK/BJ/VF/SQ/TW are intentionally untouched.
 const LOT5_PROTECTED_AIRLINES=new Set(["SQ","TK","BJ","VF","TW"]);
@@ -4466,6 +4474,8 @@ async function lot5RepairMessageIdentityV533(env,messageId){
   const airline=String(detected.airline||gm.airline||'').toUpperCase();
   const flightNumber=String(detected.flightNumber||gm.flight_number||'').toUpperCase().replace(/\s+/g,'');
   const flightDate=lot5CanonicalFlightDate(detected.flightDate||gm.flight_date||'',gm.received_at||gm.internal_date||'');
+  // V5.4 — un conflit sujet/corps rend l'identité non fiable même si un candidat a été retenu par priorité.
+  if(detected.identityConflict)return {...gm,airline,flight_number:flightNumber,flight_date:flightDate,identityValid:false,identityConflict:true,identityConflictDetail:detected.identityConflictDetail};
   if(!isValidAirlineCodeV53(airline) || !flightNumber.startsWith(airline) || !/^20\d{2}-\d{2}-\d{2}$/.test(flightDate))return {...gm,airline,flight_number:flightNumber,flight_date:flightDate,identityValid:false};
 
   const changed=airline!==String(gm.airline||'').toUpperCase() || flightNumber!==String(gm.flight_number||'').toUpperCase().replace(/\s+/g,'') || flightDate!==lot5CanonicalFlightDate(gm.flight_date||'',gm.received_at||gm.internal_date||'');
@@ -4498,6 +4508,11 @@ async function lot5ReconcileOneGmailStateV53(env,messageId){
   gm=await lot5RepairMessageIdentityV533(env,messageId)||gm;
   const currentState=String(gm.status||"").toUpperCase();
   const transition=async(state)=>{if(currentState!==state)await setGmailPipelineState(env,messageId,state,{archive:state!=="RECEIVED"}).catch(()=>{})};
+  // V5.4 — deux identités contradictoires (sujet vs corps) : jamais tranché en silence, toujours À_REVOIR.
+  if(gm.identityConflict){
+    await transition("REVIEW");
+    return {messageId,state:"REVIEW",identityConflict:true,identityConflictDetail:gm.identityConflictDetail||null};
+  }
   if(!gm.identityValid && (!gm.airline||!gm.flight_number||!gm.flight_date||!isValidAirlineCodeV53(gm.airline))){
     await transition("REVIEW");
     return {messageId,state:"REVIEW"};
@@ -4558,6 +4573,14 @@ async function lot5ReconcileOneGmailStateV53(env,messageId){
   if(generic.some(r=>String(r.status||"").toUpperCase()==="INJECTED")){
     await transition("INJECTED");
     return {messageId,state:"INJECTED"};
+  }
+  // V5.4 — document non classifiable : si TOUS les résultats GENERIC sont des culs-de-sac
+  // (contenu illisible ou liste non reconnue), rien ne sera jamais injecté par le pipeline.
+  // Le mail doit être signalé À_REVOIR plutôt que de rester indéfiniment en IMPORTÉ sans suite.
+  const DEAD_END_RESULT_STATUSES=new Set(["ARCHIVED_ONLY","GENERIC_LIST_NOT_FOUND"]);
+  if(generic.length && !specific.length && generic.every(r=>DEAD_END_RESULT_STATUSES.has(String(r.status||"").toUpperCase()))){
+    await transition("REVIEW");
+    return {messageId,state:"REVIEW",unclassified:true};
   }
   // Les parsers spécifiques restent volontairement verrouillés : le Worker ne prétend pas les avoir injectés.
   await transition("IMPORTED");
