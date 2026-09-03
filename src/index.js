@@ -1635,6 +1635,13 @@ function extractFlightDateTokenV53(text){
   if(d0)return `${d0[1]}-${d0[2]}-${d0[3]}`;
   const dCompact=src.match(/\b((?:20)\d{2})(\d{2})(\d{2})\b/);
   if(dCompact)return `${dCompact[1]}-${dCompact[2]}-${dCompact[3]}`;
+  const d1y=src.match(/\b(\d{1,2})(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)(\d{2}|20\d{2})\b/);
+  if(d1y){
+    const yy=String(d1y[3]);
+    const yyyy=yy.length===2?`20${yy}`:yy;
+    const months={JAN:"01",FEB:"02",MAR:"03",APR:"04",MAY:"05",JUN:"06",JUL:"07",AUG:"08",SEP:"09",OCT:"10",NOV:"11",DEC:"12"};
+    return `${yyyy}-${months[d1y[2]]}-${String(Number(d1y[1])).padStart(2,"0")}`;
+  }
   const d1=src.match(/\b(\d{1,2}(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC))\b/);
   if(d1)return d1[1];
   const d2=src.match(/\b(20\d{2}[-_/]\d{2}[-_/]\d{2})\b/);
@@ -1801,9 +1808,18 @@ async function recordImportChange(env,row){
 
 function mailRawDateToIso(raw,receivedAt){
   raw=String(raw||"").toUpperCase().trim();
-  const m=raw.match(/^(\d{1,2})(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)$/);
-  if(!m)return raw;
+  if(/^20\d{2}-\d{2}-\d{2}$/.test(raw))return raw;
+  const compact=raw.replace(/[\s\/_-]+/g,"");
+  if(/^20\d{6}$/.test(compact))return `${compact.slice(0,4)}-${compact.slice(4,6)}-${compact.slice(6,8)}`;
   const months={JAN:"01",FEB:"02",MAR:"03",APR:"04",MAY:"05",JUN:"06",JUL:"07",AUG:"08",SEP:"09",OCT:"10",NOV:"11",DEC:"12"};
+  const withYear=compact.match(/^(\d{1,2})(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)(\d{2}|20\d{2})$/);
+  if(withYear){
+    const yy=String(withYear[3]);
+    const yyyy=yy.length===2?`20${yy}`:yy;
+    return `${yyyy}-${months[withYear[2]]}-${String(Number(withYear[1])).padStart(2,"0")}`;
+  }
+  const m=compact.match(/^(\d{1,2})(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)$/);
+  if(!m)return raw;
   let y=new Date(receivedAt||Date.now()).getUTCFullYear();
   const ctxM=new Date(receivedAt||Date.now()).getUTCMonth()+1;
   const targetM=Number(months[m[2]]);
@@ -1828,7 +1844,9 @@ function plainTextOperationalKindV53(subject,body){
 function isPlainTextOperationalMail(subject,body){return !!plainTextOperationalKindV53(subject,body)}
 
 async function storeVirtualPlainTextImport(env,{messageId,subject,receivedAt,bodyText,flightBase}){
-  const text=String(bodyText||"");
+  const text=String(bodyText||"").replace(/\u0000/g,"").trim();
+  // R3: ne jamais créer de source BODY vide/quasi vide.
+  if(text.length<20 || !/[A-Z0-9]{4}/i.test(text))return {added:0,updated:0,duplicate:0,created:false};
   if(!isPlainTextOperationalMail(subject,text))return {added:0,updated:0,duplicate:0,created:false};
 
   const flight=detectMailFlight(subject,"jfe_screen_copy.txt",text);
@@ -4274,7 +4292,7 @@ async function lot3FlightCards(env,url){
  * ========================================================= */
 
 // LOT 5.2 FULL MAILBOX CONTINUOUS — whole Gmail mailbox + newest-first + resumable pagination + non-blocking errors.
-const LOT5_VERSION="V50.29_LOT5_AUTOPILOT_3_5_PIPELINE_RECOVERY_DRIVE_BODY_HISTORY";
+const LOT5_VERSION="V50.29_LOT5_AUTOPILOT_3_5_R3_DATE_REPLAY_SPECIFIC_BRIDGE";
 // 5.3.5 scope: pipeline recovery + Gmail body + historical replay + Drive archive + fast summary.
 // Specific parsers remain byte-for-byte untouched.
 // Gmail -> identity -> R2/D1 -> Drive -> existing parser -> flight injection -> exclusive Gmail state.
@@ -4399,14 +4417,21 @@ async function lot5EnsureDriveFolder(env,parentId,name){
 function lot5CanonicalFlightDate(value,contextIso=''){
   const raw=String(value||'').trim().toUpperCase();
   if(!raw)return '';
-  if(/^\d{4}-\d{2}-\d{2}$/.test(raw))return raw;
+  if(/^20\d{2}-\d{2}-\d{2}$/.test(raw))return raw;
   const compact=raw.replace(/[\s/_-]+/g,'');
+  if(/^20\d{6}$/.test(compact))return `${compact.slice(0,4)}-${compact.slice(4,6)}-${compact.slice(6,8)}`;
+  const months={JAN:'01',FEB:'02',MAR:'03',APR:'04',MAY:'05',JUN:'06',JUL:'07',AUG:'08',SEP:'09',OCT:'10',NOV:'11',DEC:'12'};
+  const withYear=compact.match(/^(\d{1,2})(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)(\d{2}|20\d{2})$/);
+  if(withYear){
+    const yy=String(withYear[3]);
+    const yyyy=yy.length===2?`20${yy}`:yy;
+    return `${yyyy}-${months[withYear[2]]}-${String(Number(withYear[1])).padStart(2,'0')}`;
+  }
   if(/^\d{1,2}(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)$/.test(compact)){
     try{
       const iso=lot2DateRawToIso(compact,String(contextIso||'').slice(0,10));
       if(iso)return iso;
     }catch(e){}
-    const months={JAN:'01',FEB:'02',MAR:'03',APR:'04',MAY:'05',JUN:'06',JUL:'07',AUG:'08',SEP:'09',OCT:'10',NOV:'11',DEC:'12'};
     const m=compact.match(/^(\d{1,2})([A-Z]{3})$/);
     if(m){
       const year=Number(String(contextIso||'').slice(0,4))||new Date().getUTCFullYear();
@@ -5096,6 +5121,8 @@ async function lot5Status(env){
 }
 
 
+// R3 SPECIFIC BRIDGE: le Worker prépare/trace les sources READY_SPECIFIC_PARSER ;
+// l'exécution du parser spécifique reste dans BUILD143, qui possède les parsers verrouillés inchangés.
 async function lot5SpecificBrowserCompleteV535(env,body){
   const airline=String(body?.airline||'').trim().toUpperCase();
   const flightNumber=String(body?.flightNumber||body?.flight||'').trim().toUpperCase();
@@ -5157,16 +5184,44 @@ async function lot5ArchiveDriveForMessagesV535(env,messageIds){
   return {ok:errors.length===0,uploaded,folders:folders.size,errors};
 }
 
+// R3: reconstruction ciblée d'un message déjà connu dont les versions techniques manquent.
+// Le message est relu depuis Gmail ; le SHA-256 reste le seul critère de doublon contenu.
+async function lot5ReplayMissingVersionsR3(env,messageId){
+  const countRow=await env.OPS_DB.prepare(`SELECT COUNT(*) AS n FROM import_file_versions WHERE gmail_message_id=?`).bind(messageId).first().catch(()=>({n:0}));
+  const before=Number(countRow?.n||0);
+  if(before>0)return {messageId,replayed:false,before,after:before};
+  const stored=await storeGmailMessage(env,messageId);
+  await lot5RepairMessageIdentityV533(env,messageId).catch(()=>{});
+  const afterRow=await env.OPS_DB.prepare(`SELECT COUNT(*) AS n FROM import_file_versions WHERE gmail_message_id=?`).bind(messageId).first().catch(()=>({n:0}));
+  return {messageId,replayed:true,before,after:Number(afterRow?.n||0),stored};
+}
+
+async function lot5SpecificReadyForMessagesR3(env,messageIds){
+  const ids=[...new Set((messageIds||[]).map(x=>String(x||'').trim()).filter(Boolean))];
+  if(!ids.length)return [];
+  const qs=ids.map(()=>'?').join(',');
+  return (await env.OPS_DB.prepare(`
+    SELECT r.job_id,r.airline,r.flight_number,r.flight_date,r.status,r.parser_mode,r.card_key,r.list_name,
+           j.gmail_message_id,j.version_id,v.r2_key,v.filename_original,v.mime_type
+    FROM import_job_results r
+    JOIN import_jobs j ON j.job_id=r.job_id
+    LEFT JOIN import_file_versions v ON v.version_id=j.version_id
+    WHERE j.gmail_message_id IN (${qs}) AND r.parser_mode='SPECIFIC_LOCKED' AND r.status='READY_SPECIFIC_PARSER'
+    ORDER BY r.updated_at ASC
+  `).bind(...ids).all()).results||[];
+}
+
 async function lot5TestBatchV535(env,body){
   await ensureLot5Tables(env);
   const ids=[...new Set((body?.messageIds||[]).map(x=>String(x||'').trim()).filter(Boolean))];
   if(!ids.length)return {ok:false,error:'messageIds requis'};
   if(ids.length>20)return {ok:false,error:'Maximum 20 messages'};
-  const stored=[];
+  const stored=[]; const replay=[];
   for(const id of ids){
     try{stored.push(await storeGmailMessage(env,id));}
     catch(e){stored.push({messageId:id,status:'ERROR_IMPORT',error:String(e?.message||e)})}
     await lot5RepairMessageIdentityV533(env,id).catch(()=>{});
+    try{replay.push(await lot5ReplayMissingVersionsR3(env,id));}catch(e){replay.push({messageId:id,error:String(e?.message||e)})}
   }
   const driveBefore=await lot5ArchiveDriveForMessagesV535(env,ids);
   const qs=ids.map(()=>'?').join(',');
@@ -5190,7 +5245,8 @@ async function lot5TestBatchV535(env,body){
     await lot5SyncPrepaInboxForMessage(env,id).catch(()=>{});
     audits.push(await lot5AuditMessageV534(env,id).catch(e=>({messageId:id,error:String(e?.message||e)})));
   }
-  return {ok:true,testMode:true,messageCount:ids.length,stored,processedJobs:processed.length,driveUploaded:Number(driveBefore.uploaded||0)+Number(driveAfter.uploaded||0),injected,waiting,injectionErrors,audits};
+  const specificReady=await lot5SpecificReadyForMessagesR3(env,ids);
+  return {ok:true,testMode:true,r3:true,messageCount:ids.length,stored,replay,processedJobs:processed.length,driveUploaded:Number(driveBefore.uploaded||0)+Number(driveAfter.uploaded||0),injected,waiting,specificReadyCount:specificReady.length,specificReady,injectionErrors,audits};
 }
 
 async function handleLot5(request,env,url){
