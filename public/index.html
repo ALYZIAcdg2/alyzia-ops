@@ -25299,6 +25299,27 @@ async function import143BuildSpecificRaw(items,airline){
   }
   return blocks.join('\n\n');
 }
+function import143CaptureModalUi(){
+  const modal=document.getElementById('modal');
+  if(!modal||!modal.classList.contains('open'))return null;
+  return {
+    html:modal.innerHTML,
+    className:modal.className,
+    style:modal.getAttribute('style')||'',
+    scrollTop:modal.scrollTop||0,
+    bodyOverflow:document.body?.style?.overflow||''
+  };
+}
+function import143RestoreModalUi(state){
+  if(!state)return;
+  const modal=document.getElementById('modal');
+  if(!modal)return;
+  modal.innerHTML=state.html;
+  modal.className=state.className;
+  if(state.style)modal.setAttribute('style',state.style); else modal.removeAttribute('style');
+  modal.scrollTop=state.scrollTop||0;
+  if(document.body)document.body.style.overflow=state.bodyOverflow||'';
+}
 async function import143RecoverOneSpecificFlight(f){
   const c=String(f?.airline||'').toUpperCase();
   if(!['SQ','TK','BJ','TW'].includes(c))return false;
@@ -25313,8 +25334,16 @@ async function import143RecoverOneSpecificFlight(f){
   let idx=findFlightIndexForInbox(items[0]);
   if(idx<0)idx=await v5002EnsureFlightFromInbox(items[0],raw,{allowSpecific:true});
   if(idx<0)throw new Error(`VOL ${c} NON CRÉÉ`);
-  if(c==='TW' && typeof v5009ApplyTwDirect==='function')await v5009ApplyTwDirect(items[0],idx,raw);
-  else await applyInboxRawWithExistingParser(items[0],idx,raw);
+  // BUILD143 R5: le parser existant réutilise le modal PREPA et closeAllModals().
+  // On préserve donc exactement le modal IMPORT GMAIL / IMPORTS COMPAGNIE ouvert
+  // (contenu, classe, scroll), puis on le restaure après l'injection.
+  const importUiState=import143CaptureModalUi();
+  try{
+    if(c==='TW' && typeof v5009ApplyTwDirect==='function')await v5009ApplyTwDirect(items[0],idx,raw);
+    else await applyInboxRawWithExistingParser(items[0],idx,raw);
+  }finally{
+    import143RestoreModalUi(importUiState);
+  }
   await setPrepaInboxGroupStatus(items,'PROCESSED');
   await fetch(opsApiUrl('/api/autopilot/specific-browser-complete'),{
     method:'POST',headers:{'Content-Type':'application/json'},
@@ -25330,10 +25359,10 @@ async function import143RecoverSpecificBacklog(){
     const todo=(j?.flights||[]).filter(f=>['SQ','TK','BJ','TW'].includes(String(f.airline||'').toUpperCase()) && ['IMPORTED','PROCESSED','RECEIVED','PENDING','PROCESSING'].includes(String(f.status||'').toUpperCase()));
     for(const f of todo){
       if(document.hidden)break;
-      console.info('ALYZIA OPS BUILD143 R4 — SPECIFIC RECOVERY START',f?.airline,f?.flightNumber,f?.flightDate,f?.status);
+      console.info('ALYZIA OPS BUILD143 R5 — SPECIFIC RECOVERY START',f?.airline,f?.flightNumber,f?.flightDate,f?.status);
       try{
         const ok=await import143RecoverOneSpecificFlight(f);
-        console.info('ALYZIA OPS BUILD143 R4 — SPECIFIC RECOVERY OK',f?.airline,f?.flightNumber,f?.flightDate,'ok=',ok);
+        console.info('ALYZIA OPS BUILD143 R5 — SPECIFIC RECOVERY OK',f?.airline,f?.flightNumber,f?.flightDate,'ok=',ok);
       }catch(e){console.warn(BUILD143,'SPECIFIC RECOVERY',f?.airline,f?.flightNumber,f?.flightDate,e)}
       await new Promise(r=>setTimeout(r,350));
     }
@@ -25350,7 +25379,8 @@ window.openImportsDashboard=function(){
 };
 
 console.log(BUILD143);
-console.log('BUILD143 R4: PROCESSED specific recovery + TK/TW base64 payload active');
+console.log('BUILD143 R5: modal persistence + PROCESSED specific recovery + TK/TW base64 payload active');
+console.log('BUILD143 R5: IMPORT GMAIL modal state/scroll preserved during background specific parser injection');
 })();
 </script>
 </body></html>
