@@ -24897,6 +24897,251 @@ console.log('ALYZIA OPS BUILD140 — IMPORT GMAIL HISTORY SYNC LOADED');
 })();
 </script>
 
+
+<style id="alyzia-build141-import-pipeline-sync-css">
+#import141FlightOverlay{position:fixed;inset:0;z-index:120000;background:rgba(9,24,43,.58);display:flex;align-items:stretch;justify-content:center;padding:14px}
+#import141FlightOverlay .i141-shell{width:min(1600px,98vw);height:calc(100vh - 28px);background:#f5f8fc;border-radius:18px;box-shadow:0 30px 90px rgba(4,20,38,.35);overflow:hidden;display:flex;flex-direction:column;border:1px solid #cfdae7}
+#import141FlightOverlay .i141-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;background:#fff;border-bottom:1px solid #dce6f1}
+#import141FlightOverlay .i141-head-left{display:flex;align-items:center;gap:10px;min-width:0}
+#import141FlightOverlay .i141-title{font-size:18px;font-weight:950;color:#08213e}.i141-sub{font-size:10px;font-weight:850;color:#627b96}
+#import141FlightOverlay .i141-actions{display:flex;gap:8px}.i141-actions button{border:1px solid #d5e1ee;background:#fff;color:#0b66c3;border-radius:10px;min-height:38px;padding:0 14px;font-size:11px;font-weight:950;cursor:pointer}
+#import141FlightOverlay .i141-body{overflow:auto;padding:12px;flex:1}.i141-readonly{pointer-events:none}.i141-readonly button,.i141-readonly input,.i141-readonly select,.i141-readonly textarea{pointer-events:none!important}
+.import141-invalid-note{margin:10px 0;padding:10px 12px;border:1px solid #f2c6c6;background:#fff5f5;border-radius:10px;font-size:11px;font-weight:800;color:#9b2c2c}
+.import141-state-received{background:#eef4ff!important;color:#1e5fa8!important}.import141-state-imported{background:#fff7db!important;color:#8a6500!important}.import141-state-injected{background:#e8f5ff!important;color:#006eb8!important}.import141-state-validated{background:#e9f8ef!important;color:#087749!important}.import141-state-review{background:#fff1dc!important;color:#a65c00!important}.import141-state-error{background:#ffe9e9!important;color:#b42318!important}.import141-state-duplicate{background:#f0f2f5!important;color:#596579!important}
+@media(max-width:760px){#import141FlightOverlay{padding:4px}#import141FlightOverlay .i141-shell{width:100vw;height:calc(100vh - 8px);border-radius:12px}.i141-actions button{padding:0 9px}.i141-title{font-size:15px}}
+</style>
+<script id="alyzia-build141-import-pipeline-sync">
+(()=>{
+'use strict';
+const BUILD141='BUILD141_IMPORT_PIPELINE_SYNC';
+let import141D1Flights=[];
+let import141OverlayState=null;
+let import141Timer=null;
+let import141View={type:'',company:''};
+function import141SetWide(on=true){const modal=document.getElementById('modal');if(modal)modal.classList.toggle('import140-wide',!!on)}
+function import141StopTimer(){if(import141Timer){clearInterval(import141Timer);import141Timer=null}}
+async function import141FetchAllPrepa(){try{const r=await fetch(opsApiUrl('/api/prepa?limit=2000'),{cache:'no-store',headers:{Accept:'application/json'}});if(!r.ok)throw new Error(`HTTP ${r.status}`);const j=await r.json();PREPA_IMPORTS_UI_ITEMS=Array.isArray(j?.items)?j.items:[];return PREPA_IMPORTS_UI_ITEMS}catch(e){console.warn(BUILD141,'PREPA',e);return PREPA_IMPORTS_UI_ITEMS||[]}}
+
+function import141ValidCompany(c){
+  const x=String(c||'').trim().toUpperCase();
+  return /^[A-Z0-9]{2}$/.test(x)&&/[A-Z]/.test(x);
+}
+function import141Status(v){
+  const s=String(v||'RECEIVED').toUpperCase();
+  const map={
+    VALIDATED:{label:'VALIDÉ',cls:'ok import141-state-validated',rank:0},
+    INJECTED:{label:'INJECTÉ',cls:'ok import141-state-injected',rank:2},
+    IMPORTED:{label:'IMPORTÉ',cls:'wait import141-state-imported',rank:4},
+    RECEIVED:{label:'REÇU',cls:'wait import141-state-received',rank:6},
+    DUPLICATE:{label:'IGNORÉ DOUBLON',cls:'import141-state-duplicate',rank:1},
+    REVIEW:{label:'À REVOIR',cls:'wait import141-state-review',rank:8},
+    UNIDENTIFIED:{label:'À REVOIR',cls:'wait import141-state-review',rank:8},
+    ERROR_IMPORT:{label:'ERREUR IMPORT',cls:'err import141-state-error',rank:10},
+    ERROR_INJECT:{label:'ERREUR INJECTE',cls:'err import141-state-error',rank:10},
+    ERROR:{label:'ERREUR',cls:'err import141-state-error',rank:10},
+    PROCESSING:{label:'IMPORT EN COURS',cls:'wait import141-state-imported',rank:5},
+    PENDING:{label:'REÇU',cls:'wait import141-state-received',rank:6},
+    PROCESSED:{label:'IMPORTÉ',cls:'wait import141-state-imported',rank:4}
+  };
+  return map[s]||{label:s||'REÇU',cls:'wait',rank:6};
+}
+function import141DocCount(it){
+  const n=Array.isArray(it?.attachments)?it.attachments.length:0;
+  if(n>0)return n;
+  const subj=String(it?.subject||'').toUpperCase();
+  if(/\bPREPA\s+TK\d{1,4}\b/.test(subj)||/\bTK\d{1,4}\/\d{1,2}[A-Z]{3}\b/.test(subj))return 1; // corps mail TK_TEXT
+  return 0;
+}
+function import141HasImportEvidence(x){
+  if(!x||typeof x!=='object')return false;
+  if(x.imports&&Object.keys(x.imports).length)return true;
+  if(x.prepa||x.imported||x.gmailImported||x.importSource)return true;
+  if(String(x.source||'').match(/PREPA|GMAIL|IMPORT/i))return true;
+  return Array.isArray(x.passengers)&&x.passengers.some(p=>p?.imported===true||p?.sourceList);
+}
+async function import141FetchD1Flights(){
+  try{
+    const r=await fetch(opsApiUrl('/api/flights'),{cache:'no-store',headers:{Accept:'application/json'}});
+    if(!r.ok)throw new Error(`HTTP ${r.status}`);
+    const j=await r.json();
+    import141D1Flights=Array.isArray(j?.flights)?j.flights:[];
+    // Actualise FLIGHTS sans supprimer les données locales.
+    for(const f of import141D1Flights){
+      const id=`${String(f?.date||'')}|${String(f?.airline||'').toUpperCase()}|${String(f?.flight||'').toUpperCase()}`;
+      if(!f?.date||!f?.airline||!f?.flight)continue;
+      const idx=FLIGHTS.findIndex(x=>`${String(x?.date||'')}|${String(x?.airline||'').toUpperCase()}|${String(x?.flight||'').toUpperCase()}`===id);
+      if(idx<0)FLIGHTS.push(f); else if(f?._serverUpdatedAt)FLIGHTS[idx]={...FLIGHTS[idx],...f};
+    }
+    return import141D1Flights;
+  }catch(e){console.warn(BUILD141,'D1 FLIGHTS',e);return import141D1Flights}
+}
+async function import141ReconcileBackend(){
+  try{
+    await fetch(opsApiUrl('/api/autopilot/reconcile-labels'),{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({limit:500})});
+  }catch(e){console.warn(BUILD141,'RECONCILE',e)}
+}
+
+// Surcharge des helpers historiques : une seule source de vérité pour OUTILS et IMPORT GMAIL.
+window.impCompany=function(it){const a=String(it?.airline||'').trim().toUpperCase();return import141ValidCompany(a)?a:'A_IDENTIFIER'};
+window.impAttachCount=import141DocCount;
+window.impStatus=function(s){return import141Status(s)};
+window.impCompanies=function(){
+  const fromPrepa=PREPA_IMPORTS_UI_ITEMS.map(impCompany).filter(x=>x&&x!=='A_IDENTIFIER');
+  const fromD1=import141D1Flights.filter(import141HasImportEvidence).map(x=>String(x?.airline||'').toUpperCase()).filter(import141ValidCompany);
+  const p=['SQ','TK','BJ','TW','VF'];
+  return [...new Set([...fromPrepa,...fromD1])].sort((a,b)=>{const ia=p.indexOf(a),ib=p.indexOf(b);if(ia>=0||ib>=0)return (ia<0?99:ia)-(ib<0?99:ib);return a.localeCompare(b)});
+};
+window.impItems=function(c){return PREPA_IMPORTS_UI_ITEMS.filter(x=>impCompany(x)===c)};
+window.impFlights=function(c){
+  const map=new Map();
+  for(const it of impItems(c)){
+    const f=String(it?.flightNumber||'').trim().toUpperCase(),d=String(it?.flightDate||'').trim();
+    if(!f||!d)continue;
+    const key=`${d}|${f}`;let row=map.get(key);
+    if(!row){row={key,company:c,flightNumber:f,flightDate:d,messages:0,files:0,status:'VALIDATED',items:[],d1:false};map.set(key,row)}
+    row.items.push(it);row.messages++;row.files+=import141DocCount(it);
+    const cur=import141Status(row.status),next=import141Status(it?.status);if(next.rank>cur.rank)row.status=String(it?.status||'RECEIVED').toUpperCase();
+  }
+  for(const x of import141D1Flights){
+    const ac=String(x?.airline||'').toUpperCase(),f=String(x?.flight||'').toUpperCase(),d=String(x?.date||'');
+    if(ac!==c||!f||!d||!import141HasImportEvidence(x))continue;
+    const key=`${d}|${f}`;let row=map.get(key);
+    if(!row){row={key,company:c,flightNumber:f,flightDate:d,messages:0,files:0,status:'IMPORTED',items:[],d1:true};map.set(key,row)}
+    row.d1=true;row.d1Flight=x;
+  }
+  return [...map.values()].sort((a,b)=>String(b.flightDate).localeCompare(String(a.flightDate))||String(a.flightNumber).localeCompare(String(b.flightNumber)));
+};
+window.impRowState=function(row){
+  const st=import141Status(row?.status);
+  if(row?.files===0 && ['INJECTED','VALIDATED'].includes(String(row?.status||'').toUpperCase()))return {label:'À REVOIR · 0 DOCUMENT',cls:'wait import141-state-review',rank:8};
+  return st;
+};
+window.impStats=function(c){
+  const items=impItems(c),flights=impFlights(c);const states=flights.map(r=>String(r.status||'').toUpperCase());
+  return {files:items.reduce((n,x)=>n+import141DocCount(x),0),flights:flights.length,
+    injected:states.filter(x=>['INJECTED','VALIDATED'].includes(x)).length,
+    validated:states.filter(x=>x==='VALIDATED').length,
+    imported:states.filter(x=>x==='IMPORTED'||x==='PROCESSED').length,
+    received:states.filter(x=>['RECEIVED','PENDING','PROCESSING'].includes(x)).length,
+    pending:states.filter(x=>['RECEIVED','PENDING','PROCESSING','IMPORTED','PROCESSED'].includes(x)).length,
+    errors:states.filter(x=>x.startsWith('ERROR')).length,
+    review:states.filter(x=>['REVIEW','UNIDENTIFIED'].includes(x)).length,
+    toCreate:flights.filter(x=>findImpFlightIndex(x)<0&&!x.d1).length,last:flights[0]||null};
+};
+window.impGlobal=function(){
+  const companies=impCompanies(),stats=companies.map(impStats);
+  const unidentified=PREPA_IMPORTS_UI_ITEMS.filter(x=>impCompany(x)==='A_IDENTIFIER'||['UNIDENTIFIED','REVIEW'].includes(String(x?.status||'').toUpperCase())).length;
+  return {companies,files:companies.reduce((n,c)=>n+impStats(c).files,0),flights:stats.reduce((n,s)=>n+s.flights,0),injected:stats.reduce((n,s)=>n+s.injected,0),validated:stats.reduce((n,s)=>n+s.validated,0),imported:stats.reduce((n,s)=>n+s.imported,0),received:stats.reduce((n,s)=>n+s.received,0),pending:stats.reduce((n,s)=>n+s.pending,0),errors:stats.reduce((n,s)=>n+s.errors,0),review:stats.reduce((n,s)=>n+s.review,0),unidentified};
+};
+
+function import141Metrics(){const g=impGlobal();return {...g,todo:g.review+g.errors+g.unidentified+g.received+g.imported}}
+function import141CompanyCards(){return impCompanies().map(c=>{const s=impStats(c);return `<button class="import139-company" onclick="openImportsCompany('${c}')"><div class="import139-company-top"><div class="import139-company-id">${airlineLogo(c)} <span>${escapeHtml(c)}</span></div><span class="import139-mode">${v50DefaultImportMode(c)==='SPECIFIC'?'SPECIFIC':'GENERIC'}</span></div><div class="import139-company-metrics"><div><b>${s.files}</b><span>DOCUMENTS</span></div><div><b>${s.flights}</b><span>VOLS</span></div><div><b>${s.validated}</b><span>VALIDÉS</span></div></div></button>`}).join('')}
+function import141InvalidCount(){return PREPA_IMPORTS_UI_ITEMS.filter(x=>!import141ValidCompany(String(x?.airline||'').toUpperCase())).length}
+
+async function import141RefreshData({reconcile=true}={}){
+  if(reconcile)await import141ReconcileBackend();
+  await Promise.all([import141FetchAllPrepa(),import141FetchD1Flights()]);
+}
+window.refreshImports140=async function(){await import141RefreshData({reconcile:true});if(import141View.type==='company'&&import141View.company)renderImportsCompany141(import141View.company,true);else renderImportsDashboard141(true)};
+window.refreshImports141=window.refreshImports140;
+
+function import141SummaryHtml(m){
+ return `<div class="imports-summary" style="grid-template-columns:repeat(5,minmax(0,1fr))">
+  <div class="imports-summary-card"><b>${m.received}</b><span>REÇUS</span></div>
+  <div class="imports-summary-card"><b>${m.imported}</b><span>IMPORTÉS</span></div>
+  <div class="imports-summary-card"><b>${m.injected}</b><span>INJECTÉS</span></div>
+  <div class="imports-summary-card"><b>${m.validated}</b><span>VALIDÉS</span></div>
+  <div class="imports-summary-card"><b>${m.errors+m.review+m.unidentified}</b><span>ERREURS / À REVOIR</span></div>
+ </div>`;
+}
+function renderImportsDashboard141(replace=false){
+  import141SetWide(true);import141View={type:'dashboard',company:''};const m=import141Metrics(),bad=import141InvalidCount();
+  const html=`<div class="import139-toolbar"><div class="import139-toolbar-left"><button class="import139-mini" onclick="refreshImports141()">↻ ACTUALISER</button><button id="b141DriveBtn" class="import139-mini" onclick="v5013ConfigureDrive()">GOOGLE DRIVE</button><button class="import139-mini" onclick="v5013OpenRepair()">MAINTENANCE</button></div><span class="import140-auto">ACTUALISATION AUTO · 30 S</span></div>
+  ${import141SummaryHtml(m)}
+  <div class="import140-section-title"><span>FICHES DE VOL PAR COMPAGNIE / DATE</span><span>${m.flights} FICHE${m.flights>1?'S':''}</span></div>
+  ${bad?`<div class="import141-invalid-note">${bad} ÉLÉMENT${bad>1?'S':''} AVEC IDENTITÉ COMPAGNIE INVALIDE (ex. 20 / 30 / 99) : exclus des compagnies et à revoir.</div>`:''}
+  <div class="import139-companies">${import141CompanyCards()||'<div class="import-status">AUCUNE COMPAGNIE IDENTIFIÉE.</div>'}</div>`;
+  if(replace)replaceModal('IMPORT GMAIL','CENTRE AUTO PILOT · ÉTATS EXCLUSIFS',html);else showModal('IMPORT GMAIL','CENTRE AUTO PILOT · ÉTATS EXCLUSIFS',html);
+  import141SetWide(true);import141StartTimer();
+  setTimeout(async()=>{const b=document.getElementById('b141DriveBtn');if(!b||typeof v5013GetDriveStatus!=='function')return;try{const d=await v5013GetDriveStatus();b.textContent=d?.configured?'✓ DRIVE CONNECTÉ':'⚙ CONFIGURER DRIVE'}catch(e){}},0);
+}
+window.renderImportsDashboard140=renderImportsDashboard141;
+window.openImportsDashboard=async function(){await import141RefreshData({reconcile:true});renderImportsDashboard141(false)};
+
+function import141GroupRows(rows){const m=new Map();for(const r of rows){const d=String(r.flightDate||'DATE INCONNUE');if(!m.has(d))m.set(d,[]);m.get(d).push(r)}return [...m.entries()].sort((a,b)=>String(b[0]).localeCompare(String(a[0])))}
+function renderImportsCompany141(c,replace=false){
+  import141SetWide(true);import141View={type:'company',company:c};const s=impStats(c),flights=impFlights(c),groups=import141GroupRows(flights);
+  const blocks=groups.map(([date,rows])=>`<section class="import140-date-block"><div class="import140-date-head">${escapeHtml(impDate(date))} · ${rows.length} VOL${rows.length>1?'S':''}</div><div class="import140-company-list">${rows.map(row=>{const st=impRowState(row);return `<div class="import139-flight-row"><div class="import139-flight-id"><b>${airlineLogo(c)} ${escapeHtml(row.flightNumber)}</b><span>${escapeHtml(impDate(row.flightDate))}</span></div><button class="import139-pill" onclick="openImportFlightFiles('${c}','${row.key}')">${row.files} FICHIER${row.files>1?'S':''}</button><button class="import139-pill imports-flight-status ${st.cls}" onclick="openImportFlightDiagnostics('${c}','${row.key}')">${st.label}</button><div class="import139-actions"><button class="primary" onclick="openImpFlight141('${c}','${row.key}')">FICHE VOL</button><button onclick="openImport139Advanced('${c}','${row.key}')">GESTION</button></div></div>`}).join('')}</div></section>`).join('');
+  const html=`<div class="import139-toolbar"><div class="import139-toolbar-left"><button class="import140-back" onclick="backToImports140()">← RETOUR IMPORT GMAIL</button><button class="import139-mini" onclick="refreshImports141()">↻ ACTUALISER</button></div><span class="import140-auto">ACTUALISATION AUTO · 30 S</span></div>${import141SummaryHtml({received:s.received,imported:s.imported,injected:s.injected,validated:s.validated,errors:s.errors,review:s.review,unidentified:0})}<div class="import140-section-title"><span>FICHES DE VOL · ${escapeHtml(c)}</span><span>TRIÉES PAR DATE</span></div>${blocks||`<div class="import-status">AUCUN VOL IMPORTÉ POUR ${escapeHtml(c)}.</div>`}`;
+  if(replace)replaceModal(`IMPORTS ${c}`,`${s.flights} VOLS · ${s.files} DOCUMENTS`,html);else showModal(`IMPORTS ${c}`,`${s.flights} VOLS · ${s.files} DOCUMENTS`,html);
+  import141SetWide(true);import141StartTimer();
+}
+window.renderImportsCompany140=renderImportsCompany141;
+window.openImportsCompany=function(c){renderImportsCompany141(c,false)};
+window.backToImports140=function(){renderImportsDashboard141(true)};
+
+async function import141ResolveFlight(row){
+  let idx=findImpFlightIndex(row);if(idx>=0)return idx;
+  const identity=`${row.flightDate}|${row.company}|${row.flightNumber}`;
+  try{
+    const r=await fetch(opsApiUrl(`/api/flights?identity=${encodeURIComponent(identity)}`),{cache:'no-store',headers:{Accept:'application/json'}});
+    if(r.ok){const j=await r.json(),f=j?.flight;if(f){idx=FLIGHTS.findIndex(x=>String(x?.date||'')===row.flightDate&&String(x?.airline||'').toUpperCase()===row.company&&String(x?.flight||'').toUpperCase()===row.flightNumber);if(idx<0){FLIGHTS.push(f);idx=FLIGHTS.length-1}else FLIGHTS[idx]={...FLIGHTS[idx],...f};return idx}}
+  }catch(e){console.warn(BUILD141,'OPEN D1',e)}
+  return -1;
+}
+function import141ReadonlyHtml(html){
+  const box=document.createElement('div');box.innerHTML=html;box.classList.add('i141-readonly');
+  box.querySelectorAll('[onclick]').forEach(el=>el.removeAttribute('onclick'));
+  box.querySelectorAll('button,input,select,textarea').forEach(el=>{el.disabled=true;el.tabIndex=-1});
+  box.querySelectorAll('a').forEach(el=>{el.removeAttribute('href');el.tabIndex=-1});
+  return box.innerHTML;
+}
+window.openImpFlight141=async function(c,key){
+  const row=getImpRow(c,key)||impFlights(c).find(x=>x.key===key);if(!row)return;
+  const idx=await import141ResolveFlight(row);
+  if(idx<0){alert(`FICHE VOL ${row.flightNumber} · ${impDate(row.flightDate)} INTROUVABLE DANS D1. IDENTITÉ À REVOIR.`);return}
+  import141StopTimer();
+  const modalBody=document.getElementById('modalBody');const scrollTop=modalBody?.scrollTop||0;
+  const app=document.getElementById('app');if(!app)return;
+  const oldHtml=app.innerHTML,oldSelected=selected,oldSelectedDate=selectedDate,oldHome=HOME_DATE,oldView=typeof currentView!=='undefined'?currentView:null;
+  let flightHtml='';
+  try{selected=idx;selectedDate=row.flightDate;HOME_DATE=row.flightDate;render();flightHtml=app.innerHTML}
+  finally{app.innerHTML=oldHtml;selected=oldSelected;selectedDate=oldSelectedDate;HOME_DATE=oldHome;if(oldView!==null)currentView=oldView}
+  const ov=document.createElement('div');ov.id='import141FlightOverlay';
+  ov.innerHTML=`<div class="i141-shell"><div class="i141-head"><div class="i141-head-left">${airlineLogo(c)}<div><div class="i141-title">${escapeHtml(row.flightNumber)} · ${escapeHtml(impDate(row.flightDate))}</div><div class="i141-sub">FICHE VOL · CONSULTATION DEPUIS IMPORT GMAIL</div></div></div><div class="i141-actions"><button onclick="closeImpFlight141()">← RETOUR</button><button onclick="closeImpFlight141()">✕ FERMER</button></div></div><div class="i141-body">${import141ReadonlyHtml(flightHtml)}</div></div>`;
+  document.body.appendChild(ov);import141OverlayState={scrollTop};
+};
+window.closeImpFlight141=function(){document.getElementById('import141FlightOverlay')?.remove();const st=import141OverlayState;import141OverlayState=null;setTimeout(()=>{const b=document.getElementById('modalBody');if(b&&st)b.scrollTop=st.scrollTop||0;import141StartTimer()},20)};
+window.openImpFlight=window.openImpFlight141;
+
+// OUTILS : mêmes compteurs que le centre complet, après chargement historique complet.
+const import141OpenToolsBase=window.openTools;
+window.openTools=async function(){
+  await import141OpenToolsBase();
+  await import141RefreshData({reconcile:false});
+  const m=import141Metrics();
+  const vals=[m.files,m.flights,m.validated,m.errors+m.review+m.unidentified];
+  document.querySelectorAll('#modal .import139-stat b').forEach((el,i)=>{if(i<vals.length)el.textContent=String(vals[i])});
+  const labs=['DOCUMENTS','VOLS DÉTECTÉS','VOLS VALIDÉS','ERREURS / À REVOIR'];
+  document.querySelectorAll('#modal .import139-stat span').forEach((el,i)=>{if(i<labs.length)el.textContent=labs[i]});
+};
+
+// Timer BUILD140 doit rendre nos vues, pas les anciennes fonctions fermées lexicalement.
+function import141StartTimer(){
+  import141StopTimer();
+  import141Timer=setInterval(async()=>{
+    const modal=document.getElementById('modal');if(!modal?.classList.contains('open')){import141StopTimer();return}
+    if(document.getElementById('import141FlightOverlay'))return;
+    const title=String(document.getElementById('modalTitle')?.textContent||'').toUpperCase();if(!/IMPORT GMAIL|IMPORTS [A-Z0-9]{2,3}/.test(title)){import141StopTimer();return}
+    await import141RefreshData({reconcile:false});
+    if(import141View.type==='company'&&import141View.company)renderImportsCompany141(import141View.company,true);else renderImportsDashboard141(true);
+  },30000);
+}
+window.import141StartTimer=import141StartTimer;
+
+console.log('ALYZIA OPS BUILD141 — IMPORT PIPELINE SYNC LOADED');
+})();
+</script>
 </body></html>
 <!-- V50.03: cloud status is debounced; 3 startup retries; transient sync failures no longer force immediate local mode. -->
 <!-- V50.0: generic airline PREPA engine + airline profiles; SQ/TK/BJ parser semantics unchanged. -->
