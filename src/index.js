@@ -2077,7 +2077,7 @@ async function importPipelineStatus(env){
     SELECT created_at,change_type,airline,flight_number,flight_date,file_id,version_id
     FROM import_changes
     ORDER BY id DESC
-    LIMIT 50
+    LIMIT 20
   `).all();
   return {ok:true,jobs:rows.results||[],files:files.results||[],recentChanges:recent.results||[]};
 }
@@ -2102,7 +2102,7 @@ async function importPipelineStatus(env){
  *   LIST OF: XXXXX = carte correspondante.
  * ========================================================= */
 
-const LOT2_SPECIFIC_AIRLINES = new Set(["SQ","TK","BJ","TW"]);
+const LOT2_SPECIFIC_AIRLINES = new Set(["SQ","TK","BJ","VF","TW"]);
 
 async function ensureImportProcessorTables(env){
   await ensureGmailPipelineTables(env);
@@ -4227,10 +4227,10 @@ async function lot3FlightCards(env,url){
  * ========================================================= */
 
 // LOT 5.2 FULL MAILBOX CONTINUOUS — whole Gmail mailbox + newest-first + resumable pagination + non-blocking errors.
-const LOT5_VERSION="V50.29_LOT5_AUTOPILOT_3_2_DRIVE_IMPORT_RECONCILE_FIX";
-// 5.3.2 scope: orchestration only (Gmail/identity state/Drive/prepa sync).
+const LOT5_VERSION="V50.29_LOT5_AUTOPILOT_3_3_IDENTITY_DRIVE_STATE_FIX";
+// 5.3.3 scope: orchestration only (identity repair / Drive gate / exclusive Gmail state / bounded run).
 // Parsers TK/BJ/VF/SQ/TW are intentionally untouched.
-const LOT5_PROTECTED_AIRLINES=new Set(["SQ","TK","BJ","TW"]);
+const LOT5_PROTECTED_AIRLINES=new Set(["SQ","TK","BJ","VF","TW"]);
 
 async function ensureLot5Tables(env){
   await ensureLot3Tables(env);
@@ -4295,10 +4295,10 @@ function lot5Config(env){
     // - corps mail + JFE SCREEN COPY + PDF + TXT + EML sont tous collectés
     gmailQuery:String(env.ALYZIA_AUTOPILOT_GMAIL_QUERY||'in:anywhere').trim()||'in:anywhere',
     gmailMax:Math.max(1,Math.min(100,Number(env.ALYZIA_AUTOPILOT_GMAIL_MAX||100))),
-    gmailPagesPerRun:Math.max(1,Math.min(10,Number(env.ALYZIA_AUTOPILOT_GMAIL_PAGES_PER_RUN||5))),
+    gmailPagesPerRun:Math.max(1,Math.min(2,Number(env.ALYZIA_AUTOPILOT_GMAIL_PAGES_PER_RUN||1))),
 
     processBatch:Math.max(1,Math.min(50,Number(env.ALYZIA_AUTOPILOT_PROCESS_BATCH||50))),
-    processLoops:Math.max(1,Math.min(10,Number(env.ALYZIA_AUTOPILOT_PROCESS_LOOPS||10))),
+    processLoops:Math.max(1,Math.min(4,Number(env.ALYZIA_AUTOPILOT_PROCESS_LOOPS||4))),
     injectBatch:Math.max(1,Math.min(100,Number(env.ALYZIA_AUTOPILOT_INJECT_BATCH||100))),
     driveEnabled:lot5Bool(env.ALYZIA_AUTOPILOT_DRIVE_ENABLED,true),
     // Si ALYZIA_DRIVE_ROOT_FOLDER_ID est fourni, il est considéré comme le dossier PRÉPA cible.
@@ -4458,15 +4458,63 @@ function lot5UiStatusFromGmailStateV53(state){
   return s||"RECEIVED";
 }
 
+async function lot5RepairMessageIdentityV533(env,messageId){
+  const gm=await env.OPS_DB.prepare(`SELECT gmail_message_id,subject,snippet,received_at,internal_date,airline,flight_number,flight_date FROM gmail_messages WHERE gmail_message_id=? LIMIT 1`).bind(messageId).first();
+  if(!gm)return null;
+  // Sujet d'abord, puis snippet Gmail. Aucun nom de fichier horodaté ne peut écraser cette identité.
+  const detected=detectMailFlight(String(gm.subject||''),'',String(gm.snippet||''));
+  const airline=String(detected.airline||gm.airline||'').toUpperCase();
+  const flightNumber=String(detected.flightNumber||gm.flight_number||'').toUpperCase().replace(/\s+/g,'');
+  const flightDate=lot5CanonicalFlightDate(detected.flightDate||gm.flight_date||'',gm.received_at||gm.internal_date||'');
+  if(!isValidAirlineCodeV53(airline) || !flightNumber.startsWith(airline) || !/^20\d{2}-\d{2}-\d{2}$/.test(flightDate))return {...gm,airline,flight_number:flightNumber,flight_date:flightDate,identityValid:false};
+
+  const changed=airline!==String(gm.airline||'').toUpperCase() || flightNumber!==String(gm.flight_number||'').toUpperCase().replace(/\s+/g,'') || flightDate!==lot5CanonicalFlightDate(gm.flight_date||'',gm.received_at||gm.internal_date||'');
+  if(changed){
+    await env.OPS_DB.prepare(`UPDATE gmail_messages SET airline=?,flight_number=?,flight_date=?,updated_at=CURRENT_TIMESTAMP WHERE gmail_message_id=?`).bind(airline,flightNumber,flightDate,messageId).run();
+    // Réparer uniquement les lignes techniques de CE message. Aucun parser n'est modifié.
+    await env.OPS_DB.prepare(`UPDATE import_files SET airline=?,flight_number=?,flight_date=?,updated_at=CURRENT_TIMESTAMP WHERE file_id IN (SELECT DISTINCT file_id FROM import_file_versions WHERE gmail_message_id=?)`).bind(airline,flightNumber,flightDate,messageId).run().catch(()=>{});
+    await env.OPS_DB.prepare(`UPDATE import_jobs SET airline=?,flight_number=?,flight_date=?,updated_at=CURRENT_TIMESTAMP WHERE gmail_message_id=?`).bind(airline,flightNumber,flightDate,messageId).run().catch(()=>{});
+    await env.OPS_DB.prepare(`UPDATE import_job_results SET airline=?,flight_number=?,flight_date=?,updated_at=CURRENT_TIMESTAMP WHERE job_id IN (SELECT job_id FROM import_jobs WHERE gmail_message_id=?)`).bind(airline,flightNumber,flightDate,messageId).run().catch(()=>{});
+  }
+  return {...gm,airline,flight_number:flightNumber,flight_date:flightDate,identityValid:true};
+}
+
+async function lot5DriveCoverageForMessageV533(env,messageId){
+  const row=await env.OPS_DB.prepare(`
+    SELECT COUNT(*) AS total,
+           SUM(CASE WHEN d.version_id IS NOT NULL THEN 1 ELSE 0 END) AS archived
+    FROM import_file_versions v
+    LEFT JOIN lot5_drive_files d ON d.version_id=v.version_id
+    WHERE v.gmail_message_id=?
+  `).bind(messageId).first();
+  const total=Number(row?.total||0), archived=Number(row?.archived||0);
+  return {total,archived,complete:total>0 && archived>=total};
+}
+
 async function lot5ReconcileOneGmailStateV53(env,messageId){
-  const gm=await env.OPS_DB.prepare(`SELECT status,airline,flight_number,flight_date FROM gmail_messages WHERE gmail_message_id=? LIMIT 1`).bind(messageId).first();
+  let gm=await env.OPS_DB.prepare(`SELECT status,airline,flight_number,flight_date,subject,snippet,received_at,internal_date FROM gmail_messages WHERE gmail_message_id=? LIMIT 1`).bind(messageId).first();
   if(!gm)return {messageId,state:"MISSING"};
   if(String(gm.status||"")==="IGNORED_NON_OPERATIONAL")return {messageId,state:"IGNORED_NON_OPERATIONAL"};
+  gm=await lot5RepairMessageIdentityV533(env,messageId)||gm;
   const currentState=String(gm.status||"").toUpperCase();
-  const transition=async(state)=>{if(currentState!==state)await setGmailPipelineState(env,messageId,state,{archive:true}).catch(()=>{})};
-  if(!gm.airline||!gm.flight_number||!gm.flight_date||!isValidAirlineCodeV53(gm.airline)){
+  const transition=async(state)=>{if(currentState!==state)await setGmailPipelineState(env,messageId,state,{archive:state!=="RECEIVED"}).catch(()=>{})};
+  if(!gm.identityValid && (!gm.airline||!gm.flight_number||!gm.flight_date||!isValidAirlineCodeV53(gm.airline))){
     await transition("REVIEW");
     return {messageId,state:"REVIEW"};
+  }
+
+  // 5.3.3 : un mail ne peut pas être déclaré IMPORTÉ tant que ses versions distinctes
+  // ne sont pas réellement archivées dans Drive (si Drive est actif et connecté).
+  const cfg=lot5Config(env);
+  if(cfg.driveEnabled){
+    const ds=await googleDriveStatus(env).catch(()=>({configured:false}));
+    if(ds?.configured){
+      const cov=await lot5DriveCoverageForMessageV533(env,messageId);
+      if(cov.total>0 && !cov.complete){
+        await transition("RECEIVED");
+        return {messageId,state:"RECEIVED",drivePending:true,driveCoverage:cov};
+      }
+    }
   }
   const jobs=(await env.OPS_DB.prepare(`SELECT status,error_message,job_id FROM import_jobs WHERE gmail_message_id=?`).bind(messageId).all()).results||[];
   if(!jobs.length){
@@ -4498,8 +4546,10 @@ async function lot5ReconcileOneGmailStateV53(env,messageId){
   // Le document a bien été identifié/importé ; l'injection spécifique reste volontairement
   // hors de cette correction. À_REVOIR est réservé aux résultats GENERIC réellement bloqués.
   if(generic.some(r=>String(r.status||"").toUpperCase()==="WAITING_FLIGHT")){
-    await transition("REVIEW");
-    return {messageId,state:"REVIEW"};
+    // Identité valide + document archivé : WAITING_FLIGHT signifie seulement que la fiche
+    // n'existe pas encore. Ce n'est pas une ambiguïté et ne doit pas produire À_REVOIR.
+    await transition("IMPORTED");
+    return {messageId,state:"IMPORTED",waitingFlight:true};
   }
   if(generic.length && generic.every(r=>String(r.status||"").toUpperCase()==="INJECTED") && !specific.length){
     await transition("VALIDATED");
@@ -4810,6 +4860,10 @@ async function lot5GmailContinuousSweep(env,cfg,{query='',maxMessages=0}={}){
 async function lot5AutoPilotRun(env,{triggerType='MANUAL',gmailQuery='',gmailMax=0}={}){
   await ensureLot5Tables(env);
   const cfg=lot5Config(env);
+  // Un seul AUTO PILOT à la fois. Les anciens RUNNING de plus de 10 min sont considérés abandonnés.
+  await env.OPS_DB.prepare(`UPDATE lot5_autopilot_runs SET status='ERROR',error_message='STALE_RUN_RECOVERED',finished_at=CURRENT_TIMESTAMP WHERE status='RUNNING' AND started_at < datetime('now','-10 minutes')`).run().catch(()=>{});
+  const activeRun=await env.OPS_DB.prepare(`SELECT run_id,trigger_type,started_at FROM lot5_autopilot_runs WHERE status='RUNNING' ORDER BY started_at DESC LIMIT 1`).first();
+  if(activeRun)return {ok:false,alreadyRunning:true,error:'AUTO PILOT DÉJÀ EN COURS',activeRun,version:LOT5_VERSION};
   const runId=crypto.randomUUID();
   await env.OPS_DB.prepare(`INSERT INTO lot5_autopilot_runs(run_id,trigger_type,status,started_at) VALUES (?,?,'RUNNING',CURRENT_TIMESTAMP)`).bind(runId,triggerType).run();
 
@@ -4844,7 +4898,7 @@ async function lot5AutoPilotRun(env,{triggerType='MANUAL',gmailQuery='',gmailMax
     details.drive=drive;
     driveUploaded=Number(drive.uploaded||0);
 
-    const labels=await lot5ReconcileGmailStatesV53(env,100);
+    const labels=await lot5ReconcileGmailStatesV53(env,500);
     details.gmailStates=labels;
 
     details.prepaSynced=await lot5SyncPrepaInboxRecent(env);
@@ -4876,7 +4930,11 @@ async function lot5Status(env){
       (SELECT COUNT(*) FROM import_jobs WHERE status='QUEUED') AS queuedJobs,
       (SELECT COUNT(*) FROM import_job_results WHERE status='WAITING_FLIGHT') AS waitingFlight,
       (SELECT COUNT(*) FROM lot5_drive_folders) AS driveFolders,
-      (SELECT COUNT(*) FROM lot5_drive_files) AS driveFiles
+      (SELECT COUNT(*) FROM lot5_drive_files) AS driveFiles,
+      (SELECT COUNT(*) FROM gmail_messages WHERE status='RECEIVED') AS gmailReceived,
+      (SELECT COUNT(*) FROM gmail_messages WHERE status='IMPORTED') AS gmailImported,
+      (SELECT COUNT(*) FROM gmail_messages WHERE status='REVIEW') AS gmailReview,
+      (SELECT COUNT(*) FROM gmail_messages WHERE status='DUPLICATE') AS gmailDuplicate
   `).first();
   return {ok:true,version:LOT5_VERSION,config:{...cfg,driveRootFolderId:cfg.driveRootFolderId==='root'?'root':'CUSTOM'},lastRun:last?{...last,details:safeJsonParse(last.details_json,{})}:null,counters:counters||{},googleDrive:await googleDriveStatus(env)};
 }
