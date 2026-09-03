@@ -1723,6 +1723,79 @@ async function gmailStatus(env){
   return {ok:true,connected:!!String(cfg?.refresh_token||"").trim(),connectedEmail:String(cfg?.email||""),connectedAt:String(cfg?.connected_at||""),syncState:row||null,counters:counters||{}};
 }
 
+
+/* =========================================================
+   V50.30 — GMAIL CLEAN V1
+   Document-first intake. Parsers SQ/TK/BJ/VF/TW remain untouched.
+   - one distinct content SHA = one distinct document
+   - same filename/subject/flight/date never deduplicates a document
+   - JFE/TK/TW body text is a virtual document
+   - per-airline Gmail status labels
+   ========================================================= */
+const CLEAN_LABEL_SUFFIX={
+  RECEIVED:'MAIL TRAITÉ',
+  IMPORTED:'IMPORTÉ',
+  INJECTED:'FICHE VOL OK',
+  VALIDATED:'FICHE VOL OK',
+  REVIEW:'ERREUR',
+  DUPLICATE:'IGNORÉ_DOUBLON',
+  ERROR:'ERREUR',
+  ERROR_IMPORT:'ERREUR',
+  ERROR_INJECT:'ERREUR'
+};
+const CLEAN_LABEL_COLORS={
+  'MAIL TRAITÉ':{backgroundColor:'#4986e7',textColor:'#ffffff'},
+  'IMPORTÉ':{backgroundColor:'#ffad46',textColor:'#000000'},
+  'FICHE VOL OK':{backgroundColor:'#16a766',textColor:'#ffffff'},
+  'ERREUR':{backgroundColor:'#cc3a21',textColor:'#ffffff'},
+  'IGNORÉ_DOUBLON':{backgroundColor:'#fad165',textColor:'#000000'}
+};
+function cleanAirlineCodeV1(v){
+  const x=String(v||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+  return /^[A-Z0-9]{2}$/.test(x)&&!/^\d{2}$/.test(x)?x:'INCONNU';
+}
+function cleanStatusLabelNameV1(airline,state){
+  const suffix=CLEAN_LABEL_SUFFIX[String(state||'').toUpperCase()]||'ERREUR';
+  return `ALYZIA/${cleanAirlineCodeV1(airline)}/${suffix}`;
+}
+function cleanDocumentFileIdV1(airline,flightNumber,flightDate,docType,sha){
+  return `${String(airline||'UNK').toUpperCase()}|${String(flightNumber||'UNIDENTIFIED').toUpperCase()}|${String(flightDate||'UNKNOWN_DATE')}|${String(docType||'DOCUMENT')}|SHA256:${String(sha||'')}`;
+}
+async function applyCleanLabelColorV1(env,labelId,suffix){
+  const color=CLEAN_LABEL_COLORS[suffix];
+  if(!labelId||!color)return;
+  await gmailFetch(env,`/labels/${encodeURIComponent(labelId)}`,{method:'PATCH',body:JSON.stringify({color})}).catch(()=>{});
+}
+async function extractPlainBodyFullV1(env,message){
+  let text=''; let htmlBody='';
+  async function walk(p){
+    if(!p)return;
+    const mt=String(p.mimeType||'').toLowerCase();
+    if(mt==='text/plain'&&!text){
+      if(p.body?.data)text=b64urlToText(p.body.data);
+      else if(p.body?.attachmentId){
+        const a=await gmailFetch(env,`/messages/${encodeURIComponent(message.id)}/attachments/${encodeURIComponent(p.body.attachmentId)}`);
+        text=b64urlToText(a?.data||'');
+      }
+    }
+    if(mt==='text/html'&&!htmlBody){
+      if(p.body?.data)htmlBody=b64urlToText(p.body.data);
+      else if(p.body?.attachmentId){
+        const a=await gmailFetch(env,`/messages/${encodeURIComponent(message.id)}/attachments/${encodeURIComponent(p.body.attachmentId)}`);
+        htmlBody=b64urlToText(a?.data||'');
+      }
+    }
+    for(const c of p.parts||[])await walk(c);
+  }
+  await walk(message.payload);
+  if(text.trim())return text;
+  if(!htmlBody.trim())return '';
+  return htmlBody
+    .replace(/<br\s*\/?\s*>/gi,'\n').replace(/<\/p\s*>/gi,'\n')
+    .replace(/<[^>]+>/g,' ').replace(/&nbsp;/gi,' ').replace(/&amp;/gi,'&')
+    .replace(/&lt;/gi,'<').replace(/&gt;/gi,'>').replace(/\r/g,'').replace(/[ \t]+/g,' ').replace(/\n{3,}/g,'\n\n').trim();
+}
+
 async function ensureGmailLabel(env,name){
   if(GMAIL_LABEL_ID_CACHE?.has(name))return GMAIL_LABEL_ID_CACHE.get(name);
   const labels=await gmailFetch(env,"/labels");
@@ -1730,7 +1803,11 @@ async function ensureGmailLabel(env,name){
   const found=GMAIL_LABEL_ID_CACHE.get(name);
   if(found)return found;
   const created=await gmailFetch(env,"/labels",{method:"POST",body:JSON.stringify({name,labelListVisibility:"labelShow",messageListVisibility:"show"})});
-  if(created?.id)GMAIL_LABEL_ID_CACHE.set(name,String(created.id));
+  if(created?.id){
+    GMAIL_LABEL_ID_CACHE.set(name,String(created.id));
+    const suffix=String(name||'').split('/').pop();
+    await applyCleanLabelColorV1(env,String(created.id),suffix).catch(()=>{});
+  }
   return created.id;
 }
 
@@ -1741,62 +1818,51 @@ async function applyGmailLabel(env,messageId,labelName){
 }
 
 async function setGmailPipelineState(env,messageId,state,{archive=true}={}){
-  const key=String(state||"").toUpperCase();
+  const key=String(state||'').toUpperCase();
   if(!messageId||!GMAIL_PIPELINE_STATE_KEYS.has(key))return;
   if(!GMAIL_LABEL_ID_CACHE){
     const labels=await gmailFetch(env,"/labels");
     GMAIL_LABEL_ID_CACHE=new Map((labels.labels||[]).map(x=>[String(x.name||""),String(x.id||"")]));
   }
-  const byName=GMAIL_LABEL_ID_CACHE;
-  const desiredName=GMAIL_LABELS[key];
-  let desiredId=byName.get(desiredName)||"";
-  if(!desiredId){desiredId=await ensureGmailLabel(env,desiredName);byName.set(desiredName,desiredId)}
-  const removeNames=Object.values(GMAIL_LABELS).filter(n=>n&&n!==desiredName);
-  const removeLabelIds=removeNames.map(n=>byName.get(n)).filter(Boolean);
-  if(archive && key!=="RECEIVED")removeLabelIds.push("INBOX");
-  const uniqueRemove=[...new Set(removeLabelIds)].filter(id=>id&&id!==desiredId);
+  const gm=await env.OPS_DB.prepare(`SELECT airline FROM gmail_messages WHERE gmail_message_id=? LIMIT 1`).bind(messageId).first().catch(()=>null);
+  const airline=cleanAirlineCodeV1(gm?.airline||'');
+  const desiredName=cleanStatusLabelNameV1(airline,key);
+  let desiredId=GMAIL_LABEL_ID_CACHE.get(desiredName)||'';
+  if(!desiredId){desiredId=await ensureGmailLabel(env,desiredName);GMAIL_LABEL_ID_CACHE.set(desiredName,desiredId)}
+
+  // Remove only ALYZIA processing-status labels (old global scheme + new company scheme).
+  const suffixes=new Set(Object.values(CLEAN_LABEL_SUFFIX));
+  const removeIds=[];
+  for(const [name,id] of GMAIL_LABEL_ID_CACHE.entries()){
+    if(!id||name===desiredName)continue;
+    const oldGlobal=Object.values(GMAIL_LABELS).includes(name);
+    const p=String(name).split('/');
+    const cleanCompany=name.startsWith('ALYZIA/')&&p.length>=3&&suffixes.has(p[p.length-1]);
+    if(oldGlobal||cleanCompany)removeIds.push(id);
+  }
+  if(archive && key!=='RECEIVED')removeIds.push('INBOX');
+  const uniqueRemove=[...new Set(removeIds)].filter(id=>id&&id!==desiredId);
   await gmailFetch(env,`/messages/${encodeURIComponent(messageId)}/modify`,{
-    method:"POST",
-    body:JSON.stringify({addLabelIds:[desiredId],removeLabelIds:uniqueRemove})
+    method:'POST',body:JSON.stringify({addLabelIds:[desiredId],removeLabelIds:uniqueRemove})
   });
   await env.OPS_DB.prepare(`UPDATE gmail_messages SET status=?,label_state=?,updated_at=CURRENT_TIMESTAMP WHERE gmail_message_id=?`).bind(key,key,messageId).run().catch(()=>{});
 }
-
 async function clearAlyziaPipelineLabels(env,messageId){
   if(!messageId)return;
   if(!GMAIL_LABEL_ID_CACHE){
     const labels=await gmailFetch(env,"/labels");
     GMAIL_LABEL_ID_CACHE=new Map((labels.labels||[]).map(x=>[String(x.name||""),String(x.id||"")]));
   }
-  const byName=GMAIL_LABEL_ID_CACHE;
-  const remove=[...new Set(Object.values(GMAIL_LABELS).map(n=>byName.get(n)).filter(Boolean))];
-  if(remove.length)await gmailFetch(env,`/messages/${encodeURIComponent(messageId)}/modify`,{method:"POST",body:JSON.stringify({removeLabelIds:remove})});
-}
-
-function extractHeader(message,name){
-  const h=message?.payload?.headers||[];
-  const row=h.find(x=>String(x.name||"").toLowerCase()===String(name||"").toLowerCase());
-  return String(row?.value||"");
-}
-
-function walkParts(part,out=[]){
-  if(!part)return out;
-  if(part.filename&&part.body?.attachmentId)out.push(part);
-  for(const p of part.parts||[])walkParts(p,out);
-  return out;
-}
-
-function extractPlainBody(message){
-  let best="";
-  function walk(p){
-    if(!p)return;
-    if(String(p.mimeType||"").toLowerCase()==="text/plain" && p.body?.data && !best)best=b64urlToText(p.body.data);
-    for(const c of p.parts||[])walk(c);
+  const suffixes=new Set(Object.values(CLEAN_LABEL_SUFFIX));
+  const remove=[];
+  for(const [name,id] of GMAIL_LABEL_ID_CACHE.entries()){
+    const oldGlobal=Object.values(GMAIL_LABELS).includes(name);
+    const p=String(name).split('/');
+    const cleanCompany=name.startsWith('ALYZIA/')&&p.length>=3&&suffixes.has(p[p.length-1]);
+    if((oldGlobal||cleanCompany)&&id)remove.push(id);
   }
-  walk(message.payload);
-  return best;
+  if(remove.length)await gmailFetch(env,`/messages/${encodeURIComponent(messageId)}/modify`,{method:'POST',body:JSON.stringify({removeLabelIds:[...new Set(remove)]})});
 }
-
 async function recordImportChange(env,row){
   await env.OPS_DB.prepare(`
     INSERT INTO import_changes
@@ -1861,8 +1927,8 @@ async function storeVirtualPlainTextImport(env,{messageId,subject,receivedAt,bod
   const norm=normalizeFilename(filename);
   const bytes=new TextEncoder().encode(text);
   const sha=await sha256Hex(bytes);
-  const fileId=`${airline}|${flightNumber}|${flightDate}|${docType}|${norm}`;
-  const versionId=`${fileId}|${sha}`;
+  const fileId=cleanDocumentFileIdV1(airline,flightNumber,flightDate,docType,sha);
+  const versionId=`${fileId}|V1`;
   const r2Key=`prepa/${flightDate}/${airline}/${flightNumber}/${messageId}/${sha}_${norm}`.replace(/\s+/g,"_");
 
   const existingVersion=await env.OPS_DB.prepare(`SELECT version_id FROM import_file_versions WHERE version_id=? LIMIT 1`).bind(versionId).first();
@@ -1917,7 +1983,7 @@ async function storeGmailMessage(env,messageId){
   const subject=extractHeader(message,"Subject");
   const sender=extractHeader(message,"From");
   const receivedAt=extractHeader(message,"Date");
-  const bodyText=extractPlainBody(message);
+  const bodyText=await extractPlainBodyFullV1(env,message);
   const parts=walkParts(message.payload,[]);
   const flightBase=detectMailFlight(subject,"",bodyText);
   const operational=isOperationalCandidateMailV53(subject,bodyText,parts,flightBase);
@@ -1964,8 +2030,8 @@ async function storeGmailMessage(env,messageId){
       const airline=flight.airline||"UNK";
       const flightNumber=flight.flightNumber||"UNIDENTIFIED";
       const flightDate=flight.flightDate||"UNKNOWN_DATE";
-      const fileId=`${airline}|${flightNumber}|${flightDate}|${docType}|${norm}`;
-      const versionId=`${fileId}|${sha}`;
+      const fileId=cleanDocumentFileIdV1(airline,flightNumber,flightDate,docType,sha);
+      const versionId=`${fileId}|V1`;
       const r2Key=`prepa/${flightDate}/${airline}/${flightNumber}/${messageId}/${sha}_${norm}`.replace(/\s+/g,"_");
 
       // LOT 5.3.1 : un doublon n'est reconnu que si la version exacte existe,
@@ -2039,7 +2105,7 @@ async function storeGmailMessage(env,messageId){
 
 async function gmailSyncNow(env,body){
   await ensureGmailPipelineTables(env);
-  const query=String(body?.query||"has:attachment").trim();
+  const query=String(body?.query||"in:anywhere").trim();
   const maxMessages=Math.max(1,Math.min(100,Number(body?.maxMessages||25)));
   const pageToken=String(body?.pageToken||"").trim();
   const params=new URLSearchParams({q:query,maxResults:String(maxMessages)});
@@ -4292,7 +4358,7 @@ async function lot3FlightCards(env,url){
  * ========================================================= */
 
 // LOT 5.2 FULL MAILBOX CONTINUOUS — whole Gmail mailbox + newest-first + resumable pagination + non-blocking errors.
-const LOT5_VERSION="V50.29_LOT5_AUTOPILOT_3_5_R5_STRICT_SPECIFIC_INJECTION_STATUS";
+const LOT5_VERSION="V50.30_GMAIL_CLEAN_1_DOCUMENT_FIRST";
 // 5.3.5 scope: pipeline recovery + Gmail body + historical replay + Drive archive + fast summary.
 // Specific parsers remain byte-for-byte untouched.
 // Gmail -> identity -> R2/D1 -> Drive -> existing parser -> flight injection -> exclusive Gmail state.
@@ -5318,6 +5384,9 @@ async function handleLot5(request,env,url){
       const body=await request.json().catch(()=>({}));
       return json(await lot5RepairIdentityBacklogV534(env,Number(body?.limit||1200)));
     }
+    if(url.pathname==='/api/gmail-clean/diagnostic'&&request.method==='GET'){
+      return json(await gmailCleanDiagnosticV1(env,Number(url.searchParams.get('limit')||100)));
+    }
     if(url.pathname==='/api/autopilot/specific-browser-complete'&&request.method==='POST'){
       const body=await request.json().catch(()=>({}));
       return json(await lot5SpecificBrowserCompleteV535(env,body));
@@ -5336,6 +5405,34 @@ async function handleLot5(request,env,url){
   }catch(e){return json({ok:false,error:String(e?.message||e)},500)}
 }
 
+
+
+async function gmailCleanDiagnosticV1(env,limit=100){
+  await ensureGmailPipelineTables(env);
+  const n=Math.max(1,Math.min(500,Number(limit||100)));
+  const rows=(await env.OPS_DB.prepare(`
+    SELECT g.gmail_message_id,g.subject,g.sender,g.airline,g.flight_number,g.flight_date,g.status,g.updated_at,
+           COUNT(v.version_id) AS documents,
+           SUM(CASE WHEN lower(v.filename_normalized) LIKE '%altea_report%' THEN 1 ELSE 0 END) AS altea_reports,
+           SUM(CASE WHEN lower(v.filename_normalized) LIKE '%jfe%' THEN 1 ELSE 0 END) AS jfe_docs,
+           SUM(CASE WHEN v.mime_type LIKE 'text/%' THEN 1 ELSE 0 END) AS text_docs
+    FROM gmail_messages g
+    LEFT JOIN import_file_versions v ON v.gmail_message_id=g.gmail_message_id
+    GROUP BY g.gmail_message_id
+    ORDER BY COALESCE(g.updated_at,'') DESC
+    LIMIT ?
+  `).bind(n).all()).results||[];
+  const byFlight=new Map();
+  for(const r of rows){
+    const a=cleanAirlineCodeV1(r.airline); const f=String(r.flight_number||'').toUpperCase();
+    const d=lot5CanonicalFlightDate(r.flight_date,'');
+    if(!a||a==='INCONNU'||!f||!d)continue;
+    const k=`${a}|${f}|${d}`;
+    let x=byFlight.get(k); if(!x){x={airline:a,flightNumber:f,flightDate:d,messages:0,documents:0,alteaReports:0,jfeDocs:0,textDocs:0,statuses:{}};byFlight.set(k,x)}
+    x.messages++;x.documents+=Number(r.documents||0);x.alteaReports+=Number(r.altea_reports||0);x.jfeDocs+=Number(r.jfe_docs||0);x.textDocs+=Number(r.text_docs||0);x.statuses[r.status||'UNKNOWN']=(x.statuses[r.status||'UNKNOWN']||0)+1;
+  }
+  return {ok:true,version:LOT5_VERSION,limit:n,messages:rows.length,flights:[...byFlight.values()].sort((a,b)=>String(b.flightDate).localeCompare(a.flightDate)||a.flightNumber.localeCompare(b.flightNumber))};
+}
 
 async function handleGmailPipeline(request,env,url){
   if(!url.pathname.startsWith("/api/gmail") && !url.pathname.startsWith("/api/import-pipeline"))return null;
