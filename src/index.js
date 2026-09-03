@@ -4227,7 +4227,9 @@ async function lot3FlightCards(env,url){
  * ========================================================= */
 
 // LOT 5.2 FULL MAILBOX CONTINUOUS — whole Gmail mailbox + newest-first + resumable pagination + non-blocking errors.
-const LOT5_VERSION="V50.29_LOT5_AUTOPILOT_3_1_HISTORICAL_BACKFILL_FIX";
+const LOT5_VERSION="V50.29_LOT5_AUTOPILOT_3_2_DRIVE_IMPORT_RECONCILE_FIX";
+// 5.3.2 scope: orchestration only (Gmail/identity state/Drive/prepa sync).
+// Parsers TK/BJ/VF/SQ/TW are intentionally untouched.
 const LOT5_PROTECTED_AIRLINES=new Set(["SQ","TK","BJ","TW"]);
 
 async function ensureLot5Tables(env){
@@ -4488,12 +4490,17 @@ async function lot5ReconcileOneGmailStateV53(env,messageId){
     return {messageId,state:"IMPORTED"};
   }
   const statuses=results.map(r=>String(r.status||"").toUpperCase());
-  if(statuses.some(x=>x==="WAITING_FLIGHT")){
+  const generic=results.filter(r=>String(r.parser_mode||"").toUpperCase()==="GENERIC");
+  const specific=results.filter(r=>String(r.parser_mode||"").toUpperCase()==="SPECIFIC_LOCKED");
+
+  // LOT 5.3.2 — un parser spécifique verrouillé (SQ/TK/BJ/VF/TW) ne doit pas
+  // envoyer le mail en À_REVOIR uniquement parce que la fiche vol n'existe pas encore.
+  // Le document a bien été identifié/importé ; l'injection spécifique reste volontairement
+  // hors de cette correction. À_REVOIR est réservé aux résultats GENERIC réellement bloqués.
+  if(generic.some(r=>String(r.status||"").toUpperCase()==="WAITING_FLIGHT")){
     await transition("REVIEW");
     return {messageId,state:"REVIEW"};
   }
-  const generic=results.filter(r=>String(r.parser_mode||"").toUpperCase()==="GENERIC");
-  const specific=results.filter(r=>String(r.parser_mode||"").toUpperCase()==="SPECIFIC_LOCKED");
   if(generic.length && generic.every(r=>String(r.status||"").toUpperCase()==="INJECTED") && !specific.length){
     await transition("VALIDATED");
     return {messageId,state:"VALIDATED"};
@@ -4541,7 +4548,7 @@ async function lot5SyncPrepaInboxForMessage(env,messageId,driveFolderId=''){
     SELECT v.version_id,v.filename_original,v.mime_type,v.file_size,d.drive_file_id
     FROM import_file_versions v
     LEFT JOIN lot5_drive_files d ON d.version_id=v.version_id
-    WHERE v.gmail_message_id=? AND v.is_active=1
+    WHERE v.gmail_message_id=?
     ORDER BY v.created_at DESC
   `).bind(messageId).all();
   const attachments=results.map(r=>({
@@ -4595,8 +4602,7 @@ async function lot5ArchiveDrive(env){
     FROM import_file_versions v
     JOIN import_files f ON f.file_id=v.file_id
     LEFT JOIN lot5_drive_files d ON d.version_id=v.version_id
-    WHERE v.is_active=1
-      AND d.version_id IS NULL
+    WHERE d.version_id IS NULL
       AND f.airline IS NOT NULL AND f.airline<>'' AND f.airline<>'UNK'
       AND f.airline GLOB '*[A-Z]*'
       AND length(f.airline)=2
@@ -4832,12 +4838,14 @@ async function lot5AutoPilotRun(env,{triggerType='MANUAL',gmailQuery='',gmailMax
     details.inject=inj;
     resultsInjected=Number(inj.injected||0);
 
-    const labels=await lot5ReconcileGmailStatesV53(env,100);
-    details.gmailStates=labels;
-
+    // LOT 5.3.2 — archiver d'abord toutes les versions distinctes dans Drive.
+    // Ainsi Gmail ne passe pas à IMPORTÉ avant la tentative d'archivage Drive du cycle.
     const drive=await lot5ArchiveDrive(env);
     details.drive=drive;
     driveUploaded=Number(drive.uploaded||0);
+
+    const labels=await lot5ReconcileGmailStatesV53(env,100);
+    details.gmailStates=labels;
 
     details.prepaSynced=await lot5SyncPrepaInboxRecent(env);
 
