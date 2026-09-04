@@ -1,4 +1,4 @@
-// ALYZIA OPS V50.30 R3.2 SQ CLEAN GMAIL HELPERS FIX
+// ALYZIA OPS V50.30 R3.3 SQ CLEAN SHA DEDUPE
 // Parsers SQ/TK/BJ/VF/TW unchanged.
 // V50.28 RULE: INC/INCARRIAGE = INBOUND PAX; INBOUND SUMMARY = FLIGHT METADATA; route inbound terminates at main origin (CDG).
 // V50.27 RULE: INCARRIAGE/INC = INBOUND PASSENGERS; INBOUND CUSTOMER SUMMARY = INBOUND FLIGHTS.
@@ -2105,6 +2105,45 @@ async function cleanProbeAttachmentIdentitySQV3(env,messageId,subject,bodyText,p
   return current;
 }
 
+
+async function cleanFindExistingVersionByShaV33(env,{sha,airline,flightNumber,flightDate,receivedAt}){
+  if(!sha)return null;
+  const rows=(await env.OPS_DB.prepare(`
+    SELECT
+      v.version_id,
+      v.file_id,
+      v.gmail_message_id,
+      v.attachment_id,
+      v.filename_original,
+      v.mime_type,
+      v.sha256,
+      v.created_at,
+      f.airline,
+      f.flight_number,
+      f.flight_date,
+      f.document_type
+    FROM import_file_versions v
+    LEFT JOIN import_files f ON f.file_id=v.file_id
+    WHERE v.sha256=?
+    ORDER BY v.created_at ASC
+    LIMIT 100
+  `).bind(String(sha)).all()).results||[];
+
+  const a=String(airline||'').toUpperCase();
+  const fn=String(flightNumber||'').toUpperCase();
+  const fd=lot5CanonicalFlightDate(flightDate||'',receivedAt)||String(flightDate||'');
+
+  for(const r of rows){
+    const ra=String(r.airline||'').toUpperCase();
+    const rf=String(r.flight_number||'').toUpperCase();
+    const rd=lot5CanonicalFlightDate(r.flight_date||'',receivedAt)||String(r.flight_date||'');
+    if(ra===a && rf===fn && rd===fd){
+      return r;
+    }
+  }
+  return null;
+}
+
 async function cleanStoreDocumentV3(env,{
   messageId,attachmentId,filename,mime,bytes,receivedAt,flight,docType,
   sourceKind='ATTACHMENT',sourceRef='',parentVersionId=''
@@ -2114,15 +2153,45 @@ async function cleanStoreDocumentV3(env,{
   const flightDate=lot5CanonicalFlightDate(flight?.flightDate||'',receivedAt)||String(flight?.flightDate||'UNKNOWN_DATE');
   const norm=normalizeFilename(filename);
   const sha=await sha256Hex(bytes);
+
+  // R3.3 — SHA is the duplicate criterion.
+  // Reuse an already stored version for the SAME canonical flight/date,
+  // regardless of legacy file_id, filename or document_type.
+  const shaExisting=await cleanFindExistingVersionByShaV33(env,{
+    sha,airline,flightNumber,flightDate,receivedAt
+  });
+
+  if(shaExisting?.version_id && shaExisting?.file_id){
+    const versionId=String(shaExisting.version_id);
+    const fileId=String(shaExisting.file_id);
+    await cleanLinkMessageDocumentV3(env,{
+      gmailMessageId:messageId,
+      versionId,
+      fileId,
+      sourceKind,
+      sourceRef,
+      parentVersionId,
+      isDuplicate:true
+    });
+    await recordImportChange(env,{
+      scope:'FILE',
+      airline,flightNumber,flightDate,
+      gmailMessageId:messageId,fileId,versionId,
+      changeType:'SHA_DUPLICATE_LINKED_V33',
+      after:{filename,sha,sourceKind,sourceRef,reusedVersion:true}
+    });
+    return {added:0,updated:0,duplicate:1,fileId,versionId,sha,created:false,reused:true};
+  }
+
   const fileId=cleanDocumentFileIdV1(airline,flightNumber,flightDate,docType,sha);
   const versionId=`${fileId}|V1`;
   const r2Key=`prepa/${flightDate}/${airline}/${flightNumber}/${messageId}/${sha}_${norm}`.replace(/\s+/g,'_');
 
-  const existingVersion=await env.OPS_DB.prepare(`SELECT version_id FROM import_file_versions WHERE version_id=? LIMIT 1`).bind(versionId).first();
+  const existingVersion=await env.OPS_DB.prepare(`SELECT version_id,file_id FROM import_file_versions WHERE version_id=? LIMIT 1`).bind(versionId).first();
   if(existingVersion){
     await cleanLinkMessageDocumentV3(env,{gmailMessageId:messageId,versionId,fileId,sourceKind,sourceRef,parentVersionId,isDuplicate:true});
     await recordImportChange(env,{scope:'FILE',airline,flightNumber,flightDate,gmailMessageId:messageId,fileId,versionId,changeType:'DUPLICATE_LINKED',after:{filename,sha,sourceKind,sourceRef}});
-    return {added:0,updated:0,duplicate:1,fileId,versionId,sha,created:false};
+    return {added:0,updated:0,duplicate:1,fileId,versionId,sha,created:false,reused:true};
   }
 
   await env.OPS_FILES.put(r2Key,bytes,{httpMetadata:{contentType:mime},customMetadata:{
@@ -4754,7 +4823,7 @@ async function lot3FlightCards(env,url){
  * ========================================================= */
 
 // LOT 5.2 FULL MAILBOX CONTINUOUS — whole Gmail mailbox + newest-first + resumable pagination + non-blocking errors.
-const LOT5_VERSION="V50.30_R3_2_SQ_CLEAN_GMAIL_HELPERS_FIX";
+const LOT5_VERSION="V50.30_R3_3_SQ_CLEAN_SHA_DEDUPE";
 // 5.3.5 scope: pipeline recovery + Gmail body + historical replay + Drive archive + fast summary.
 // Specific parsers remain byte-for-byte untouched.
 // Gmail -> identity -> R2/D1 -> Drive -> existing parser -> flight injection -> exclusive Gmail state.
@@ -5807,6 +5876,10 @@ async function handleLot5(request,env,url){
       const body=await request.json().catch(()=>({}));
       return json(await gmailCleanReplaySqDocumentsV31(env,body?.messageIds||[]));
     }
+    if(url.pathname==='/api/gmail-clean/sha-audit'&&request.method==='POST'){
+      const body=await request.json().catch(()=>({}));
+      return json(await gmailCleanShaAuditV33(env,body?.messageIds||[]));
+    }
     if(url.pathname==='/api/gmail-clean/sq-diagnostic'&&request.method==='GET'){
       return json(await gmailCleanSqDiagnosticV3(env,Number(url.searchParams.get('limit')||500)));
     }
@@ -5979,6 +6052,61 @@ async function gmailCleanReplaySqDocumentsV31(env,messageIds=[]){
     after,
     results,
     errors
+  };
+}
+
+
+async function gmailCleanShaAuditV33(env,messageIds=[]){
+  await ensureGmailPipelineTables(env);
+  const ids=[...new Set((messageIds||[]).map(x=>String(x||'').trim()).filter(Boolean))];
+  if(!ids.length)return {ok:false,error:'messageIds requis'};
+  const qs=ids.map(()=>'?').join(',');
+  const rows=(await env.OPS_DB.prepare(`
+    SELECT
+      v.gmail_message_id,
+      v.version_id,
+      v.file_id,
+      v.sha256,
+      v.filename_original,
+      f.airline,
+      f.flight_number,
+      f.flight_date,
+      f.document_type
+    FROM import_file_versions v
+    LEFT JOIN import_files f ON f.file_id=v.file_id
+    WHERE v.gmail_message_id IN (${qs})
+    ORDER BY v.gmail_message_id,v.created_at
+  `).bind(...ids).all()).results||[];
+
+  const bySha=new Map();
+  for(const r of rows){
+    const sha=String(r.sha256||'');
+    if(!sha)continue;
+    if(!bySha.has(sha))bySha.set(sha,[]);
+    bySha.get(sha).push(r);
+  }
+
+  const duplicateShaGroups=[...bySha.entries()]
+    .filter(([,arr])=>arr.length>1)
+    .map(([sha,arr])=>({sha,count:arr.length,versions:arr.map(x=>({
+      gmailMessageId:x.gmail_message_id,
+      versionId:x.version_id,
+      fileId:x.file_id,
+      filename:x.filename_original,
+      airline:x.airline,
+      flightNumber:x.flight_number,
+      flightDate:x.flight_date,
+      documentType:x.document_type
+    }))}));
+
+  return {
+    ok:true,
+    version:LOT5_VERSION,
+    messages:ids.length,
+    versions:rows.length,
+    uniqueSha:bySha.size,
+    duplicateShaGroups:duplicateShaGroups.length,
+    groups:duplicateShaGroups
   };
 }
 
