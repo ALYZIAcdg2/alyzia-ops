@@ -1,4 +1,4 @@
-// R1 FIX: allow /api/gmail-clean/* routes through handleLot5.
+// R2 FIX: allow /api/gmail-clean/* in handleLot5 AND top-level fetch router.
 // V50.28 RULE: INC/INCARRIAGE = INBOUND PAX; INBOUND SUMMARY = FLIGHT METADATA; route inbound terminates at main origin (CDG).
 // V50.27 RULE: INCARRIAGE/INC = INBOUND PASSENGERS; INBOUND CUSTOMER SUMMARY = INBOUND FLIGHTS.
 // Passenger dossier displays linked INBOUND/OUTBOUND flight exactly via the shared connection rows.
@@ -6126,7 +6126,10 @@ export default {
         if(result)return result;
       }
 
-      if(url.pathname.startsWith("/api/autopilot")){
+      if(
+        url.pathname.startsWith("/api/autopilot") ||
+        url.pathname.startsWith("/api/gmail-clean")
+      ){
         const result=await handleLot5(request,env,url);
         if(result)return result;
       }
