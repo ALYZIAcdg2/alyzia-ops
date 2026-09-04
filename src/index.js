@@ -4,7 +4,7 @@
 // Passenger dossier displays linked INBOUND/OUTBOUND flight exactly via the shared connection rows.
 // ALYZIA OPS V50.28 · Generic Connections + Full Passenger Consolidation
 // - Assets statiques public/
-// - API vols partagée D1
+// - API vols partagée D1 
 // - Bridge interne vers SARIA
 
 const SARIA_PUBLIC_ORIGIN = "https://saria-seatmap.alyzia-cdg2.workers.dev";
