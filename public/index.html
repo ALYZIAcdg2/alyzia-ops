@@ -8531,74 +8531,6 @@ function twPrintHtml(s){
  </table><script>window.onload=()=>setTimeout(()=>window.print(),150)<\/script><!-- V49.83: silent multi-device auto-sync 0.5s selected / 1.5s global; TK cards view-only; mobile TYPE header hardened. -->
 <!-- V49.88: compact mobile WSA KPI; named standby list when an explicit TK standby report is available. -->
 <!-- V50.15: stabilisation imports nominative, PREPA dynamic generic/specific, sticky desktop nav, editable flight notes, A/C selector fix. -->
-
-<script>
-/* BUILD143 R8 — R3.13 SQ CONTROLLED BRIDGE
-   Infrastructure only. Existing SQ parser functions are not modified. */
-window.runSqControlledInjectionR313 = async function(
-  flightNumber='SQ335',
-  flightDate='2026-09-07'
-){
-  const f=String(flightNumber||'').trim().toUpperCase();
-  const d=String(flightDate||'').trim();
-  if(!/^SQ\d{2,4}$/.test(f) || !/^\d{4}-\d{2}-\d{2}$/.test(d)){
-    throw new Error('IDENTITE SQ INVALIDE');
-  }
-
-  console.info('R3.13 SQ CONTROLLED — PREFLIGHT',f,d);
-
-  const pre=await fetch(opsApiUrl('/api/autopilot/sq-controlled-bridge'),{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({airline:'SQ',flightNumber:f,flightDate:d})
-  }).then(async r=>{
-    const j=await r.json().catch(()=>({}));
-    if(!r.ok||!j?.ok)throw new Error(j?.error||`PREFLIGHT HTTP ${r.status}`);
-    return j;
-  });
-
-  console.info('R3.13 SQ CONTROLLED — PLAN',pre);
-
-  if(Number(pre.readyCount||0)<1 && Number(pre.alreadyInjectedCount||0)>0){
-    return {ok:true,alreadyInjected:true,preflight:pre};
-  }
-  if(Number(pre.readyCount||0)<1){
-    throw new Error('AUCUN READY_SPECIFIC_PARSER POUR CE VOL');
-  }
-  if(Number(pre.prepaCount||0)<1){
-    throw new Error('AUCUNE SOURCE PREPA POUR CE VOL');
-  }
-
-  const target={
-    airline:'SQ',
-    flightNumber:f,
-    flightDate:d,
-    status:'IMPORTED'
-  };
-
-  const ok=await import143RecoverOneSpecificFlight(target);
-  if(!ok)throw new Error('BRIDGE SQ NON EXECUTE');
-
-  const post=await fetch(opsApiUrl('/api/autopilot/sq-controlled-bridge'),{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({airline:'SQ',flightNumber:f,flightDate:d})
-  }).then(r=>r.json());
-
-  const success=Number(post?.readyCount||0)===0 && Number(post?.alreadyInjectedCount||0)>0;
-  console.info('R3.13 SQ CONTROLLED — RESULT',post);
-
-  return {
-    ok:success,
-    flightNumber:f,
-    flightDate:d,
-    preflight:pre,
-    postflight:post
-  };
-};
-console.log('BUILD143 R8 — R3.13 SQ CONTROLLED BRIDGE READY');
-</script>
-
 </body></html>`;
 }
 function ozPrintHtml(s){
@@ -25511,6 +25443,74 @@ console.log('BUILD143 R6: IMPORT GMAIL stays visible during specific parser D1 p
 console.log('BUILD143 R7: ZERO FLICKER sandbox modal + strict specific confirmation active');
 })();
 </script>
+
+<script>
+/* BUILD143 R8 FIXED — R3.13 SQ CONTROLLED BRIDGE
+   Infrastructure only. Existing SQ parser functions are not modified. */
+window.runSqControlledInjectionR313 = async function(
+  flightNumber='SQ335',
+  flightDate='2026-09-07'
+){
+  const f=String(flightNumber||'').trim().toUpperCase();
+  const d=String(flightDate||'').trim();
+  if(!/^SQ\d{2,4}$/.test(f) || !/^\d{4}-\d{2}-\d{2}$/.test(d)){
+    throw new Error('IDENTITE SQ INVALIDE');
+  }
+
+  console.info('R3.13 SQ CONTROLLED — PREFLIGHT',f,d);
+
+  const pre=await fetch(opsApiUrl('/api/autopilot/sq-controlled-bridge'),{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({airline:'SQ',flightNumber:f,flightDate:d})
+  }).then(async r=>{
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok||!j?.ok)throw new Error(j?.error||`PREFLIGHT HTTP ${r.status}`);
+    return j;
+  });
+
+  console.info('R3.13 SQ CONTROLLED — PLAN',pre);
+
+  if(Number(pre.readyCount||0)<1 && Number(pre.alreadyInjectedCount||0)>0){
+    return {ok:true,alreadyInjected:true,preflight:pre};
+  }
+  if(Number(pre.readyCount||0)<1){
+    throw new Error('AUCUN READY_SPECIFIC_PARSER POUR CE VOL');
+  }
+  if(Number(pre.prepaCount||0)<1){
+    throw new Error('AUCUNE SOURCE PREPA POUR CE VOL');
+  }
+
+  const target={
+    airline:'SQ',
+    flightNumber:f,
+    flightDate:d,
+    status:'IMPORTED'
+  };
+
+  const ok=await import143RecoverOneSpecificFlight(target);
+  if(!ok)throw new Error('BRIDGE SQ NON EXECUTE');
+
+  const post=await fetch(opsApiUrl('/api/autopilot/sq-controlled-bridge'),{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({airline:'SQ',flightNumber:f,flightDate:d})
+  }).then(r=>r.json());
+
+  const success=Number(post?.readyCount||0)===0 && Number(post?.alreadyInjectedCount||0)>0;
+  console.info('R3.13 SQ CONTROLLED — RESULT',post);
+
+  return {
+    ok:success,
+    flightNumber:f,
+    flightDate:d,
+    preflight:pre,
+    postflight:post
+  };
+};
+console.log('BUILD143 R8 FIXED — R3.13 SQ CONTROLLED BRIDGE READY');
+</script>
+
 </body></html>
 <!-- V50.03: cloud status is debounced; 3 startup retries; transient sync failures no longer force immediate local mode. -->
 <!-- V50.0: generic airline PREPA engine + airline profiles; SQ/TK/BJ parser semantics unchanged. -->
