@@ -25979,6 +25979,344 @@ console.log('BUILD143 R9 — R3.13 SQ CONTROLLED BRIDGE READY');
 })();
 </script>
 
+
+<script>
+/* BUILD143 R13 — SQ VBCP RELATION FIX
+   Fix only: INFANT detailed relation + HCIP detailed passenger + GROUPTYPE.
+   FQTV unchanged. INBOUND unchanged. MEALS ON BOARD unchanged.
+   Existing SQ parser functions are NOT modified. */
+(function(){
+  const r13Norm=s=>String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+
+  function r13Master(x,row){
+    const list=Array.isArray(x?.passengers)?x.passengers:[];
+    const seat=String(row?.seat||'').toUpperCase();
+    const nk=r13Norm(row?.name);
+    if(seat){
+      const s=list.find(p=>String(p?.seat||'').toUpperCase()===seat);
+      if(s)return s;
+    }
+    const exact=list.find(p=>r13Norm(p?.name)===nk);
+    if(exact)return exact;
+    return list.find(p=>{
+      const pk=r13Norm(p?.name);
+      return nk && pk && (pk.startsWith(nk)||nk.startsWith(pk));
+    })||null;
+  }
+
+  function r13VbcpRows(raw){
+    const blocks=String(raw||'').replace(/\r/g,'').split(/(?=^=====+\s*FICHIER\s*:)/gmi);
+    const vbcp=blocks.filter(b=>/LIST\s+OF\s*:\s*PDF-VBCPLIST/i.test(b));
+    const rows=[];
+    vbcp.forEach((b,bi)=>{
+      let parsed=[];
+      try{parsed=parseSqNamedReportRows(b)||[]}catch(_){}
+      parsed.forEach(r=>rows.push({...r,__block:bi}));
+    });
+    return rows;
+  }
+
+  function r13FindInfantRow(rows,shortName){
+    const key=r13Norm(shortName);
+    if(!key)return null;
+    const candidates=rows.filter(r=>String(r?.passengerType||'').toUpperCase()==='I');
+    return candidates.find(r=>{
+      const rk=r13Norm(r?.name);
+      return rk===key || rk.startsWith(key) || key.startsWith(rk);
+    })||null;
+  }
+
+  function r13BuildInfants(raw,x){
+    const rows=r13VbcpRows(raw);
+    const babies=[];
+    const parents=[];
+
+    rows.forEach((parentRow,idx)=>{
+      if(String(parentRow?.passengerType||'').toUpperCase()==='I')return;
+      const detail=[parentRow?.tail,...(parentRow?.continuation||[])].join(' ').replace(/\s+/g,' ').trim();
+      const m=detail.match(/\bINFT-([A-Z0-9\/ '\-]+?)\s+(\d{2}[A-Z]{3}\d{2})\b/i);
+      if(!m)return;
+
+      const shortInf=String(m[1]||'').trim();
+      const full=(detail.match(/\bCKIN-INF\s+FULL\s+NAME-([A-Z0-9\/ '\-]+?)(?=\s+(?:CTCE|CTCM|INFT|SSMB|CEID|$))/i)||[])[1]||'';
+      const infantRow=r13FindInfantRow(rows,full||shortInf);
+      const infantMaster=r13Master(x,infantRow||{name:full||shortInf,seat:''});
+      const parentMaster=r13Master(x,parentRow);
+
+      let infantName=String(full||infantMaster?.name||infantRow?.name||shortInf)
+        .replace(/\//g,' ').replace(/\s+/g,' ').trim();
+      const parentName=String(parentMaster?.name||parentRow?.name||'').replace(/\s+/g,' ').trim();
+      const parentSeat=String(parentMaster?.seat||parentRow?.seat||'').toUpperCase();
+
+      const baby={
+        ...(infantMaster||{}),
+        id:`SQ-INF-R13-${idx}`,
+        name:infantMaster?.name||infantName,
+        title:infantMaster?.title||'',
+        seat:'',
+        class:infantMaster?.class||parentMaster?.class||parentRow?.class||'Y',
+        bookingClass:infantMaster?.bookingClass||parentMaster?.bookingClass||parentRow?.bookingClass||'',
+        etkt:infantMaster?.etkt||'',
+        status:'BOOKED',
+        passengerType:'INF',
+        parentName,
+        parentSeat,
+        specific:`INF · PARENT ASSOCIÉ : ${parentName}${parentSeat?` · SIÈGE PARENT : ${parentSeat}`:''}`,
+        ssr:['INF']
+      };
+      babies.push(baby);
+
+      if(parentMaster){
+        parentMaster.infantName=baby.name;
+        parentMaster.infantAssociated=baby.name;
+        parentMaster.operationalDetails=[...new Set([
+          ...(parentMaster.operationalDetails||[]),
+          `INFANT ASSOCIÉ : ${baby.name}`
+        ])];
+        parents.push(parentMaster);
+      }
+
+      if(infantMaster){
+        infantMaster.passengerType='INF';
+        infantMaster.seat='';
+        infantMaster.parentName=parentName;
+        infantMaster.parentSeat=parentSeat;
+        infantMaster.specific=baby.specific;
+        infantMaster.ssr=[...new Set([...(infantMaster.ssr||[]),'INF'])];
+      }
+    });
+
+    const dedupe=new Map();
+    babies.forEach(p=>{
+      const k=r13Norm(p.name);
+      if(k&&!dedupe.has(k))dedupe.set(k,p);
+    });
+
+    x.common=x.common||{};
+    x.common_lists=x.common_lists||{};
+    x.prepaSpecificities=x.prepaSpecificities||{};
+    x.prepaParticularities=x.prepaParticularities||{};
+
+    x.common_lists.INF=[...dedupe.values()];
+    x.common.INF=x.common_lists.INF.length;
+    x.prepaSpecificities['INFANT(S)']=x.common.INF;
+    x.prepaParticularities['INFANT(S)']=x.common.INF;
+    x.prepaParticularities.INF=x.common.INF;
+
+    return x.common_lists.INF;
+  }
+
+  function r13BuildHcip(raw,x){
+    const rows=r13VbcpRows(raw);
+    const list=[];
+
+    rows.forEach((r,idx)=>{
+      const detail=[r?.tail,...(r?.continuation||[])].join(' ').replace(/\s+/g,' ').trim();
+      if(!/\bHCIP\b/i.test(detail))return;
+      const master=r13Master(x,r);
+      const item={
+        ...(master||r),
+        id:`SQ-HCIP-R13-${idx}`,
+        name:master?.name||r?.name||'',
+        seat:master?.seat||r?.seat||'',
+        class:master?.class||r?.class||'',
+        etkt:master?.etkt||'',
+        status:'BOOKED',
+        specific:'HCIP',
+        ssr:[...new Set([...(master?.ssr||[]),'HCIP'])]
+      };
+      list.push(item);
+
+      if(master){
+        master.ssr=[...new Set([...(master.ssr||[]),'HCIP'])];
+        master.specific=String(master.specific||'').includes('HCIP')
+          ? master.specific
+          : [master.specific,'HCIP'].filter(Boolean).join(' · ');
+      }
+    });
+
+    x.common=x.common||{};
+    x.common_lists=x.common_lists||{};
+    x.prepaSpecificities=x.prepaSpecificities||{};
+    x.prepaParticularities=x.prepaParticularities||{};
+
+    const previous=(x.common_lists.VIP||[]).filter(p=>!/\bHCIP\b/i.test([
+      p?.specific,...(Array.isArray(p?.ssr)?p.ssr:[])
+    ].join(' ')));
+
+    const map=new Map();
+    [...previous,...list].forEach(p=>{
+      const key=`${r13Norm(p?.name)}|${String(p?.specific||'').toUpperCase()}`;
+      if(key&&!map.has(key))map.set(key,p);
+    });
+    x.common_lists.VIP=[...map.values()];
+
+    x.prepaSpecificities.HCIP=list.length;
+    x.prepaParticularities.HCIP=list.length;
+
+    const vipTotal=['IMPT','HCIP','VIP','VVIP'].reduce(
+      (n,k)=>n+Number(x.prepaSpecificities[k]||x.prepaParticularities[k]||0),0
+    );
+    x.common.VIP=Math.max(vipTotal,x.common_lists.VIP.length);
+
+    return list;
+  }
+
+  function r13BuildGroups(raw,x){
+    const rows=r13VbcpRows(raw);
+    const list=[];
+
+    rows.forEach((r,idx)=>{
+      const detail=[r?.tail,...(r?.continuation||[])].join(' ').replace(/\s+/g,' ').trim();
+      const m=detail.match(/\bOTHS-GROUPTYPE\s*-\s*([A-Z0-9][A-Z0-9 _'\/.-]*?)(?=\s+(?:OTHS|CTCE|CTCM|SSMB|CEID|INFT|$))/i);
+      if(!m)return;
+      const group=String(m[1]||'').replace(/\s+/g,' ').trim().toUpperCase();
+      if(!group)return;
+
+      const master=r13Master(x,r);
+      const item={
+        ...(master||r),
+        id:`SQ-GROUP-R13-${idx}`,
+        name:master?.name||r?.name||'',
+        seat:master?.seat||r?.seat||'',
+        class:master?.class||r?.class||'',
+        etkt:master?.etkt||'',
+        status:'BOOKED',
+        pnr:group,
+        groupCode:group,
+        groupName:group,
+        specific:`GROUPE · ${group}`
+      };
+      list.push(item);
+
+      if(master){
+        master.groupCode=group;
+        master.groupName=group;
+      }
+    });
+
+    const map=new Map();
+    list.forEach(p=>{
+      const key=`${r13Norm(p?.name)}|${p.groupCode}`;
+      if(key&&!map.has(key))map.set(key,p);
+    });
+
+    x.common=x.common||{};
+    x.common_lists=x.common_lists||{};
+    x.common_lists.GROUP=[...map.values()];
+    x.common.GROUP=new Set(x.common_lists.GROUP.map(p=>p.groupCode).filter(Boolean)).size;
+
+    return x.common_lists.GROUP;
+  }
+
+  async function r13RawForFlight(fnum,fdate){
+    const q=new URLSearchParams({
+      airline:'SQ',
+      flight:fnum,
+      limit:'100',
+      includePayload:'1'
+    });
+    const resp=await fetch(opsApiUrl('/api/prepa?'+q.toString()),{
+      cache:'no-store',
+      headers:{Accept:'application/json'}
+    });
+    if(!resp.ok)throw new Error(`PREPA HTTP ${resp.status}`);
+    const data=await resp.json();
+    const items=(Array.isArray(data?.items)?data.items:[])
+      .filter(x=>String(x?.flightDate||'')===fdate);
+    if(!items.length)throw new Error('AUCUNE SOURCE PREPA POUR CE VOL');
+    if(typeof window.import143BuildSpecificRaw!=='function')throw new Error('BUILD SPECIFIC RAW INDISPONIBLE');
+    const raw=await window.import143BuildSpecificRaw(items,'SQ');
+    if(!String(raw||'').trim())throw new Error('SOURCES SQ VIDES');
+    return {items,raw};
+  }
+
+  window.runSqRelationFixR13=async function(
+    flightNumber='SQ335',
+    flightDate='2026-09-07'
+  ){
+    const fnum=String(flightNumber||'').trim().toUpperCase();
+    const fdate=String(flightDate||'').trim();
+    if(!/^SQ\d{2,4}$/.test(fnum)||!/^\d{4}-\d{2}-\d{2}$/.test(fdate)){
+      throw new Error('IDENTITE SQ INVALIDE');
+    }
+
+    console.info('R13 SQ — START',fnum,fdate);
+    const {items,raw}=await r13RawForFlight(fnum,fdate);
+
+    let idx=(typeof findFlightIndexForInbox==='function'?findFlightIndexForInbox(items[0]):-1);
+    if(idx<0){
+      idx=(Array.isArray(FLIGHTS)?FLIGHTS:[]).findIndex(x=>
+        String(x?.airline||'').toUpperCase()==='SQ' &&
+        String(x?.flightNumber||x?.flight||'').toUpperCase()===fnum &&
+        String(x?.date||x?.flightDate||'')===fdate
+      );
+    }
+    if(idx<0)throw new Error('VOL SQ INTROUVABLE DANS LE BUILD');
+
+    const x=FLIGHTS[idx];
+    const infants=r13BuildInfants(raw,x);
+    const hcip=r13BuildHcip(raw,x);
+    const groups=r13BuildGroups(raw,x);
+
+    try{render()}catch(e){console.warn('R13 render',e)}
+    try{await cacheFlightsLocallyOnly(FLIGHTS)}catch(e){console.warn('R13 cache',e)}
+    try{await persistOneFlightVerifiedToD1(x,{label:'SQ RELATION FIX R13'})}catch(e){console.warn('R13 persist',e)}
+
+    const result={
+      ok:true,
+      flightNumber:fnum,
+      flightDate:fdate,
+      INF:infants.length,
+      infants:infants.map(p=>({
+        name:p.name,
+        seat:p.seat||'',
+        parentName:p.parentName||'',
+        parentSeat:p.parentSeat||'',
+        specific:p.specific||''
+      })),
+      HCIP:hcip.length,
+      hcip:hcip.map(p=>({
+        name:p.name,
+        seat:p.seat||'',
+        class:p.class||'',
+        etkt:p.etkt||''
+      })),
+      GROUP:new Set(groups.map(p=>p.groupCode).filter(Boolean)).size,
+      groupNames:[...new Set(groups.map(p=>p.groupCode).filter(Boolean))],
+      groupPax:groups.length
+    };
+
+    console.info('R13 SQ — RESULT',result);
+    return result;
+  };
+
+  // Defensive UI repair: if SQ VIP/HCIP details exist on master passengers,
+  // make them available to the existing modal before it renders.
+  const nativeOpenPrepaSpecificityCardR13=window.openPrepaSpecificityCard;
+  if(typeof nativeOpenPrepaSpecificityCardR13==='function'){
+    window.openPrepaSpecificityCard=function(defId){
+      const x=f();
+      if(String(x?.airline||'').toUpperCase()==='SQ' && String(defId||'').toUpperCase()==='VIP'){
+        x.common_lists=x.common_lists||{};
+        let vip=Array.isArray(x.common_lists.VIP)?x.common_lists.VIP:[];
+        const existing=new Set(vip.map(p=>r13Norm(p?.name)));
+        (x.passengers||[]).forEach(p=>{
+          const txt=[p?.specific,...(Array.isArray(p?.ssr)?p.ssr:[])].join(' ').toUpperCase();
+          if(/\bHCIP\b/.test(txt) && !existing.has(r13Norm(p?.name))){
+            vip.push({...p,specific:'HCIP',ssr:[...new Set([...(p?.ssr||[]),'HCIP'])]});
+          }
+        });
+        x.common_lists.VIP=vip;
+      }
+      return nativeOpenPrepaSpecificityCardR13.apply(this,arguments);
+    };
+  }
+
+  console.log('BUILD143 R13 — SQ INFANT / HCIP / GROUP RELATION FIX READY');
+})();
+</script>
+
 </body></html>
 <!-- V50.03: cloud status is debounced; 3 startup retries; transient sync failures no longer force immediate local mode. -->
 <!-- V50.0: generic airline PREPA engine + airline profiles; SQ/TK/BJ parser semantics unchanged. -->
