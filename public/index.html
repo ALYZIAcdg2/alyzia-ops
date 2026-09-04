@@ -25839,6 +25839,143 @@ console.log('BUILD143 R9 — R3.13 SQ CONTROLLED BRIDGE READY');
 })();
 </script>
 
+
+<script>
+/* BUILD143 R11 — FORCE SQ POST-CONSOLIDATION ON ALREADY-INJECTED FLIGHT
+   Fixes R10 trigger only. No parser change. No INBOUND / MEALS ON BOARD change. */
+(function(){
+  window.runSqPostConsolidationR11=async function(
+    flightNumber='SQ335',
+    flightDate='2026-09-07'
+  ){
+    const fnum=String(flightNumber||'').trim().toUpperCase();
+    const fdate=String(flightDate||'').trim();
+    if(!/^SQ\d{2,4}$/.test(fnum)||!/^\d{4}-\d{2}-\d{2}$/.test(fdate)){
+      throw new Error('IDENTITE SQ INVALIDE');
+    }
+    if(typeof window.sqApplyCorrectionsR10!=='function'){
+      throw new Error('MOTEUR R10 INDISPONIBLE');
+    }
+
+    console.info('R11 SQ POST-CONSOLIDATION — SOURCE',fnum,fdate);
+
+    const q=new URLSearchParams({
+      airline:'SQ',
+      flight:fnum,
+      limit:'100',
+      includePayload:'1'
+    });
+    const resp=await fetch(opsApiUrl('/api/prepa?'+q.toString()),{
+      cache:'no-store',
+      headers:{Accept:'application/json'}
+    });
+    if(!resp.ok)throw new Error(`PREPA HTTP ${resp.status}`);
+    const data=await resp.json();
+    const items=(Array.isArray(data?.items)?data.items:[])
+      .filter(x=>String(x?.flightDate||'')===fdate);
+
+    if(!items.length)throw new Error('AUCUNE SOURCE PREPA POUR CE VOL');
+
+    if(typeof import143BuildSpecificRaw!=='function'){
+      throw new Error('BUILD SPECIFIC RAW INDISPONIBLE');
+    }
+    const raw=await import143BuildSpecificRaw(items,'SQ');
+    if(!String(raw||'').trim())throw new Error('SOURCES SQ VIDES');
+
+    let idx=findFlightIndexForInbox(items[0]);
+    if(idx<0){
+      idx=(Array.isArray(FLIGHTS)?FLIGHTS:[]).findIndex(x=>
+        String(x?.airline||'').toUpperCase()==='SQ' &&
+        String(x?.flightNumber||x?.flight||'').toUpperCase()===fnum &&
+        String(x?.date||x?.flightDate||'')===fdate
+      );
+    }
+    if(idx<0)throw new Error('VOL SQ INTROUVABLE DANS LE BUILD');
+
+    const x=FLIGHTS[idx];
+
+    const before={
+      INF:Number(x?.common?.INF||0),
+      FQTV:Number(x?.common?.FQTV||0),
+      VIP:Array.isArray(x?.common_lists?.VIP)?x.common_lists.VIP.length:0,
+      GROUP:typeof groupCountDistinct==='function'?groupCountDistinct(x):Number(x?.common?.GROUP||0)
+    };
+
+    window.sqApplyCorrectionsR10(raw,x);
+
+    // Make GROUPTYPE compatible with the existing GROUP UI/count,
+    // which currently buckets first on pnr.
+    if(Array.isArray(x?.common_lists?.GROUP)){
+      x.common_lists.GROUP.forEach(p=>{
+        const g=String(p?.groupCode||p?.groupName||'').trim().toUpperCase();
+        if(g){
+          p.groupCode=g;
+          p.groupName=g;
+          p.pnr=g;
+        }
+      });
+      x.common.GROUP=new Set(x.common_lists.GROUP.map(p=>String(p?.groupCode||'').trim()).filter(Boolean)).size;
+    }
+
+    // Ensure INF is strictly babies only: no seated parent / BSCT-INFT row.
+    if(Array.isArray(x?.common_lists?.INF)){
+      x.common_lists.INF=x.common_lists.INF.filter(p=>{
+        const seat=String(p?.seat||'').trim();
+        const spec=String(p?.specific||p?.ssr||'').toUpperCase();
+        const type=String(p?.passengerType||'').toUpperCase();
+        return !seat && (type==='INF'||/\bINF\b/.test(spec)) && !/\bBSCT\b|\bINFT\b.*PARENT/.test(spec);
+      });
+      const seen=new Set();
+      x.common_lists.INF=x.common_lists.INF.filter(p=>{
+        const k=String(p?.name||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+        if(!k||seen.has(k))return false;
+        seen.add(k);return true;
+      });
+      x.common.INF=x.common_lists.INF.length;
+      x.prepaParticularities=x.prepaParticularities||{};
+      x.prepaParticularities.INF=x.common.INF;
+      x.prepaParticularities['INFANT(S)']=x.common.INF;
+    }
+
+    // Recalculate VIP/HCIP prepa quantities from detailed passengers when present.
+    if(Array.isArray(x?.common_lists?.VIP)){
+      const hcip=x.common_lists.VIP.filter(p=>/\bHCIP\b/i.test(String(p?.specific||p?.ssr||'')));
+      x.prepaParticularities=x.prepaParticularities||{};
+      if(hcip.length)x.prepaParticularities.HCIP=hcip.length;
+    }
+
+    // Recalculate FQTV count from detailed consolidated list.
+    if(Array.isArray(x?.common_lists?.FQTV)){
+      x.common.FQTV=x.common_lists.FQTV.length;
+      x.prepaParticularities=x.prepaParticularities||{};
+      x.prepaParticularities.FQTV=x.common.FQTV;
+    }
+
+    try{render()}catch(e){console.warn('R11 render',e)}
+    try{await cacheFlightsLocallyOnly(FLIGHTS)}catch(e){console.warn('R11 cache',e)}
+    try{
+      await persistOneFlightVerifiedToD1(x,{label:'SQ POST-CONSOLIDATION R11'});
+    }catch(e){console.warn('R11 persist',e)}
+
+    const after={
+      INF:Number(x?.common?.INF||0),
+      FQTV:Number(x?.common?.FQTV||0),
+      HCIP:(x?.common_lists?.VIP||[]).filter(p=>/\bHCIP\b/i.test(String(p?.specific||p?.ssr||''))).length,
+      GROUP:new Set((x?.common_lists?.GROUP||[]).map(p=>String(p?.groupCode||'').trim()).filter(Boolean)).size,
+      groupNames:[...new Set((x?.common_lists?.GROUP||[]).map(p=>String(p?.groupCode||'').trim()).filter(Boolean))],
+      infants:(x?.common_lists?.INF||[]).map(p=>({name:p.name,seat:p.seat||'',specific:p.specific||''})),
+      fqtv:(x?.common_lists?.FQTV||[]).map(p=>({name:p.name,number:p?.fqtv?.number||'',status:p?.fqtv?.status||''})),
+      hcip:(x?.common_lists?.VIP||[]).filter(p=>/\bHCIP\b/i.test(String(p?.specific||p?.ssr||''))).map(p=>({name:p.name,seat:p.seat||'',class:p.class||''}))
+    };
+
+    console.info('R11 SQ POST-CONSOLIDATION — RESULT',{before,after});
+    return {ok:true,flightNumber:fnum,flightDate:fdate,before,after};
+  };
+
+  console.log('BUILD143 R11 — FORCE SQ POST-CONSOLIDATION READY');
+})();
+</script>
+
 </body></html>
 <!-- V50.03: cloud status is debounced; 3 startup retries; transient sync failures no longer force immediate local mode. -->
 <!-- V50.0: generic airline PREPA engine + airline profiles; SQ/TK/BJ parser semantics unchanged. -->
