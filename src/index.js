@@ -1,5 +1,5 @@
-// ALYZIA OPS V50.30 R3.10 — SQ HISTORICAL PREPASQ PURGE — D1 BATCHED
-// Fix: D1 SQL variable limit. Purge stays scoped to SQ historical PREPASQ only. Parsers unchanged.
+// ALYZIA OPS V50.30 R3.11 — SQ R2 ORPHAN CLEANUP
+// Targeted cleanup of 7 known orphan R2 keys only. No D1/Drive/parser mutation.
 // V50.28 RULE: INC/INCARRIAGE = INBOUND PAX; INBOUND SUMMARY = FLIGHT METADATA; route inbound terminates at main origin (CDG).
 // V50.27 RULE: INCARRIAGE/INC = INBOUND PASSENGERS; INBOUND CUSTOMER SUMMARY = INBOUND FLIGHTS.
 // Passenger dossier displays linked INBOUND/OUTBOUND flight exactly via the shared connection rows.
@@ -4888,7 +4888,7 @@ async function lot3FlightCards(env,url){
  * ========================================================= */
 
 // LOT 5.2 FULL MAILBOX CONTINUOUS — whole Gmail mailbox + newest-first + resumable pagination + non-blocking errors.
-const LOT5_VERSION="V50.30_R3_10_SQ_HISTORICAL_PURGE_BATCHED";
+const LOT5_VERSION="V50.30_R3_11_SQ_R2_ORPHAN_CLEANUP";
 // 5.3.5 scope: pipeline recovery + Gmail body + historical replay + Drive archive + fast summary.
 // Specific parsers remain byte-for-byte untouched.
 // Gmail -> identity -> R2/D1 -> Drive -> existing parser -> flight injection -> exclusive Gmail state.
@@ -6236,6 +6236,125 @@ async function gmailCleanHistoricalSqPurgeR310(env,{dryRun=true,confirm='' }={})
   };
 }
 
+
+const SQ_R2_ORPHAN_KEYS_R311=[
+  "prepa/2026-08-30/SQ/SQ335/1a0607eac2d327c6/1fc47ee335842f0ffdb8b0ac89c50610316e9054aec5d38d4c78d174dffa80d3_altea_report.pdf",
+  "prepa/2026-08-30/SQ/SQ335/1a05b8fdd82d4c76/076031d38d055b1a07d62b29d209634c42cc4a3e299e46a7e5b7c072d6a9c6ca_altea_report.pdf",
+  "prepa/2026-09-04/SQ/SQ335/1a0609b18f704185/572fb37e25a952f5b3a396c337cf7cd50acd78769177f74c093988316de9687e_altea_report.pdf",
+  "prepa/UNKNOWN_DATE/SQ/SQ337/1a05b8f84c743d17/7ed732c7d3816303eed1be7b2bf56876f056e573307b6e309d45a99cf14bd1e1_altea_report.pdf",
+  "prepa/UNKNOWN_DATE/SQ/SQ337/1a05b8f84c743d17/7eb70257593da06f682a3ddda54a9d260d4fc514f645237f5ca74b08f8da61a6_mail_body_operational.txt",
+  "prepa/2026-09-05/SQ/SQ335/1a06425e055e64ac/87e3d112da5ccffd50abf36d5abc7d8432f0e6ebb64ddfe5b7c132ba340a033e_altea_report.pdf",
+  "prepa/2026-09-04/SQ/SQ337/1a0607f08f19fa78/89e5ead6528e539f78d3c90692206ab4f150878c1fca83c199195eadf8c64414_altea_report.pdf"
+];
+
+async function gmailCleanSqR2OrphanCleanupR311(env,{dryRun=true,confirm=''}={}){
+  const keys=SQ_R2_ORPHAN_KEYS_R311.slice();
+
+  if(!env.OPS_FILES){
+    return {
+      ok:false,
+      version:LOT5_VERSION,
+      error:"R2_BINDING_MISSING",
+      binding:"OPS_FILES"
+    };
+  }
+
+  const report=[];
+  for(const key of keys){
+    let exists=false;
+    let size=null;
+    let etag=null;
+    try{
+      const head=await env.OPS_FILES.head(key);
+      if(head){
+        exists=true;
+        size=Number(head.size||0);
+        etag=String(head.etag||head.httpEtag||"");
+      }
+    }catch(e){
+      report.push({key,exists:null,error:`HEAD:${String(e)}`});
+      continue;
+    }
+
+    report.push({key,exists,size,etag});
+  }
+
+  if(dryRun){
+    return {
+      ok:true,
+      version:LOT5_VERSION,
+      mode:"DRY_RUN",
+      destructive:false,
+      total:keys.length,
+      existing:report.filter(x=>x.exists===true).length,
+      missing:report.filter(x=>x.exists===false).length,
+      items:report
+    };
+  }
+
+  if(String(confirm||"")!=="DELETE_SQ_R2_ORPHANS_7"){
+    return {
+      ok:false,
+      version:LOT5_VERSION,
+      mode:"APPLY",
+      destructive:false,
+      error:"CONFIRMATION REQUISE",
+      requiredConfirm:"DELETE_SQ_R2_ORPHANS_7",
+      items:report
+    };
+  }
+
+  const deleted=[];
+  const alreadyMissing=[];
+  const errors=[];
+
+  for(const item of report){
+    const key=item.key;
+
+    if(item.exists===false){
+      alreadyMissing.push(key);
+      continue;
+    }
+
+    if(item.exists!==true){
+      errors.push({key,error:item.error||"UNKNOWN_STATE"});
+      continue;
+    }
+
+    try{
+      await env.OPS_FILES.delete(key);
+
+      let stillExists=false;
+      try{
+        const head2=await env.OPS_FILES.head(key);
+        stillExists=!!head2;
+      }catch(_){}
+
+      if(stillExists){
+        errors.push({key,error:"DELETE_NOT_CONFIRMED"});
+      }else{
+        deleted.push(key);
+      }
+    }catch(e){
+      errors.push({key,error:String(e)});
+    }
+  }
+
+  return {
+    ok:errors.length===0,
+    version:LOT5_VERSION,
+    mode:"APPLY",
+    destructive:true,
+    total:keys.length,
+    deletedCount:deleted.length,
+    alreadyMissingCount:alreadyMissing.length,
+    errorCount:errors.length,
+    deleted,
+    alreadyMissing,
+    errors
+  };
+}
+
 async function handleLot5(request,env,url){
   if(!url.pathname.startsWith('/api/autopilot') && !url.pathname.startsWith('/api/gmail-clean'))return null;
   try{
@@ -6262,6 +6381,13 @@ async function handleLot5(request,env,url){
     if(url.pathname==='/api/gmail-clean/purge-historical-sq'&&request.method==='POST'){
       const body=await request.json().catch(()=>({}));
       return json(await gmailCleanHistoricalSqPurgeR310(env,{
+        dryRun:body?.dryRun!==false,
+        confirm:String(body?.confirm||'')
+      }));
+    }
+    if(url.pathname==='/api/gmail-clean/cleanup-sq-r2-orphans'&&request.method==='POST'){
+      const body=await request.json().catch(()=>({}));
+      return json(await gmailCleanSqR2OrphanCleanupR311(env,{
         dryRun:body?.dryRun!==false,
         confirm:String(body?.confirm||'')
       }));
