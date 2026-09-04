@@ -1,5 +1,5 @@
-// ALYZIA OPS V50.30 R3.6 SQ CLEAN STABLE SOURCE PATH
-// Parsers SQ/TK/BJ/VF/TW unchanged.
+// ALYZIA OPS V50.30 R3.7 SQ IDENTITY AUDIT
+// READ-ONLY identity audit for SQ legacy date mismatches. Parsers unchanged.
 // V50.28 RULE: INC/INCARRIAGE = INBOUND PAX; INBOUND SUMMARY = FLIGHT METADATA; route inbound terminates at main origin (CDG).
 // V50.27 RULE: INCARRIAGE/INC = INBOUND PASSENGERS; INBOUND CUSTOMER SUMMARY = INBOUND FLIGHTS.
 // Passenger dossier displays linked INBOUND/OUTBOUND flight exactly via the shared connection rows.
@@ -4888,7 +4888,7 @@ async function lot3FlightCards(env,url){
  * ========================================================= */
 
 // LOT 5.2 FULL MAILBOX CONTINUOUS — whole Gmail mailbox + newest-first + resumable pagination + non-blocking errors.
-const LOT5_VERSION="V50.30_R3_6_SQ_CLEAN_STABLE_SOURCE_PATH";
+const LOT5_VERSION="V50.30_R3_7_SQ_IDENTITY_AUDIT";
 // 5.3.5 scope: pipeline recovery + Gmail body + historical replay + Drive archive + fast summary.
 // Specific parsers remain byte-for-byte untouched.
 // Gmail -> identity -> R2/D1 -> Drive -> existing parser -> flight injection -> exclusive Gmail state.
@@ -5957,6 +5957,9 @@ async function handleLot5(request,env,url){
       const body=await request.json().catch(()=>({}));
       return json(await gmailCleanShaAuditV33(env,body?.messageIds||[]));
     }
+    if(url.pathname==='/api/gmail-clean/sq-identity-audit'&&request.method==='GET'){
+      return json(await gmailCleanSqIdentityAuditV37(env,url));
+    }
     if(url.pathname==='/api/gmail-clean/sq-diagnostic'&&request.method==='GET'){
       return json(await gmailCleanSqDiagnosticV3(env,Number(url.searchParams.get('limit')||500)));
     }
@@ -6639,6 +6642,209 @@ async function gmailCleanShaAuditV33(env,messageIds=[]){
     uniqueSha:bySha.size,
     duplicateShaGroups:duplicateShaGroups.length,
     groups:duplicateShaGroups
+  };
+}
+
+
+function cleanIdentityCompleteV37(x){
+  return String(x?.airline||'').toUpperCase()==='SQ'
+    && /^SQ\d{1,4}$/i.test(String(x?.flightNumber||''))
+    && /^20\d{2}-\d{2}-\d{2}$/.test(String(x?.flightDate||''));
+}
+
+function cleanNormalizeSqIdentityV37(found,receivedAt){
+  const airline=String(found?.airline||'').toUpperCase();
+  let flightNumber=String(found?.flightNumber||'').toUpperCase().replace(/\s+/g,'');
+  if(airline==='SQ' && flightNumber && !flightNumber.startsWith('SQ') && /^\d{1,4}$/.test(flightNumber)){
+    flightNumber=`SQ${flightNumber}`;
+  }
+  const flightDate=lot5CanonicalFlightDate(found?.flightDate||'',receivedAt)||String(found?.flightDate||'');
+  return {airline,flightNumber,flightDate};
+}
+
+function cleanDetectSqFromTextV37(text,receivedAt){
+  const t=String(text||'');
+  if(!t.trim())return {airline:'',flightNumber:'',flightDate:''};
+  const found=detectMailFlight(t,'','');
+  return cleanNormalizeSqIdentityV37(found,receivedAt);
+}
+
+async function cleanDetectSqIdentitySourceV37(env,message){
+  const messageId=String(message?.id||'');
+  const subject=extractHeader(message,'Subject');
+  const receivedAt=extractHeader(message,'Date');
+
+  // 1) Subject
+  const subjectFound=cleanDetectSqFromTextV37(subject,receivedAt);
+  if(cleanIdentityCompleteV37(subjectFound)){
+    return {...subjectFound,detectionSource:'SUBJECT',evidence:subject.slice(0,300)};
+  }
+
+  // 2) Gmail body
+  const bodyText=await extractPlainBodyFullV1(env,message).catch(()=> '');
+  const bodyFound=cleanDetectSqFromTextV37(bodyText,receivedAt);
+  if(cleanIdentityCompleteV37(bodyFound)){
+    return {...bodyFound,detectionSource:'BODY',evidence:bodyText.slice(0,500)};
+  }
+
+  // Preserve partial subject/body identity while probing attachments.
+  const partial={
+    airline:subjectFound.airline||bodyFound.airline||'',
+    flightNumber:subjectFound.flightNumber||bodyFound.flightNumber||'',
+    flightDate:subjectFound.flightDate||bodyFound.flightDate||''
+  };
+
+  // 3) Attachments / nested EML content
+  const parts=walkParts(message?.payload,[]);
+  for(const part of parts){
+    const attachmentId=String(part?.body?.attachmentId||'');
+    if(!attachmentId)continue;
+    const filename=String(part?.filename||'');
+    const mime=String(part?.mimeType||'').toLowerCase();
+
+    try{
+      const att=await gmailFetch(env,`/messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachmentId)}`);
+      const bytes=b64urlToBytes(att?.data||'');
+      if(!bytes?.byteLength)continue;
+
+      if(/\.eml$/i.test(filename)||mime==='message/rfc822'){
+        const raw=new TextDecoder().decode(bytes);
+        const direct=cleanDetectSqFromTextV37(raw,receivedAt);
+        if(cleanIdentityCompleteV37(direct)){
+          return {...direct,detectionSource:'EML',evidence:filename||'message/rfc822'};
+        }
+
+        const parsed=cleanParseEmlRecursiveV3(raw);
+        for(const t of parsed?.textBodies||[]){
+          const nested=cleanDetectSqFromTextV37(t,receivedAt);
+          if(cleanIdentityCompleteV37(nested)){
+            return {...nested,detectionSource:'EML',evidence:filename||'message/rfc822'};
+          }
+        }
+      }else if(/\.pdf$/i.test(filename)||mime.includes('pdf')){
+        const ex=await lot2ExtractPdfTextFromBytes(bytes).catch(()=>({text:''}));
+        const pdfFound=cleanDetectSqFromTextV37(String(ex?.text||''),receivedAt);
+        if(cleanIdentityCompleteV37(pdfFound)){
+          return {...pdfFound,detectionSource:'ATTACHMENT',evidence:filename||'PDF'};
+        }
+      }else if(mime.startsWith('text/')||/\.(txt|csv|html?)$/i.test(filename)){
+        const raw=new TextDecoder().decode(bytes);
+        const txtFound=cleanDetectSqFromTextV37(raw,receivedAt);
+        if(cleanIdentityCompleteV37(txtFound)){
+          return {...txtFound,detectionSource:'ATTACHMENT',evidence:filename||mime};
+        }
+      }
+    }catch(e){}
+  }
+
+  return {
+    ...partial,
+    detectionSource:'UNRESOLVED',
+    evidence:'',
+    unresolved:true
+  };
+}
+
+async function gmailCleanSqIdentityAuditV37(env,url){
+  await ensureGmailPipelineTables(env);
+
+  const storedDateParam=String(url.searchParams.get('storedDate')||'2026-08-30').trim();
+  const flightParam=String(url.searchParams.get('flight')||'').trim().toUpperCase();
+  const limit=Math.max(1,Math.min(50,Number(url.searchParams.get('limit')||20)));
+  const offset=Math.max(0,Number(url.searchParams.get('offset')||0));
+
+  const targetCanonical=lot5CanonicalFlightDate(storedDateParam,'')||storedDateParam;
+
+  // Read a generous candidate window then canonical-filter in JS because legacy rows can contain 30AUG.
+  const candidates=(await env.OPS_DB.prepare(`
+    SELECT gmail_message_id,subject,sender,received_at,flight_number,flight_date,status,updated_at
+    FROM gmail_messages
+    WHERE UPPER(airline)='SQ'
+    ORDER BY COALESCE(updated_at,'') DESC,gmail_message_id
+    LIMIT 1000
+  `).all()).results||[];
+
+  const matching=candidates.filter(r=>{
+    const storedCanonical=lot5CanonicalFlightDate(r.flight_date||'',r.received_at||'')||String(r.flight_date||'');
+    if(storedCanonical!==targetCanonical)return false;
+    if(flightParam && String(r.flight_number||'').toUpperCase()!==flightParam)return false;
+    return true;
+  });
+
+  const page=matching.slice(offset,offset+limit);
+  const items=[];
+
+  for(const row of page){
+    const messageId=String(row.gmail_message_id||'');
+    try{
+      const message=await gmailFetch(env,`/messages/${encodeURIComponent(messageId)}?format=full`);
+      const detected=await cleanDetectSqIdentitySourceV37(env,message);
+      const storedDate=lot5CanonicalFlightDate(row.flight_date||'',row.received_at||'')||String(row.flight_date||'');
+      const storedFlight=String(row.flight_number||'').toUpperCase();
+
+      const mismatch=!!(
+        cleanIdentityCompleteV37(detected)
+        && (detected.flightDate!==storedDate || detected.flightNumber!==storedFlight)
+      );
+
+      items.push({
+        messageId,
+        subject:String(row.subject||extractHeader(message,'Subject')||''),
+        storedFlightNumber:storedFlight,
+        storedDateRaw:String(row.flight_date||''),
+        storedDate,
+        detectedFlightNumber:String(detected.flightNumber||''),
+        detectedDate:String(detected.flightDate||''),
+        detectionSource:String(detected.detectionSource||'UNRESOLVED'),
+        mismatch,
+        unresolved:!!detected.unresolved,
+        evidence:String(detected.evidence||'').slice(0,500),
+        status:String(row.status||'')
+      });
+    }catch(e){
+      items.push({
+        messageId,
+        subject:String(row.subject||''),
+        storedFlightNumber:String(row.flight_number||'').toUpperCase(),
+        storedDateRaw:String(row.flight_date||''),
+        storedDate:lot5CanonicalFlightDate(row.flight_date||'',row.received_at||'')||String(row.flight_date||''),
+        detectedFlightNumber:'',
+        detectedDate:'',
+        detectionSource:'TECHNICAL_RETRY',
+        mismatch:false,
+        unresolved:true,
+        error:String(e?.message||e),
+        status:String(row.status||'')
+      });
+    }
+  }
+
+  const summary={
+    scanned:items.length,
+    mismatches:items.filter(x=>x.mismatch).length,
+    detected31Aug:items.filter(x=>x.detectedDate==='2026-08-31').length,
+    detected30Aug:items.filter(x=>x.detectedDate==='2026-08-30').length,
+    unresolved:items.filter(x=>x.unresolved).length,
+    sources:items.reduce((acc,x)=>{
+      const k=x.detectionSource||'UNKNOWN';
+      acc[k]=(acc[k]||0)+1;
+      return acc;
+    },{})
+  };
+
+  return {
+    ok:true,
+    version:LOT5_VERSION,
+    mode:'READ_ONLY',
+    storedDate:targetCanonical,
+    flight:flightParam||null,
+    totalMatching:matching.length,
+    offset,
+    limit,
+    hasMore:offset+limit<matching.length,
+    nextOffset:offset+limit<matching.length?offset+limit:null,
+    summary,
+    items
   };
 }
 
@@ -7428,5 +7634,3 @@ export default {
     })());
   }
 };
-
-    
