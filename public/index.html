@@ -25441,12 +25441,14 @@ console.log('BUILD143 R5: modal persistence + PROCESSED specific recovery + TK/T
 console.log('BUILD143 R5: IMPORT GMAIL modal state/scroll preserved during background specific parser injection');
 console.log('BUILD143 R6: IMPORT GMAIL stays visible during specific parser D1 persistence (no modal flash)');
 console.log('BUILD143 R7: ZERO FLICKER sandbox modal + strict specific confirmation active');
+
+window.import143RecoverOneSpecificFlight = import143RecoverOneSpecificFlight;
 })();
 </script>
 
 <script>
-/* BUILD143 R8 FIXED — R3.13 SQ CONTROLLED BRIDGE
-   Infrastructure only. Existing SQ parser functions are not modified. */
+/* BUILD143 R9 — R3.13 SQ CONTROLLED BRIDGE
+   Existing SQ parser remains unchanged. */
 window.runSqControlledInjectionR313 = async function(
   flightNumber='SQ335',
   flightDate='2026-09-07'
@@ -25480,6 +25482,9 @@ window.runSqControlledInjectionR313 = async function(
   if(Number(pre.prepaCount||0)<1){
     throw new Error('AUCUNE SOURCE PREPA POUR CE VOL');
   }
+  if(typeof window.import143RecoverOneSpecificFlight!=='function'){
+    throw new Error('BRIDGE BUILD143 INDISPONIBLE');
+  }
 
   const target={
     airline:'SQ',
@@ -25488,7 +25493,7 @@ window.runSqControlledInjectionR313 = async function(
     status:'IMPORTED'
   };
 
-  const ok=await import143RecoverOneSpecificFlight(target);
+  const ok=await window.import143RecoverOneSpecificFlight(target);
   if(!ok)throw new Error('BRIDGE SQ NON EXECUTE');
 
   const post=await fetch(opsApiUrl('/api/autopilot/sq-controlled-bridge'),{
@@ -25508,7 +25513,7 @@ window.runSqControlledInjectionR313 = async function(
     postflight:post
   };
 };
-console.log('BUILD143 R8 FIXED — R3.13 SQ CONTROLLED BRIDGE READY');
+console.log('BUILD143 R9 — R3.13 SQ CONTROLLED BRIDGE READY');
 </script>
 
 </body></html>
