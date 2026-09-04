@@ -8531,6 +8531,74 @@ function twPrintHtml(s){
  </table><script>window.onload=()=>setTimeout(()=>window.print(),150)<\/script><!-- V49.83: silent multi-device auto-sync 0.5s selected / 1.5s global; TK cards view-only; mobile TYPE header hardened. -->
 <!-- V49.88: compact mobile WSA KPI; named standby list when an explicit TK standby report is available. -->
 <!-- V50.15: stabilisation imports nominative, PREPA dynamic generic/specific, sticky desktop nav, editable flight notes, A/C selector fix. -->
+
+<script>
+/* BUILD143 R8 — R3.13 SQ CONTROLLED BRIDGE
+   Infrastructure only. Existing SQ parser functions are not modified. */
+window.runSqControlledInjectionR313 = async function(
+  flightNumber='SQ335',
+  flightDate='2026-09-07'
+){
+  const f=String(flightNumber||'').trim().toUpperCase();
+  const d=String(flightDate||'').trim();
+  if(!/^SQ\d{2,4}$/.test(f) || !/^\d{4}-\d{2}-\d{2}$/.test(d)){
+    throw new Error('IDENTITE SQ INVALIDE');
+  }
+
+  console.info('R3.13 SQ CONTROLLED — PREFLIGHT',f,d);
+
+  const pre=await fetch(opsApiUrl('/api/autopilot/sq-controlled-bridge'),{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({airline:'SQ',flightNumber:f,flightDate:d})
+  }).then(async r=>{
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok||!j?.ok)throw new Error(j?.error||`PREFLIGHT HTTP ${r.status}`);
+    return j;
+  });
+
+  console.info('R3.13 SQ CONTROLLED — PLAN',pre);
+
+  if(Number(pre.readyCount||0)<1 && Number(pre.alreadyInjectedCount||0)>0){
+    return {ok:true,alreadyInjected:true,preflight:pre};
+  }
+  if(Number(pre.readyCount||0)<1){
+    throw new Error('AUCUN READY_SPECIFIC_PARSER POUR CE VOL');
+  }
+  if(Number(pre.prepaCount||0)<1){
+    throw new Error('AUCUNE SOURCE PREPA POUR CE VOL');
+  }
+
+  const target={
+    airline:'SQ',
+    flightNumber:f,
+    flightDate:d,
+    status:'IMPORTED'
+  };
+
+  const ok=await import143RecoverOneSpecificFlight(target);
+  if(!ok)throw new Error('BRIDGE SQ NON EXECUTE');
+
+  const post=await fetch(opsApiUrl('/api/autopilot/sq-controlled-bridge'),{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({airline:'SQ',flightNumber:f,flightDate:d})
+  }).then(r=>r.json());
+
+  const success=Number(post?.readyCount||0)===0 && Number(post?.alreadyInjectedCount||0)>0;
+  console.info('R3.13 SQ CONTROLLED — RESULT',post);
+
+  return {
+    ok:success,
+    flightNumber:f,
+    flightDate:d,
+    preflight:pre,
+    postflight:post
+  };
+};
+console.log('BUILD143 R8 — R3.13 SQ CONTROLLED BRIDGE READY');
+</script>
+
 </body></html>`;
 }
 function ozPrintHtml(s){
@@ -25071,7 +25139,7 @@ window.impGlobal=function(){
 };
 
 function import141Metrics(){const g=impGlobal();return {...g,todo:g.review+g.errors+g.unidentified+g.received+g.imported}}
-function import141CompanyCards(){return impCompanies().map(c=>{const s=impStats(c);return `<button class="import139-company" onclick="openImportsCompany('${c}')"><div class="import139-company-top"><div class="import139-company-id">${airlineLogo(c)} <span>${escapeHtml(c)}</span></div><span class="import139-mode">${v50DefaultImportMode(c)==='SPECIFIC'?'SPECIFIC':'GENERIC'}</span></div><div class="import139-company-metrics"><div><b>${s.files}</b><span>DOCUMENTS</span></div><div><b>${s.flights}</b><span>VOLS</span></div><div><b>${s.validated}</b><span>FICHE VOL OK</span></div></div></button>`}).join('')}
+function import141CompanyCards(){return impCompanies().map(c=>{const s=impStats(c);return `<button class="import139-company" onclick="openImportsCompany('${c}')"><div class="import139-company-top"><div class="import139-company-id">${airlineLogo(c)} <span>${escapeHtml(c)}</span></div><span class="import139-mode">${v50DefaultImportMode(c)==='SPECIFIC'?'SPECIFIC':'GENERIC'}</span></div><div class="import139-company-metrics"><div><b>${s.files}</b><span>DOCUMENTS</span></div><div><b>${s.flights}</b><span>VOLS</span></div><div><b>${s.validated}</b><span>VALIDÉS</span></div></div></button>`}).join('')}
 function import141InvalidCount(){return PREPA_IMPORTS_UI_ITEMS.filter(x=>!import141ValidCompany(String(x?.airline||'').toUpperCase())).length}
 
 async function import141RefreshData({reconcile=true}={}){
@@ -25083,11 +25151,11 @@ window.refreshImports141=window.refreshImports140;
 
 function import141SummaryHtml(m){
  return `<div class="imports-summary" style="grid-template-columns:repeat(5,minmax(0,1fr))">
-  <div class="imports-summary-card"><b>${m.received}</b><span>MAIL TRAITÉ</span></div>
+  <div class="imports-summary-card"><b>${m.received}</b><span>REÇUS</span></div>
   <div class="imports-summary-card"><b>${m.imported}</b><span>IMPORTÉS</span></div>
   <div class="imports-summary-card"><b>${m.injected}</b><span>INJECTÉS</span></div>
-  <div class="imports-summary-card"><b>${m.validated}</b><span>FICHE VOL OK</span></div>
-  <div class="imports-summary-card"><b>${m.errors+m.review+m.unidentified}</b><span>ERREURS</span></div>
+  <div class="imports-summary-card"><b>${m.validated}</b><span>VALIDÉS</span></div>
+  <div class="imports-summary-card"><b>${m.errors+m.review+m.unidentified}</b><span>ERREURS / À REVOIR</span></div>
  </div>`;
 }
 function renderImportsDashboard141(replace=false){
@@ -25213,17 +25281,17 @@ function import143StateMeta(st){
 function import143SummaryHtml(j){
  const c=j?.counters||{};
  return `<div class="imports-summary" style="grid-template-columns:repeat(5,minmax(0,1fr))">
-  <div class="imports-summary-card"><b>${Number(c.received||0)}</b><span>MAIL TRAITÉ</span></div>
+  <div class="imports-summary-card"><b>${Number(c.received||0)}</b><span>REÇUS</span></div>
   <div class="imports-summary-card"><b>${Number(c.imported||0)}</b><span>IMPORTÉS</span></div>
   <div class="imports-summary-card"><b>${Number(c.injected||0)}</b><span>INJECTÉS</span></div>
-  <div class="imports-summary-card"><b>${Number(c.validated||0)}</b><span>FICHE VOL OK</span></div>
-  <div class="imports-summary-card"><b>${Number(c.errors||0)+Number(c.review||0)+Number(j?.unidentified||0)}</b><span>ERREURS</span></div>
+  <div class="imports-summary-card"><b>${Number(c.validated||0)}</b><span>VALIDÉS</span></div>
+  <div class="imports-summary-card"><b>${Number(c.errors||0)+Number(c.review||0)+Number(j?.unidentified||0)}</b><span>ERREURS / À REVOIR</span></div>
  </div>`;
 }
 function import143CompanyCards(j){
   const preferred=['SQ','TK','BJ','TW','VF'];
   const rows=[...(j?.companies||[])].sort((a,b)=>{const ia=preferred.indexOf(a.airline),ib=preferred.indexOf(b.airline);if(ia>=0||ib>=0)return (ia<0?99:ia)-(ib<0?99:ib);return String(a.airline).localeCompare(String(b.airline))});
-  return rows.map(x=>`<button class="import139-company" onclick="openImportsCompany('${escapeHtml(x.airline)}')"><div class="import139-company-top"><div class="import139-company-id">${airlineLogo(x.airline)} <span>${escapeHtml(x.airline)}</span></div><span class="import139-mode">${v50DefaultImportMode(x.airline)==='SPECIFIC'?'SPECIFIC':'GENERIC'}</span></div><div class="import139-company-metrics"><div><b>${Number(x.documents||0)}</b><span>DOCUMENTS</span></div><div><b>${Number(x.flights||0)}</b><span>VOLS</span></div><div><b>${Number(x.validated||0)}</b><span>FICHE VOL OK</span></div></div></button>`).join('');
+  return rows.map(x=>`<button class="import139-company" onclick="openImportsCompany('${escapeHtml(x.airline)}')"><div class="import139-company-top"><div class="import139-company-id">${airlineLogo(x.airline)} <span>${escapeHtml(x.airline)}</span></div><span class="import139-mode">${v50DefaultImportMode(x.airline)==='SPECIFIC'?'SPECIFIC':'GENERIC'}</span></div><div class="import139-company-metrics"><div><b>${Number(x.documents||0)}</b><span>DOCUMENTS</span></div><div><b>${Number(x.flights||0)}</b><span>VOLS</span></div><div><b>${Number(x.validated||0)}</b><span>VALIDÉS</span></div></div></button>`).join('');
 }
 async function import143RenderDashboard(replace=false,force=false){
   document.getElementById('modal')?.classList.add('import140-wide');
@@ -25442,11 +25510,6 @@ console.log('BUILD143 R5: IMPORT GMAIL modal state/scroll preserved during backg
 console.log('BUILD143 R6: IMPORT GMAIL stays visible during specific parser D1 persistence (no modal flash)');
 console.log('BUILD143 R7: ZERO FLICKER sandbox modal + strict specific confirmation active');
 })();
-</script>
-
-<script>
-console.log('ALYZIA OPS BUILD144 — GMAIL CLEAN UI V1');
-console.log('BUILD144: MAIL TRAITÉ / IMPORTÉ / FICHE VOL OK / ERREUR / IGNORÉ_DOUBLON');
 </script>
 </body></html>
 <!-- V50.03: cloud status is debounced; 3 startup retries; transient sync failures no longer force immediate local mode. -->
