@@ -26658,6 +26658,108 @@ console.log('BUILD143 R9 — R3.13 SQ CONTROLLED BRIDGE READY');
 })();
 </script>
 
+
+<script>
+/* BUILD143 R17 — SQ GROUP CATEGORIES LIKE FQTV
+   UI only for SQ GROUP modal/list.
+   Parser SQ, FQTV, INFANT, HCIP, INBOUND, MEALS unchanged. */
+(function(){
+  window.openGroupModal=function(){
+    const x=f();
+
+    if(String(x?.airline||'').toUpperCase()!=='SQ'){
+      if(typeof window.__openGroupModalBeforeR16==='function'){
+        return window.__openGroupModalBeforeR16.apply(this,arguments);
+      }
+      return;
+    }
+
+    const list=Array.isArray(x?.common_lists?.GROUP)?x.common_lists.GROUP:[];
+    const groups={};
+
+    list.forEach(p=>{
+      const g=String(p?.groupCode||p?.groupName||p?.pnr||'').trim().toUpperCase();
+      if(!g)return;
+      (groups[g]=groups[g]||[]).push(p);
+    });
+
+    const names=Object.keys(groups).sort((a,b)=>a.localeCompare(b));
+    window.__sqGroupsR17=groups;
+
+    showModal(`GROUP · ${names.length}`,x.flight,`
+      <div class="meal-category-list fq-display-order">
+        ${names.map(g=>`
+          <button
+            class="meal-category-row fqtv-cat"
+            onclick="openSqGroupCategoryR17('${g.replace(/'/g,"\\'")}')"
+          >
+            <span>${g}</span>
+            <b>${groups[g].length}</b>
+            <small>VOIR LES PASSAGERS</small>
+          </button>
+        `).join('') || '<div class="prepa-empty">AUCUN GROUPE DÉTAILLÉ</div>'}
+      </div>
+    `);
+  };
+
+  window.openSqGroupCategoryR17=function(group,sort='name',dir='asc'){
+    const x=f();
+    const g=String(group||'').trim().toUpperCase();
+
+    const source=(x?.common_lists?.GROUP||[]).filter(p=>
+      String(p?.groupCode||p?.groupName||p?.pnr||'').trim().toUpperCase()===g
+    );
+
+    const list=sortPaxItems(source,sort,dir);
+    PAX_MODAL_ITEMS=list;
+    PAX_MODAL_SOURCE=source.slice();
+
+    const next=k=>sort===k?(dir==='asc'?'desc':'asc'):'asc';
+
+    showModal(`GROUP · ${g}`,x.flight,`
+      <div class="sortbar compact-sortbar">
+        <button class="${sort==='name'?'active':''}"
+          onclick="openSqGroupCategoryR17('${g.replace(/'/g,"\\'")}','name','${next('name')}')">
+          NOM${sortArrow(sort==='name',dir)}
+        </button>
+        <button class="${sort==='class'?'active':''}"
+          onclick="openSqGroupCategoryR17('${g.replace(/'/g,"\\'")}','class','${next('class')}')">
+          CLASSE${sortArrow(sort==='class',dir)}
+        </button>
+        <button class="${sort==='seat'?'active':''}"
+          onclick="openSqGroupCategoryR17('${g.replace(/'/g,"\\'")}','seat','${next('seat')}')">
+          SIÈGE${sortArrow(sort==='seat',dir)}
+        </button>
+      </div>
+
+      <div class="fqtv-table-wrap">
+        <div class="fqtv-table-head">
+          <span>NOM / PRÉNOM</span>
+          <span>SIÈGE</span>
+          <span>CLASSE</span>
+          <span>GROUPE</span>
+          <span>DOCUMENT</span>
+        </div>
+
+        <div class="fqtv-table-body">
+          ${list.map((p,i)=>`
+            <button class="fqtv-table-row" onclick="openPaxFromModal(${i})">
+              <strong>${passengerDisplayName(p)}</strong>
+              <span>${p.seat||'—'}</span>
+              <span>${p.class||'—'}</span>
+              <span>${g}</span>
+              <span>${passengerDocMeta(p)||'—'}</span>
+            </button>
+          `).join('') || '<div class="prepa-empty">AUCUN PASSAGER</div>'}
+        </div>
+      </div>
+    `);
+  };
+
+  console.log('BUILD143 R17 — SQ GROUP CATEGORIES LIKE FQTV READY');
+})();
+</script>
+
 </body></html>
 <!-- V50.03: cloud status is debounced; 3 startup retries; transient sync failures no longer force immediate local mode. -->
 <!-- V50.0: generic airline PREPA engine + airline profiles; SQ/TK/BJ parser semantics unchanged. -->
