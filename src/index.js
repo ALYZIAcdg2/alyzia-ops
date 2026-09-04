@@ -1,4 +1,4 @@
-// ALYZIA OPS V50.30 R3.1 SQ CLEAN LINK AUDIT
+// ALYZIA OPS V50.30 R3.2 SQ CLEAN GMAIL HELPERS FIX
 // Parsers SQ/TK/BJ/VF/TW unchanged.
 // V50.28 RULE: INC/INCARRIAGE = INBOUND PAX; INBOUND SUMMARY = FLIGHT METADATA; route inbound terminates at main origin (CDG).
 // V50.27 RULE: INCARRIAGE/INC = INBOUND PASSENGERS; INBOUND CUSTOMER SUMMARY = INBOUND FLIGHTS.
@@ -1785,6 +1785,23 @@ async function applyCleanLabelColorV1(env,labelId,suffix){
   if(!labelId||!color)return;
   await gmailFetch(env,`/labels/${encodeURIComponent(labelId)}`,{method:'PATCH',body:JSON.stringify({color})}).catch(()=>{});
 }
+
+function extractHeader(message,name){
+  const wanted=String(name||'').toLowerCase();
+  const headers=Array.isArray(message?.payload?.headers)?message.payload.headers:[];
+  const hit=headers.find(h=>String(h?.name||'').toLowerCase()===wanted);
+  return String(hit?.value||'');
+}
+
+function walkParts(part,out=[]){
+  if(!part)return out;
+  const attachmentId=String(part?.body?.attachmentId||'');
+  const filename=String(part?.filename||'');
+  if(attachmentId || filename)out.push(part);
+  for(const child of (part?.parts||[]))walkParts(child,out);
+  return out;
+}
+
 async function extractPlainBodyFullV1(env,message){
   let text=''; let htmlBody='';
   async function walk(p){
@@ -4737,7 +4754,7 @@ async function lot3FlightCards(env,url){
  * ========================================================= */
 
 // LOT 5.2 FULL MAILBOX CONTINUOUS — whole Gmail mailbox + newest-first + resumable pagination + non-blocking errors.
-const LOT5_VERSION="V50.30_R3_1_SQ_CLEAN_LINK_AUDIT";
+const LOT5_VERSION="V50.30_R3_2_SQ_CLEAN_GMAIL_HELPERS_FIX";
 // 5.3.5 scope: pipeline recovery + Gmail body + historical replay + Drive archive + fast summary.
 // Specific parsers remain byte-for-byte untouched.
 // Gmail -> identity -> R2/D1 -> Drive -> existing parser -> flight injection -> exclusive Gmail state.
