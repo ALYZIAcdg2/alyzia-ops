@@ -26317,6 +26317,404 @@ console.log('BUILD143 R9 — R3.13 SQ CONTROLLED BRIDGE READY');
 })();
 </script>
 
+
+<script>
+/* BUILD143 R14 — SQ HCIP DETAIL + GROUP CATEGORIES + INFANT RELATION
+   Post-consolidation/UI only.
+   SQ parser functions unchanged.
+   FQTV unchanged. INBOUND unchanged. MEALS ON BOARD unchanged. */
+(function(){
+  const n14=s=>String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+
+  function master14(x,name,seat=''){
+    const arr=Array.isArray(x?.passengers)?x.passengers:[];
+    const st=String(seat||'').toUpperCase();
+    if(st){
+      const m=arr.find(p=>String(p?.seat||'').toUpperCase()===st);
+      if(m)return m;
+    }
+    const nk=n14(name);
+    let m=arr.find(p=>n14(p?.name)===nk);
+    if(m)return m;
+    return arr.find(p=>{
+      const pk=n14(p?.name);
+      return nk&&pk&&(pk.startsWith(nk)||nk.startsWith(pk));
+    })||null;
+  }
+
+  function stripTitle14(name){
+    return String(name||'')
+      .replace(/\s+(MR|MRS|MS|MISS|MSTR|MDM|DR|CHR|CH)\b.*$/i,'')
+      .replace(/\//g,' ')
+      .replace(/\s+/g,' ')
+      .trim();
+  }
+
+  function parseVbcpPassengerBlocks14(raw){
+    const text=String(raw||'').replace(/\r/g,'');
+    const sourceBlocks=text.split(/(?=^=====+\s*FICHIER\s*:)/gmi);
+    const vbcp=sourceBlocks.filter(b=>/LIST\s+OF\s*:\s*PDF-VBCPLIST/i.test(b));
+    const out=[];
+
+    vbcp.forEach(source=>{
+      const lines=source.split('\n');
+      let current=null;
+
+      const flush=()=>{
+        if(current){
+          current.text=current.lines.join('\n');
+          out.push(current);
+        }
+      };
+
+      lines.forEach(line=>{
+        const m=line.match(/^\s*(\d{1,3})\.\s*(.*?)\s+([MFCIA])\s+CDG\s+SIN\s+([A-Z][A-Z0-9]?)\s*(?:\b(\d{2,3}[A-K])\b)?/i);
+        if(m){
+          flush();
+          current={
+            seq:Number(m[1]),
+            rawName:String(m[2]||'').trim(),
+            name:stripTitle14(m[2]),
+            passengerType:String(m[3]||'').toUpperCase(),
+            bookingClass:String(m[4]||'').toUpperCase(),
+            class:(()=>{let c=String(m[4]||'Y').toUpperCase().charAt(0);if(c==='C')c='J';if(c==='W')c='S';return ['F','J','S','Y'].includes(c)?c:'Y'})(),
+            seat:String(m[5]||'').toUpperCase(),
+            lines:[line]
+          };
+        }else if(current){
+          current.lines.push(line);
+        }
+      });
+      flush();
+    });
+
+    return out;
+  }
+
+  function findInfRow14(blocks,token){
+    const key=n14(token);
+    if(!key)return null;
+    const infs=blocks.filter(b=>b.passengerType==='I');
+    return infs.find(b=>{
+      const bk=n14(b.name);
+      return bk===key || bk.startsWith(key) || key.startsWith(bk);
+    })||null;
+  }
+
+  function buildInfants14(raw,x){
+    const blocks=parseVbcpPassengerBlocks14(raw);
+    const babies=[];
+
+    blocks.forEach((parent,i)=>{
+      if(parent.passengerType==='I')return;
+      const m=parent.text.match(/\bINFT-([A-Z0-9\/ '\-]+?)\s+(\d{2}[A-Z]{3}\d{2})\b/i);
+      if(!m)return;
+
+      const token=String(m[1]||'').trim();
+      const infantRow=findInfRow14(blocks,token);
+      const infantMaster=master14(x,infantRow?.name||token,'');
+      const parentMaster=master14(x,parent.name,parent.seat);
+
+      const infantName=String(infantMaster?.name||infantRow?.name||token).replace(/\//g,' ').replace(/\s+/g,' ').trim();
+      const parentName=String(parentMaster?.name||parent.name||'').trim();
+      const parentSeat=String(parentMaster?.seat||parent.seat||'').toUpperCase();
+
+      const baby={
+        ...(infantMaster||{}),
+        id:`SQ-INF-R14-${i}`,
+        name:infantName,
+        seat:'',
+        class:infantMaster?.class||parentMaster?.class||parent.class||'Y',
+        bookingClass:infantMaster?.bookingClass||parentMaster?.bookingClass||parent.bookingClass||'',
+        passengerType:'INF',
+        status:'BOOKED',
+        parentName,
+        parentSeat,
+        specific:`INF · PARENT ASSOCIÉ : ${parentName}${parentSeat?` · SIÈGE PARENT : ${parentSeat}`:''}`,
+        ssr:['INF']
+      };
+      babies.push(baby);
+
+      if(parentMaster){
+        parentMaster.infantName=infantName;
+        parentMaster.infantAssociated=infantName;
+        parentMaster.operationalDetails=[...new Set([...(parentMaster.operationalDetails||[]),`INFANT ASSOCIÉ : ${infantName}`])];
+      }
+    });
+
+    const map=new Map();
+    babies.forEach(p=>{const k=n14(p.name);if(k&&!map.has(k))map.set(k,p)});
+
+    x.common=x.common||{};
+    x.common_lists=x.common_lists||{};
+    x.prepaSpecificities=x.prepaSpecificities||{};
+    x.prepaParticularities=x.prepaParticularities||{};
+    x.common_lists.INF=[...map.values()];
+    x.common.INF=x.common_lists.INF.length;
+    x.prepaSpecificities['INFANT(S)']=x.common.INF;
+    x.prepaParticularities['INFANT(S)']=x.common.INF;
+    x.prepaParticularities.INF=x.common.INF;
+    return x.common_lists.INF;
+  }
+
+  function buildHcip14(raw,x){
+    const blocks=parseVbcpPassengerBlocks14(raw);
+    const list=[];
+
+    blocks.forEach((b,i)=>{
+      if(!/\bHCIP\b/i.test(b.text))return;
+      const master=master14(x,b.name,b.seat);
+      const item={
+        ...(master||{}),
+        id:`SQ-HCIP-R14-${i}`,
+        name:master?.name||b.name,
+        seat:master?.seat||b.seat,
+        class:master?.class||b.class,
+        bookingClass:master?.bookingClass||b.bookingClass,
+        etkt:master?.etkt||'',
+        status:'BOOKED',
+        specific:'HCIP',
+        ssr:[...new Set([...(master?.ssr||[]),'HCIP'])]
+      };
+      list.push(item);
+
+      if(master){
+        master.ssr=[...new Set([...(master.ssr||[]),'HCIP'])];
+        if(!/\bHCIP\b/i.test(String(master.specific||''))){
+          master.specific=[master.specific,'HCIP'].filter(Boolean).join(' · ');
+        }
+      }
+    });
+
+    x.common=x.common||{};
+    x.common_lists=x.common_lists||{};
+    x.prepaSpecificities=x.prepaSpecificities||{};
+    x.prepaParticularities=x.prepaParticularities||{};
+
+    const keep=(x.common_lists.VIP||[]).filter(p=>!/\bHCIP\b/i.test([p?.specific,...(Array.isArray(p?.ssr)?p.ssr:[])].join(' ')));
+    const map=new Map();
+    [...keep,...list].forEach(p=>{
+      const k=`${n14(p.name)}|${String(p.specific||'').toUpperCase()}`;
+      if(k&&!map.has(k))map.set(k,p);
+    });
+    x.common_lists.VIP=[...map.values()];
+    x.prepaSpecificities.HCIP=list.length;
+    x.prepaParticularities.HCIP=list.length;
+
+    return list;
+  }
+
+  function buildGroups14(raw,x){
+    const blocks=parseVbcpPassengerBlocks14(raw);
+    const list=[];
+
+    blocks.forEach((b,i)=>{
+      const m=b.text.match(/\bOTHS-GROUPTYPE\s*-\s*([A-Z0-9][A-Z0-9 _'\/.-]*?)(?=\s*(?:\n|OTHS|CTCE|CTCM|SSMB|CEID|INFT|$))/i);
+      if(!m)return;
+      const group=String(m[1]||'').replace(/\s+/g,' ').trim().toUpperCase();
+      if(!group)return;
+
+      const master=master14(x,b.name,b.seat);
+      const item={
+        ...(master||{}),
+        id:`SQ-GROUP-R14-${i}`,
+        name:master?.name||b.name,
+        seat:master?.seat||b.seat,
+        class:master?.class||b.class,
+        bookingClass:master?.bookingClass||b.bookingClass,
+        etkt:master?.etkt||'',
+        status:'BOOKED',
+        pnr:group,
+        groupCode:group,
+        groupName:group,
+        specific:`GROUPE · ${group}`
+      };
+      list.push(item);
+      if(master){
+        master.groupCode=group;
+        master.groupName=group;
+      }
+    });
+
+    const map=new Map();
+    list.forEach(p=>{
+      const k=`${n14(p.name)}|${p.groupCode}`;
+      if(k&&!map.has(k))map.set(k,p);
+    });
+
+    x.common=x.common||{};
+    x.common_lists=x.common_lists||{};
+    x.common_lists.GROUP=[...map.values()];
+    x.common.GROUP=new Set(x.common_lists.GROUP.map(p=>p.groupCode).filter(Boolean)).size;
+    return x.common_lists.GROUP;
+  }
+
+  async function rawFor14(fnum,fdate){
+    const q=new URLSearchParams({airline:'SQ',flight:fnum,limit:'100',includePayload:'1'});
+    const resp=await fetch(opsApiUrl('/api/prepa?'+q.toString()),{cache:'no-store',headers:{Accept:'application/json'}});
+    if(!resp.ok)throw new Error(`PREPA HTTP ${resp.status}`);
+    const data=await resp.json();
+    const items=(Array.isArray(data?.items)?data.items:[]).filter(x=>String(x?.flightDate||'')===fdate);
+    if(!items.length)throw new Error('AUCUNE SOURCE PREPA POUR CE VOL');
+    if(typeof window.import143BuildSpecificRaw!=='function')throw new Error('BUILD SPECIFIC RAW INDISPONIBLE');
+    const raw=await window.import143BuildSpecificRaw(items,'SQ');
+    if(!String(raw||'').trim())throw new Error('SOURCES SQ VIDES');
+    return {items,raw};
+  }
+
+  function flightIndex14(items,fnum,fdate){
+    let idx=(typeof findFlightIndexForInbox==='function'?findFlightIndexForInbox(items[0]):-1);
+    if(idx>=0)return idx;
+    return (Array.isArray(FLIGHTS)?FLIGHTS:[]).findIndex(x=>
+      String(x?.airline||'').toUpperCase()==='SQ' &&
+      String(x?.flightNumber||x?.flight||'').toUpperCase()===fnum &&
+      String(x?.date||x?.flightDate||'')===fdate
+    );
+  }
+
+  window.runSqPresentationFixR14=async function(flightNumber='SQ335',flightDate='2026-09-07'){
+    const fnum=String(flightNumber||'').trim().toUpperCase();
+    const fdate=String(flightDate||'').trim();
+    if(!/^SQ\d{2,4}$/.test(fnum)||!/^\d{4}-\d{2}-\d{2}$/.test(fdate))throw new Error('IDENTITE SQ INVALIDE');
+
+    const {items,raw}=await rawFor14(fnum,fdate);
+    const idx=flightIndex14(items,fnum,fdate);
+    if(idx<0)throw new Error('VOL SQ INTROUVABLE DANS LE BUILD');
+    const x=FLIGHTS[idx];
+
+    const infants=buildInfants14(raw,x);
+    const hcip=buildHcip14(raw,x);
+    const groups=buildGroups14(raw,x);
+
+    try{render()}catch(e){console.warn('R14 render',e)}
+    try{await cacheFlightsLocallyOnly(FLIGHTS)}catch(e){console.warn('R14 cache',e)}
+    try{await persistOneFlightVerifiedToD1(x,{label:'SQ PRESENTATION FIX R14'})}catch(e){console.warn('R14 persist',e)}
+
+    const result={
+      ok:true,
+      INF:infants.length,
+      infants:infants.map(p=>({name:p.name,parentName:p.parentName,parentSeat:p.parentSeat,seat:p.seat||''})),
+      HCIP:hcip.length,
+      hcip:hcip.map(p=>({name:p.name,seat:p.seat,class:p.class,etkt:p.etkt||''})),
+      GROUP:new Set(groups.map(p=>p.groupCode)).size,
+      groupNames:[...new Set(groups.map(p=>p.groupCode))],
+      groupPax:groups.length
+    };
+    console.info('R14 SQ RESULT',result);
+    return result;
+  };
+
+  // HCIP/VIP modal: categories first, then detailed passenger list.
+  const nativeOpenPrepa14=window.openPrepaSpecificityCard;
+  window.openPrepaSpecificityCard=function(defId,sort='name',dir='asc',replaceSort=false){
+    const x=f();
+    if(String(x?.airline||'').toUpperCase()==='SQ' && String(defId||'').toUpperCase()==='VIP'){
+      const arr=Array.isArray(x?.common_lists?.VIP)?x.common_lists.VIP:[];
+      const cats=['IMPT','HCIP','VIP','VVIP'];
+      const groups={};
+      cats.forEach(c=>groups[c]=[]);
+      arr.forEach(p=>{
+        const txt=[p?.specific,...(Array.isArray(p?.ssr)?p.ssr:[])].join(' ').toUpperCase();
+        cats.forEach(c=>{if(new RegExp(`\\b${c}\\b`).test(txt))groups[c].push(p)});
+      });
+      // Keep quantities from prepa for empty categories, but names from detailed lists when present.
+      showModal('IMPT / HCIP / VIP / VVIP',x.flight,`
+        <div class="vip-summary-grid">
+          ${cats.map(c=>`<button class="vip-summary-card" onclick="${groups[c].length?`openSqVipCategoryR14('${c}')`:''}">
+            <small>${c}</small>
+            <strong>${Math.max(groups[c].length,Number(x?.prepaSpecificities?.[c]||x?.prepaParticularities?.[c]||0))}</strong>
+            ${groups[c].length?'<span>VOIR LES PASSAGERS</span>':''}
+          </button>`).join('')}
+        </div>
+        ${groups.HCIP.length?`<div class="part-detail-table-wrap" style="margin-top:14px">
+          <div class="part-detail-table-head"><span>NOM / PRÉNOM</span><span>SIÈGE</span><span>CLASSE</span><span>DOCUMENT</span><span>SSR / INFO</span></div>
+          <div class="part-detail-list part-detail-table">
+            ${groups.HCIP.map((p,i)=>`<button class="part-detail-row" onclick="PAX_MODAL_ITEMS=(f().common_lists.VIP||[]).filter(q=>/\\bHCIP\\b/i.test([q.specific,...(q.ssr||[])].join(' ')));openPaxFromModal(${i})">
+              <strong class="part-col-name">${passengerDisplayName(p)}</strong>
+              <span class="part-col-seat">${p.seat||'—'}</span>
+              <span class="part-col-class">${modalClassText(p.class)}</span>
+              <span class="part-col-doc">${passengerDocMeta(p)||'—'}</span>
+              <span class="part-col-ssr">HCIP</span>
+            </button>`).join('')}
+          </div>
+        </div>`:'<div class="prepa-empty">AUCUN PASSAGER DÉTAILLÉ</div>'}
+      `);
+      return;
+    }
+    return nativeOpenPrepa14.apply(this,arguments);
+  };
+
+  window.openSqVipCategoryR14=function(code,sort='name',dir='asc'){
+    const x=f(),c=String(code||'').toUpperCase();
+    const source=(x?.common_lists?.VIP||[]).filter(p=>new RegExp(`\\b${c}\\b`,'i').test([p?.specific,...(Array.isArray(p?.ssr)?p.ssr:[])].join(' ')));
+    const list=sortPaxItems(source,sort,dir);
+    PAX_MODAL_ITEMS=list;PAX_MODAL_SOURCE=source.slice();
+    showModal(`VIP / PARTICULAR · ${c}`,x.flight,`
+      <div class="part-detail-table-wrap">
+        <div class="part-detail-table-head"><span>NOM / PRÉNOM</span><span>SIÈGE</span><span>CLASSE</span><span>DOCUMENT</span><span>SSR / INFO</span></div>
+        <div class="part-detail-list part-detail-table">
+          ${list.map((p,i)=>`<button class="part-detail-row" onclick="openPaxFromModal(${i})">
+            <strong class="part-col-name">${passengerDisplayName(p)}</strong>
+            <span class="part-col-seat">${p.seat||'—'}</span>
+            <span class="part-col-class">${modalClassText(p.class)}</span>
+            <span class="part-col-doc">${passengerDocMeta(p)||'—'}</span>
+            <span class="part-col-ssr">${c}</span>
+          </button>`).join('')||'<div class="prepa-empty">AUCUN PASSAGER</div>'}
+        </div>
+      </div>`);
+  };
+
+  // GROUP modal: category cards first, exactly like FQTV logic.
+  const nativeOpenGroup14=window.openGroupModal;
+  window.openGroupModal=function(){
+    const x=f();
+    if(String(x?.airline||'').toUpperCase()!=='SQ')return nativeOpenGroup14.apply(this,arguments);
+    const list=Array.isArray(x?.common_lists?.GROUP)?x.common_lists.GROUP:[];
+    const groups={};
+    list.forEach(p=>{
+      const g=String(p?.groupCode||p?.groupName||p?.pnr||'').trim().toUpperCase();
+      if(!g)return;
+      (groups[g]=groups[g]||[]).push(p);
+    });
+    const names=Object.keys(groups).sort((a,b)=>a.localeCompare(b));
+    window.__sqGroupR14=groups;
+    showModal(`GROUP · ${names.length}`,x.flight,`
+      <div class="meal-category-list fq-display-order">
+        ${names.map(g=>`<button class="meal-category-row" onclick="openSqGroupCategoryR14('${g.replace(/'/g,"\\'")}')">
+          <span>${g}</span><b>${groups[g].length}</b><small>VOIR LES PASSAGERS</small>
+        </button>`).join('')||'<div class="prepa-empty">AUCUN GROUPE DÉTAILLÉ</div>'}
+      </div>`);
+  };
+
+  window.openSqGroupCategoryR14=function(group,sort='name',dir='asc'){
+    const x=f(),g=String(group||'').toUpperCase();
+    const source=(x?.common_lists?.GROUP||[]).filter(p=>String(p?.groupCode||p?.groupName||p?.pnr||'').toUpperCase()===g);
+    const list=sortPaxItems(source,sort,dir);
+    PAX_MODAL_ITEMS=list;PAX_MODAL_SOURCE=source.slice();
+    showModal(`GROUP · ${g}`,x.flight,`
+      <div class="sortbar compact-sortbar">
+        <button class="${sort==='name'?'active':''}" onclick="openSqGroupCategoryR14('${g}','name','${sort==='name'&&dir==='asc'?'desc':'asc'}')">NOM${sortArrow(sort==='name',dir)}</button>
+        <button class="${sort==='class'?'active':''}" onclick="openSqGroupCategoryR14('${g}','class','${sort==='class'&&dir==='asc'?'desc':'asc'}')">CLASSE${sortArrow(sort==='class',dir)}</button>
+        <button class="${sort==='seat'?'active':''}" onclick="openSqGroupCategoryR14('${g}','seat','${sort==='seat'&&dir==='asc'?'desc':'asc'}')">SIÈGE${sortArrow(sort==='seat',dir)}</button>
+      </div>
+      <div class="part-detail-table-wrap">
+        <div class="part-detail-table-head"><span>NOM / PRÉNOM</span><span>SIÈGE</span><span>CLASSE</span><span>DOCUMENT</span><span>SSR / INFO</span></div>
+        <div class="part-detail-list part-detail-table">
+          ${list.map((p,i)=>`<button class="part-detail-row" onclick="openPaxFromModal(${i})">
+            <strong class="part-col-name">${passengerDisplayName(p)}</strong>
+            <span class="part-col-seat">${p.seat||'—'}</span>
+            <span class="part-col-class">${modalClassText(p.class)}</span>
+            <span class="part-col-doc">${passengerDocMeta(p)||'—'}</span>
+            <span class="part-col-ssr">${g}</span>
+          </button>`).join('')||'<div class="prepa-empty">AUCUN PASSAGER</div>'}
+        </div>
+      </div>`);
+  };
+
+  console.log('BUILD143 R14 — SQ HCIP DETAIL / GROUP CATEGORIES / INFANT READY');
+})();
+</script>
+
 </body></html>
 <!-- V50.03: cloud status is debounced; 3 startup retries; transient sync failures no longer force immediate local mode. -->
 <!-- V50.0: generic airline PREPA engine + airline profiles; SQ/TK/BJ parser semantics unchanged. -->
