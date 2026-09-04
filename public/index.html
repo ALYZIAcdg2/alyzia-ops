@@ -25981,115 +25981,109 @@ console.log('BUILD143 R9 — R3.13 SQ CONTROLLED BRIDGE READY');
 
 
 <script>
-/* BUILD143 R13 — SQ VBCP RELATION FIX
-   Fix only: INFANT detailed relation + HCIP detailed passenger + GROUPTYPE.
-   FQTV unchanged. INBOUND unchanged. MEALS ON BOARD unchanged.
-   Existing SQ parser functions are NOT modified. */
+/* BUILD143 R15 — SQ LIVE PAX RELATIONS + GROUPTYPE
+   Uses the already-consolidated passenger master for INF/HCIP.
+   Uses raw source text only for OTHS-GROUPTYPE -> passenger association.
+   FQTV untouched. INBOUND untouched. MEALS ON BOARD untouched.
+   Protected SQ parser functions untouched. */
 (function(){
-  const r13Norm=s=>String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+  const R15N=s=>String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
 
-  function r13Master(x,row){
-    const list=Array.isArray(x?.passengers)?x.passengers:[];
-    const seat=String(row?.seat||'').toUpperCase();
-    const nk=r13Norm(row?.name);
-    if(seat){
-      const s=list.find(p=>String(p?.seat||'').toUpperCase()===seat);
-      if(s)return s;
+  function r15PassengerText(p){
+    try{return JSON.stringify(p||{}).toUpperCase()}catch(_){return String(p||'').toUpperCase()}
+  }
+
+  function r15Master(x,name,seat=''){
+    const arr=Array.isArray(x?.passengers)?x.passengers:[];
+    const st=String(seat||'').toUpperCase();
+    if(st){
+      const bySeat=arr.find(p=>String(p?.seat||'').toUpperCase()===st);
+      if(bySeat)return bySeat;
     }
-    const exact=list.find(p=>r13Norm(p?.name)===nk);
+    const nk=R15N(name);
+    let exact=arr.find(p=>R15N(p?.name)===nk);
     if(exact)return exact;
-    return list.find(p=>{
-      const pk=r13Norm(p?.name);
-      return nk && pk && (pk.startsWith(nk)||nk.startsWith(pk));
+    return arr.find(p=>{
+      const pk=R15N(p?.name);
+      return nk&&pk&&(pk.startsWith(nk)||nk.startsWith(pk));
     })||null;
   }
 
-  function r13VbcpRows(raw){
-    const blocks=String(raw||'').replace(/\r/g,'').split(/(?=^=====+\s*FICHIER\s*:)/gmi);
-    const vbcp=blocks.filter(b=>/LIST\s+OF\s*:\s*PDF-VBCPLIST/i.test(b));
-    const rows=[];
-    vbcp.forEach((b,bi)=>{
-      let parsed=[];
-      try{parsed=parseSqNamedReportRows(b)||[]}catch(_){}
-      parsed.forEach(r=>rows.push({...r,__block:bi}));
+  function r15InfRelated(x){
+    return (Array.isArray(x?.passengers)?x.passengers:[]).filter(p=>{
+      const s=r15PassengerText(p);
+      return /\bINF\b|\bINFT\b|\bBSCT\b/.test(s);
     });
-    return rows;
   }
 
-  function r13FindInfantRow(rows,shortName){
-    const key=r13Norm(shortName);
-    if(!key)return null;
-    const candidates=rows.filter(r=>String(r?.passengerType||'').toUpperCase()==='I');
-    return candidates.find(r=>{
-      const rk=r13Norm(r?.name);
-      return rk===key || rk.startsWith(key) || key.startsWith(rk);
-    })||null;
+  function r15FindParentForBaby(baby,parents){
+    const babyName=String(baby?.name||'').toUpperCase();
+    const tokens=babyName.split(/\s+/).filter(Boolean);
+    const surname=tokens[0]||'';
+    const babyKey=R15N(babyName);
+
+    // Primary: parent's object explicitly carries the INFT/baby relationship.
+    let best=parents.find(p=>{
+      const s=r15PassengerText(p);
+      if(babyKey.length>=5 && s.replace(/[^A-Z0-9]/g,'').includes(babyKey))return true;
+      if(surname.length>=4 && new RegExp(`\\b${surname}\\b`).test(s))return true;
+      const m=s.match(/INFT[^A-Z0-9]*([A-Z0-9\/ '\\-]{3,80})/);
+      return !!(m&&R15N(m[1]).startsWith(R15N(surname)));
+    });
+    if(best)return best;
+
+    // Secondary: surname relation (e.g. MATOSDESMARAIS ↔ DESMARAIS).
+    if(surname.length>=5){
+      best=parents.find(p=>{
+        const pn=String(p?.name||'').toUpperCase().split(/\s+/)[0]||'';
+        return surname.includes(pn)||pn.includes(surname);
+      });
+      if(best)return best;
+    }
+    return null;
   }
 
-  function r13BuildInfants(raw,x){
-    const rows=r13VbcpRows(raw);
-    const babies=[];
-    const parents=[];
+  function r15DeriveInfants(x){
+    const related=r15InfRelated(x);
+    const babies=related.filter(p=>{
+      const seat=String(p?.seat||'').trim();
+      const typ=String(p?.passengerType||p?.type||'').toUpperCase();
+      const s=r15PassengerText(p);
+      return !seat && (typ==='I'||typ==='INF'||/\bINF\b/.test(s));
+    });
+    const parents=related.filter(p=>String(p?.seat||'').trim());
 
-    rows.forEach((parentRow,idx)=>{
-      if(String(parentRow?.passengerType||'').toUpperCase()==='I')return;
-      const detail=[parentRow?.tail,...(parentRow?.continuation||[])].join(' ').replace(/\s+/g,' ').trim();
-      const m=detail.match(/\bINFT-([A-Z0-9\/ '\-]+?)\s+(\d{2}[A-Z]{3}\d{2})\b/i);
-      if(!m)return;
+    const out=[];
+    const seen=new Set();
+    babies.forEach((baby,i)=>{
+      const key=R15N(baby?.name);
+      if(!key||seen.has(key))return;
+      seen.add(key);
+      const parent=r15FindParentForBaby(baby,parents);
+      const parentName=String(parent?.name||'').trim();
+      const parentSeat=String(parent?.seat||'').trim().toUpperCase();
 
-      const shortInf=String(m[1]||'').trim();
-      const full=(detail.match(/\bCKIN-INF\s+FULL\s+NAME-([A-Z0-9\/ '\-]+?)(?=\s+(?:CTCE|CTCM|INFT|SSMB|CEID|$))/i)||[])[1]||'';
-      const infantRow=r13FindInfantRow(rows,full||shortInf);
-      const infantMaster=r13Master(x,infantRow||{name:full||shortInf,seat:''});
-      const parentMaster=r13Master(x,parentRow);
-
-      let infantName=String(full||infantMaster?.name||infantRow?.name||shortInf)
-        .replace(/\//g,' ').replace(/\s+/g,' ').trim();
-      const parentName=String(parentMaster?.name||parentRow?.name||'').replace(/\s+/g,' ').trim();
-      const parentSeat=String(parentMaster?.seat||parentRow?.seat||'').toUpperCase();
-
-      const baby={
-        ...(infantMaster||{}),
-        id:`SQ-INF-R13-${idx}`,
-        name:infantMaster?.name||infantName,
-        title:infantMaster?.title||'',
-        seat:'',
-        class:infantMaster?.class||parentMaster?.class||parentRow?.class||'Y',
-        bookingClass:infantMaster?.bookingClass||parentMaster?.bookingClass||parentRow?.bookingClass||'',
-        etkt:infantMaster?.etkt||'',
-        status:'BOOKED',
+      const q={
+        ...baby,
+        id:baby.id||`SQ-INF-R15-${i}`,
         passengerType:'INF',
+        seat:'',
+        status:baby.status||'BOOKED',
         parentName,
         parentSeat,
-        specific:`INF · PARENT ASSOCIÉ : ${parentName}${parentSeat?` · SIÈGE PARENT : ${parentSeat}`:''}`,
-        ssr:['INF']
+        specific:`INF${parentName?` · PARENT ASSOCIÉ : ${parentName}${parentSeat?` · SIÈGE PARENT : ${parentSeat}`:''}`:''}`,
+        ssr:[...new Set([...(Array.isArray(baby?.ssr)?baby.ssr:[]),'INF'])]
       };
-      babies.push(baby);
+      out.push(q);
 
-      if(parentMaster){
-        parentMaster.infantName=baby.name;
-        parentMaster.infantAssociated=baby.name;
-        parentMaster.operationalDetails=[...new Set([
-          ...(parentMaster.operationalDetails||[]),
-          `INFANT ASSOCIÉ : ${baby.name}`
+      if(parent){
+        parent.infantName=q.name;
+        parent.infantAssociated=q.name;
+        parent.operationalDetails=[...new Set([
+          ...(Array.isArray(parent.operationalDetails)?parent.operationalDetails:[]),
+          `INFANT ASSOCIÉ : ${q.name}`
         ])];
-        parents.push(parentMaster);
       }
-
-      if(infantMaster){
-        infantMaster.passengerType='INF';
-        infantMaster.seat='';
-        infantMaster.parentName=parentName;
-        infantMaster.parentSeat=parentSeat;
-        infantMaster.specific=baby.specific;
-        infantMaster.ssr=[...new Set([...(infantMaster.ssr||[]),'INF'])];
-      }
-    });
-
-    const dedupe=new Map();
-    babies.forEach(p=>{
-      const k=r13Norm(p.name);
-      if(k&&!dedupe.has(k))dedupe.set(k,p);
     });
 
     x.common=x.common||{};
@@ -26097,89 +26091,93 @@ console.log('BUILD143 R9 — R3.13 SQ CONTROLLED BRIDGE READY');
     x.prepaSpecificities=x.prepaSpecificities||{};
     x.prepaParticularities=x.prepaParticularities||{};
 
-    x.common_lists.INF=[...dedupe.values()];
-    x.common.INF=x.common_lists.INF.length;
-    x.prepaSpecificities['INFANT(S)']=x.common.INF;
-    x.prepaParticularities['INFANT(S)']=x.common.INF;
-    x.prepaParticularities.INF=x.common.INF;
-
-    return x.common_lists.INF;
+    x.common_lists.INF=out;
+    x.common.INF=out.length;
+    x.prepaSpecificities['INFANT(S)']=out.length;
+    x.prepaParticularities['INFANT(S)']=out.length;
+    x.prepaParticularities.INF=out.length;
+    return out;
   }
 
-  function r13BuildHcip(raw,x){
-    const rows=r13VbcpRows(raw);
-    const list=[];
-
-    rows.forEach((r,idx)=>{
-      const detail=[r?.tail,...(r?.continuation||[])].join(' ').replace(/\s+/g,' ').trim();
-      if(!/\bHCIP\b/i.test(detail))return;
-      const master=r13Master(x,r);
-      const item={
-        ...(master||r),
-        id:`SQ-HCIP-R13-${idx}`,
-        name:master?.name||r?.name||'',
-        seat:master?.seat||r?.seat||'',
-        class:master?.class||r?.class||'',
-        etkt:master?.etkt||'',
-        status:'BOOKED',
-        specific:'HCIP',
-        ssr:[...new Set([...(master?.ssr||[]),'HCIP'])]
-      };
-      list.push(item);
-
-      if(master){
-        master.ssr=[...new Set([...(master.ssr||[]),'HCIP'])];
-        master.specific=String(master.specific||'').includes('HCIP')
-          ? master.specific
-          : [master.specific,'HCIP'].filter(Boolean).join(' · ');
-      }
-    });
-
-    x.common=x.common||{};
-    x.common_lists=x.common_lists||{};
-    x.prepaSpecificities=x.prepaSpecificities||{};
-    x.prepaParticularities=x.prepaParticularities||{};
-
-    const previous=(x.common_lists.VIP||[]).filter(p=>!/\bHCIP\b/i.test([
-      p?.specific,...(Array.isArray(p?.ssr)?p.ssr:[])
-    ].join(' ')));
-
+  function r15DeriveHcip(x){
+    const list=(Array.isArray(x?.passengers)?x.passengers:[]).filter(p=>/\bHCIP\b/.test(r15PassengerText(p)));
     const map=new Map();
-    [...previous,...list].forEach(p=>{
-      const key=`${r13Norm(p?.name)}|${String(p?.specific||'').toUpperCase()}`;
-      if(key&&!map.has(key))map.set(key,p);
+    list.forEach((p,i)=>{
+      const key=R15N(p?.name)||`HCIP${i}`;
+      if(map.has(key))return;
+      map.set(key,{
+        ...p,
+        specific:'HCIP',
+        ssr:[...new Set([...(Array.isArray(p?.ssr)?p.ssr:[]),'HCIP'])]
+      });
     });
-    x.common_lists.VIP=[...map.values()];
+    const hcip=[...map.values()];
 
-    x.prepaSpecificities.HCIP=list.length;
-    x.prepaParticularities.HCIP=list.length;
+    x.common=x.common||{};
+    x.common_lists=x.common_lists||{};
+    x.prepaSpecificities=x.prepaSpecificities||{};
+    x.prepaParticularities=x.prepaParticularities||{};
 
-    const vipTotal=['IMPT','HCIP','VIP','VVIP'].reduce(
-      (n,k)=>n+Number(x.prepaSpecificities[k]||x.prepaParticularities[k]||0),0
+    const keep=(Array.isArray(x.common_lists.VIP)?x.common_lists.VIP:[]).filter(p=>!/\bHCIP\b/.test(r15PassengerText(p)));
+    x.common_lists.VIP=[...keep,...hcip];
+    x.prepaSpecificities.HCIP=hcip.length;
+    x.prepaParticularities.HCIP=hcip.length;
+
+    const total=['IMPT','HCIP','VIP','VVIP'].reduce(
+      (n,k)=>n+Number(x.prepaSpecificities?.[k]??x.prepaParticularities?.[k]??0),0
     );
-    x.common.VIP=Math.max(vipTotal,x.common_lists.VIP.length);
-
-    return list;
+    x.common.VIP=Math.max(total,x.common_lists.VIP.length);
+    return hcip;
   }
 
-  function r13BuildGroups(raw,x){
-    const rows=r13VbcpRows(raw);
-    const list=[];
+  function r15ParsePassengerHeader(line){
+    const m=String(line||'').match(/^\s*(\d{1,3})\.\s*(.*?)\s+([MFCIA])\s+CDG\s+SIN\s+([A-Z][A-Z0-9]?)\s*(?:\b(\d{2,3}[A-K])\b)?/i);
+    if(!m)return null;
+    let name=String(m[2]||'')
+      .replace(/\s+(MR|MRS|MS|MISS|MSTR|MDM|DR|CHR|CH)\b.*$/i,'')
+      .replace(/\//g,' ')
+      .replace(/\s+/g,' ')
+      .trim();
+    let cls=String(m[4]||'Y').toUpperCase().charAt(0);
+    if(cls==='C')cls='J';
+    if(cls==='W')cls='S';
+    if(!['F','J','S','Y'].includes(cls))cls='Y';
+    return {
+      seq:Number(m[1]),
+      name,
+      passengerType:String(m[3]||'').toUpperCase(),
+      bookingClass:String(m[4]||'').toUpperCase(),
+      class:cls,
+      seat:String(m[5]||'').toUpperCase()
+    };
+  }
 
-    rows.forEach((r,idx)=>{
-      const detail=[r?.tail,...(r?.continuation||[])].join(' ').replace(/\s+/g,' ').trim();
-      const m=detail.match(/\bOTHS-GROUPTYPE\s*-\s*([A-Z0-9][A-Z0-9 _'\/.-]*?)(?=\s+(?:OTHS|CTCE|CTCM|SSMB|CEID|INFT|$))/i);
-      if(!m)return;
-      const group=String(m[1]||'').replace(/\s+/g,' ').trim().toUpperCase();
-      if(!group)return;
+  function r15GroupsFromRaw(raw,x){
+    const lines=String(raw||'').replace(/\r/g,'').split('\n');
+    const found=[];
+    let lastPax=null;
+    let markerCount=0;
 
-      const master=r13Master(x,r);
+    for(let i=0;i<lines.length;i++){
+      const header=r15ParsePassengerHeader(lines[i]);
+      if(header)lastPax=header;
+
+      const gm=lines[i].match(/\bOTHS-GROUPTYPE\s*-\s*(.+?)\s*$/i);
+      if(!gm)continue;
+      markerCount++;
+
+      let group=String(gm[1]||'').trim().toUpperCase();
+      group=group.replace(/\s+(?:CTCE|CTCM|SSMB|CEID|INFT|OTHS)\b.*$/i,'').trim();
+      if(!group||!lastPax)continue;
+
+      const master=r15Master(x,lastPax.name,lastPax.seat);
       const item={
-        ...(master||r),
-        id:`SQ-GROUP-R13-${idx}`,
-        name:master?.name||r?.name||'',
-        seat:master?.seat||r?.seat||'',
-        class:master?.class||r?.class||'',
+        ...(master||lastPax),
+        id:`SQ-GROUP-R15-${i}`,
+        name:master?.name||lastPax.name,
+        seat:master?.seat||lastPax.seat||'',
+        class:master?.class||lastPax.class||'Y',
+        bookingClass:master?.bookingClass||lastPax.bookingClass||'',
         etkt:master?.etkt||'',
         status:'BOOKED',
         pnr:group,
@@ -26187,43 +26185,43 @@ console.log('BUILD143 R9 — R3.13 SQ CONTROLLED BRIDGE READY');
         groupName:group,
         specific:`GROUPE · ${group}`
       };
-      list.push(item);
+      found.push(item);
 
       if(master){
         master.groupCode=group;
         master.groupName=group;
       }
-    });
+    }
 
     const map=new Map();
-    list.forEach(p=>{
-      const key=`${r13Norm(p?.name)}|${p.groupCode}`;
+    found.forEach(p=>{
+      const key=`${R15N(p?.name)}|${String(p?.groupCode||'')}`;
       if(key&&!map.has(key))map.set(key,p);
     });
+    const groups=[...map.values()];
 
     x.common=x.common||{};
     x.common_lists=x.common_lists||{};
-    x.common_lists.GROUP=[...map.values()];
-    x.common.GROUP=new Set(x.common_lists.GROUP.map(p=>p.groupCode).filter(Boolean)).size;
+    x.prepaParticularities=x.prepaParticularities||{};
+    x.common_lists.GROUP=groups;
+    x.common.GROUP=new Set(groups.map(p=>p.groupCode).filter(Boolean)).size;
+    x.prepaParticularities.GROUP=x.common.GROUP;
 
-    return x.common_lists.GROUP;
+    return {groups,markerCount};
   }
 
-  async function r13RawForFlight(fnum,fdate){
-    const q=new URLSearchParams({
-      airline:'SQ',
-      flight:fnum,
-      limit:'100',
-      includePayload:'1'
-    });
-    const resp=await fetch(opsApiUrl('/api/prepa?'+q.toString()),{
-      cache:'no-store',
-      headers:{Accept:'application/json'}
-    });
+  function r15EnsureLive(x){
+    if(String(x?.airline||'').toUpperCase()!=='SQ')return;
+    r15DeriveInfants(x);
+    r15DeriveHcip(x);
+  }
+
+  async function r15RawForFlight(fnum,fdate){
+    const q=new URLSearchParams({airline:'SQ',flight:fnum,limit:'100',includePayload:'1'});
+    const resp=await fetch(opsApiUrl('/api/prepa?'+q.toString()),{cache:'no-store',headers:{Accept:'application/json'}});
     if(!resp.ok)throw new Error(`PREPA HTTP ${resp.status}`);
     const data=await resp.json();
-    const items=(Array.isArray(data?.items)?data.items:[])
-      .filter(x=>String(x?.flightDate||'')===fdate);
+    const items=(Array.isArray(data?.items)?data.items:[]).filter(it=>String(it?.flightDate||'')===fdate);
     if(!items.length)throw new Error('AUCUNE SOURCE PREPA POUR CE VOL');
     if(typeof window.import143BuildSpecificRaw!=='function')throw new Error('BUILD SPECIFIC RAW INDISPONIBLE');
     const raw=await window.import143BuildSpecificRaw(items,'SQ');
@@ -26231,42 +26229,36 @@ console.log('BUILD143 R9 — R3.13 SQ CONTROLLED BRIDGE READY');
     return {items,raw};
   }
 
-  window.runSqRelationFixR13=async function(
-    flightNumber='SQ335',
-    flightDate='2026-09-07'
-  ){
+  function r15FlightIndex(items,fnum,fdate){
+    let idx=(typeof findFlightIndexForInbox==='function'?findFlightIndexForInbox(items[0]):-1);
+    if(idx>=0)return idx;
+    return (Array.isArray(FLIGHTS)?FLIGHTS:[]).findIndex(x=>
+      String(x?.airline||'').toUpperCase()==='SQ' &&
+      String(x?.flight||x?.flightNumber||'').toUpperCase()===fnum &&
+      String(x?.date||x?.flightDate||'')===fdate
+    );
+  }
+
+  window.runSqFinalRelationFixR15=async function(flightNumber='SQ335',flightDate='2026-09-07'){
     const fnum=String(flightNumber||'').trim().toUpperCase();
     const fdate=String(flightDate||'').trim();
-    if(!/^SQ\d{2,4}$/.test(fnum)||!/^\d{4}-\d{2}-\d{2}$/.test(fdate)){
-      throw new Error('IDENTITE SQ INVALIDE');
-    }
+    if(!/^SQ\d{2,4}$/.test(fnum)||!/^\d{4}-\d{2}-\d{2}$/.test(fdate))throw new Error('IDENTITE SQ INVALIDE');
 
-    console.info('R13 SQ — START',fnum,fdate);
-    const {items,raw}=await r13RawForFlight(fnum,fdate);
-
-    let idx=(typeof findFlightIndexForInbox==='function'?findFlightIndexForInbox(items[0]):-1);
-    if(idx<0){
-      idx=(Array.isArray(FLIGHTS)?FLIGHTS:[]).findIndex(x=>
-        String(x?.airline||'').toUpperCase()==='SQ' &&
-        String(x?.flightNumber||x?.flight||'').toUpperCase()===fnum &&
-        String(x?.date||x?.flightDate||'')===fdate
-      );
-    }
+    const {items,raw}=await r15RawForFlight(fnum,fdate);
+    const idx=r15FlightIndex(items,fnum,fdate);
     if(idx<0)throw new Error('VOL SQ INTROUVABLE DANS LE BUILD');
-
     const x=FLIGHTS[idx];
-    const infants=r13BuildInfants(raw,x);
-    const hcip=r13BuildHcip(raw,x);
-    const groups=r13BuildGroups(raw,x);
 
-    try{render()}catch(e){console.warn('R13 render',e)}
-    try{await cacheFlightsLocallyOnly(FLIGHTS)}catch(e){console.warn('R13 cache',e)}
-    try{await persistOneFlightVerifiedToD1(x,{label:'SQ RELATION FIX R13'})}catch(e){console.warn('R13 persist',e)}
+    const infants=r15DeriveInfants(x);
+    const hcip=r15DeriveHcip(x);
+    const gr=r15GroupsFromRaw(raw,x);
+
+    try{render()}catch(e){console.warn('R15 render',e)}
+    try{await cacheFlightsLocallyOnly(FLIGHTS)}catch(e){console.warn('R15 cache',e)}
+    try{await persistOneFlightVerifiedToD1(x,{label:'SQ RELATION FIX R15'})}catch(e){console.warn('R15 persist',e)}
 
     const result={
       ok:true,
-      flightNumber:fnum,
-      flightDate:fdate,
       INF:infants.length,
       infants:infants.map(p=>({
         name:p.name,
@@ -26282,374 +26274,76 @@ console.log('BUILD143 R9 — R3.13 SQ CONTROLLED BRIDGE READY');
         class:p.class||'',
         etkt:p.etkt||''
       })),
-      GROUP:new Set(groups.map(p=>p.groupCode).filter(Boolean)).size,
-      groupNames:[...new Set(groups.map(p=>p.groupCode).filter(Boolean))],
-      groupPax:groups.length
+      GROUP:x.common.GROUP||0,
+      groupNames:[...new Set(gr.groups.map(p=>p.groupCode).filter(Boolean))],
+      groupPax:gr.groups.length,
+      rawGroupMarkers:gr.markerCount
     };
-
-    console.info('R13 SQ — RESULT',result);
+    console.info('R15 SQ RESULT',result);
     return result;
   };
 
-  // Defensive UI repair: if SQ VIP/HCIP details exist on master passengers,
-  // make them available to the existing modal before it renders.
-  const nativeOpenPrepaSpecificityCardR13=window.openPrepaSpecificityCard;
-  if(typeof nativeOpenPrepaSpecificityCardR13==='function'){
-    window.openPrepaSpecificityCard=function(defId){
-      const x=f();
-      if(String(x?.airline||'').toUpperCase()==='SQ' && String(defId||'').toUpperCase()==='VIP'){
-        x.common_lists=x.common_lists||{};
-        let vip=Array.isArray(x.common_lists.VIP)?x.common_lists.VIP:[];
-        const existing=new Set(vip.map(p=>r13Norm(p?.name)));
-        (x.passengers||[]).forEach(p=>{
-          const txt=[p?.specific,...(Array.isArray(p?.ssr)?p.ssr:[])].join(' ').toUpperCase();
-          if(/\bHCIP\b/.test(txt) && !existing.has(r13Norm(p?.name))){
-            vip.push({...p,specific:'HCIP',ssr:[...new Set([...(p?.ssr||[]),'HCIP'])]});
-          }
-        });
-        x.common_lists.VIP=vip;
+  // Ensure INF/HCIP are reconstructed live from the canonical passenger master
+  // every time the cards/modal are used, including after a fresh reload.
+  const nativePartCount15=window.particularityCountByDef;
+  if(typeof nativePartCount15==='function'){
+    window.particularityCountByDef=function(x,def){
+      if(String(x?.airline||'').toUpperCase()==='SQ' && ['INF','VIP'].includes(String(def?.id||'').toUpperCase())){
+        r15EnsureLive(x);
       }
-      return nativeOpenPrepaSpecificityCardR13.apply(this,arguments);
+      return nativePartCount15.apply(this,arguments);
     };
   }
 
-  console.log('BUILD143 R13 — SQ INFANT / HCIP / GROUP RELATION FIX READY');
-})();
-</script>
-
-
-<script>
-/* BUILD143 R14 — SQ HCIP DETAIL + GROUP CATEGORIES + INFANT RELATION
-   Post-consolidation/UI only.
-   SQ parser functions unchanged.
-   FQTV unchanged. INBOUND unchanged. MEALS ON BOARD unchanged. */
-(function(){
-  const n14=s=>String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
-
-  function master14(x,name,seat=''){
-    const arr=Array.isArray(x?.passengers)?x.passengers:[];
-    const st=String(seat||'').toUpperCase();
-    if(st){
-      const m=arr.find(p=>String(p?.seat||'').toUpperCase()===st);
-      if(m)return m;
-    }
-    const nk=n14(name);
-    let m=arr.find(p=>n14(p?.name)===nk);
-    if(m)return m;
-    return arr.find(p=>{
-      const pk=n14(p?.name);
-      return nk&&pk&&(pk.startsWith(nk)||nk.startsWith(pk));
-    })||null;
-  }
-
-  function stripTitle14(name){
-    return String(name||'')
-      .replace(/\s+(MR|MRS|MS|MISS|MSTR|MDM|DR|CHR|CH)\b.*$/i,'')
-      .replace(/\//g,' ')
-      .replace(/\s+/g,' ')
-      .trim();
-  }
-
-  function parseVbcpPassengerBlocks14(raw){
-    const text=String(raw||'').replace(/\r/g,'');
-    const sourceBlocks=text.split(/(?=^=====+\s*FICHIER\s*:)/gmi);
-    const vbcp=sourceBlocks.filter(b=>/LIST\s+OF\s*:\s*PDF-VBCPLIST/i.test(b));
-    const out=[];
-
-    vbcp.forEach(source=>{
-      const lines=source.split('\n');
-      let current=null;
-
-      const flush=()=>{
-        if(current){
-          current.text=current.lines.join('\n');
-          out.push(current);
-        }
-      };
-
-      lines.forEach(line=>{
-        const m=line.match(/^\s*(\d{1,3})\.\s*(.*?)\s+([MFCIA])\s+CDG\s+SIN\s+([A-Z][A-Z0-9]?)\s*(?:\b(\d{2,3}[A-K])\b)?/i);
-        if(m){
-          flush();
-          current={
-            seq:Number(m[1]),
-            rawName:String(m[2]||'').trim(),
-            name:stripTitle14(m[2]),
-            passengerType:String(m[3]||'').toUpperCase(),
-            bookingClass:String(m[4]||'').toUpperCase(),
-            class:(()=>{let c=String(m[4]||'Y').toUpperCase().charAt(0);if(c==='C')c='J';if(c==='W')c='S';return ['F','J','S','Y'].includes(c)?c:'Y'})(),
-            seat:String(m[5]||'').toUpperCase(),
-            lines:[line]
-          };
-        }else if(current){
-          current.lines.push(line);
-        }
-      });
-      flush();
-    });
-
-    return out;
-  }
-
-  function findInfRow14(blocks,token){
-    const key=n14(token);
-    if(!key)return null;
-    const infs=blocks.filter(b=>b.passengerType==='I');
-    return infs.find(b=>{
-      const bk=n14(b.name);
-      return bk===key || bk.startsWith(key) || key.startsWith(bk);
-    })||null;
-  }
-
-  function buildInfants14(raw,x){
-    const blocks=parseVbcpPassengerBlocks14(raw);
-    const babies=[];
-
-    blocks.forEach((parent,i)=>{
-      if(parent.passengerType==='I')return;
-      const m=parent.text.match(/\bINFT-([A-Z0-9\/ '\-]+?)\s+(\d{2}[A-Z]{3}\d{2})\b/i);
-      if(!m)return;
-
-      const token=String(m[1]||'').trim();
-      const infantRow=findInfRow14(blocks,token);
-      const infantMaster=master14(x,infantRow?.name||token,'');
-      const parentMaster=master14(x,parent.name,parent.seat);
-
-      const infantName=String(infantMaster?.name||infantRow?.name||token).replace(/\//g,' ').replace(/\s+/g,' ').trim();
-      const parentName=String(parentMaster?.name||parent.name||'').trim();
-      const parentSeat=String(parentMaster?.seat||parent.seat||'').toUpperCase();
-
-      const baby={
-        ...(infantMaster||{}),
-        id:`SQ-INF-R14-${i}`,
-        name:infantName,
-        seat:'',
-        class:infantMaster?.class||parentMaster?.class||parent.class||'Y',
-        bookingClass:infantMaster?.bookingClass||parentMaster?.bookingClass||parent.bookingClass||'',
-        passengerType:'INF',
-        status:'BOOKED',
-        parentName,
-        parentSeat,
-        specific:`INF · PARENT ASSOCIÉ : ${parentName}${parentSeat?` · SIÈGE PARENT : ${parentSeat}`:''}`,
-        ssr:['INF']
-      };
-      babies.push(baby);
-
-      if(parentMaster){
-        parentMaster.infantName=infantName;
-        parentMaster.infantAssociated=infantName;
-        parentMaster.operationalDetails=[...new Set([...(parentMaster.operationalDetails||[]),`INFANT ASSOCIÉ : ${infantName}`])];
-      }
-    });
-
-    const map=new Map();
-    babies.forEach(p=>{const k=n14(p.name);if(k&&!map.has(k))map.set(k,p)});
-
-    x.common=x.common||{};
-    x.common_lists=x.common_lists||{};
-    x.prepaSpecificities=x.prepaSpecificities||{};
-    x.prepaParticularities=x.prepaParticularities||{};
-    x.common_lists.INF=[...map.values()];
-    x.common.INF=x.common_lists.INF.length;
-    x.prepaSpecificities['INFANT(S)']=x.common.INF;
-    x.prepaParticularities['INFANT(S)']=x.common.INF;
-    x.prepaParticularities.INF=x.common.INF;
-    return x.common_lists.INF;
-  }
-
-  function buildHcip14(raw,x){
-    const blocks=parseVbcpPassengerBlocks14(raw);
-    const list=[];
-
-    blocks.forEach((b,i)=>{
-      if(!/\bHCIP\b/i.test(b.text))return;
-      const master=master14(x,b.name,b.seat);
-      const item={
-        ...(master||{}),
-        id:`SQ-HCIP-R14-${i}`,
-        name:master?.name||b.name,
-        seat:master?.seat||b.seat,
-        class:master?.class||b.class,
-        bookingClass:master?.bookingClass||b.bookingClass,
-        etkt:master?.etkt||'',
-        status:'BOOKED',
-        specific:'HCIP',
-        ssr:[...new Set([...(master?.ssr||[]),'HCIP'])]
-      };
-      list.push(item);
-
-      if(master){
-        master.ssr=[...new Set([...(master.ssr||[]),'HCIP'])];
-        if(!/\bHCIP\b/i.test(String(master.specific||''))){
-          master.specific=[master.specific,'HCIP'].filter(Boolean).join(' · ');
-        }
-      }
-    });
-
-    x.common=x.common||{};
-    x.common_lists=x.common_lists||{};
-    x.prepaSpecificities=x.prepaSpecificities||{};
-    x.prepaParticularities=x.prepaParticularities||{};
-
-    const keep=(x.common_lists.VIP||[]).filter(p=>!/\bHCIP\b/i.test([p?.specific,...(Array.isArray(p?.ssr)?p.ssr:[])].join(' ')));
-    const map=new Map();
-    [...keep,...list].forEach(p=>{
-      const k=`${n14(p.name)}|${String(p.specific||'').toUpperCase()}`;
-      if(k&&!map.has(k))map.set(k,p);
-    });
-    x.common_lists.VIP=[...map.values()];
-    x.prepaSpecificities.HCIP=list.length;
-    x.prepaParticularities.HCIP=list.length;
-
-    return list;
-  }
-
-  function buildGroups14(raw,x){
-    const blocks=parseVbcpPassengerBlocks14(raw);
-    const list=[];
-
-    blocks.forEach((b,i)=>{
-      const m=b.text.match(/\bOTHS-GROUPTYPE\s*-\s*([A-Z0-9][A-Z0-9 _'\/.-]*?)(?=\s*(?:\n|OTHS|CTCE|CTCM|SSMB|CEID|INFT|$))/i);
-      if(!m)return;
-      const group=String(m[1]||'').replace(/\s+/g,' ').trim().toUpperCase();
-      if(!group)return;
-
-      const master=master14(x,b.name,b.seat);
-      const item={
-        ...(master||{}),
-        id:`SQ-GROUP-R14-${i}`,
-        name:master?.name||b.name,
-        seat:master?.seat||b.seat,
-        class:master?.class||b.class,
-        bookingClass:master?.bookingClass||b.bookingClass,
-        etkt:master?.etkt||'',
-        status:'BOOKED',
-        pnr:group,
-        groupCode:group,
-        groupName:group,
-        specific:`GROUPE · ${group}`
-      };
-      list.push(item);
-      if(master){
-        master.groupCode=group;
-        master.groupName=group;
-      }
-    });
-
-    const map=new Map();
-    list.forEach(p=>{
-      const k=`${n14(p.name)}|${p.groupCode}`;
-      if(k&&!map.has(k))map.set(k,p);
-    });
-
-    x.common=x.common||{};
-    x.common_lists=x.common_lists||{};
-    x.common_lists.GROUP=[...map.values()];
-    x.common.GROUP=new Set(x.common_lists.GROUP.map(p=>p.groupCode).filter(Boolean)).size;
-    return x.common_lists.GROUP;
-  }
-
-  async function rawFor14(fnum,fdate){
-    const q=new URLSearchParams({airline:'SQ',flight:fnum,limit:'100',includePayload:'1'});
-    const resp=await fetch(opsApiUrl('/api/prepa?'+q.toString()),{cache:'no-store',headers:{Accept:'application/json'}});
-    if(!resp.ok)throw new Error(`PREPA HTTP ${resp.status}`);
-    const data=await resp.json();
-    const items=(Array.isArray(data?.items)?data.items:[]).filter(x=>String(x?.flightDate||'')===fdate);
-    if(!items.length)throw new Error('AUCUNE SOURCE PREPA POUR CE VOL');
-    if(typeof window.import143BuildSpecificRaw!=='function')throw new Error('BUILD SPECIFIC RAW INDISPONIBLE');
-    const raw=await window.import143BuildSpecificRaw(items,'SQ');
-    if(!String(raw||'').trim())throw new Error('SOURCES SQ VIDES');
-    return {items,raw};
-  }
-
-  function flightIndex14(items,fnum,fdate){
-    let idx=(typeof findFlightIndexForInbox==='function'?findFlightIndexForInbox(items[0]):-1);
-    if(idx>=0)return idx;
-    return (Array.isArray(FLIGHTS)?FLIGHTS:[]).findIndex(x=>
-      String(x?.airline||'').toUpperCase()==='SQ' &&
-      String(x?.flightNumber||x?.flight||'').toUpperCase()===fnum &&
-      String(x?.date||x?.flightDate||'')===fdate
-    );
-  }
-
-  window.runSqPresentationFixR14=async function(flightNumber='SQ335',flightDate='2026-09-07'){
-    const fnum=String(flightNumber||'').trim().toUpperCase();
-    const fdate=String(flightDate||'').trim();
-    if(!/^SQ\d{2,4}$/.test(fnum)||!/^\d{4}-\d{2}-\d{2}$/.test(fdate))throw new Error('IDENTITE SQ INVALIDE');
-
-    const {items,raw}=await rawFor14(fnum,fdate);
-    const idx=flightIndex14(items,fnum,fdate);
-    if(idx<0)throw new Error('VOL SQ INTROUVABLE DANS LE BUILD');
-    const x=FLIGHTS[idx];
-
-    const infants=buildInfants14(raw,x);
-    const hcip=buildHcip14(raw,x);
-    const groups=buildGroups14(raw,x);
-
-    try{render()}catch(e){console.warn('R14 render',e)}
-    try{await cacheFlightsLocallyOnly(FLIGHTS)}catch(e){console.warn('R14 cache',e)}
-    try{await persistOneFlightVerifiedToD1(x,{label:'SQ PRESENTATION FIX R14'})}catch(e){console.warn('R14 persist',e)}
-
-    const result={
-      ok:true,
-      INF:infants.length,
-      infants:infants.map(p=>({name:p.name,parentName:p.parentName,parentSeat:p.parentSeat,seat:p.seat||''})),
-      HCIP:hcip.length,
-      hcip:hcip.map(p=>({name:p.name,seat:p.seat,class:p.class,etkt:p.etkt||''})),
-      GROUP:new Set(groups.map(p=>p.groupCode)).size,
-      groupNames:[...new Set(groups.map(p=>p.groupCode))],
-      groupPax:groups.length
-    };
-    console.info('R14 SQ RESULT',result);
-    return result;
-  };
-
-  // HCIP/VIP modal: categories first, then detailed passenger list.
-  const nativeOpenPrepa14=window.openPrepaSpecificityCard;
-  window.openPrepaSpecificityCard=function(defId,sort='name',dir='asc',replaceSort=false){
+  const nativeOpenSpec15=window.openPrepaSpecificityCard;
+  window.openPrepaSpecificityCard=function(defId){
     const x=f();
-    if(String(x?.airline||'').toUpperCase()==='SQ' && String(defId||'').toUpperCase()==='VIP'){
-      const arr=Array.isArray(x?.common_lists?.VIP)?x.common_lists.VIP:[];
-      const cats=['IMPT','HCIP','VIP','VVIP'];
-      const groups={};
-      cats.forEach(c=>groups[c]=[]);
-      arr.forEach(p=>{
-        const txt=[p?.specific,...(Array.isArray(p?.ssr)?p.ssr:[])].join(' ').toUpperCase();
-        cats.forEach(c=>{if(new RegExp(`\\b${c}\\b`).test(txt))groups[c].push(p)});
-      });
-      // Keep quantities from prepa for empty categories, but names from detailed lists when present.
-      showModal('IMPT / HCIP / VIP / VVIP',x.flight,`
-        <div class="vip-summary-grid">
-          ${cats.map(c=>`<button class="vip-summary-card" onclick="${groups[c].length?`openSqVipCategoryR14('${c}')`:''}">
-            <small>${c}</small>
-            <strong>${Math.max(groups[c].length,Number(x?.prepaSpecificities?.[c]||x?.prepaParticularities?.[c]||0))}</strong>
-            ${groups[c].length?'<span>VOIR LES PASSAGERS</span>':''}
-          </button>`).join('')}
-        </div>
-        ${groups.HCIP.length?`<div class="part-detail-table-wrap" style="margin-top:14px">
-          <div class="part-detail-table-head"><span>NOM / PRÉNOM</span><span>SIÈGE</span><span>CLASSE</span><span>DOCUMENT</span><span>SSR / INFO</span></div>
-          <div class="part-detail-list part-detail-table">
-            ${groups.HCIP.map((p,i)=>`<button class="part-detail-row" onclick="PAX_MODAL_ITEMS=(f().common_lists.VIP||[]).filter(q=>/\\bHCIP\\b/i.test([q.specific,...(q.ssr||[])].join(' ')));openPaxFromModal(${i})">
-              <strong class="part-col-name">${passengerDisplayName(p)}</strong>
-              <span class="part-col-seat">${p.seat||'—'}</span>
-              <span class="part-col-class">${modalClassText(p.class)}</span>
-              <span class="part-col-doc">${passengerDocMeta(p)||'—'}</span>
-              <span class="part-col-ssr">HCIP</span>
+    const id=String(defId||'').toUpperCase();
+    if(String(x?.airline||'').toUpperCase()==='SQ'){
+      r15EnsureLive(x);
+
+      if(id==='VIP'){
+        const hcip=(x.common_lists?.VIP||[]).filter(p=>/\bHCIP\b/.test(r15PassengerText(p)));
+        const cats=['IMPT','HCIP','VIP','VVIP'];
+        const counts={};
+        cats.forEach(c=>{
+          counts[c]=c==='HCIP'
+            ?hcip.length
+            :Number(x?.prepaSpecificities?.[c]??x?.prepaParticularities?.[c]??0);
+        });
+        window.__sqHcipR15=hcip;
+        showModal('IMPT / HCIP / VIP / VVIP',x.flight,`
+          <div class="vip-summary-grid">
+            ${cats.map(c=>`<button class="vip-summary-card" ${c==='HCIP'&&hcip.length?`onclick="openSqHcipR15()"`:''}>
+              <small>${c}</small><strong>${counts[c]}</strong>${c==='HCIP'&&hcip.length?'<span>VOIR LES PASSAGERS</span>':''}
             </button>`).join('')}
           </div>
-        </div>`:'<div class="prepa-empty">AUCUN PASSAGER DÉTAILLÉ</div>'}
-      `);
-      return;
+          ${hcip.length?`<div class="part-detail-table-wrap" style="margin-top:14px">
+            <div class="part-detail-table-head"><span>NOM / PRÉNOM</span><span>SIÈGE</span><span>CLASSE</span><span>DOCUMENT</span><span>SSR / INFO</span></div>
+            <div class="part-detail-list part-detail-table">
+              ${hcip.map((p,i)=>`<button class="part-detail-row" onclick="PAX_MODAL_ITEMS=window.__sqHcipR15;openPaxFromModal(${i})">
+                <strong class="part-col-name">${passengerDisplayName(p)}</strong>
+                <span class="part-col-seat">${p.seat||'—'}</span>
+                <span class="part-col-class">${modalClassText(p.class)}</span>
+                <span class="part-col-doc">${passengerDocMeta(p)||'—'}</span>
+                <span class="part-col-ssr">HCIP</span>
+              </button>`).join('')}
+            </div>
+          </div>`:'<div class="prepa-empty">AUCUN PASSAGER DÉTAILLÉ</div>'}
+        `);
+        return;
+      }
     }
-    return nativeOpenPrepa14.apply(this,arguments);
+    return nativeOpenSpec15.apply(this,arguments);
   };
 
-  window.openSqVipCategoryR14=function(code,sort='name',dir='asc'){
-    const x=f(),c=String(code||'').toUpperCase();
-    const source=(x?.common_lists?.VIP||[]).filter(p=>new RegExp(`\\b${c}\\b`,'i').test([p?.specific,...(Array.isArray(p?.ssr)?p.ssr:[])].join(' ')));
+  window.openSqHcipR15=function(sort='name',dir='asc'){
+    const x=f();
+    r15EnsureLive(x);
+    const source=(x.common_lists?.VIP||[]).filter(p=>/\bHCIP\b/.test(r15PassengerText(p)));
     const list=sortPaxItems(source,sort,dir);
     PAX_MODAL_ITEMS=list;PAX_MODAL_SOURCE=source.slice();
-    showModal(`VIP / PARTICULAR · ${c}`,x.flight,`
+    showModal('HCIP',x.flight,`
       <div class="part-detail-table-wrap">
         <div class="part-detail-table-head"><span>NOM / PRÉNOM</span><span>SIÈGE</span><span>CLASSE</span><span>DOCUMENT</span><span>SSR / INFO</span></div>
         <div class="part-detail-list part-detail-table">
@@ -26658,44 +26352,47 @@ console.log('BUILD143 R9 — R3.13 SQ CONTROLLED BRIDGE READY');
             <span class="part-col-seat">${p.seat||'—'}</span>
             <span class="part-col-class">${modalClassText(p.class)}</span>
             <span class="part-col-doc">${passengerDocMeta(p)||'—'}</span>
-            <span class="part-col-ssr">${c}</span>
-          </button>`).join('')||'<div class="prepa-empty">AUCUN PASSAGER</div>'}
+            <span class="part-col-ssr">HCIP</span>
+          </button>`).join('')}
         </div>
       </div>`);
   };
 
-  // GROUP modal: category cards first, exactly like FQTV logic.
-  const nativeOpenGroup14=window.openGroupModal;
+  // GROUP UI: category cards first, then passenger list, same interaction model as FQTV.
+  const nativeOpenGroup15=window.openGroupModal;
   window.openGroupModal=function(){
     const x=f();
-    if(String(x?.airline||'').toUpperCase()!=='SQ')return nativeOpenGroup14.apply(this,arguments);
+    if(String(x?.airline||'').toUpperCase()!=='SQ')return nativeOpenGroup15.apply(this,arguments);
+
     const list=Array.isArray(x?.common_lists?.GROUP)?x.common_lists.GROUP:[];
     const groups={};
     list.forEach(p=>{
       const g=String(p?.groupCode||p?.groupName||p?.pnr||'').trim().toUpperCase();
-      if(!g)return;
-      (groups[g]=groups[g]||[]).push(p);
+      if(g)(groups[g]=groups[g]||[]).push(p);
     });
+    window.__sqGroupsR15=groups;
     const names=Object.keys(groups).sort((a,b)=>a.localeCompare(b));
-    window.__sqGroupR14=groups;
+
     showModal(`GROUP · ${names.length}`,x.flight,`
       <div class="meal-category-list fq-display-order">
-        ${names.map(g=>`<button class="meal-category-row" onclick="openSqGroupCategoryR14('${g.replace(/'/g,"\\'")}')">
+        ${names.map(g=>`<button class="meal-category-row" onclick="openSqGroupR15('${g.replace(/'/g,"\\'")}')">
           <span>${g}</span><b>${groups[g].length}</b><small>VOIR LES PASSAGERS</small>
         </button>`).join('')||'<div class="prepa-empty">AUCUN GROUPE DÉTAILLÉ</div>'}
       </div>`);
   };
 
-  window.openSqGroupCategoryR14=function(group,sort='name',dir='asc'){
+  window.openSqGroupR15=function(group,sort='name',dir='asc'){
     const x=f(),g=String(group||'').toUpperCase();
-    const source=(x?.common_lists?.GROUP||[]).filter(p=>String(p?.groupCode||p?.groupName||p?.pnr||'').toUpperCase()===g);
+    const source=(x.common_lists?.GROUP||[]).filter(p=>String(p?.groupCode||p?.groupName||p?.pnr||'').toUpperCase()===g);
     const list=sortPaxItems(source,sort,dir);
     PAX_MODAL_ITEMS=list;PAX_MODAL_SOURCE=source.slice();
+    const next=k=>sort===k?(dir==='asc'?'desc':'asc'):'asc';
+
     showModal(`GROUP · ${g}`,x.flight,`
       <div class="sortbar compact-sortbar">
-        <button class="${sort==='name'?'active':''}" onclick="openSqGroupCategoryR14('${g}','name','${sort==='name'&&dir==='asc'?'desc':'asc'}')">NOM${sortArrow(sort==='name',dir)}</button>
-        <button class="${sort==='class'?'active':''}" onclick="openSqGroupCategoryR14('${g}','class','${sort==='class'&&dir==='asc'?'desc':'asc'}')">CLASSE${sortArrow(sort==='class',dir)}</button>
-        <button class="${sort==='seat'?'active':''}" onclick="openSqGroupCategoryR14('${g}','seat','${sort==='seat'&&dir==='asc'?'desc':'asc'}')">SIÈGE${sortArrow(sort==='seat',dir)}</button>
+        <button class="${sort==='name'?'active':''}" onclick="openSqGroupR15('${g}','name','${next('name')}')">NOM${sortArrow(sort==='name',dir)}</button>
+        <button class="${sort==='class'?'active':''}" onclick="openSqGroupR15('${g}','class','${next('class')}')">CLASSE${sortArrow(sort==='class',dir)}</button>
+        <button class="${sort==='seat'?'active':''}" onclick="openSqGroupR15('${g}','seat','${next('seat')}')">SIÈGE${sortArrow(sort==='seat',dir)}</button>
       </div>
       <div class="part-detail-table-wrap">
         <div class="part-detail-table-head"><span>NOM / PRÉNOM</span><span>SIÈGE</span><span>CLASSE</span><span>DOCUMENT</span><span>SSR / INFO</span></div>
@@ -26711,7 +26408,8 @@ console.log('BUILD143 R9 — R3.13 SQ CONTROLLED BRIDGE READY');
       </div>`);
   };
 
-  console.log('BUILD143 R14 — SQ HCIP DETAIL / GROUP CATEGORIES / INFANT READY');
+  window.r15EnsureSqLiveDerived=r15EnsureLive;
+  console.log('BUILD143 R15 — SQ INF / HCIP LIVE + GROUPTYPE READY');
 })();
 </script>
 
