@@ -25362,7 +25362,7 @@ async function import143RecoverOneSpecificFlight(f){
   if(!items.length)return false;
   const raw=await import143BuildSpecificRaw(items,c);
   if(!String(raw||'').trim())throw new Error(`SOURCES ${c} VIDES`);
-  let idx=findFlightIndexForInbox(items[0]);
+  let idx=(typeof findFlightIndexForInbox==='function'?findFlightIndexForInbox(items[0]):-1);
   if(idx<0)idx=await v5002EnsureFlightFromInbox(items[0],raw,{allowSpecific:true});
   if(idx<0)throw new Error(`VOL ${c} NON CRÉÉ`);
   // BUILD143 R7 — ZERO FLICKER : le parser historique exige #modal.
@@ -25442,6 +25442,9 @@ console.log('BUILD143 R5: IMPORT GMAIL modal state/scroll preserved during backg
 console.log('BUILD143 R6: IMPORT GMAIL stays visible during specific parser D1 persistence (no modal flash)');
 console.log('BUILD143 R7: ZERO FLICKER sandbox modal + strict specific confirmation active');
 
+window.import143RecoverOneSpecificFlight = import143RecoverOneSpecificFlight;
+
+window.import143BuildSpecificRaw = import143BuildSpecificRaw;
 window.import143RecoverOneSpecificFlight = import143RecoverOneSpecificFlight;
 })();
 </script>
@@ -25876,10 +25879,10 @@ console.log('BUILD143 R9 — R3.13 SQ CONTROLLED BRIDGE READY');
 
     if(!items.length)throw new Error('AUCUNE SOURCE PREPA POUR CE VOL');
 
-    if(typeof import143BuildSpecificRaw!=='function'){
+    if(typeof window.import143BuildSpecificRaw!=='function'){
       throw new Error('BUILD SPECIFIC RAW INDISPONIBLE');
     }
-    const raw=await import143BuildSpecificRaw(items,'SQ');
+    const raw=await window.import143BuildSpecificRaw(items,'SQ');
     if(!String(raw||'').trim())throw new Error('SOURCES SQ VIDES');
 
     let idx=findFlightIndexForInbox(items[0]);
