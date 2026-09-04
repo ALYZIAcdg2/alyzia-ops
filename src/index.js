@@ -1,5 +1,5 @@
-// ALYZIA OPS V50.30 R3.7 SQ IDENTITY AUDIT
-// READ-ONLY identity audit for SQ legacy date mismatches. Parsers unchanged.
+// ALYZIA OPS V50.30 R3.8 SQ SERVICE DATE AUDIT FIX
+// READ-ONLY. Service date is taken immediately after SQ flight number; later dates are timestamps.
 // V50.28 RULE: INC/INCARRIAGE = INBOUND PAX; INBOUND SUMMARY = FLIGHT METADATA; route inbound terminates at main origin (CDG).
 // V50.27 RULE: INCARRIAGE/INC = INBOUND PASSENGERS; INBOUND CUSTOMER SUMMARY = INBOUND FLIGHTS.
 // Passenger dossier displays linked INBOUND/OUTBOUND flight exactly via the shared connection rows.
@@ -4888,7 +4888,7 @@ async function lot3FlightCards(env,url){
  * ========================================================= */
 
 // LOT 5.2 FULL MAILBOX CONTINUOUS — whole Gmail mailbox + newest-first + resumable pagination + non-blocking errors.
-const LOT5_VERSION="V50.30_R3_7_SQ_IDENTITY_AUDIT";
+const LOT5_VERSION="V50.30_R3_8_SQ_SERVICE_DATE_AUDIT_FIX";
 // 5.3.5 scope: pipeline recovery + Gmail body + historical replay + Drive archive + fast summary.
 // Specific parsers remain byte-for-byte untouched.
 // Gmail -> identity -> R2/D1 -> Drive -> existing parser -> flight injection -> exclusive Gmail state.
@@ -6662,6 +6662,68 @@ function cleanNormalizeSqIdentityV37(found,receivedAt){
   return {airline,flightNumber,flightDate};
 }
 
+
+function cleanMonthNumberV38(mon){
+  const m={JAN:'01',FEB:'02',MAR:'03',APR:'04',MAY:'05',JUN:'06',JUL:'07',AUG:'08',SEP:'09',OCT:'10',NOV:'11',DEC:'12'};
+  return m[String(mon||'').toUpperCase()]||'';
+}
+
+function cleanResolveYearV38(twoOrFour,receivedAt){
+  const s=String(twoOrFour||'');
+  if(/^\d{4}$/.test(s))return s;
+  if(/^\d{2}$/.test(s))return `20${s}`;
+  const d=new Date(receivedAt||Date.now());
+  return String(Number.isFinite(d.getTime())?d.getUTCFullYear():new Date().getUTCFullYear());
+}
+
+function cleanParseServiceDateTokenV38(token,receivedAt){
+  const t=String(token||'').trim().toUpperCase();
+
+  if(/^20\d{6}$/.test(t)){
+    return `${t.slice(0,4)}-${t.slice(4,6)}-${t.slice(6,8)}`;
+  }
+
+  let m=t.match(/^(\d{1,2})(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)(\d{2}|\d{4})?$/i);
+  if(m){
+    const dd=String(Number(m[1])).padStart(2,'0');
+    const mm=cleanMonthNumberV38(m[2]);
+    const yyyy=cleanResolveYearV38(m[3]||'',receivedAt);
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  return lot5CanonicalFlightDate(t,receivedAt)||'';
+}
+
+function cleanDetectSqSubjectServiceV38(subject,receivedAt){
+  const s=String(subject||'').toUpperCase().replace(/\s+/g,' ').trim();
+
+  // Explicit priority rule:
+  // the SERVICE DATE is the date token immediately attached to / following SQxxx.
+  // Any later date/time in the subject is document/message generation timestamp.
+  const patterns=[
+    /\b(SQ\s*\d{1,4})\s*\/\s*(20\d{6})\b/i,
+    /\b(SQ\s*\d{1,4})\s+(\d{1,2}(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)(?:\d{2}|\d{4})?)\b/i,
+    /\b(?:PREPA\s+)?(SQ\s*\d{1,4})\s*\/\s*(\d{1,2}(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)(?:\d{2}|\d{4})?)\b/i
+  ];
+
+  for(const re of patterns){
+    const m=s.match(re);
+    if(!m)continue;
+    const flightNumber=String(m[1]||'').replace(/\s+/g,'').toUpperCase();
+    const flightDate=cleanParseServiceDateTokenV38(m[2]||'',receivedAt);
+    if(/^SQ\d{1,4}$/.test(flightNumber) && /^20\d{2}-\d{2}-\d{2}$/.test(flightDate)){
+      return {
+        airline:'SQ',
+        flightNumber,
+        flightDate,
+        serviceDateToken:String(m[2]||''),
+        matched:true
+      };
+    }
+  }
+  return {airline:'',flightNumber:'',flightDate:'',serviceDateToken:'',matched:false};
+}
+
 function cleanDetectSqFromTextV37(text,receivedAt){
   const t=String(text||'');
   if(!t.trim())return {airline:'',flightNumber:'',flightDate:''};
@@ -6674,10 +6736,18 @@ async function cleanDetectSqIdentitySourceV37(env,message){
   const subject=extractHeader(message,'Subject');
   const receivedAt=extractHeader(message,'Date');
 
-  // 1) Subject
-  const subjectFound=cleanDetectSqFromTextV37(subject,receivedAt);
+  // 1) Subject — R3.8: service date is the token immediately following SQxxx.
+  // Example: "SQ335 30AUG CDG-SIN 27AUG26 11:37"
+  // => service date 30AUG; 27AUG26 is only the document timestamp.
+  const subjectService=cleanDetectSqSubjectServiceV38(subject,receivedAt);
+  const subjectFound=subjectService.matched?subjectService:cleanDetectSqFromTextV37(subject,receivedAt);
   if(cleanIdentityCompleteV37(subjectFound)){
-    return {...subjectFound,detectionSource:'SUBJECT',evidence:subject.slice(0,300)};
+    return {
+      ...subjectFound,
+      detectionSource:'SUBJECT',
+      serviceDateToken:String(subjectService.serviceDateToken||''),
+      evidence:subject.slice(0,300)
+    };
   }
 
   // 2) Gmail body
@@ -6795,6 +6865,7 @@ async function gmailCleanSqIdentityAuditV37(env,url){
         storedDate,
         detectedFlightNumber:String(detected.flightNumber||''),
         detectedDate:String(detected.flightDate||''),
+        serviceDateToken:String(detected.serviceDateToken||''),
         detectionSource:String(detected.detectionSource||'UNRESOLVED'),
         mismatch,
         unresolved:!!detected.unresolved,
