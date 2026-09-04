@@ -1,10 +1,10 @@
-// R2 FIX: allow /api/gmail-clean/* in handleLot5 AND top-level fetch router.
++ attachment identity fallback + retryable SQ states.
 // V50.28 RULE: INC/INCARRIAGE = INBOUND PAX; INBOUND SUMMARY = FLIGHT METADATA; route inbound terminates at main origin (CDG).
 // V50.27 RULE: INCARRIAGE/INC = INBOUND PASSENGERS; INBOUND CUSTOMER SUMMARY = INBOUND FLIGHTS.
 // Passenger dossier displays linked INBOUND/OUTBOUND flight exactly via the shared connection rows.
 // ALYZIA OPS V50.28 · Generic Connections + Full Passenger Consolidation
 // - Assets statiques public/
-// - API vols partagée D1 
+// - API vols partagée D1
 // - Bridge interne vers SARIA
 
 const SARIA_PUBLIC_ORIGIN = "https://saria-seatmap.alyzia-cdg2.workers.dev";
@@ -1516,6 +1516,23 @@ async function ensureGmailPipelineTables(env){
       )
     `),
     env.OPS_DB.prepare(`
+      CREATE TABLE IF NOT EXISTS gmail_message_documents (
+        gmail_message_id TEXT NOT NULL,
+        version_id TEXT NOT NULL,
+        file_id TEXT NOT NULL,
+        source_kind TEXT NOT NULL DEFAULT 'ATTACHMENT',
+        source_ref TEXT,
+        parent_version_id TEXT,
+        is_duplicate INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (gmail_message_id, version_id, source_kind, source_ref)
+      )
+    `),
+    env.OPS_DB.prepare(`
+      CREATE INDEX IF NOT EXISTS idx_gmail_message_documents_message
+      ON gmail_message_documents(gmail_message_id,created_at)
+    `),
+    env.OPS_DB.prepare(`
       CREATE TABLE IF NOT EXISTS import_changes (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         scope TEXT NOT NULL,
@@ -1864,6 +1881,319 @@ async function clearAlyziaPipelineLabels(env,messageId){
   }
   if(remove.length)await gmailFetch(env,`/messages/${encodeURIComponent(messageId)}/modify`,{method:'POST',body:JSON.stringify({removeLabelIds:[...new Set(remove)]})});
 }
+
+async function cleanLinkMessageDocumentV3(env,{
+  gmailMessageId,versionId,fileId,sourceKind='ATTACHMENT',sourceRef='',parentVersionId='',isDuplicate=false
+}){
+  if(!gmailMessageId||!versionId||!fileId)return;
+  await env.OPS_DB.prepare(`
+    INSERT INTO gmail_message_documents
+      (gmail_message_id,version_id,file_id,source_kind,source_ref,parent_version_id,is_duplicate,created_at)
+    VALUES (?,?,?,?,?,?,?,CURRENT_TIMESTAMP)
+    ON CONFLICT(gmail_message_id,version_id,source_kind,source_ref) DO UPDATE SET
+      file_id=excluded.file_id,
+      parent_version_id=excluded.parent_version_id,
+      is_duplicate=excluded.is_duplicate
+  `).bind(
+    String(gmailMessageId),String(versionId),String(fileId),
+    String(sourceKind||'ATTACHMENT'),String(sourceRef||''),
+    String(parentVersionId||''),isDuplicate?1:0
+  ).run();
+}
+
+function cleanDecodeQuotedPrintableV3(s){
+  const src=String(s||'').replace(/=\r?\n/g,'');
+  const bytes=[];
+  for(let i=0;i<src.length;i++){
+    if(src[i]==='=' && /^[0-9A-Fa-f]{2}$/.test(src.slice(i+1,i+3))){
+      bytes.push(parseInt(src.slice(i+1,i+3),16)); i+=2;
+    }else{
+      const enc=new TextEncoder().encode(src[i]);
+      for(const b of enc)bytes.push(b);
+    }
+  }
+  try{return new TextDecoder().decode(new Uint8Array(bytes))}catch(e){return src}
+}
+
+function cleanDecodeMimeWordV3(v){
+  return String(v||'').replace(/=\?([^?]+)\?([bqBQ])\?([^?]+)\?=/g,(_,cs,mode,data)=>{
+    try{
+      if(String(mode).toUpperCase()==='B'){
+        const bin=atob(String(data).replace(/\s+/g,''));
+        const bytes=new Uint8Array(bin.length);
+        for(let i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);
+        return new TextDecoder().decode(bytes);
+      }
+      return cleanDecodeQuotedPrintableV3(String(data).replace(/_/g,' '));
+    }catch(e){return data}
+  });
+}
+
+function cleanParseHeadersV3(raw){
+  const unfolded=String(raw||'').replace(/\r?\n[ \t]+/g,' ');
+  const out={};
+  for(const line of unfolded.split(/\r?\n/)){
+    const i=line.indexOf(':'); if(i<1)continue;
+    const k=line.slice(0,i).trim().toLowerCase();
+    const v=line.slice(i+1).trim();
+    out[k]=out[k]?`${out[k]}, ${v}`:v;
+  }
+  return out;
+}
+
+function cleanHeaderParamV3(value,name){
+  const s=String(value||'');
+  const re=new RegExp(`(?:^|;)\\s*${name}\\*?\\s*=\\s*(?:"([^"]*)"|([^;]+))`,'i');
+  const m=s.match(re);
+  if(!m)return '';
+  let v=String(m[1]??m[2]??'').trim();
+  v=v.replace(/^UTF-8''/i,'');
+  try{v=decodeURIComponent(v)}catch(e){}
+  return cleanDecodeMimeWordV3(v);
+}
+
+function cleanBase64ToBytesV3(s){
+  try{
+    const bin=atob(String(s||'').replace(/\s+/g,''));
+    const out=new Uint8Array(bin.length);
+    for(let i=0;i<bin.length;i++)out[i]=bin.charCodeAt(i);
+    return out;
+  }catch(e){return new Uint8Array()}
+}
+
+function cleanQuotedPrintableToBytesV3(s){
+  const txt=cleanDecodeQuotedPrintableV3(s);
+  return new TextEncoder().encode(txt);
+}
+
+function cleanSplitMimeEntityV3(raw){
+  const src=String(raw||'').replace(/\r\n/g,'\n');
+  const idx=src.indexOf('\n\n');
+  if(idx<0)return {headers:{},body:src};
+  return {headers:cleanParseHeadersV3(src.slice(0,idx)),body:src.slice(idx+2)};
+}
+
+function cleanParseEmlRecursiveV3(rawText,depth=0){
+  if(depth>3)return {headers:{},textBodies:[],attachments:[]};
+  const entity=cleanSplitMimeEntityV3(rawText);
+  const h=entity.headers;
+  const ct=String(h['content-type']||'text/plain');
+  const disp=String(h['content-disposition']||'');
+  const enc=String(h['content-transfer-encoding']||'').toLowerCase();
+  const boundary=cleanHeaderParamV3(ct,'boundary');
+  const filename=cleanHeaderParamV3(disp,'filename')||cleanHeaderParamV3(ct,'name');
+  const mime=ct.split(';')[0].trim().toLowerCase()||'text/plain';
+
+  if(mime.startsWith('multipart/') && boundary){
+    const marker=`--${boundary}`;
+    const pieces=entity.body.split(marker).slice(1);
+    const textBodies=[],attachments=[];
+    for(let p of pieces){
+      p=p.replace(/^\r?\n/,'').replace(/\r?\n--\s*$/,'').trim();
+      if(!p||p==='--')continue;
+      const child=cleanParseEmlRecursiveV3(p,depth+1);
+      textBodies.push(...(child.textBodies||[]));
+      attachments.push(...(child.attachments||[]));
+    }
+    return {headers:h,textBodies,attachments};
+  }
+
+  let bytes;
+  if(enc==='base64')bytes=cleanBase64ToBytesV3(entity.body);
+  else if(enc==='quoted-printable')bytes=cleanQuotedPrintableToBytesV3(entity.body);
+  else bytes=new TextEncoder().encode(entity.body);
+
+  if(mime==='message/rfc822'){
+    const nestedText=new TextDecoder().decode(bytes);
+    const nested=cleanParseEmlRecursiveV3(nestedText,depth+1);
+    return {
+      headers:h,
+      textBodies:nested.textBodies||[],
+      attachments:[
+        {filename:filename||'nested_message.eml',mimeType:'message/rfc822',bytes},
+        ...(nested.attachments||[])
+      ]
+    };
+  }
+
+  const isText=mime==='text/plain'||mime==='text/html';
+  const isAttachment=!!filename || /attachment/i.test(disp);
+  if(isText && !isAttachment){
+    let t=new TextDecoder().decode(bytes);
+    if(mime==='text/html'){
+      t=t.replace(/<br\s*\/?\s*>/gi,'\n').replace(/<\/p\s*>/gi,'\n').replace(/<[^>]+>/g,' ');
+    }
+    return {headers:h,textBodies:[lot2CleanText(t)],attachments:[]};
+  }
+  return {headers:h,textBodies:[],attachments:[{filename:filename||'eml_part.bin',mimeType:mime,bytes}]};
+}
+
+async function cleanProbeAttachmentIdentitySQV3(env,messageId,subject,bodyText,parts,cache){
+  const current=detectMailFlight(subject,'',bodyText);
+  const complete=()=>current.airline==='SQ' && current.flightNumber && current.flightDate;
+  if(complete())return current;
+
+  for(const part of parts||[]){
+    if(complete())break;
+    const attachmentId=String(part.body?.attachmentId||'');
+    if(!attachmentId)continue;
+    try{
+      let bytes=cache.get(attachmentId);
+      if(!bytes){
+        const att=await gmailFetch(env,`/messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachmentId)}`);
+        bytes=b64urlToBytes(att.data||''); cache.set(attachmentId,bytes);
+      }
+      const filename=String(part.filename||'');
+      const mime=String(part.mimeType||'').toLowerCase();
+      let probe=filename;
+      if(/\.eml$/i.test(filename)||mime==='message/rfc822'){
+        const raw=new TextDecoder().decode(bytes);
+        const parsed=cleanParseEmlRecursiveV3(raw);
+        probe += '\n'+raw.slice(0,180000)+'\n'+(parsed.textBodies||[]).join('\n');
+      }else if(/\.pdf$/i.test(filename)||mime.includes('pdf')){
+        const ex=await lot2ExtractPdfTextFromBytes(bytes).catch(()=>({text:''}));
+        probe += '\n'+String(ex?.text||'').slice(0,120000);
+      }else if(mime.startsWith('text/')||/\.(txt|csv|html?)$/i.test(filename)){
+        probe += '\n'+new TextDecoder().decode(bytes).slice(0,120000);
+      }
+      const found=detectMailFlight(subject,filename,`${bodyText||''}\n${probe}`);
+      if(!current.airline && found.airline)current.airline=found.airline;
+      if(!current.flightNumber && found.flightNumber)current.flightNumber=found.flightNumber;
+      if(!current.flightDate && found.flightDate)current.flightDate=found.flightDate;
+      if(current.airline && current.airline!=='SQ')break;
+    }catch(e){}
+  }
+  return current;
+}
+
+async function cleanStoreDocumentV3(env,{
+  messageId,attachmentId,filename,mime,bytes,receivedAt,flight,docType,
+  sourceKind='ATTACHMENT',sourceRef='',parentVersionId=''
+}){
+  const airline=String(flight?.airline||'UNK').toUpperCase();
+  const flightNumber=String(flight?.flightNumber||'UNIDENTIFIED').toUpperCase();
+  const flightDate=lot5CanonicalFlightDate(flight?.flightDate||'',receivedAt)||String(flight?.flightDate||'UNKNOWN_DATE');
+  const norm=normalizeFilename(filename);
+  const sha=await sha256Hex(bytes);
+  const fileId=cleanDocumentFileIdV1(airline,flightNumber,flightDate,docType,sha);
+  const versionId=`${fileId}|V1`;
+  const r2Key=`prepa/${flightDate}/${airline}/${flightNumber}/${messageId}/${sha}_${norm}`.replace(/\s+/g,'_');
+
+  const existingVersion=await env.OPS_DB.prepare(`SELECT version_id FROM import_file_versions WHERE version_id=? LIMIT 1`).bind(versionId).first();
+  if(existingVersion){
+    await cleanLinkMessageDocumentV3(env,{gmailMessageId:messageId,versionId,fileId,sourceKind,sourceRef,parentVersionId,isDuplicate:true});
+    await recordImportChange(env,{scope:'FILE',airline,flightNumber,flightDate,gmailMessageId:messageId,fileId,versionId,changeType:'DUPLICATE_LINKED',after:{filename,sha,sourceKind,sourceRef}});
+    return {added:0,updated:0,duplicate:1,fileId,versionId,sha,created:false};
+  }
+
+  await env.OPS_FILES.put(r2Key,bytes,{httpMetadata:{contentType:mime},customMetadata:{
+    gmail_message_id:messageId,filename_original:filename,sha256:sha,document_type:docType,
+    source_kind:sourceKind,parent_version_id:parentVersionId||''
+  }});
+
+  await env.OPS_DB.prepare(`
+    INSERT INTO import_file_versions
+      (version_id,file_id,gmail_message_id,attachment_id,filename_original,filename_normalized,mime_type,file_size,sha256,r2_key,document_time,received_at,status,is_active,created_at)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?, 'STORED', 1, CURRENT_TIMESTAMP)
+  `).bind(versionId,fileId,messageId,attachmentId||sourceRef||sourceKind,filename,norm,mime,bytes.byteLength,sha,r2Key,receivedAt,receivedAt).run();
+
+  await env.OPS_DB.prepare(`
+    INSERT INTO import_files
+      (file_id,active_version_id,airline,flight_number,flight_date,document_type,filename_normalized,status,latest_document_time,created_at,updated_at)
+    VALUES (?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+    ON CONFLICT(file_id) DO UPDATE SET
+      active_version_id=excluded.active_version_id,
+      airline=excluded.airline,
+      flight_number=excluded.flight_number,
+      flight_date=excluded.flight_date,
+      document_type=excluded.document_type,
+      filename_normalized=excluded.filename_normalized,
+      status='ADDED',
+      latest_document_time=excluded.latest_document_time,
+      updated_at=CURRENT_TIMESTAMP
+  `).bind(fileId,versionId,airline,flightNumber,flightDate,docType,norm,'ADDED',receivedAt).run();
+
+  await cleanLinkMessageDocumentV3(env,{gmailMessageId:messageId,versionId,fileId,sourceKind,sourceRef,parentVersionId,isDuplicate:false});
+  await recordImportChange(env,{scope:'FILE',airline,flightNumber,flightDate,gmailMessageId:messageId,fileId,versionId,changeType:'ADDED_DOCUMENT_V3',after:{filename,sha,r2Key,sourceKind,sourceRef}});
+
+  const priority=docType==='ALL_CUSTOMERS'?10:docType==='PDF'?50:70;
+  await env.OPS_DB.prepare(`
+    INSERT INTO import_jobs
+      (job_id,job_type,priority,airline,flight_number,flight_date,file_id,version_id,gmail_message_id,status,created_at,updated_at)
+    VALUES (?,?,?,?,?,?,?,?,?,'QUEUED',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+    ON CONFLICT(job_id) DO NOTHING
+  `).bind(`PARSE|${versionId}`,'PARSE_FILE',priority,airline,flightNumber,flightDate,fileId,versionId,messageId).run();
+
+  return {added:1,updated:0,duplicate:0,fileId,versionId,sha,created:true};
+}
+
+async function cleanExpandSqEmlV3(env,{messageId,outerVersionId,outerAttachmentId,outerFilename,bytes,subject,receivedAt,flightBase}){
+  const raw=new TextDecoder().decode(bytes);
+  const parsed=cleanParseEmlRecursiveV3(raw);
+  let added=0,duplicate=0,virtualText=0,nested=0;
+  let idx=0;
+
+  for(const body of parsed.textBodies||[]){
+    const t=lot2CleanText(body);
+    if(t.length<20)continue;
+    const found=detectMailFlight(subject,outerFilename,t);
+    const flight={
+      airline:found.airline||flightBase.airline,
+      flightNumber:found.flightNumber||flightBase.flightNumber,
+      flightDate:found.flightDate||flightBase.flightDate
+    };
+    if(flight.airline!=='SQ')continue;
+    const kind=plainTextOperationalKindV53(subject,t);
+    if(!kind && !/\bJFE\s+SCREEN\s+COPY\b/i.test(t))continue;
+    const filename=/\bJFE\s+SCREEN\s+COPY\b/i.test(t)?`jfe_screen_copy_eml_${String(++idx).padStart(2,'0')}.txt`:`sq_eml_body_${String(++idx).padStart(2,'0')}.txt`;
+    const r=await cleanStoreDocumentV3(env,{
+      messageId,attachmentId:`${outerAttachmentId}:BODY:${idx}`,filename,mime:'text/plain; charset=UTF-8',
+      bytes:new TextEncoder().encode(t),receivedAt,flight,docType:/JFE\s+SCREEN\s+COPY/i.test(t)?'OPERATIONAL_INFO':'SQ_TEXT',
+      sourceKind:'EML_BODY',sourceRef:`${outerAttachmentId}:BODY:${idx}`,parentVersionId:outerVersionId
+    });
+    added+=r.added||0;duplicate+=r.duplicate||0;virtualText++;nested++;
+  }
+
+  let ai=0;
+  for(const child of parsed.attachments||[]){
+    ai++;
+    const filename=String(child.filename||`eml_attachment_${ai}.bin`);
+    const mime=String(child.mimeType||'application/octet-stream');
+    const childBytes=child.bytes instanceof Uint8Array?child.bytes:new Uint8Array(child.bytes||[]);
+    if(!childBytes.byteLength)continue;
+
+    let probe='';
+    if(/\.pdf$/i.test(filename)||mime.includes('pdf')){
+      const ex=await lot2ExtractPdfTextFromBytes(childBytes).catch(()=>({text:''}));
+      probe=String(ex?.text||'');
+    }else if(/\.eml$/i.test(filename)||mime==='message/rfc822'||mime.startsWith('text/')){
+      probe=new TextDecoder().decode(childBytes);
+    }
+    const found=detectMailFlight(subject,filename,probe);
+    const flight={
+      airline:found.airline||flightBase.airline,
+      flightNumber:found.flightNumber||flightBase.flightNumber,
+      flightDate:found.flightDate||flightBase.flightDate
+    };
+    if(flight.airline!=='SQ')continue;
+    const docType=guessDocumentType(filename,mime,probe.slice(0,5000));
+    const r=await cleanStoreDocumentV3(env,{
+      messageId,attachmentId:`${outerAttachmentId}:ATT:${ai}`,filename,mime,bytes:childBytes,receivedAt,flight,docType,
+      sourceKind:'EML_ATTACHMENT',sourceRef:`${outerAttachmentId}:ATT:${ai}`,parentVersionId:outerVersionId
+    });
+    added+=r.added||0;duplicate+=r.duplicate||0;nested++;
+
+    if((/\.eml$/i.test(filename)||mime==='message/rfc822') && r.versionId){
+      const sub=await cleanExpandSqEmlV3(env,{
+        messageId,outerVersionId:r.versionId,outerAttachmentId:`${outerAttachmentId}:ATT:${ai}`,
+        outerFilename:filename,bytes:childBytes,subject,receivedAt,flightBase:flight
+      }).catch(()=>({added:0,duplicate:0,virtualText:0,nested:0}));
+      added+=sub.added||0;duplicate+=sub.duplicate||0;virtualText+=sub.virtualText||0;nested+=sub.nested||0;
+    }
+  }
+  return {added,duplicate,virtualText,nested};
+}
+
 async function recordImportChange(env,row){
   await env.OPS_DB.prepare(`
     INSERT INTO import_changes
@@ -1975,9 +2305,6 @@ async function storeGmailMessage(env,messageId){
   await ensureGmailPipelineTables(env);
 
   const existing=await env.OPS_DB.prepare(`SELECT gmail_message_id,status FROM gmail_messages WHERE gmail_message_id=? LIMIT 1`).bind(messageId).first();
-  // V3.5 RECOVERY: un gmail_message_id déjà connu n'est PAS un doublon de contenu.
-  // On rejoue le message afin que les corrections d'identité, corps texte, Drive et injection
-  // puissent réparer les imports historiques. Le SHA-256 des versions reste l'unique dédoublonnage contenu.
   const replaying=!!existing;
 
   const message=await gmailFetch(env,`/messages/${encodeURIComponent(messageId)}?format=full`);
@@ -1986,8 +2313,22 @@ async function storeGmailMessage(env,messageId){
   const receivedAt=extractHeader(message,"Date");
   const bodyText=await extractPlainBodyFullV1(env,message);
   const parts=walkParts(message.payload,[]);
-  const flightBase=detectMailFlight(subject,"",bodyText);
-  const operational=isOperationalCandidateMailV53(subject,bodyText,parts,flightBase);
+  const attachmentCache=new Map();
+
+  // R3 SQ CLEAN — identity is mail-level and mandatory.
+  // Priority: subject -> body -> attachment/EML content. Attachment scan is only used
+  // when the normal resolver is incomplete, and only accepted here for SQ.
+  let flightBase=detectMailFlight(subject,"",bodyText);
+  if(!(flightBase.airline&&flightBase.flightNumber&&flightBase.flightDate)){
+    const probed=await cleanProbeAttachmentIdentitySQV3(env,messageId,subject,bodyText,parts,attachmentCache);
+    if(probed?.airline==='SQ')flightBase=probed;
+  }
+  if(flightBase.airline==='SQ' && flightBase.flightDate){
+    flightBase.flightDate=lot5CanonicalFlightDate(flightBase.flightDate,receivedAt)||flightBase.flightDate;
+  }
+
+  const operational=isOperationalCandidateMailV53(subject,bodyText,parts,flightBase)
+    || (flightBase.airline==='SQ' && !!flightBase.flightNumber && !!flightBase.flightDate);
 
   await env.OPS_DB.prepare(`
     INSERT INTO gmail_messages
@@ -2006,83 +2347,78 @@ async function storeGmailMessage(env,messageId){
       flight_date=CASE WHEN excluded.flight_date<>'' THEN excluded.flight_date ELSE gmail_messages.flight_date END,
       status=CASE WHEN gmail_messages.status IN ('VALIDATED','INJECTED') THEN gmail_messages.status ELSE excluded.status END,
       updated_at=CURRENT_TIMESTAMP
-  `).bind(message.id||messageId,message.threadId||"",message.historyId||"",message.internalDate||"",subject,sender,receivedAt,message.snippet||"",operational?"RECEIVED":"IGNORED_NON_OPERATIONAL",flightBase.airline,flightBase.flightNumber,flightBase.flightDate,operational?"RECEIVED":"IGNORED_NON_OPERATIONAL").run();
+  `).bind(
+    message.id||messageId,message.threadId||"",message.historyId||"",message.internalDate||"",
+    subject,sender,receivedAt,message.snippet||"",
+    operational?"RECEIVED":"IGNORED_NON_OPERATIONAL",
+    flightBase.airline||"",flightBase.flightNumber||"",flightBase.flightDate||"",
+    operational?"RECEIVED":"IGNORED_NON_OPERATIONAL"
+  ).run();
 
   if(!operational){
     await clearAlyziaPipelineLabels(env,messageId).catch(()=>{});
     return {status:"IGNORED_NON_OPERATIONAL",messageId,attachments:parts.length,replaying};
   }
 
+  // SQ with incomplete identity is never terminal ERROR/REVIEW. Keep it retryable.
+  if(flightBase.airline==='SQ' && (!flightBase.flightNumber || !/^20\d{2}-\d{2}-\d{2}$/.test(String(flightBase.flightDate||'')))){
+    await env.OPS_DB.prepare(`UPDATE gmail_messages SET status='RECEIVED',label_state='RECEIVED',updated_at=CURRENT_TIMESTAMP WHERE gmail_message_id=?`).bind(messageId).run();
+    await setGmailPipelineState(env,messageId,'RECEIVED',{archive:false}).catch(()=>{});
+    await recordImportChange(env,{scope:'MESSAGE',airline:'SQ',gmailMessageId:messageId,changeType:'SQ_PENDING_IDENTITY',after:{subject,flightBase}}).catch(()=>{});
+    return {status:'RECEIVED',messageId,attachments:parts.length,replaying,pendingIdentity:true};
+  }
+
   await setGmailPipelineState(env,messageId,"RECEIVED",{archive:false}).catch(()=>{});
-  let added=0,updated=0,duplicate=0,error=0,virtualText=0;
+  let added=0,updated=0,duplicate=0,error=0,virtualText=0,nestedEml=0;
 
   for(const part of parts){
+    const attachmentId=String(part.body?.attachmentId||"");
+    if(!attachmentId)continue;
     try{
-      const attachmentId=String(part.body?.attachmentId||"");
       const filename=String(part.filename||"attachment");
-      const norm=normalizeFilename(filename);
       const mime=String(part.mimeType||"application/octet-stream");
-      const att=await gmailFetch(env,`/messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachmentId)}`);
-      const bytes=b64urlToBytes(att.data||"");
-      const sha=await sha256Hex(bytes);
-      const flight=detectMailFlight(subject,filename,bodyText);
-      if(!flight.airline)Object.assign(flight,flightBase);
-      const docType=guessDocumentType(filename,mime,bodyText.slice(0,5000));
-      const airline=flight.airline||"UNK";
-      const flightNumber=flight.flightNumber||"UNIDENTIFIED";
-      const flightDate=flight.flightDate||"UNKNOWN_DATE";
-      const fileId=cleanDocumentFileIdV1(airline,flightNumber,flightDate,docType,sha);
-      const versionId=`${fileId}|V1`;
-      const r2Key=`prepa/${flightDate}/${airline}/${flightNumber}/${messageId}/${sha}_${norm}`.replace(/\s+/g,"_");
-
-      // LOT 5.3.1 : un doublon n'est reconnu que si la version exacte existe,
-      // donc même identité logique + même SHA-256. Même sujet/nom de fichier/vol/date
-      // avec un contenu différent reste une nouvelle version à traiter normalement.
-      const existingVersion=await env.OPS_DB.prepare(`SELECT version_id FROM import_file_versions WHERE version_id=? LIMIT 1`).bind(versionId).first();
-      if(existingVersion){
-        duplicate++;
-        await recordImportChange(env,{scope:"FILE",airline,flightNumber,flightDate,gmailMessageId:messageId,fileId,versionId,changeType:"DUPLICATE",after:{filename,sha}});
-        continue;
+      let bytes=attachmentCache.get(attachmentId);
+      if(!bytes){
+        const att=await gmailFetch(env,`/messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachmentId)}`);
+        bytes=b64urlToBytes(att.data||""); attachmentCache.set(attachmentId,bytes);
       }
 
-      await env.OPS_FILES.put(r2Key,bytes,{httpMetadata:{contentType:mime},customMetadata:{gmail_message_id:messageId,filename_original:filename,sha256:sha,document_type:docType}});
-
-      const existingFile=await env.OPS_DB.prepare(`SELECT file_id,active_version_id,latest_document_time FROM import_files WHERE file_id=? LIMIT 1`).bind(fileId).first();
-
-      await env.OPS_DB.prepare(`
-        INSERT INTO import_file_versions
-          (version_id,file_id,gmail_message_id,attachment_id,filename_original,filename_normalized,mime_type,file_size,sha256,r2_key,document_time,received_at,status,is_active,created_at)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?, 'STORED', 1, CURRENT_TIMESTAMP)
-      `).bind(versionId,fileId,messageId,attachmentId,filename,norm,mime,bytes.byteLength,sha,r2Key,receivedAt,receivedAt).run();
-
-      if(existingFile){
-        await env.OPS_DB.prepare(`UPDATE import_file_versions SET is_active=0 WHERE file_id=? AND version_id<>?`).bind(fileId,versionId).run();
-        await env.OPS_DB.prepare(`
-          UPDATE import_files SET active_version_id=?,status='UPDATED',latest_document_time=?,updated_at=CURRENT_TIMESTAMP
-          WHERE file_id=?
-        `).bind(versionId,receivedAt,fileId).run();
-        updated++;
-        await recordImportChange(env,{scope:"FILE",airline,flightNumber,flightDate,gmailMessageId:messageId,fileId,versionId,changeType:"UPDATED",before:{activeVersionId:existingFile.active_version_id},after:{filename,sha,r2Key}});
-      }else{
-        await env.OPS_DB.prepare(`
-          INSERT INTO import_files
-            (file_id,active_version_id,airline,flight_number,flight_date,document_type,filename_normalized,status,latest_document_time,created_at,updated_at)
-          VALUES (?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
-        `).bind(fileId,versionId,airline,flightNumber,flightDate,docType,norm,"ADDED",receivedAt).run();
-        added++;
-        await recordImportChange(env,{scope:"FILE",airline,flightNumber,flightDate,gmailMessageId:messageId,fileId,versionId,changeType:"ADDED",after:{filename,sha,r2Key}});
+      let probeText=bodyText.slice(0,5000);
+      if(flightBase.airline==='SQ' && (/\.pdf$/i.test(filename)||String(mime).toLowerCase().includes('pdf'))){
+        const ex=await lot2ExtractPdfTextFromBytes(bytes).catch(()=>({text:''}));
+        probeText += '\n'+String(ex?.text||'').slice(0,12000);
+      }else if(flightBase.airline==='SQ' && (/\.eml$/i.test(filename)||String(mime).toLowerCase()==='message/rfc822')){
+        probeText += '\n'+new TextDecoder().decode(bytes).slice(0,20000);
       }
 
-      const priority=docType==="ALL_CUSTOMERS"?10:docType==="PDF"?50:70;
-      await env.OPS_DB.prepare(`
-        INSERT INTO import_jobs
-          (job_id,job_type,priority,airline,flight_number,flight_date,file_id,version_id,gmail_message_id,status,created_at,updated_at)
-        VALUES (?,?,?,?,?,?,?,?,?,'QUEUED',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
-        ON CONFLICT(job_id) DO NOTHING
-      `).bind(`PARSE|${versionId}`,"PARSE_FILE",priority,airline,flightNumber,flightDate,fileId,versionId,messageId).run();
+      const found=detectMailFlight(subject,filename,probeText);
+      const flight={
+        airline:found.airline||flightBase.airline,
+        flightNumber:found.flightNumber||flightBase.flightNumber,
+        flightDate:lot5CanonicalFlightDate(found.flightDate||flightBase.flightDate,receivedAt)||(found.flightDate||flightBase.flightDate)
+      };
+      const docType=guessDocumentType(filename,mime,probeText.slice(0,5000));
+
+      const stored=await cleanStoreDocumentV3(env,{
+        messageId,attachmentId,filename,mime,bytes,receivedAt,flight,docType,
+        sourceKind:'ATTACHMENT',sourceRef:attachmentId,parentVersionId:''
+      });
+      added+=stored.added||0;updated+=stored.updated||0;duplicate+=stored.duplicate||0;
+
+      // R3 SQ CLEAN: .eml is both an archived source and a container.
+      if(flight.airline==='SQ' && (/\.eml$/i.test(filename)||String(mime).toLowerCase()==='message/rfc822')){
+        const expanded=await cleanExpandSqEmlV3(env,{
+          messageId,outerVersionId:stored.versionId,outerAttachmentId:attachmentId,
+          outerFilename:filename,bytes,subject,receivedAt,flightBase:flight
+        });
+        added+=expanded.added||0;
+        duplicate+=expanded.duplicate||0;
+        virtualText+=expanded.virtualText||0;
+        nestedEml+=expanded.nested||0;
+      }
     }catch(e){
       error++;
-      await recordImportChange(env,{scope:"MESSAGE",gmailMessageId:messageId,changeType:"ERROR",after:{error:String(e?.message||e)}}).catch(()=>{});
+      await recordImportChange(env,{scope:"MESSAGE",airline:flightBase.airline||'',flightNumber:flightBase.flightNumber||'',flightDate:flightBase.flightDate||'',gmailMessageId:messageId,changeType:"RETRY_TECHNICAL",after:{error:String(e?.message||e)}}).catch(()=>{});
     }
   }
 
@@ -2092,16 +2428,36 @@ async function storeGmailMessage(env,messageId){
     added+=virtual.added||0;
     updated+=virtual.updated||0;
     duplicate+=virtual.duplicate||0;
+    // Link existing/created virtual body to this message is ensured here for R3 traceability.
+    if(flightBase.airline==='SQ' && isPlainTextOperationalMail(subject,bodyText)){
+      const t=String(bodyText||'').replace(/\u0000/g,'').trim();
+      if(t.length>=20){
+        const kind=plainTextOperationalKindV53(subject,t);
+        const docType=kind==="TK_TEXT"?"TK_TEXT":(kind==="TW_TEXT"?"TW_TEXT":"OPERATIONAL_INFO");
+        const bytes=new TextEncoder().encode(t);
+        const sha=await sha256Hex(bytes);
+        const fileId=cleanDocumentFileIdV1(flightBase.airline,flightBase.flightNumber,lot5CanonicalFlightDate(flightBase.flightDate,receivedAt),docType,sha);
+        const versionId=`${fileId}|V1`;
+        await cleanLinkMessageDocumentV3(env,{gmailMessageId:messageId,versionId,fileId,sourceKind:'GMAIL_BODY',sourceRef:'GMAIL_BODY',isDuplicate:!!virtual.duplicate}).catch(()=>{});
+      }
+    }
   }catch(e){
     error++;
-    await recordImportChange(env,{scope:"MESSAGE",gmailMessageId:messageId,changeType:"TEXT_BODY_ERROR",after:{error:String(e?.message||e)}}).catch(()=>{});
+    await recordImportChange(env,{scope:"MESSAGE",airline:flightBase.airline||'',flightNumber:flightBase.flightNumber||'',flightDate:flightBase.flightDate||'',gmailMessageId:messageId,changeType:"RETRY_TECHNICAL_TEXT_BODY",after:{error:String(e?.message||e)}}).catch(()=>{});
   }
 
-  const finalStatus=error?"ERROR_IMPORT":(added||updated||virtualText)?"RECEIVED":duplicate?"DUPLICATE":"REVIEW";
-  await env.OPS_DB.prepare(`UPDATE gmail_messages SET status=?,label_state=?,processed_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE gmail_message_id=?`).bind(finalStatus,finalStatus,messageId).run();
-  await setGmailPipelineState(env,messageId,finalStatus,{archive:true}).catch(()=>{});
+  let finalStatus;
+  if(flightBase.airline==='SQ'){
+    // No permanent SQ error/review state. Technical problems stay retryable.
+    finalStatus=(added||updated||virtualText||duplicate)?"RECEIVED":"RECEIVED";
+  }else{
+    finalStatus=error?"ERROR_IMPORT":(added||updated||virtualText)?"RECEIVED":duplicate?"DUPLICATE":"REVIEW";
+  }
 
-  return {status:finalStatus,messageId,attachments:parts.length,virtualText,added,updated,duplicate,error};
+  await env.OPS_DB.prepare(`UPDATE gmail_messages SET status=?,label_state=?,processed_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE gmail_message_id=?`).bind(finalStatus,finalStatus,messageId).run();
+  await setGmailPipelineState(env,messageId,finalStatus,{archive:flightBase.airline==='SQ'?false:true}).catch(()=>{});
+
+  return {status:finalStatus,messageId,attachments:parts.length,virtualText,nestedEml,added,updated,duplicate,error,replaying,flightBase};
 }
 
 async function gmailSyncNow(env,body){
@@ -4359,7 +4715,7 @@ async function lot3FlightCards(env,url){
  * ========================================================= */
 
 // LOT 5.2 FULL MAILBOX CONTINUOUS — whole Gmail mailbox + newest-first + resumable pagination + non-blocking errors.
-const LOT5_VERSION="V50.30_GMAIL_CLEAN_1_DOCUMENT_FIRST";
+const LOT5_VERSION="V50.30_R3_SQ_CLEAN";
 // 5.3.5 scope: pipeline recovery + Gmail body + historical replay + Drive archive + fast summary.
 // Specific parsers remain byte-for-byte untouched.
 // Gmail -> identity -> R2/D1 -> Drive -> existing parser -> flight injection -> exclusive Gmail state.
@@ -4640,6 +4996,10 @@ async function lot5ReconcileOneGmailStateV53(env,messageId){
   const currentState=String(gm.status||"").toUpperCase();
   const transition=async(state)=>{if(currentState!==state)await setGmailPipelineState(env,messageId,state,{archive:state!=="RECEIVED"}).catch(()=>{})};
   if(!gm.identityValid && (!gm.airline||!gm.flight_number||!gm.flight_date||!isValidAirlineCodeV53(gm.airline))){
+    if(String(gm.airline||'').toUpperCase()==='SQ' || /\bSQ\s*\d{1,4}\b/i.test(String(gm.subject||''))){
+      await transition("RECEIVED");
+      return {messageId,state:"RECEIVED",pendingIdentity:true};
+    }
     await transition("REVIEW");
     return {messageId,state:"REVIEW"};
   }
@@ -4665,6 +5025,10 @@ async function lot5ReconcileOneGmailStateV53(env,messageId){
     return {messageId,state};
   }
   if(jobs.some(j=>String(j.status||"").toUpperCase()==="ERROR")){
+    if(String(gm.airline||'').toUpperCase()==='SQ'){
+      await transition("RECEIVED");
+      return {messageId,state:"RECEIVED",retryTechnical:true};
+    }
     await transition("ERROR_IMPORT");
     return {messageId,state:"ERROR_IMPORT"};
   }
@@ -4680,6 +5044,10 @@ async function lot5ReconcileOneGmailStateV53(env,messageId){
     return {messageId,state:"RECEIVED",parsePending:true};
   }
   if(!results.length){
+    if(String(gm.airline||'').toUpperCase()==='SQ'){
+      await transition("RECEIVED");
+      return {messageId,state:"RECEIVED",reason:"SQ_RETRY_PARSER_RESULT"};
+    }
     await transition("REVIEW");
     return {messageId,state:"REVIEW",reason:"PARSER_DONE_WITHOUT_RESULT"};
   }
@@ -5388,6 +5756,9 @@ async function handleLot5(request,env,url){
     if(url.pathname==='/api/gmail-clean/diagnostic'&&request.method==='GET'){
       return json(await gmailCleanDiagnosticV1(env,Number(url.searchParams.get('limit')||100)));
     }
+    if(url.pathname==='/api/gmail-clean/sq-diagnostic'&&request.method==='GET'){
+      return json(await gmailCleanSqDiagnosticV3(env,Number(url.searchParams.get('limit')||500)));
+    }
     if(url.pathname==='/api/autopilot/specific-browser-complete'&&request.method==='POST'){
       const body=await request.json().catch(()=>({}));
       return json(await lot5SpecificBrowserCompleteV535(env,body));
@@ -5416,7 +5787,11 @@ async function gmailCleanDiagnosticV1(env,limit=100){
            COUNT(v.version_id) AS documents,
            SUM(CASE WHEN lower(v.filename_normalized) LIKE '%altea_report%' THEN 1 ELSE 0 END) AS altea_reports,
            SUM(CASE WHEN lower(v.filename_normalized) LIKE '%jfe%' THEN 1 ELSE 0 END) AS jfe_docs,
-           SUM(CASE WHEN v.mime_type LIKE 'text/%' THEN 1 ELSE 0 END) AS text_docs
+           SUM(CASE WHEN v.mime_type LIKE 'text/%' THEN 1 ELSE 0 END) AS text_docs,
+           SUM(CASE WHEN lower(v.filename_normalized) LIKE '%.eml' OR lower(v.mime_type)='message/rfc822' THEN 1 ELSE 0 END) AS eml_docs,
+           (SELECT COUNT(*) FROM gmail_message_documents md WHERE md.gmail_message_id=g.gmail_message_id) AS linked_documents,
+           (SELECT COUNT(*) FROM gmail_message_documents md WHERE md.gmail_message_id=g.gmail_message_id AND md.is_duplicate=1) AS duplicate_links,
+           (SELECT COUNT(*) FROM gmail_message_documents md WHERE md.gmail_message_id=g.gmail_message_id AND md.source_kind LIKE 'EML_%') AS nested_documents
     FROM gmail_messages g
     LEFT JOIN import_file_versions v ON v.gmail_message_id=g.gmail_message_id
     GROUP BY g.gmail_message_id
@@ -5429,11 +5804,55 @@ async function gmailCleanDiagnosticV1(env,limit=100){
     const d=lot5CanonicalFlightDate(r.flight_date,'');
     if(!a||a==='INCONNU'||!f||!d)continue;
     const k=`${a}|${f}|${d}`;
-    let x=byFlight.get(k); if(!x){x={airline:a,flightNumber:f,flightDate:d,messages:0,documents:0,alteaReports:0,jfeDocs:0,textDocs:0,statuses:{}};byFlight.set(k,x)}
-    x.messages++;x.documents+=Number(r.documents||0);x.alteaReports+=Number(r.altea_reports||0);x.jfeDocs+=Number(r.jfe_docs||0);x.textDocs+=Number(r.text_docs||0);x.statuses[r.status||'UNKNOWN']=(x.statuses[r.status||'UNKNOWN']||0)+1;
+    let x=byFlight.get(k); if(!x){x={airline:a,flightNumber:f,flightDate:d,messages:0,documents:0,alteaReports:0,jfeDocs:0,textDocs:0,emlDocs:0,linkedDocuments:0,duplicateLinks:0,nestedDocuments:0,statuses:{}};byFlight.set(k,x)}
+    x.messages++;x.documents+=Number(r.documents||0);x.alteaReports+=Number(r.altea_reports||0);x.jfeDocs+=Number(r.jfe_docs||0);x.textDocs+=Number(r.text_docs||0);x.emlDocs+=Number(r.eml_docs||0);x.linkedDocuments+=Number(r.linked_documents||0);x.duplicateLinks+=Number(r.duplicate_links||0);x.nestedDocuments+=Number(r.nested_documents||0);x.statuses[r.status||'UNKNOWN']=(x.statuses[r.status||'UNKNOWN']||0)+1;
   }
   return {ok:true,version:LOT5_VERSION,limit:n,messages:rows.length,flights:[...byFlight.values()].sort((a,b)=>String(b.flightDate).localeCompare(a.flightDate)||a.flightNumber.localeCompare(b.flightNumber))};
 }
+
+
+async function gmailCleanSqDiagnosticV3(env,limit=500){
+  await ensureGmailPipelineTables(env);
+  const n=Math.max(1,Math.min(2000,Number(limit||500)));
+  const rows=(await env.OPS_DB.prepare(`
+    SELECT g.gmail_message_id,g.subject,g.sender,g.flight_number,g.flight_date,g.status,g.updated_at,
+           COUNT(DISTINCT v.version_id) AS documents,
+           SUM(CASE WHEN lower(v.filename_normalized) LIKE '%altea_report%' THEN 1 ELSE 0 END) AS altea_reports,
+           SUM(CASE WHEN lower(v.filename_normalized) LIKE '%.eml' OR lower(v.mime_type)='message/rfc822' THEN 1 ELSE 0 END) AS eml_docs,
+           (SELECT COUNT(*) FROM gmail_message_documents md WHERE md.gmail_message_id=g.gmail_message_id) AS linked_documents,
+           (SELECT COUNT(*) FROM gmail_message_documents md WHERE md.gmail_message_id=g.gmail_message_id AND md.is_duplicate=1) AS duplicate_links,
+           (SELECT COUNT(*) FROM gmail_message_documents md WHERE md.gmail_message_id=g.gmail_message_id AND md.source_kind LIKE 'EML_%') AS nested_documents
+    FROM gmail_messages g
+    LEFT JOIN import_file_versions v ON v.gmail_message_id=g.gmail_message_id
+    WHERE UPPER(g.airline)='SQ'
+    GROUP BY g.gmail_message_id
+    ORDER BY COALESCE(g.updated_at,'') DESC
+    LIMIT ?
+  `).bind(n).all()).results||[];
+
+  const byFlight=new Map();
+  for(const r of rows){
+    const d=lot5CanonicalFlightDate(r.flight_date,'');
+    const f=String(r.flight_number||'').toUpperCase();
+    if(!f||!d)continue;
+    const k=`SQ|${f}|${d}`;
+    let x=byFlight.get(k);
+    if(!x){
+      x={airline:'SQ',flightNumber:f,flightDate:d,messages:0,documents:0,alteaReports:0,emlDocs:0,linkedDocuments:0,duplicateLinks:0,nestedDocuments:0,statuses:{},messageIds:[]};
+      byFlight.set(k,x);
+    }
+    x.messages++; x.documents+=Number(r.documents||0); x.alteaReports+=Number(r.altea_reports||0);
+    x.emlDocs+=Number(r.eml_docs||0); x.linkedDocuments+=Number(r.linked_documents||0);
+    x.duplicateLinks+=Number(r.duplicate_links||0); x.nestedDocuments+=Number(r.nested_documents||0);
+    x.statuses[r.status||'UNKNOWN']=(x.statuses[r.status||'UNKNOWN']||0)+1;
+    x.messageIds.push(String(r.gmail_message_id||''));
+  }
+  return {
+    ok:true,version:LOT5_VERSION,scope:'SQ_ONLY',limit:n,messages:rows.length,
+    flights:[...byFlight.values()].sort((a,b)=>String(b.flightDate).localeCompare(a.flightDate)||a.flightNumber.localeCompare(b.flightNumber))
+  };
+}
+
 
 async function handleGmailPipeline(request,env,url){
   if(!url.pathname.startsWith("/api/gmail") && !url.pathname.startsWith("/api/import-pipeline"))return null;
