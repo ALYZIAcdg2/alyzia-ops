@@ -26413,6 +26413,251 @@ console.log('BUILD143 R9 — R3.13 SQ CONTROLLED BRIDGE READY');
 })();
 </script>
 
+<script>window.__openGroupModalBeforeR16=window.openGroupModal;</script>
+
+<script>
+/* BUILD143 R16 — SQ GROUPTYPE BACKWARD ASSOCIATION FIX
+   GROUP only. INF/HCIP/FQTV/INBOUND/MEALS unchanged.
+   Protected SQ parser functions untouched. */
+(function(){
+  const N16=s=>String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+
+  function parseHeaderLoose16(line){
+    const s=String(line||'').replace(/\u00a0/g,' ');
+    const m=s.match(/^\s*(\d{1,3})\.\s*(.+?)\s+([MFCIA])\s+CDG\s+SIN\s+([A-Z][A-Z0-9]?)(?:\s+(\d{2,3}[A-K]))?/i);
+    if(!m)return null;
+    let name=String(m[2]||'')
+      .replace(/\s+(MR|MRS|MS|MISS|MSTR|MDM|DR|CHR|CH)\b.*$/i,'')
+      .replace(/\//g,' ')
+      .replace(/\s+/g,' ')
+      .trim();
+
+    let cls=String(m[4]||'Y').toUpperCase().charAt(0);
+    if(cls==='C')cls='J';
+    if(cls==='W')cls='S';
+    if(!['F','J','S','Y'].includes(cls))cls='Y';
+
+    return {
+      seq:Number(m[1]||0),
+      name,
+      passengerType:String(m[3]||'').toUpperCase(),
+      bookingClass:String(m[4]||'').toUpperCase(),
+      class:cls,
+      seat:String(m[5]||'').toUpperCase()
+    };
+  }
+
+  function master16(x,row){
+    const arr=Array.isArray(x?.passengers)?x.passengers:[];
+    const st=String(row?.seat||'').toUpperCase();
+    if(st){
+      const bySeat=arr.find(p=>String(p?.seat||'').toUpperCase()===st);
+      if(bySeat)return bySeat;
+    }
+    const nk=N16(row?.name);
+    let exact=arr.find(p=>N16(p?.name)===nk);
+    if(exact)return exact;
+    return arr.find(p=>{
+      const pk=N16(p?.name);
+      return nk&&pk&&(pk.startsWith(nk)||nk.startsWith(pk));
+    })||null;
+  }
+
+  function groupsFromRaw16(raw,x){
+    const lines=String(raw||'').replace(/\r/g,'').split('\n');
+    const markers=[];
+    for(let i=0;i<lines.length;i++){
+      const m=lines[i].match(/\bOTHS-GROUPTYPE\s*-\s*(.+?)\s*$/i);
+      if(m)markers.push({index:i,rawGroup:String(m[1]||'').trim()});
+    }
+
+    const out=[];
+    const unresolved=[];
+
+    for(const mark of markers){
+      let group=mark.rawGroup.toUpperCase()
+        .replace(/\s+(?:CTCE|CTCM|SSMB|CEID|INFT|OTHS)\b.*$/i,'')
+        .trim();
+      if(!group){
+        unresolved.push({...mark,reason:'EMPTY_GROUP'});
+        continue;
+      }
+
+      let header=null;
+      let headerLine=-1;
+
+      // Search backward until the previous passenger row.
+      for(let j=mark.index-1;j>=0 && j>=mark.index-40;j--){
+        const h=parseHeaderLoose16(lines[j]);
+        if(h){
+          header=h;
+          headerLine=j;
+          break;
+        }
+        // Stop if we crossed into another source block before finding a pax.
+        if(/^=====+\s*FICHIER\s*:/i.test(lines[j]))break;
+      }
+
+      if(!header){
+        unresolved.push({...mark,group,reason:'NO_PRECEDING_PAX'});
+        continue;
+      }
+
+      const master=master16(x,header);
+      const item={
+        ...(master||{}),
+        id:`SQ-GROUP-R16-${mark.index}`,
+        name:master?.name||header.name,
+        seat:master?.seat||header.seat||'',
+        class:master?.class||header.class||'Y',
+        bookingClass:master?.bookingClass||header.bookingClass||'',
+        etkt:master?.etkt||'',
+        status:'BOOKED',
+        pnr:group,
+        groupCode:group,
+        groupName:group,
+        specific:`GROUPE · ${group}`,
+        __markerLine:mark.index,
+        __headerLine:headerLine
+      };
+      out.push(item);
+
+      if(master){
+        master.groupCode=group;
+        master.groupName=group;
+      }
+    }
+
+    const map=new Map();
+    out.forEach(p=>{
+      const key=`${N16(p?.name)}|${p.groupCode}`;
+      if(key&&!map.has(key))map.set(key,p);
+    });
+    const groups=[...map.values()];
+
+    x.common=x.common||{};
+    x.common_lists=x.common_lists||{};
+    x.prepaParticularities=x.prepaParticularities||{};
+    x.common_lists.GROUP=groups;
+    x.common.GROUP=new Set(groups.map(p=>p.groupCode).filter(Boolean)).size;
+    x.prepaParticularities.GROUP=x.common.GROUP;
+
+    return {
+      markerCount:markers.length,
+      groups,
+      unresolved
+    };
+  }
+
+  async function raw16(fnum,fdate){
+    const q=new URLSearchParams({airline:'SQ',flight:fnum,limit:'100',includePayload:'1'});
+    const resp=await fetch(opsApiUrl('/api/prepa?'+q.toString()),{cache:'no-store',headers:{Accept:'application/json'}});
+    if(!resp.ok)throw new Error(`PREPA HTTP ${resp.status}`);
+    const data=await resp.json();
+    const items=(Array.isArray(data?.items)?data.items:[]).filter(it=>String(it?.flightDate||'')===fdate);
+    if(!items.length)throw new Error('AUCUNE SOURCE PREPA POUR CE VOL');
+    const raw=await window.import143BuildSpecificRaw(items,'SQ');
+    return {items,raw};
+  }
+
+  window.runSqGroupFixR16=async function(flightNumber='SQ335',flightDate='2026-09-07'){
+    const fnum=String(flightNumber||'').trim().toUpperCase();
+    const fdate=String(flightDate||'').trim();
+    const {items,raw}=await raw16(fnum,fdate);
+
+    let idx=(typeof findFlightIndexForInbox==='function'?findFlightIndexForInbox(items[0]):-1);
+    if(idx<0){
+      idx=(Array.isArray(FLIGHTS)?FLIGHTS:[]).findIndex(x=>
+        String(x?.airline||'').toUpperCase()==='SQ' &&
+        String(x?.flight||x?.flightNumber||'').toUpperCase()===fnum &&
+        String(x?.date||x?.flightDate||'')===fdate
+      );
+    }
+    if(idx<0)throw new Error('VOL SQ INTROUVABLE DANS LE BUILD');
+
+    const x=FLIGHTS[idx];
+    const r=groupsFromRaw16(raw,x);
+
+    try{render()}catch(e){console.warn('R16 render',e)}
+    try{await cacheFlightsLocallyOnly(FLIGHTS)}catch(e){console.warn('R16 cache',e)}
+    try{await persistOneFlightVerifiedToD1(x,{label:'SQ GROUP FIX R16'})}catch(e){console.warn('R16 persist',e)}
+
+    const byGroup={};
+    r.groups.forEach(p=>{
+      const g=p.groupCode;
+      (byGroup[g]=byGroup[g]||[]).push({
+        name:p.name,seat:p.seat||'',class:p.class||''
+      });
+    });
+
+    const result={
+      ok:true,
+      markerCount:r.markerCount,
+      GROUP:x.common.GROUP||0,
+      groupNames:Object.keys(byGroup),
+      groupPax:r.groups.length,
+      byGroup,
+      unresolvedCount:r.unresolved.length,
+      unresolved:r.unresolved.slice(0,10)
+    };
+    console.info('R16 SQ GROUP RESULT',result);
+    return result;
+  };
+
+  // Ensure the existing GROUP card/modal uses the current R16 list.
+  window.openGroupModal=function(){
+    const x=f();
+    if(String(x?.airline||'').toUpperCase()!=='SQ'){
+      if(typeof window.__openGroupModalBeforeR16==='function')return window.__openGroupModalBeforeR16.apply(this,arguments);
+      return;
+    }
+    const list=Array.isArray(x?.common_lists?.GROUP)?x.common_lists.GROUP:[];
+    const groups={};
+    list.forEach(p=>{
+      const g=String(p?.groupCode||p?.groupName||p?.pnr||'').trim().toUpperCase();
+      if(g)(groups[g]=groups[g]||[]).push(p);
+    });
+    window.__sqGroupsR16=groups;
+    const names=Object.keys(groups).sort((a,b)=>a.localeCompare(b));
+    showModal(`GROUP · ${names.length}`,x.flight,`
+      <div class="meal-category-list fq-display-order">
+        ${names.map(g=>`<button class="meal-category-row" onclick="openSqGroupR16('${g.replace(/'/g,"\\'")}')">
+          <span>${g}</span><b>${groups[g].length}</b><small>VOIR LES PASSAGERS</small>
+        </button>`).join('')||'<div class="prepa-empty">AUCUN GROUPE DÉTAILLÉ</div>'}
+      </div>`);
+  };
+
+  window.openSqGroupR16=function(group,sort='name',dir='asc'){
+    const x=f(),g=String(group||'').toUpperCase();
+    const source=(x.common_lists?.GROUP||[]).filter(p=>String(p?.groupCode||p?.groupName||p?.pnr||'').toUpperCase()===g);
+    const list=sortPaxItems(source,sort,dir);
+    PAX_MODAL_ITEMS=list;PAX_MODAL_SOURCE=source.slice();
+    const next=k=>sort===k?(dir==='asc'?'desc':'asc'):'asc';
+
+    showModal(`GROUP · ${g}`,x.flight,`
+      <div class="sortbar compact-sortbar">
+        <button class="${sort==='name'?'active':''}" onclick="openSqGroupR16('${g}','name','${next('name')}')">NOM${sortArrow(sort==='name',dir)}</button>
+        <button class="${sort==='class'?'active':''}" onclick="openSqGroupR16('${g}','class','${next('class')}')">CLASSE${sortArrow(sort==='class',dir)}</button>
+        <button class="${sort==='seat'?'active':''}" onclick="openSqGroupR16('${g}','seat','${next('seat')}')">SIÈGE${sortArrow(sort==='seat',dir)}</button>
+      </div>
+      <div class="part-detail-table-wrap">
+        <div class="part-detail-table-head"><span>NOM / PRÉNOM</span><span>SIÈGE</span><span>CLASSE</span><span>DOCUMENT</span><span>SSR / INFO</span></div>
+        <div class="part-detail-list part-detail-table">
+          ${list.map((p,i)=>`<button class="part-detail-row" onclick="openPaxFromModal(${i})">
+            <strong class="part-col-name">${passengerDisplayName(p)}</strong>
+            <span class="part-col-seat">${p.seat||'—'}</span>
+            <span class="part-col-class">${modalClassText(p.class)}</span>
+            <span class="part-col-doc">${passengerDocMeta(p)||'—'}</span>
+            <span class="part-col-ssr">${g}</span>
+          </button>`).join('')||'<div class="prepa-empty">AUCUN PASSAGER</div>'}
+        </div>
+      </div>`);
+  };
+
+  console.log('BUILD143 R16 — SQ GROUPTYPE BACKWARD ASSOCIATION READY');
+})();
+</script>
+
 </body></html>
 <!-- V50.03: cloud status is debounced; 3 startup retries; transient sync failures no longer force immediate local mode. -->
 <!-- V50.0: generic airline PREPA engine + airline profiles; SQ/TK/BJ parser semantics unchanged. -->
