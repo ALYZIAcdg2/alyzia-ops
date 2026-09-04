@@ -1,5 +1,5 @@
-// ALYZIA OPS V50.30 R3.11 — SQ R2 ORPHAN CLEANUP
-// Targeted cleanup of 7 known orphan R2 keys only. No D1/Drive/parser mutation.
+// ALYZIA OPS V50.30 R3.12 — TEST ONE GMAIL MESSAGE
+// Single-message controlled pipeline test. Protected parsers SQ/TK/BJ/VF/TW remain unchanged.
 // V50.28 RULE: INC/INCARRIAGE = INBOUND PAX; INBOUND SUMMARY = FLIGHT METADATA; route inbound terminates at main origin (CDG).
 // V50.27 RULE: INCARRIAGE/INC = INBOUND PASSENGERS; INBOUND CUSTOMER SUMMARY = INBOUND FLIGHTS.
 // Passenger dossier displays linked INBOUND/OUTBOUND flight exactly via the shared connection rows.
@@ -4888,7 +4888,7 @@ async function lot3FlightCards(env,url){
  * ========================================================= */
 
 // LOT 5.2 FULL MAILBOX CONTINUOUS — whole Gmail mailbox + newest-first + resumable pagination + non-blocking errors.
-const LOT5_VERSION="V50.30_R3_11_SQ_R2_ORPHAN_CLEANUP";
+const LOT5_VERSION="V50.30_R3_12_TEST_ONE_MESSAGE";
 // 5.3.5 scope: pipeline recovery + Gmail body + historical replay + Drive archive + fast summary.
 // Specific parsers remain byte-for-byte untouched.
 // Gmail -> identity -> R2/D1 -> Drive -> existing parser -> flight injection -> exclusive Gmail state.
@@ -6355,6 +6355,96 @@ async function gmailCleanSqR2OrphanCleanupR311(env,{dryRun=true,confirm=''}={}){
   };
 }
 
+
+async function lot5TestOneMessageR312(env,body){
+  const gmailMessageId=String(body?.gmailMessageId||'').trim();
+  if(!gmailMessageId){
+    return {ok:false,version:LOT5_VERSION,error:'gmailMessageId requis'};
+  }
+
+  // Test strictement ciblé : un seul message Gmail.
+  const gmailMessage=await gmailFetch(
+    env,
+    `/messages/${encodeURIComponent(gmailMessageId)}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date`
+  ).catch(()=>null);
+
+  if(!gmailMessage){
+    return {
+      ok:false,
+      version:LOT5_VERSION,
+      gmailMessageId,
+      error:'MESSAGE GMAIL INTROUVABLE'
+    };
+  }
+
+  const subject=extractHeader(gmailMessage,'Subject');
+  const sender=extractHeader(gmailMessage,'From');
+  const receivedAt=extractHeader(gmailMessage,'Date');
+
+  const result=await lot5TestBatchV535(env,{messageIds:[gmailMessageId]});
+
+  const gm=await env.OPS_DB.prepare(`
+    SELECT gmail_message_id,subject,sender,airline,flight_number,flight_date,status
+    FROM gmail_messages
+    WHERE gmail_message_id=?
+    LIMIT 1
+  `).bind(gmailMessageId).first().catch(()=>null);
+
+  const versions=(await env.OPS_DB.prepare(`
+    SELECT version_id,filename_original,mime_type,file_size,sha256,r2_key
+    FROM import_file_versions
+    WHERE gmail_message_id=?
+    ORDER BY created_at ASC
+  `).bind(gmailMessageId).all().catch(()=>({results:[]}))).results||[];
+
+  const drive=(await env.OPS_DB.prepare(`
+    SELECT d.version_id,d.identity,d.drive_file_id,d.drive_folder_id,d.filename
+    FROM lot5_drive_files d
+    JOIN import_file_versions v ON v.version_id=d.version_id
+    WHERE v.gmail_message_id=?
+    ORDER BY d.uploaded_at ASC
+  `).bind(gmailMessageId).all().catch(()=>({results:[]}))).results||[];
+
+  const jobs=(await env.OPS_DB.prepare(`
+    SELECT j.job_id,j.status AS job_status,j.job_type,j.version_id,
+           r.status AS result_status,r.parser_mode,r.flight_number,r.flight_date
+    FROM import_jobs j
+    LEFT JOIN import_job_results r ON r.job_id=j.job_id
+    WHERE j.gmail_message_id=?
+    ORDER BY j.created_at ASC
+  `).bind(gmailMessageId).all().catch(()=>({results:[]}))).results||[];
+
+  return {
+    ...result,
+    version:LOT5_VERSION,
+    oneMessageOnly:true,
+    gmail:{
+      gmailMessageId,
+      subject,
+      sender,
+      receivedAt
+    },
+    resolved:gm?{
+      airline:String(gm.airline||''),
+      flightNumber:String(gm.flight_number||''),
+      flightDate:String(gm.flight_date||''),
+      status:String(gm.status||'')
+    }:null,
+    documentCount:versions.length,
+    documents:versions.map(v=>({
+      versionId:v.version_id,
+      filename:v.filename_original,
+      mimeType:v.mime_type,
+      size:Number(v.file_size||0),
+      sha256:v.sha256,
+      r2Key:v.r2_key
+    })),
+    driveCount:drive.length,
+    drive,
+    jobs
+  };
+}
+
 async function handleLot5(request,env,url){
   if(!url.pathname.startsWith('/api/autopilot') && !url.pathname.startsWith('/api/gmail-clean'))return null;
   try{
@@ -6377,6 +6467,10 @@ async function handleLot5(request,env,url){
     if(url.pathname==='/api/autopilot/repair-identities'&&request.method==='POST'){
       const body=await request.json().catch(()=>({}));
       return json(await lot5RepairIdentityBacklogV534(env,Number(body?.limit||1200)));
+    }
+    if(url.pathname==='/api/gmail-clean/test-one-message'&&request.method==='POST'){
+      const body=await request.json().catch(()=>({}));
+      return json(await lot5TestOneMessageR312(env,body));
     }
     if(url.pathname==='/api/gmail-clean/purge-historical-sq'&&request.method==='POST'){
       const body=await request.json().catch(()=>({}));
