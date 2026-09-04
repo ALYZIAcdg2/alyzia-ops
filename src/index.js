@@ -1,5 +1,5 @@
-// ALYZIA OPS V50.30 R3.9 — SQ HISTORICAL PREPASQ PURGE
-// Scoped purge: SQ historical sender only. Parsers SQ/TK/BJ/VF/TW unchanged.
+// ALYZIA OPS V50.30 R3.10 — SQ HISTORICAL PREPASQ PURGE — D1 BATCHED
+// Fix: D1 SQL variable limit. Purge stays scoped to SQ historical PREPASQ only. Parsers unchanged.
 // V50.28 RULE: INC/INCARRIAGE = INBOUND PAX; INBOUND SUMMARY = FLIGHT METADATA; route inbound terminates at main origin (CDG).
 // V50.27 RULE: INCARRIAGE/INC = INBOUND PASSENGERS; INBOUND CUSTOMER SUMMARY = INBOUND FLIGHTS.
 // Passenger dossier displays linked INBOUND/OUTBOUND flight exactly via the shared connection rows.
@@ -4888,7 +4888,7 @@ async function lot3FlightCards(env,url){
  * ========================================================= */
 
 // LOT 5.2 FULL MAILBOX CONTINUOUS — whole Gmail mailbox + newest-first + resumable pagination + non-blocking errors.
-const LOT5_VERSION="V50.30_R3_9_SQ_HISTORICAL_PURGE";
+const LOT5_VERSION="V50.30_R3_10_SQ_HISTORICAL_PURGE_BATCHED";
 // 5.3.5 scope: pipeline recovery + Gmail body + historical replay + Drive archive + fast summary.
 // Specific parsers remain byte-for-byte untouched.
 // Gmail -> identity -> R2/D1 -> Drive -> existing parser -> flight injection -> exclusive Gmail state.
@@ -5904,7 +5904,53 @@ async function lot5ReconcileCanonicalStatusesR4(env,limit=2000){
 }
 
 
-async function gmailCleanHistoricalSqPurgeR39(env,{dryRun=true,confirm='' }={}){
+
+function cleanChunkV310(values,size=60){
+  const out=[];
+  const a=Array.isArray(values)?values:[];
+  for(let i=0;i<a.length;i+=size)out.push(a.slice(i,i+size));
+  return out;
+}
+
+async function cleanSelectByInV310(env,sqlPrefix,column,values,sqlSuffix=''){
+  const out=[];
+  for(const chunk of cleanChunkV310(values)){
+    if(!chunk.length)continue;
+    const ph=chunk.map(()=>'?').join(',');
+    const q=`${sqlPrefix} ${column} IN (${ph}) ${sqlSuffix}`;
+    const rows=(await env.OPS_DB.prepare(q).bind(...chunk).all()).results||[];
+    out.push(...rows);
+  }
+  return out;
+}
+
+async function cleanCountByInV310(env,table,column,values,extraWhere=''){
+  let n=0;
+  for(const chunk of cleanChunkV310(values)){
+    if(!chunk.length)continue;
+    const ph=chunk.map(()=>'?').join(',');
+    const row=await env.OPS_DB.prepare(
+      `SELECT COUNT(*) AS n FROM ${table} WHERE ${column} IN (${ph}) ${extraWhere}`
+    ).bind(...chunk).first();
+    n+=Number(row?.n||0);
+  }
+  return n;
+}
+
+async function cleanDeleteByInV310(env,table,column,values,extraWhere=''){
+  let changes=0;
+  for(const chunk of cleanChunkV310(values)){
+    if(!chunk.length)continue;
+    const ph=chunk.map(()=>'?').join(',');
+    const r=await env.OPS_DB.prepare(
+      `DELETE FROM ${table} WHERE ${column} IN (${ph}) ${extraWhere}`
+    ).bind(...chunk).run();
+    changes+=Number(r?.meta?.changes||0);
+  }
+  return changes;
+}
+
+async function gmailCleanHistoricalSqPurgeR310(env,{dryRun=true,confirm='' }={}){
   await ensureLot5Tables(env);
   await ensureGmailPipelineTables(env);
   await ensureImportProcessorTables(env);
@@ -5933,32 +5979,32 @@ async function gmailCleanHistoricalSqPurgeR39(env,{dryRun=true,confirm='' }={}){
     };
   }
 
-  const placeholders=messageIds.map(()=>'?').join(',');
-
-  const versions=(await env.OPS_DB.prepare(`
-    SELECT version_id,file_id,gmail_message_id,r2_key,sha256,filename_original
-    FROM import_file_versions
-    WHERE gmail_message_id IN (${placeholders})
-  `).bind(...messageIds).all()).results||[];
+  const versions=await cleanSelectByInV310(
+    env,
+    `SELECT version_id,file_id,gmail_message_id,r2_key,sha256,filename_original FROM import_file_versions WHERE`,
+    'gmail_message_id',
+    messageIds
+  );
 
   const versionIds=[...new Set(versions.map(r=>String(r.version_id||'')).filter(Boolean))];
   const fileIds=[...new Set(versions.map(r=>String(r.file_id||'')).filter(Boolean))];
 
-  const jobs=(await env.OPS_DB.prepare(`
-    SELECT job_id,gmail_message_id,file_id,version_id,flight_number,flight_date,status
-    FROM import_jobs
-    WHERE gmail_message_id IN (${placeholders})
-  `).bind(...messageIds).all()).results||[];
+  const jobs=await cleanSelectByInV310(
+    env,
+    `SELECT job_id,gmail_message_id,file_id,version_id,flight_number,flight_date,status FROM import_jobs WHERE`,
+    'gmail_message_id',
+    messageIds
+  );
   const jobIds=[...new Set(jobs.map(r=>String(r.job_id||'')).filter(Boolean))];
 
   let driveRows=[];
   if(versionIds.length){
-    const pv=versionIds.map(()=>'?').join(',');
-    driveRows=(await env.OPS_DB.prepare(`
-      SELECT version_id,identity,drive_file_id,drive_folder_id,filename
-      FROM lot5_drive_files
-      WHERE version_id IN (${pv})
-    `).bind(...versionIds).all()).results||[];
+    driveRows=await cleanSelectByInV310(
+      env,
+      `SELECT version_id,identity,drive_file_id,drive_folder_id,filename FROM lot5_drive_files WHERE`,
+      'version_id',
+      versionIds
+    );
   }
 
   const identityMap=new Map();
@@ -5994,34 +6040,16 @@ async function gmailCleanHistoricalSqPurgeR39(env,{dryRun=true,confirm='' }={}){
   }
 
   let cardsCount=0, injectionsCount=0, resultsCount=0, linksCount=0, changesCount=0, prepaCount=0;
-  if(versionIds.length||jobIds.length||fileIds.length){
-    const cond=[];
-    const binds=[];
-    if(versionIds.length){cond.push(`version_id IN (${versionIds.map(()=>'?').join(',')})`);binds.push(...versionIds);}
-    if(jobIds.length){cond.push(`job_id IN (${jobIds.map(()=>'?').join(',')})`);binds.push(...jobIds);}
-    if(fileIds.length){cond.push(`file_id IN (${fileIds.map(()=>'?').join(',')})`);binds.push(...fileIds);}
-    const c=await env.OPS_DB.prepare(`SELECT COUNT(*) AS n FROM flight_import_cards WHERE ${cond.join(' OR ')}`).bind(...binds).first();
-    cardsCount=Number(c?.n||0);
-  }
+  if(versionIds.length)cardsCount+=await cleanCountByInV310(env,'flight_import_cards','version_id',versionIds);
+  if(jobIds.length)cardsCount+=await cleanCountByInV310(env,'flight_import_cards','job_id',jobIds);
+  if(fileIds.length)cardsCount+=await cleanCountByInV310(env,'flight_import_cards','file_id',fileIds);
   if(jobIds.length){
-    const pj=jobIds.map(()=>'?').join(',');
-    const r1=await env.OPS_DB.prepare(`SELECT COUNT(*) AS n FROM import_job_results WHERE job_id IN (${pj})`).bind(...jobIds).first();
-    resultsCount=Number(r1?.n||0);
-    const r2=await env.OPS_DB.prepare(`SELECT COUNT(*) AS n FROM flight_import_injections WHERE result_job_id IN (${pj})`).bind(...jobIds).first();
-    injectionsCount=Number(r2?.n||0);
+    resultsCount=await cleanCountByInV310(env,'import_job_results','job_id',jobIds);
+    injectionsCount=await cleanCountByInV310(env,'flight_import_injections','result_job_id',jobIds);
   }
-  {
-    const r=await env.OPS_DB.prepare(`SELECT COUNT(*) AS n FROM gmail_message_documents WHERE gmail_message_id IN (${placeholders})`).bind(...messageIds).first();
-    linksCount=Number(r?.n||0);
-  }
-  {
-    const r=await env.OPS_DB.prepare(`SELECT COUNT(*) AS n FROM import_changes WHERE gmail_message_id IN (${placeholders})`).bind(...messageIds).first();
-    changesCount=Number(r?.n||0);
-  }
-  {
-    const r=await env.OPS_DB.prepare(`SELECT COUNT(*) AS n FROM prepa_inbox WHERE gmail_message_id IN (${placeholders})`).bind(...messageIds).first().catch(()=>({n:0}));
-    prepaCount=Number(r?.n||0);
-  }
+  linksCount=await cleanCountByInV310(env,'gmail_message_documents','gmail_message_id',messageIds);
+  changesCount=await cleanCountByInV310(env,'import_changes','gmail_message_id',messageIds);
+  try{prepaCount=await cleanCountByInV310(env,'prepa_inbox','gmail_message_id',messageIds);}catch(_){prepaCount=0;}
 
   const audit={
     ok:true,
@@ -6110,30 +6138,24 @@ async function gmailCleanHistoricalSqPurgeR39(env,{dryRun=true,confirm='' }={}){
     }
   }
 
-  // Delete derived/import rows first.
-  if(versionIds.length||jobIds.length||fileIds.length){
-    const cond=[]; const binds=[];
-    if(versionIds.length){cond.push(`version_id IN (${versionIds.map(()=>'?').join(',')})`);binds.push(...versionIds);}
-    if(jobIds.length){cond.push(`job_id IN (${jobIds.map(()=>'?').join(',')})`);binds.push(...jobIds);}
-    if(fileIds.length){cond.push(`file_id IN (${fileIds.map(()=>'?').join(',')})`);binds.push(...fileIds);}
-    await env.OPS_DB.prepare(`DELETE FROM flight_import_cards WHERE ${cond.join(' OR ')}`).bind(...binds).run().catch(e=>errors.push(`flight_import_cards:${String(e)}`));
-  }
+  // Delete derived/import rows first, always in small D1-safe batches.
+  try{if(versionIds.length)await cleanDeleteByInV310(env,'flight_import_cards','version_id',versionIds);}catch(e){errors.push(`flight_import_cards/version:${String(e)}`);}
+  try{if(jobIds.length)await cleanDeleteByInV310(env,'flight_import_cards','job_id',jobIds);}catch(e){errors.push(`flight_import_cards/job:${String(e)}`);}
+  try{if(fileIds.length)await cleanDeleteByInV310(env,'flight_import_cards','file_id',fileIds);}catch(e){errors.push(`flight_import_cards/file:${String(e)}`);}
 
   if(jobIds.length){
-    const pj=jobIds.map(()=>'?').join(',');
-    await env.OPS_DB.prepare(`DELETE FROM flight_import_injections WHERE result_job_id IN (${pj})`).bind(...jobIds).run().catch(e=>errors.push(`flight_import_injections:${String(e)}`));
-    await env.OPS_DB.prepare(`DELETE FROM import_job_results WHERE job_id IN (${pj})`).bind(...jobIds).run().catch(e=>errors.push(`import_job_results:${String(e)}`));
-    await env.OPS_DB.prepare(`DELETE FROM import_jobs WHERE job_id IN (${pj})`).bind(...jobIds).run().catch(e=>errors.push(`import_jobs:${String(e)}`));
+    try{await cleanDeleteByInV310(env,'flight_import_injections','result_job_id',jobIds);}catch(e){errors.push(`flight_import_injections:${String(e)}`);}
+    try{await cleanDeleteByInV310(env,'import_job_results','job_id',jobIds);}catch(e){errors.push(`import_job_results:${String(e)}`);}
+    try{await cleanDeleteByInV310(env,'import_jobs','job_id',jobIds);}catch(e){errors.push(`import_jobs:${String(e)}`);}
   }
 
-  await env.OPS_DB.prepare(`DELETE FROM import_changes WHERE gmail_message_id IN (${placeholders})`).bind(...messageIds).run().catch(e=>errors.push(`import_changes:${String(e)}`));
-  await env.OPS_DB.prepare(`DELETE FROM gmail_message_documents WHERE gmail_message_id IN (${placeholders})`).bind(...messageIds).run().catch(e=>errors.push(`gmail_message_documents:${String(e)}`));
-  await env.OPS_DB.prepare(`DELETE FROM prepa_inbox WHERE gmail_message_id IN (${placeholders})`).bind(...messageIds).run().catch(e=>errors.push(`prepa_inbox:${String(e)}`));
+  try{await cleanDeleteByInV310(env,'import_changes','gmail_message_id',messageIds);}catch(e){errors.push(`import_changes:${String(e)}`);}
+  try{await cleanDeleteByInV310(env,'gmail_message_documents','gmail_message_id',messageIds);}catch(e){errors.push(`gmail_message_documents:${String(e)}`);}
+  try{await cleanDeleteByInV310(env,'prepa_inbox','gmail_message_id',messageIds);}catch(e){errors.push(`prepa_inbox:${String(e)}`);}
 
   if(versionIds.length){
-    const pv=versionIds.map(()=>'?').join(',');
-    await env.OPS_DB.prepare(`DELETE FROM lot5_drive_files WHERE version_id IN (${pv})`).bind(...versionIds).run().catch(e=>errors.push(`lot5_drive_files:${String(e)}`));
-    await env.OPS_DB.prepare(`DELETE FROM import_file_versions WHERE version_id IN (${pv})`).bind(...versionIds).run().catch(e=>errors.push(`import_file_versions:${String(e)}`));
+    try{await cleanDeleteByInV310(env,'lot5_drive_files','version_id',versionIds);}catch(e){errors.push(`lot5_drive_files:${String(e)}`);}
+    try{await cleanDeleteByInV310(env,'import_file_versions','version_id',versionIds);}catch(e){errors.push(`import_file_versions:${String(e)}`);}
   }
 
   // Remove empty import_files after historical versions are removed.
@@ -6194,7 +6216,7 @@ async function gmailCleanHistoricalSqPurgeR39(env,{dryRun=true,confirm='' }={}){
     folderRowsDeleted+=Number(dres?.meta?.changes||0);
   }
 
-  await env.OPS_DB.prepare(`DELETE FROM gmail_messages WHERE gmail_message_id IN (${placeholders})`).bind(...messageIds).run().catch(e=>errors.push(`gmail_messages:${String(e)}`));
+  try{await cleanDeleteByInV310(env,'gmail_messages','gmail_message_id',messageIds);}catch(e){errors.push(`gmail_messages:${String(e)}`);}
 
   return {
     ...audit,
@@ -6239,7 +6261,7 @@ async function handleLot5(request,env,url){
     }
     if(url.pathname==='/api/gmail-clean/purge-historical-sq'&&request.method==='POST'){
       const body=await request.json().catch(()=>({}));
-      return json(await gmailCleanHistoricalSqPurgeR39(env,{
+      return json(await gmailCleanHistoricalSqPurgeR310(env,{
         dryRun:body?.dryRun!==false,
         confirm:String(body?.confirm||'')
       }));
