@@ -1,4 +1,4 @@
-// ALYZIA OPS V50.30 R3.3 SQ CLEAN SHA DEDUPE
+// ALYZIA OPS V50.30 R3.4 SQ CLEAN MERGE
 // Parsers SQ/TK/BJ/VF/TW unchanged.
 // V50.28 RULE: INC/INCARRIAGE = INBOUND PAX; INBOUND SUMMARY = FLIGHT METADATA; route inbound terminates at main origin (CDG).
 // V50.27 RULE: INCARRIAGE/INC = INBOUND PASSENGERS; INBOUND CUSTOMER SUMMARY = INBOUND FLIGHTS.
@@ -4823,7 +4823,7 @@ async function lot3FlightCards(env,url){
  * ========================================================= */
 
 // LOT 5.2 FULL MAILBOX CONTINUOUS — whole Gmail mailbox + newest-first + resumable pagination + non-blocking errors.
-const LOT5_VERSION="V50.30_R3_3_SQ_CLEAN_SHA_DEDUPE";
+const LOT5_VERSION="V50.30_R3_4_SQ_CLEAN_MERGE";
 // 5.3.5 scope: pipeline recovery + Gmail body + historical replay + Drive archive + fast summary.
 // Specific parsers remain byte-for-byte untouched.
 // Gmail -> identity -> R2/D1 -> Drive -> existing parser -> flight injection -> exclusive Gmail state.
@@ -5876,6 +5876,10 @@ async function handleLot5(request,env,url){
       const body=await request.json().catch(()=>({}));
       return json(await gmailCleanReplaySqDocumentsV31(env,body?.messageIds||[]));
     }
+    if(url.pathname==='/api/gmail-clean/merge-sq-sha'&&request.method==='POST'){
+      const body=await request.json().catch(()=>({}));
+      return json(await gmailCleanMergeSqShaV34(env,body?.messageIds||[],body?.dryRun!==false));
+    }
     if(url.pathname==='/api/gmail-clean/sha-audit'&&request.method==='POST'){
       const body=await request.json().catch(()=>({}));
       return json(await gmailCleanShaAuditV33(env,body?.messageIds||[]));
@@ -5987,6 +5991,15 @@ async function gmailCleanBackfillExistingLinksV31(env,messageIds=[]){
 
     for(const v of versions){
       try{
+        const already=await env.OPS_DB.prepare(`
+          SELECT 1 AS ok
+          FROM gmail_message_documents
+          WHERE gmail_message_id=? AND version_id=?
+          LIMIT 1
+        `).bind(messageId,String(v.version_id||'')).first();
+
+        if(already)continue;
+
         await cleanLinkMessageDocumentV3(env,{
           gmailMessageId:messageId,
           versionId:String(v.version_id||''),
@@ -6055,6 +6068,279 @@ async function gmailCleanReplaySqDocumentsV31(env,messageIds=[]){
   };
 }
 
+
+
+function cleanIsCanonicalDateV34(v){
+  return /^20\d{2}-\d{2}-\d{2}$/.test(String(v||''));
+}
+
+function cleanCanonicalScoreV34(row){
+  let score=0;
+  const fileId=String(row?.file_id||'');
+  if(fileId.includes('|SHA256:'))score+=100;
+  if(cleanIsCanonicalDateV34(row?.flight_date))score+=50;
+  if(String(row?.is_active||'')==='1'||Number(row?.is_active||0)===1)score+=10;
+  return score;
+}
+
+async function gmailCleanPlanSqMergeV34(env,messageIds=[]){
+  await ensureImportProcessorTables(env);
+  await ensureLot3Tables(env);
+  await ensureLot5Tables(env);
+
+  const ids=[...new Set((messageIds||[]).map(x=>String(x||'').trim()).filter(Boolean))];
+  if(!ids.length)return {ok:false,error:'messageIds requis'};
+  if(ids.length>10)return {ok:false,error:'Maximum 10 messages pour SQ CLEAN MERGE'};
+
+  const qs=ids.map(()=>'?').join(',');
+  const rows=(await env.OPS_DB.prepare(`
+    SELECT
+      v.version_id,v.file_id,v.gmail_message_id,v.attachment_id,
+      v.filename_original,v.filename_normalized,v.mime_type,v.file_size,
+      v.sha256,v.r2_key,v.status,v.is_active,v.created_at,
+      f.airline,f.flight_number,f.flight_date,f.document_type,f.retention_status
+    FROM import_file_versions v
+    JOIN import_files f ON f.file_id=v.file_id
+    WHERE v.gmail_message_id IN (${qs})
+      AND UPPER(f.airline)='SQ'
+      AND COALESCE(v.sha256,'')<>''
+    ORDER BY v.created_at ASC
+  `).bind(...ids).all()).results||[];
+
+  const byKey=new Map();
+  for(const r of rows){
+    const date=lot5CanonicalFlightDate(r.flight_date,'')||String(r.flight_date||'');
+    const key=`SQ|${String(r.flight_number||'').toUpperCase()}|${date}|${String(r.sha256||'')}`;
+    if(!byKey.has(key))byKey.set(key,[]);
+    byKey.get(key).push({...r,canonical_flight_date:date});
+  }
+
+  const groups=[];
+  for(const [key,arr] of byKey){
+    if(arr.length<2)continue;
+    const sorted=[...arr].sort((a,b)=>{
+      const ds=cleanCanonicalScoreV34(b)-cleanCanonicalScoreV34(a);
+      if(ds)return ds;
+      return String(a.created_at||'').localeCompare(String(b.created_at||''));
+    });
+    const canonical=sorted[0];
+    const duplicates=sorted.slice(1);
+    groups.push({
+      key,
+      sha:String(canonical.sha256||''),
+      airline:'SQ',
+      flightNumber:String(canonical.flight_number||'').toUpperCase(),
+      flightDate:String(canonical.canonical_flight_date||''),
+      canonical:{
+        versionId:String(canonical.version_id||''),
+        fileId:String(canonical.file_id||''),
+        filename:String(canonical.filename_original||''),
+        documentType:String(canonical.document_type||''),
+        score:cleanCanonicalScoreV34(canonical)
+      },
+      duplicates:duplicates.map(d=>({
+        versionId:String(d.version_id||''),
+        fileId:String(d.file_id||''),
+        filename:String(d.filename_original||''),
+        documentType:String(d.document_type||''),
+        score:cleanCanonicalScoreV34(d)
+      }))
+    });
+  }
+
+  return {
+    ok:true,
+    version:LOT5_VERSION,
+    scope:'SQ_CONTROLLED_MESSAGES',
+    messages:ids.length,
+    groups:groups.length,
+    duplicateVersions:groups.reduce((n,g)=>n+g.duplicates.length,0),
+    plan:groups
+  };
+}
+
+async function cleanMergeOneVersionV34(env,{canonicalVersionId,canonicalFileId,duplicateVersionId,duplicateFileId}){
+  if(!canonicalVersionId||!canonicalFileId||!duplicateVersionId||canonicalVersionId===duplicateVersionId){
+    return {ok:false,skipped:true,reason:'INVALID_OR_SAME_VERSION'};
+  }
+
+  const audit={movedLinks:0,movedJobs:0,movedResults:0,movedCards:0,removedCards:0,driveMoved:0,parentLinksUpdated:0};
+
+  // 1) Preserve all source-message provenance on canonical version.
+  const links=(await env.OPS_DB.prepare(`
+    SELECT gmail_message_id,source_kind,source_ref,parent_version_id,is_duplicate
+    FROM gmail_message_documents
+    WHERE version_id=?
+    ORDER BY created_at
+  `).bind(duplicateVersionId).all()).results||[];
+
+  for(const l of links){
+    let parent=String(l.parent_version_id||'');
+    if(parent===duplicateVersionId)parent=canonicalVersionId;
+    await cleanLinkMessageDocumentV3(env,{
+      gmailMessageId:String(l.gmail_message_id||''),
+      versionId:canonicalVersionId,
+      fileId:canonicalFileId,
+      sourceKind:String(l.source_kind||'ATTACHMENT'),
+      sourceRef:String(l.source_ref||''),
+      parentVersionId:parent,
+      isDuplicate:true
+    });
+    audit.movedLinks++;
+  }
+
+  // Any nested item that used the duplicate as parent now points to canonical.
+  const pr=await env.OPS_DB.prepare(`
+    UPDATE gmail_message_documents
+    SET parent_version_id=?
+    WHERE parent_version_id=?
+  `).bind(canonicalVersionId,duplicateVersionId).run();
+  audit.parentLinksUpdated=Number(pr?.meta?.changes||0);
+
+  await env.OPS_DB.prepare(`DELETE FROM gmail_message_documents WHERE version_id=?`).bind(duplicateVersionId).run();
+
+  // 2) Repoint parser jobs and results; keep job ids for audit/history.
+  const jr=await env.OPS_DB.prepare(`
+    UPDATE import_jobs
+    SET version_id=?,file_id=?,updated_at=CURRENT_TIMESTAMP
+    WHERE version_id=?
+  `).bind(canonicalVersionId,canonicalFileId,duplicateVersionId).run();
+  audit.movedJobs=Number(jr?.meta?.changes||0);
+
+  const rr=await env.OPS_DB.prepare(`
+    UPDATE import_job_results
+    SET version_id=?,file_id=?,updated_at=CURRENT_TIMESTAMP
+    WHERE version_id=?
+  `).bind(canonicalVersionId,canonicalFileId,duplicateVersionId).run();
+  audit.movedResults=Number(rr?.meta?.changes||0);
+
+  // 3) Flight cards have a UNIQUE constraint including version_id.
+  // Insert/update canonical equivalent first, then remove duplicate-version cards.
+  const cards=(await env.OPS_DB.prepare(`
+    SELECT *
+    FROM flight_import_cards
+    WHERE version_id=?
+    ORDER BY id
+  `).bind(duplicateVersionId).all()).results||[];
+
+  for(const c of cards){
+    const existing=await env.OPS_DB.prepare(`
+      SELECT id FROM flight_import_cards
+      WHERE identity=? AND card_key=? AND list_name=? AND version_id=?
+      LIMIT 1
+    `).bind(c.identity,c.card_key,c.list_name,canonicalVersionId).first();
+
+    if(existing){
+      await env.OPS_DB.prepare(`DELETE FROM flight_import_cards WHERE id=?`).bind(c.id).run();
+      audit.removedCards++;
+    }else{
+      await env.OPS_DB.prepare(`
+        UPDATE flight_import_cards
+        SET version_id=?,file_id=?,updated_at=CURRENT_TIMESTAMP
+        WHERE id=?
+      `).bind(canonicalVersionId,canonicalFileId,c.id).run();
+      audit.movedCards++;
+    }
+  }
+
+  // 4) Preserve Drive pointer on canonical version when needed.
+  const dupDrive=await env.OPS_DB.prepare(`SELECT * FROM lot5_drive_files WHERE version_id=? LIMIT 1`).bind(duplicateVersionId).first();
+  if(dupDrive){
+    const canonDrive=await env.OPS_DB.prepare(`SELECT version_id FROM lot5_drive_files WHERE version_id=? LIMIT 1`).bind(canonicalVersionId).first();
+    if(!canonDrive){
+      await env.OPS_DB.prepare(`
+        INSERT INTO lot5_drive_files(version_id,identity,drive_file_id,drive_folder_id,filename,uploaded_at)
+        VALUES (?,?,?,?,?,?)
+      `).bind(
+        canonicalVersionId,
+        String(dupDrive.identity||''),
+        String(dupDrive.drive_file_id||''),
+        String(dupDrive.drive_folder_id||''),
+        String(dupDrive.filename||''),
+        String(dupDrive.uploaded_at||new Date().toISOString())
+      ).run();
+      audit.driveMoved=1;
+    }
+    await env.OPS_DB.prepare(`DELETE FROM lot5_drive_files WHERE version_id=?`).bind(duplicateVersionId).run();
+  }
+
+  // 5) Keep history rows untouched (import_changes), then remove duplicate version row.
+  await env.OPS_DB.prepare(`DELETE FROM import_file_versions WHERE version_id=?`).bind(duplicateVersionId).run();
+
+  // Remove empty duplicate file shell, otherwise mark merged.
+  const remain=await env.OPS_DB.prepare(`SELECT COUNT(*) AS n FROM import_file_versions WHERE file_id=?`).bind(duplicateFileId).first();
+  if(Number(remain?.n||0)===0){
+    await env.OPS_DB.prepare(`DELETE FROM import_files WHERE file_id=?`).bind(duplicateFileId).run();
+  }else{
+    await env.OPS_DB.prepare(`
+      UPDATE import_files
+      SET retention_status='MERGED',status='MERGED',updated_at=CURRENT_TIMESTAMP
+      WHERE file_id=?
+    `).bind(duplicateFileId).run();
+  }
+
+  // Canonical file stays active and normalized.
+  await env.OPS_DB.prepare(`
+    UPDATE import_files
+    SET active_version_id=?,retention_status='ACTIVE',updated_at=CURRENT_TIMESTAMP
+    WHERE file_id=?
+  `).bind(canonicalVersionId,canonicalFileId).run();
+
+  return {ok:true,audit};
+}
+
+async function gmailCleanMergeSqShaV34(env,messageIds=[],dryRun=true){
+  const plan=await gmailCleanPlanSqMergeV34(env,messageIds);
+  if(!plan.ok||dryRun!==false)return {...plan,dryRun:true};
+
+  const applied=[];
+  const errors=[];
+
+  for(const g of plan.plan){
+    for(const d of g.duplicates){
+      try{
+        const r=await cleanMergeOneVersionV34(env,{
+          canonicalVersionId:g.canonical.versionId,
+          canonicalFileId:g.canonical.fileId,
+          duplicateVersionId:d.versionId,
+          duplicateFileId:d.fileId
+        });
+        applied.push({sha:g.sha,canonicalVersionId:g.canonical.versionId,duplicateVersionId:d.versionId,...r});
+      }catch(e){
+        errors.push({
+          sha:g.sha,
+          canonicalVersionId:g.canonical.versionId,
+          duplicateVersionId:d.versionId,
+          error:String(e?.stack||e?.message||e)
+        });
+      }
+    }
+  }
+
+  const after=await gmailCleanShaAuditV33(env,messageIds);
+  await recordImportChange(env,{
+    scope:'SQ_CLEAN_MERGE',
+    airline:'SQ',
+    changeType:'SQ_SHA_MERGE_V34',
+    after:{
+      messageIds,
+      plannedGroups:plan.groups,
+      plannedDuplicateVersions:plan.duplicateVersions,
+      applied:applied.length,
+      errors:errors.length
+    }
+  }).catch(()=>{});
+
+  return {
+    ok:errors.length===0,
+    version:LOT5_VERSION,
+    dryRun:false,
+    planSummary:{groups:plan.groups,duplicateVersions:plan.duplicateVersions},
+    applied,
+    errors,
+    after
+  };
+}
 
 async function gmailCleanShaAuditV33(env,messageIds=[]){
   await ensureGmailPipelineTables(env);
