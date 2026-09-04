@@ -1,5 +1,5 @@
-// ALYZIA OPS V50.30 R3.8 SQ SERVICE DATE AUDIT FIX
-// READ-ONLY. Service date is taken immediately after SQ flight number; later dates are timestamps.
+// ALYZIA OPS V50.30 R3.9 — SQ HISTORICAL PREPASQ PURGE
+// Scoped purge: SQ historical sender only. Parsers SQ/TK/BJ/VF/TW unchanged.
 // V50.28 RULE: INC/INCARRIAGE = INBOUND PAX; INBOUND SUMMARY = FLIGHT METADATA; route inbound terminates at main origin (CDG).
 // V50.27 RULE: INCARRIAGE/INC = INBOUND PASSENGERS; INBOUND CUSTOMER SUMMARY = INBOUND FLIGHTS.
 // Passenger dossier displays linked INBOUND/OUTBOUND flight exactly via the shared connection rows.
@@ -4888,7 +4888,7 @@ async function lot3FlightCards(env,url){
  * ========================================================= */
 
 // LOT 5.2 FULL MAILBOX CONTINUOUS — whole Gmail mailbox + newest-first + resumable pagination + non-blocking errors.
-const LOT5_VERSION="V50.30_R3_8_SQ_SERVICE_DATE_AUDIT_FIX";
+const LOT5_VERSION="V50.30_R3_9_SQ_HISTORICAL_PURGE";
 // 5.3.5 scope: pipeline recovery + Gmail body + historical replay + Drive archive + fast summary.
 // Specific parsers remain byte-for-byte untouched.
 // Gmail -> identity -> R2/D1 -> Drive -> existing parser -> flight injection -> exclusive Gmail state.
@@ -5903,6 +5903,317 @@ async function lot5ReconcileCanonicalStatusesR4(env,limit=2000){
   return {ok:true,r4:true,reconciled:result.checked||0,counts:result.counts||{},syncCount:synced,errors:result.errors||[]};
 }
 
+
+async function gmailCleanHistoricalSqPurgeR39(env,{dryRun=true,confirm='' }={}){
+  await ensureLot5Tables(env);
+  await ensureGmailPipelineTables(env);
+  await ensureImportProcessorTables(env);
+  await ensureLot3Tables(env);
+
+  const HIST_SENDER_LIKE='%prepasq%';
+
+  const messages=(await env.OPS_DB.prepare(`
+    SELECT gmail_message_id,subject,sender,flight_number,flight_date,status
+    FROM gmail_messages
+    WHERE UPPER(airline)='SQ'
+      AND LOWER(COALESCE(sender,'')) LIKE ?
+    ORDER BY flight_date,flight_number,first_seen_at
+  `).bind(HIST_SENDER_LIKE).all()).results||[];
+
+  const messageIds=messages.map(r=>String(r.gmail_message_id||'')).filter(Boolean);
+
+  if(!messageIds.length){
+    return {
+      ok:true,
+      version:LOT5_VERSION,
+      mode:dryRun?'DRY_RUN':'APPLY',
+      scope:'SQ historical only / sender contains prepasq',
+      messages:0,
+      note:'Aucune donnée historique SQ PREPASQ trouvée dans gmail_messages.'
+    };
+  }
+
+  const placeholders=messageIds.map(()=>'?').join(',');
+
+  const versions=(await env.OPS_DB.prepare(`
+    SELECT version_id,file_id,gmail_message_id,r2_key,sha256,filename_original
+    FROM import_file_versions
+    WHERE gmail_message_id IN (${placeholders})
+  `).bind(...messageIds).all()).results||[];
+
+  const versionIds=[...new Set(versions.map(r=>String(r.version_id||'')).filter(Boolean))];
+  const fileIds=[...new Set(versions.map(r=>String(r.file_id||'')).filter(Boolean))];
+
+  const jobs=(await env.OPS_DB.prepare(`
+    SELECT job_id,gmail_message_id,file_id,version_id,flight_number,flight_date,status
+    FROM import_jobs
+    WHERE gmail_message_id IN (${placeholders})
+  `).bind(...messageIds).all()).results||[];
+  const jobIds=[...new Set(jobs.map(r=>String(r.job_id||'')).filter(Boolean))];
+
+  let driveRows=[];
+  if(versionIds.length){
+    const pv=versionIds.map(()=>'?').join(',');
+    driveRows=(await env.OPS_DB.prepare(`
+      SELECT version_id,identity,drive_file_id,drive_folder_id,filename
+      FROM lot5_drive_files
+      WHERE version_id IN (${pv})
+    `).bind(...versionIds).all()).results||[];
+  }
+
+  const identityMap=new Map();
+  for(const r of messages){
+    const fn=String(r.flight_number||'').replace(/\s+/g,'').toUpperCase();
+    const fd=String(r.flight_date||'');
+    if(fn&&fd){
+      identityMap.set(`${fd}|SQ|${fn}`,{airline:'SQ',flightNumber:fn,flightDate:fd});
+    }
+  }
+  for(const r of jobs){
+    const fn=String(r.flight_number||'').replace(/\s+/g,'').toUpperCase();
+    const fd=String(r.flight_date||'');
+    if(fn&&fd){
+      identityMap.set(`${fd}|SQ|${fn}`,{airline:'SQ',flightNumber:fn,flightDate:fd});
+    }
+  }
+  const identities=[...identityMap.entries()].map(([identity,v])=>({identity,...v}));
+
+  const historicalOnly=[];
+  const shared=[];
+  for(const id of identities){
+    const other=await env.OPS_DB.prepare(`
+      SELECT COUNT(*) AS n
+      FROM gmail_messages
+      WHERE UPPER(airline)='SQ'
+        AND UPPER(REPLACE(flight_number,' ',''))=?
+        AND flight_date=?
+        AND LOWER(COALESCE(sender,'')) NOT LIKE ?
+    `).bind(id.flightNumber,id.flightDate,HIST_SENDER_LIKE).first();
+    const n=Number(other?.n||0);
+    (n>0?shared:historicalOnly).push({...id,nonHistoricalMessageCount:n});
+  }
+
+  let cardsCount=0, injectionsCount=0, resultsCount=0, linksCount=0, changesCount=0, prepaCount=0;
+  if(versionIds.length||jobIds.length||fileIds.length){
+    const cond=[];
+    const binds=[];
+    if(versionIds.length){cond.push(`version_id IN (${versionIds.map(()=>'?').join(',')})`);binds.push(...versionIds);}
+    if(jobIds.length){cond.push(`job_id IN (${jobIds.map(()=>'?').join(',')})`);binds.push(...jobIds);}
+    if(fileIds.length){cond.push(`file_id IN (${fileIds.map(()=>'?').join(',')})`);binds.push(...fileIds);}
+    const c=await env.OPS_DB.prepare(`SELECT COUNT(*) AS n FROM flight_import_cards WHERE ${cond.join(' OR ')}`).bind(...binds).first();
+    cardsCount=Number(c?.n||0);
+  }
+  if(jobIds.length){
+    const pj=jobIds.map(()=>'?').join(',');
+    const r1=await env.OPS_DB.prepare(`SELECT COUNT(*) AS n FROM import_job_results WHERE job_id IN (${pj})`).bind(...jobIds).first();
+    resultsCount=Number(r1?.n||0);
+    const r2=await env.OPS_DB.prepare(`SELECT COUNT(*) AS n FROM flight_import_injections WHERE result_job_id IN (${pj})`).bind(...jobIds).first();
+    injectionsCount=Number(r2?.n||0);
+  }
+  {
+    const r=await env.OPS_DB.prepare(`SELECT COUNT(*) AS n FROM gmail_message_documents WHERE gmail_message_id IN (${placeholders})`).bind(...messageIds).first();
+    linksCount=Number(r?.n||0);
+  }
+  {
+    const r=await env.OPS_DB.prepare(`SELECT COUNT(*) AS n FROM import_changes WHERE gmail_message_id IN (${placeholders})`).bind(...messageIds).first();
+    changesCount=Number(r?.n||0);
+  }
+  {
+    const r=await env.OPS_DB.prepare(`SELECT COUNT(*) AS n FROM prepa_inbox WHERE gmail_message_id IN (${placeholders})`).bind(...messageIds).first().catch(()=>({n:0}));
+    prepaCount=Number(r?.n||0);
+  }
+
+  const audit={
+    ok:true,
+    version:LOT5_VERSION,
+    mode:dryRun?'DRY_RUN':'APPLY',
+    scope:'SQ historical only / sender contains prepasq',
+    counts:{
+      messages:messageIds.length,
+      versions:versionIds.length,
+      files:fileIds.length,
+      jobs:jobIds.length,
+      jobResults:resultsCount,
+      messageDocumentLinks:linksCount,
+      flightImportCards:cardsCount,
+      flightImportInjections:injectionsCount,
+      importChanges:changesCount,
+      prepaInbox:prepaCount,
+      driveFiles:driveRows.length,
+      identities:identities.length,
+      historicalOnlyIdentities:historicalOnly.length,
+      sharedIdentities:shared.length
+    },
+    historicalOnlyIdentities:historicalOnly,
+    sharedIdentities:shared,
+    sampleMessages:messages.slice(0,30).map(r=>({
+      messageId:r.gmail_message_id,
+      subject:r.subject,
+      sender:r.sender,
+      flightNumber:r.flight_number,
+      flightDate:r.flight_date,
+      status:r.status
+    })),
+    destructive:false
+  };
+
+  if(dryRun){
+    return audit;
+  }
+
+  if(String(confirm||'')!=='PURGE_PREPASQ_HISTORICAL_SQ'){
+    return {
+      ...audit,
+      ok:false,
+      error:'CONFIRMATION REQUISE',
+      requiredConfirm:'PURGE_PREPASQ_HISTORICAL_SQ',
+      destructive:false
+    };
+  }
+
+  const errors=[];
+  const driveFileIds=[...new Set(driveRows.map(r=>String(r.drive_file_id||'')).filter(Boolean))];
+  const r2Keys=[...new Set(versions.map(r=>String(r.r2_key||'')).filter(Boolean))];
+
+  let driveFilesTrashed=0;
+  if(driveFileIds.length){
+    try{
+      const dr=await trashDriveFoldersDirect(env,driveFileIds);
+      driveFilesTrashed=Number((dr.trashed||[]).length);
+      if((dr.errors||[]).length)errors.push(...dr.errors.map(e=>`DRIVE_FILE:${JSON.stringify(e)}`));
+    }catch(e){errors.push(`DRIVE_FILES:${String(e)}`);}
+  }
+
+  // Trash whole flight folders ONLY when the identity has no non-historical Gmail source.
+  const folderIds=[];
+  for(const id of historicalOnly){
+    const row=await env.OPS_DB.prepare(`
+      SELECT flight_folder_id FROM lot5_drive_folders
+      WHERE identity=? LIMIT 1
+    `).bind(id.identity).first().catch(()=>null);
+    const fid=String(row?.flight_folder_id||'').trim();
+    if(fid)folderIds.push(fid);
+  }
+  let driveFoldersTrashed=0;
+  if(folderIds.length){
+    try{
+      const dr=await trashDriveFoldersDirect(env,folderIds);
+      driveFoldersTrashed=Number((dr.trashed||[]).length);
+      if((dr.errors||[]).length)errors.push(...dr.errors.map(e=>`DRIVE_FOLDER:${JSON.stringify(e)}`));
+    }catch(e){errors.push(`DRIVE_FOLDERS:${String(e)}`);}
+  }
+
+  let r2Deleted=0;
+  if(env.OPS_FILES){
+    for(const key of r2Keys){
+      try{await env.OPS_FILES.delete(key);r2Deleted++;}catch(e){errors.push(`R2:${key}:${String(e)}`);}
+    }
+  }
+
+  // Delete derived/import rows first.
+  if(versionIds.length||jobIds.length||fileIds.length){
+    const cond=[]; const binds=[];
+    if(versionIds.length){cond.push(`version_id IN (${versionIds.map(()=>'?').join(',')})`);binds.push(...versionIds);}
+    if(jobIds.length){cond.push(`job_id IN (${jobIds.map(()=>'?').join(',')})`);binds.push(...jobIds);}
+    if(fileIds.length){cond.push(`file_id IN (${fileIds.map(()=>'?').join(',')})`);binds.push(...fileIds);}
+    await env.OPS_DB.prepare(`DELETE FROM flight_import_cards WHERE ${cond.join(' OR ')}`).bind(...binds).run().catch(e=>errors.push(`flight_import_cards:${String(e)}`));
+  }
+
+  if(jobIds.length){
+    const pj=jobIds.map(()=>'?').join(',');
+    await env.OPS_DB.prepare(`DELETE FROM flight_import_injections WHERE result_job_id IN (${pj})`).bind(...jobIds).run().catch(e=>errors.push(`flight_import_injections:${String(e)}`));
+    await env.OPS_DB.prepare(`DELETE FROM import_job_results WHERE job_id IN (${pj})`).bind(...jobIds).run().catch(e=>errors.push(`import_job_results:${String(e)}`));
+    await env.OPS_DB.prepare(`DELETE FROM import_jobs WHERE job_id IN (${pj})`).bind(...jobIds).run().catch(e=>errors.push(`import_jobs:${String(e)}`));
+  }
+
+  await env.OPS_DB.prepare(`DELETE FROM import_changes WHERE gmail_message_id IN (${placeholders})`).bind(...messageIds).run().catch(e=>errors.push(`import_changes:${String(e)}`));
+  await env.OPS_DB.prepare(`DELETE FROM gmail_message_documents WHERE gmail_message_id IN (${placeholders})`).bind(...messageIds).run().catch(e=>errors.push(`gmail_message_documents:${String(e)}`));
+  await env.OPS_DB.prepare(`DELETE FROM prepa_inbox WHERE gmail_message_id IN (${placeholders})`).bind(...messageIds).run().catch(e=>errors.push(`prepa_inbox:${String(e)}`));
+
+  if(versionIds.length){
+    const pv=versionIds.map(()=>'?').join(',');
+    await env.OPS_DB.prepare(`DELETE FROM lot5_drive_files WHERE version_id IN (${pv})`).bind(...versionIds).run().catch(e=>errors.push(`lot5_drive_files:${String(e)}`));
+    await env.OPS_DB.prepare(`DELETE FROM import_file_versions WHERE version_id IN (${pv})`).bind(...versionIds).run().catch(e=>errors.push(`import_file_versions:${String(e)}`));
+  }
+
+  // Remove empty import_files after historical versions are removed.
+  for(const fileId of fileIds){
+    const left=await env.OPS_DB.prepare(`SELECT COUNT(*) AS n FROM import_file_versions WHERE file_id=?`).bind(fileId).first().catch(()=>({n:1}));
+    if(Number(left?.n||0)===0){
+      await env.OPS_DB.prepare(`DELETE FROM import_files WHERE file_id=?`).bind(fileId).run().catch(e=>errors.push(`import_files:${fileId}:${String(e)}`));
+    }
+  }
+
+  // Delete whole flight/prepa/notes/attachments/folder metadata only when no non-historical source exists.
+  let flightsDeleted=0, flightAttachmentsDeleted=0, flightNotesDeleted=0, folderRowsDeleted=0;
+  for(const id of historicalOnly){
+    const flightRows=(await env.OPS_DB.prepare(`
+      SELECT identity FROM flights
+      WHERE UPPER(airline)='SQ'
+        AND UPPER(REPLACE(flight_number,' ',''))=?
+        AND flight_date=?
+    `).bind(id.flightNumber,id.flightDate).all().catch(()=>({results:[]}))).results||[];
+
+    for(const fr of flightRows){
+      const ident=String(fr.identity||'').trim();
+      if(!ident)continue;
+
+      // remove any legacy R2 attachments belonging to this historical-only flight
+      const atts=(await env.OPS_DB.prepare(`SELECT r2_key FROM flight_attachments WHERE flight_identity=?`).bind(ident).all().catch(()=>({results:[]}))).results||[];
+      if(env.OPS_FILES){
+        for(const a of atts){
+          const key=String(a.r2_key||'').trim();
+          if(key){
+            try{await env.OPS_FILES.delete(key);r2Deleted++;}catch(e){errors.push(`R2_LEGACY:${key}:${String(e)}`);}
+          }
+        }
+      }
+      const ares=await env.OPS_DB.prepare(`DELETE FROM flight_attachments WHERE flight_identity=?`).bind(ident).run().catch(()=>null);
+      flightAttachmentsDeleted+=Number(ares?.meta?.changes||0);
+      const nres=await env.OPS_DB.prepare(`DELETE FROM flight_notes WHERE flight_identity=?`).bind(ident).run().catch(()=>null);
+      flightNotesDeleted+=Number(nres?.meta?.changes||0);
+    }
+
+    const fres=await env.OPS_DB.prepare(`
+      DELETE FROM flights
+      WHERE UPPER(airline)='SQ'
+        AND UPPER(REPLACE(flight_number,' ',''))=?
+        AND flight_date=?
+    `).bind(id.flightNumber,id.flightDate).run().catch(()=>null);
+    flightsDeleted+=Number(fres?.meta?.changes||0);
+
+    // remove any remaining prepa rows for this historical-only identity
+    await env.OPS_DB.prepare(`
+      DELETE FROM prepa_inbox
+      WHERE UPPER(airline)='SQ'
+        AND UPPER(REPLACE(flight_number,' ',''))=?
+        AND flight_date=?
+    `).bind(id.flightNumber,id.flightDate).run().catch(()=>{});
+
+    const dres=await env.OPS_DB.prepare(`DELETE FROM lot5_drive_folders WHERE identity=?`).bind(id.identity).run().catch(()=>null);
+    folderRowsDeleted+=Number(dres?.meta?.changes||0);
+  }
+
+  await env.OPS_DB.prepare(`DELETE FROM gmail_messages WHERE gmail_message_id IN (${placeholders})`).bind(...messageIds).run().catch(e=>errors.push(`gmail_messages:${String(e)}`));
+
+  return {
+    ...audit,
+    mode:'APPLY',
+    destructive:true,
+    applied:true,
+    deleted:{
+      driveFilesTrashed,
+      driveFoldersTrashed,
+      r2Deleted,
+      flightsDeleted,
+      flightAttachmentsDeleted,
+      flightNotesDeleted,
+      driveFolderRowsDeleted:folderRowsDeleted
+    },
+    errors
+  };
+}
+
 async function handleLot5(request,env,url){
   if(!url.pathname.startsWith('/api/autopilot') && !url.pathname.startsWith('/api/gmail-clean'))return null;
   try{
@@ -5925,6 +6236,13 @@ async function handleLot5(request,env,url){
     if(url.pathname==='/api/autopilot/repair-identities'&&request.method==='POST'){
       const body=await request.json().catch(()=>({}));
       return json(await lot5RepairIdentityBacklogV534(env,Number(body?.limit||1200)));
+    }
+    if(url.pathname==='/api/gmail-clean/purge-historical-sq'&&request.method==='POST'){
+      const body=await request.json().catch(()=>({}));
+      return json(await gmailCleanHistoricalSqPurgeR39(env,{
+        dryRun:body?.dryRun!==false,
+        confirm:String(body?.confirm||'')
+      }));
     }
     if(url.pathname==='/api/gmail-clean/diagnostic'&&request.method==='GET'){
       return json(await gmailCleanDiagnosticV1(env,Number(url.searchParams.get('limit')||100)));
