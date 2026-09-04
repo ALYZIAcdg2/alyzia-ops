@@ -1,4 +1,4 @@
-// ALYZIA OPS V50.30 R3 SQ CLEAN
+// ALYZIA OPS V50.30 R3.1 SQ CLEAN LINK AUDIT
 // Parsers SQ/TK/BJ/VF/TW unchanged.
 // V50.28 RULE: INC/INCARRIAGE = INBOUND PAX; INBOUND SUMMARY = FLIGHT METADATA; route inbound terminates at main origin (CDG).
 // V50.27 RULE: INCARRIAGE/INC = INBOUND PASSENGERS; INBOUND CUSTOMER SUMMARY = INBOUND FLIGHTS.
@@ -1886,20 +1886,41 @@ async function clearAlyziaPipelineLabels(env,messageId){
 async function cleanLinkMessageDocumentV3(env,{
   gmailMessageId,versionId,fileId,sourceKind='ATTACHMENT',sourceRef='',parentVersionId='',isDuplicate=false
 }){
-  if(!gmailMessageId||!versionId||!fileId)return;
-  await env.OPS_DB.prepare(`
-    INSERT INTO gmail_message_documents
+  if(!gmailMessageId||!versionId||!fileId){
+    throw new Error(`LINK_DOCUMENT_INVALID:${String(gmailMessageId||'')}|${String(versionId||'')}|${String(fileId||'')}`);
+  }
+
+  // R3.1: use INSERT OR REPLACE instead of UPSERT ON CONFLICT.
+  // This is intentionally simple for Cloudflare D1 and makes the write auditable.
+  const result=await env.OPS_DB.prepare(`
+    INSERT OR REPLACE INTO gmail_message_documents
       (gmail_message_id,version_id,file_id,source_kind,source_ref,parent_version_id,is_duplicate,created_at)
     VALUES (?,?,?,?,?,?,?,CURRENT_TIMESTAMP)
-    ON CONFLICT(gmail_message_id,version_id,source_kind,source_ref) DO UPDATE SET
-      file_id=excluded.file_id,
-      parent_version_id=excluded.parent_version_id,
-      is_duplicate=excluded.is_duplicate
   `).bind(
     String(gmailMessageId),String(versionId),String(fileId),
     String(sourceKind||'ATTACHMENT'),String(sourceRef||''),
     String(parentVersionId||''),isDuplicate?1:0
   ).run();
+
+  const verify=await env.OPS_DB.prepare(`
+    SELECT gmail_message_id,version_id,file_id,source_kind,source_ref,parent_version_id,is_duplicate
+    FROM gmail_message_documents
+    WHERE gmail_message_id=? AND version_id=? AND source_kind=? AND source_ref=?
+    LIMIT 1
+  `).bind(
+    String(gmailMessageId),String(versionId),
+    String(sourceKind||'ATTACHMENT'),String(sourceRef||'')
+  ).first();
+
+  if(!verify){
+    throw new Error(`LINK_DOCUMENT_WRITE_NOT_VISIBLE:${gmailMessageId}|${versionId}|${sourceKind}|${sourceRef}`);
+  }
+
+  return {
+    ok:true,
+    changes:Number(result?.meta?.changes||0),
+    row:verify
+  };
 }
 
 function cleanDecodeQuotedPrintableV3(s){
@@ -2439,7 +2460,7 @@ async function storeGmailMessage(env,messageId){
         const sha=await sha256Hex(bytes);
         const fileId=cleanDocumentFileIdV1(flightBase.airline,flightBase.flightNumber,lot5CanonicalFlightDate(flightBase.flightDate,receivedAt),docType,sha);
         const versionId=`${fileId}|V1`;
-        await cleanLinkMessageDocumentV3(env,{gmailMessageId:messageId,versionId,fileId,sourceKind:'GMAIL_BODY',sourceRef:'GMAIL_BODY',isDuplicate:!!virtual.duplicate}).catch(()=>{});
+        await cleanLinkMessageDocumentV3(env,{gmailMessageId:messageId,versionId,fileId,sourceKind:'GMAIL_BODY',sourceRef:'GMAIL_BODY',isDuplicate:!!virtual.duplicate});
       }
     }
   }catch(e){
@@ -4716,7 +4737,7 @@ async function lot3FlightCards(env,url){
  * ========================================================= */
 
 // LOT 5.2 FULL MAILBOX CONTINUOUS — whole Gmail mailbox + newest-first + resumable pagination + non-blocking errors.
-const LOT5_VERSION="V50.30_R3_SQ_CLEAN";
+const LOT5_VERSION="V50.30_R3_1_SQ_CLEAN_LINK_AUDIT";
 // 5.3.5 scope: pipeline recovery + Gmail body + historical replay + Drive archive + fast summary.
 // Specific parsers remain byte-for-byte untouched.
 // Gmail -> identity -> R2/D1 -> Drive -> existing parser -> flight injection -> exclusive Gmail state.
@@ -5757,6 +5778,18 @@ async function handleLot5(request,env,url){
     if(url.pathname==='/api/gmail-clean/diagnostic'&&request.method==='GET'){
       return json(await gmailCleanDiagnosticV1(env,Number(url.searchParams.get('limit')||100)));
     }
+    if(url.pathname==='/api/gmail-clean/link-audit'&&request.method==='POST'){
+      const body=await request.json().catch(()=>({}));
+      return json(await gmailCleanLinkAuditV31(env,body?.messageIds||[]));
+    }
+    if(url.pathname==='/api/gmail-clean/backfill-links'&&request.method==='POST'){
+      const body=await request.json().catch(()=>({}));
+      return json(await gmailCleanBackfillExistingLinksV31(env,body?.messageIds||[]));
+    }
+    if(url.pathname==='/api/gmail-clean/replay-sq-documents'&&request.method==='POST'){
+      const body=await request.json().catch(()=>({}));
+      return json(await gmailCleanReplaySqDocumentsV31(env,body?.messageIds||[]));
+    }
     if(url.pathname==='/api/gmail-clean/sq-diagnostic'&&request.method==='GET'){
       return json(await gmailCleanSqDiagnosticV3(env,Number(url.searchParams.get('limit')||500)));
     }
@@ -5811,6 +5844,126 @@ async function gmailCleanDiagnosticV1(env,limit=100){
   return {ok:true,version:LOT5_VERSION,limit:n,messages:rows.length,flights:[...byFlight.values()].sort((a,b)=>String(b.flightDate).localeCompare(a.flightDate)||a.flightNumber.localeCompare(b.flightNumber))};
 }
 
+
+
+async function gmailCleanLinkAuditV31(env,messageIds=[]){
+  await ensureGmailPipelineTables(env);
+  const ids=[...new Set((messageIds||[]).map(x=>String(x||'').trim()).filter(Boolean))];
+  if(!ids.length)return {ok:true,messages:0,totalLinks:0,items:[]};
+  const qs=ids.map(()=>'?').join(',');
+  const rows=(await env.OPS_DB.prepare(`
+    SELECT
+      g.gmail_message_id,
+      g.airline,
+      g.flight_number,
+      g.flight_date,
+      g.status,
+      (SELECT COUNT(*) FROM import_file_versions v WHERE v.gmail_message_id=g.gmail_message_id) AS versions,
+      (SELECT COUNT(*) FROM gmail_message_documents md WHERE md.gmail_message_id=g.gmail_message_id) AS links,
+      (SELECT COUNT(*) FROM gmail_message_documents md WHERE md.gmail_message_id=g.gmail_message_id AND md.is_duplicate=1) AS duplicate_links,
+      (SELECT COUNT(*) FROM gmail_message_documents md WHERE md.gmail_message_id=g.gmail_message_id AND md.source_kind LIKE 'EML_%') AS nested_links
+    FROM gmail_messages g
+    WHERE g.gmail_message_id IN (${qs})
+    ORDER BY g.gmail_message_id
+  `).bind(...ids).all()).results||[];
+  return {
+    ok:true,
+    messages:rows.length,
+    totalVersions:rows.reduce((n,r)=>n+Number(r.versions||0),0),
+    totalLinks:rows.reduce((n,r)=>n+Number(r.links||0),0),
+    totalDuplicateLinks:rows.reduce((n,r)=>n+Number(r.duplicate_links||0),0),
+    totalNestedLinks:rows.reduce((n,r)=>n+Number(r.nested_links||0),0),
+    items:rows
+  };
+}
+
+async function gmailCleanBackfillExistingLinksV31(env,messageIds=[]){
+  await ensureGmailPipelineTables(env);
+  const ids=[...new Set((messageIds||[]).map(x=>String(x||'').trim()).filter(Boolean))];
+  if(!ids.length)return {ok:false,error:'messageIds requis'};
+  if(ids.length>20)return {ok:false,error:'Maximum 20 messages'};
+
+  const before=await gmailCleanLinkAuditV31(env,ids);
+  const errors=[];
+  let linked=0;
+
+  for(const messageId of ids){
+    const versions=(await env.OPS_DB.prepare(`
+      SELECT version_id,file_id,attachment_id,filename_original,mime_type,sha256
+      FROM import_file_versions
+      WHERE gmail_message_id=?
+      ORDER BY created_at ASC
+    `).bind(messageId).all()).results||[];
+
+    for(const v of versions){
+      try{
+        await cleanLinkMessageDocumentV3(env,{
+          gmailMessageId:messageId,
+          versionId:String(v.version_id||''),
+          fileId:String(v.file_id||''),
+          sourceKind:'LEGACY_BACKFILL',
+          sourceRef:String(v.attachment_id||v.version_id||''),
+          parentVersionId:'',
+          isDuplicate:false
+        });
+        linked++;
+      }catch(e){
+        errors.push({
+          messageId,
+          versionId:String(v.version_id||''),
+          error:String(e?.message||e)
+        });
+      }
+    }
+  }
+
+  const after=await gmailCleanLinkAuditV31(env,ids);
+  return {ok:errors.length===0,linked,before,after,errors};
+}
+
+async function gmailCleanReplaySqDocumentsV31(env,messageIds=[]){
+  await ensureGmailPipelineTables(env);
+  const ids=[...new Set((messageIds||[]).map(x=>String(x||'').trim()).filter(Boolean))];
+  if(!ids.length)return {ok:false,error:'messageIds requis'};
+  if(ids.length>10)return {ok:false,error:'Maximum 10 messages pour replay SQ'};
+
+  const before=await gmailCleanLinkAuditV31(env,ids);
+  const results=[];
+  const errors=[];
+
+  for(const messageId of ids){
+    try{
+      const gm=await env.OPS_DB.prepare(`
+        SELECT airline,flight_number,flight_date,subject
+        FROM gmail_messages WHERE gmail_message_id=? LIMIT 1
+      `).bind(messageId).first();
+
+      const looksSq=String(gm?.airline||'').toUpperCase()==='SQ'
+        || /\bSQ\s*\d{1,4}\b/i.test(String(gm?.subject||''));
+
+      if(!looksSq){
+        results.push({messageId,skipped:true,reason:'NOT_SQ'});
+        continue;
+      }
+
+      const stored=await storeGmailMessage(env,messageId);
+      results.push({messageId,stored});
+    }catch(e){
+      errors.push({messageId,error:String(e?.stack||e?.message||e)});
+    }
+  }
+
+  const after=await gmailCleanLinkAuditV31(env,ids);
+  return {
+    ok:errors.length===0,
+    version:LOT5_VERSION,
+    scope:'SQ_DOCUMENT_REPLAY_ONLY',
+    before,
+    after,
+    results,
+    errors
+  };
+}
 
 async function gmailCleanSqDiagnosticV3(env,limit=500){
   await ensureGmailPipelineTables(env);
