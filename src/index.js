@@ -1,5 +1,5 @@
-// ALYZIA OPS V50.30 R3.12 — TEST ONE GMAIL MESSAGE
-// Single-message controlled pipeline test. Protected parsers SQ/TK/BJ/VF/TW remain unchanged.
+// ALYZIA OPS V50.30 R3.13 — SQ CONTROLLED BRIDGE
+// Read-only bridge plan for one SQ flight/date. SQ/TK/BJ/VF/TW parsers unchanged.
 // V50.28 RULE: INC/INCARRIAGE = INBOUND PAX; INBOUND SUMMARY = FLIGHT METADATA; route inbound terminates at main origin (CDG).
 // V50.27 RULE: INCARRIAGE/INC = INBOUND PASSENGERS; INBOUND CUSTOMER SUMMARY = INBOUND FLIGHTS.
 // Passenger dossier displays linked INBOUND/OUTBOUND flight exactly via the shared connection rows.
@@ -4888,7 +4888,7 @@ async function lot3FlightCards(env,url){
  * ========================================================= */
 
 // LOT 5.2 FULL MAILBOX CONTINUOUS — whole Gmail mailbox + newest-first + resumable pagination + non-blocking errors.
-const LOT5_VERSION="V50.30_R3_12_TEST_ONE_MESSAGE";
+const LOT5_VERSION="V50.30_R3_13_SQ_CONTROLLED_BRIDGE";
 // 5.3.5 scope: pipeline recovery + Gmail body + historical replay + Drive archive + fast summary.
 // Specific parsers remain byte-for-byte untouched.
 // Gmail -> identity -> R2/D1 -> Drive -> existing parser -> flight injection -> exclusive Gmail state.
@@ -6445,6 +6445,70 @@ async function lot5TestOneMessageR312(env,body){
   };
 }
 
+
+async function lot5SqControlledBridgeR313(env,body){
+  await ensureLot5Tables(env);
+  const airline=String(body?.airline||'SQ').trim().toUpperCase();
+  const flightNumber=String(body?.flightNumber||'').trim().toUpperCase();
+  const flightDate=lot5CanonicalFlightDate(body?.flightDate||'');
+  if(airline!=='SQ'||!/^SQ\d{2,4}$/.test(flightNumber)||!flightDate){
+    return {ok:false,version:LOT5_VERSION,error:'IDENTITE SQ INVALIDE'};
+  }
+
+  const candidates=(await env.OPS_DB.prepare(`
+    SELECT r.job_id,r.status,r.parser_mode,r.card_key,r.list_name,r.flight_date,
+           j.gmail_message_id,j.version_id,
+           v.filename_original,v.mime_type,v.r2_key
+    FROM import_job_results r
+    JOIN import_jobs j ON j.job_id=r.job_id
+    LEFT JOIN import_file_versions v ON v.version_id=j.version_id
+    WHERE UPPER(r.airline)='SQ'
+      AND UPPER(r.flight_number)=?
+      AND r.parser_mode='SPECIFIC_LOCKED'
+    ORDER BY r.updated_at ASC
+  `).bind(flightNumber).all()).results||[];
+
+  const matched=candidates.filter(r=>lot5CanonicalFlightDate(r.flight_date||'')===flightDate);
+  const ready=matched.filter(r=>String(r.status||'').toUpperCase()==='READY_SPECIFIC_PARSER');
+  const injected=matched.filter(r=>String(r.status||'').toUpperCase()==='INJECTED');
+  const messageIds=[...new Set(matched.map(r=>String(r.gmail_message_id||'')).filter(Boolean))];
+
+  const prepaRows=(await env.OPS_DB.prepare(`
+    SELECT gmail_message_id,airline,flight_number,flight_date,status,subject,sender,attachments_json,body_text
+    FROM prepa_inbox
+    WHERE UPPER(airline)='SQ' AND UPPER(flight_number)=?
+    ORDER BY created_at ASC
+  `).bind(flightNumber).all().catch(()=>({results:[]}))).results||[];
+  const prepaMatched=prepaRows.filter(r=>lot5CanonicalFlightDate(r.flight_date||'')===flightDate);
+
+  return {
+    ok:true,
+    version:LOT5_VERSION,
+    controlled:true,
+    destructive:false,
+    identity:`${flightDate}|SQ|${flightNumber}`,
+    airline:'SQ',
+    flightNumber,
+    flightDate,
+    readyCount:ready.length,
+    alreadyInjectedCount:injected.length,
+    messageCount:messageIds.length,
+    messageIds,
+    prepaCount:prepaMatched.length,
+    ready:ready.map(r=>({
+      jobId:r.job_id,
+      gmailMessageId:r.gmail_message_id,
+      versionId:r.version_id,
+      cardKey:r.card_key,
+      listName:r.list_name,
+      filename:r.filename_original,
+      mimeType:r.mime_type,
+      r2Key:r.r2_key
+    })),
+    note:'READ-ONLY bridge plan. Parser SQ must run in BUILD143 existing browser code.'
+  };
+}
+
 async function handleLot5(request,env,url){
   if(!url.pathname.startsWith('/api/autopilot') && !url.pathname.startsWith('/api/gmail-clean'))return null;
   try{
@@ -6467,6 +6531,10 @@ async function handleLot5(request,env,url){
     if(url.pathname==='/api/autopilot/repair-identities'&&request.method==='POST'){
       const body=await request.json().catch(()=>({}));
       return json(await lot5RepairIdentityBacklogV534(env,Number(body?.limit||1200)));
+    }
+    if(url.pathname==='/api/autopilot/sq-controlled-bridge'&&request.method==='POST'){
+      const body=await request.json().catch(()=>({}));
+      return json(await lot5SqControlledBridgeR313(env,body));
     }
     if(url.pathname==='/api/gmail-clean/test-one-message'&&request.method==='POST'){
       const body=await request.json().catch(()=>({}));
