@@ -27506,9 +27506,53 @@ console.log('BUILD143 R9 — R3.13 SQ CONTROLLED BRIDGE READY');
   }
 
   async function tkFlightSnapshotR21(flightNumber,flightDate){
-    const local=tkFlightFromMemoryR21(flightNumber,flightDate);
-    if(local)return local;
-    try{return await getOneFlightFromCloud(`${flightDate}|TK|${flightNumber}`)}catch(_){return null}
+    // R21.1: after a TK import, prefer the persisted D1 object.
+    // The local FLIGHTS object can still contain the pre-import bookedTotal=0.
+    try{
+      const cloud=await getOneFlightFromCloud(`${flightDate}|TK|${flightNumber}`);
+      if(cloud)return cloud;
+    }catch(_){}
+    return tkFlightFromMemoryR21(flightNumber,flightDate);
+  }
+
+  async function tkRefreshEmptySourcesR211(flightNumber,flightDate){
+    const q=new URLSearchParams({
+      airline:'TK',
+      flight:flightNumber,
+      limit:'100',
+      includePayload:'1'
+    });
+    const r=await fetch(opsApiUrl('/api/prepa?'+q.toString()),{
+      cache:'no-store',
+      headers:{Accept:'application/json'}
+    });
+    if(!r.ok)return {attempted:0,ok:0,failed:0};
+
+    const j=await r.json().catch(()=>({}));
+    const items=(Array.isArray(j?.items)?j.items:[]).filter(
+      x=>String(x?.flightDate||'')===String(flightDate||'')
+    );
+
+    const ids=[...new Set(items.map(x=>String(x?.gmailMessageId||'').trim()).filter(Boolean))];
+    let ok=0, failed=0;
+
+    for(const gmailMessageId of ids){
+      try{
+        const rr=await fetch(opsApiUrl('/api/gmail-clean/test-one-message'),{
+          method:'POST',
+          cache:'no-store',
+          headers:{'Content-Type':'application/json',Accept:'application/json'},
+          body:JSON.stringify({gmailMessageId})
+        });
+        const x=await rr.json().catch(()=>({}));
+        if(rr.ok&&x?.ok)ok++;
+        else failed++;
+      }catch(_){failed++}
+    }
+
+    // Give D1/R2 a short moment before the importer re-reads PREPA.
+    if(ids.length)await sleepR21(600);
+    return {attempted:ids.length,ok,failed};
   }
 
   function tkCountersR21(x){
@@ -27589,21 +27633,45 @@ console.log('BUILD143 R9 — R3.13 SQ CONTROLLED BRIDGE READY');
       }
 
       try{
-        const ok=await window.import143RecoverOneSpecificFlight({
-          airline:'TK',flightNumber:t.flightNumber,flightDate:t.flightDate,status:'RECEIVED'
-        });
+        let sourceRefresh=null;
+        let ok=false;
+
+        try{
+          ok=await window.import143RecoverOneSpecificFlight({
+            airline:'TK',flightNumber:t.flightNumber,flightDate:t.flightDate,status:'RECEIVED'
+          });
+        }catch(firstError){
+          const msg=String(firstError?.message||firstError||'');
+
+          // R21.1: when PREPA rows exist but their R2/body payload is empty,
+          // re-run the existing Gmail single-message ingestion for those exact
+          // Gmail IDs, then retry the SAME unchanged TK parser once.
+          if(/SOURCES TK VIDES/i.test(msg)){
+            sourceRefresh=await tkRefreshEmptySourcesR211(t.flightNumber,t.flightDate);
+            if(sourceRefresh.attempted>0){
+              ok=await window.import143RecoverOneSpecificFlight({
+                airline:'TK',flightNumber:t.flightNumber,flightDate:t.flightDate,status:'RECEIVED'
+              });
+            }else{
+              throw firstError;
+            }
+          }else{
+            throw firstError;
+          }
+        }
 
         if(!ok){
           report.waiting++;
-          report.results.push({...base,status:'WAITING_NO_SOURCE'});
+          report.results.push({...base,status:'WAITING_NO_SOURCE',sourceRefresh});
           continue;
         }
 
-        // Read back the exact TK flight/date after the existing parser/apply/D1 flow.
+        // Read back the persisted exact TK flight/date. This avoids stale local
+        // bookedTotal values in the batch summary.
         const flight=await tkFlightSnapshotR21(t.flightNumber,t.flightDate);
         const counts=tkCountersR21(flight);
         report.done++;
-        report.results.push({...base,status:'DONE',...counts});
+        report.results.push({...base,status:'DONE',sourceRefresh,...counts});
 
       }catch(error){
         const msg=String(error?.message||error||'');
@@ -27650,6 +27718,7 @@ console.log('BUILD143 R9 — R3.13 SQ CONTROLLED BRIDGE READY');
   };
 
   console.log('BUILD143 R21 — TK AUTOMATIC BATCH READY · SQ R20.1 UNCHANGED');
+  console.log('BUILD143 R21.1 — TK SOURCE AUTO-REFRESH + D1 BOOKED SUMMARY READY');
 })();
 </script>
 
