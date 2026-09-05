@@ -25907,7 +25907,19 @@ console.log('BUILD143 R9 — R3.13 SQ CONTROLLED BRIDGE READY');
     const raw=await window.import143BuildSpecificRaw(items,'SQ');
     if(!String(raw||'').trim())throw new Error('SOURCES SQ VIDES');
 
-    let idx=findFlightIndexForInbox(items[0]);
+    // R19.3 — IMPORTANT:
+    // If the user is currently viewing the requested SQ flight, consolidate THAT
+    // exact in-memory object. findFlightIndexForInbox() can otherwise pick an
+    // older duplicate of the same flight/date, producing a correct result object
+    // while the visible card still remains at 0.
+    const selectedIdx=(Number.isInteger(selected)&&selected>=0&&selected<FLIGHTS.length)?selected:-1;
+    const selectedFlight=selectedIdx>=0?FLIGHTS[selectedIdx]:null;
+    const selectedMatches=!!selectedFlight &&
+      String(selectedFlight?.airline||'').toUpperCase()==='SQ' &&
+      String(selectedFlight?.flightNumber||selectedFlight?.flight||'').toUpperCase()===fnum &&
+      String(selectedFlight?.date||selectedFlight?.flightDate||'')===fdate;
+
+    let idx=selectedMatches?selectedIdx:findFlightIndexForInbox(items[0]);
     if(idx<0){
       idx=(Array.isArray(FLIGHTS)?FLIGHTS:[]).findIndex(x=>
         String(x?.airline||'').toUpperCase()==='SQ' &&
@@ -25960,6 +25972,8 @@ console.log('BUILD143 R9 — R3.13 SQ CONTROLLED BRIDGE READY');
       x.prepaParticularities=x.prepaParticularities||{};
       x.prepaParticularities.INF=x.common.INF;
       x.prepaParticularities['INFANT(S)']=x.common.INF;
+      x.prepaSpecificities=x.prepaSpecificities||{};
+      x.prepaSpecificities['INFANT(S)']=x.common.INF;
     }
 
     // Recalculate VIP/HCIP prepa quantities from detailed passengers when present.
