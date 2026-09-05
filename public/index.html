@@ -26248,7 +26248,24 @@ console.log('BUILD143 R9 — R3.13 SQ CONTROLLED BRIDGE READY');
 
   function r15EnsureLive(x){
     if(String(x?.airline||'').toUpperCase()!=='SQ')return;
-    r15DeriveInfants(x);
+
+    // R19.4 — Never destroy a validated INF list produced by the raw/VBCP
+    // post-consolidator. R15's live fallback cannot reconstruct SQ337 babies
+    // from x.passengers alone because passengerType/INFT child text is not
+    // preserved in the simplified passenger objects.
+    const currentInf=Array.isArray(x?.common_lists?.INF)?x.common_lists.INF:[];
+    if(currentInf.length){
+      x.common=x.common||{};
+      x.prepaSpecificities=x.prepaSpecificities||{};
+      x.prepaParticularities=x.prepaParticularities||{};
+      x.common.INF=currentInf.length;
+      x.prepaSpecificities['INFANT(S)']=currentInf.length;
+      x.prepaParticularities['INFANT(S)']=currentInf.length;
+      x.prepaParticularities.INF=currentInf.length;
+    }else{
+      r15DeriveInfants(x);
+    }
+
     r15DeriveHcip(x);
   }
 
