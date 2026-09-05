@@ -27106,6 +27106,225 @@ console.log('BUILD143 R9 — R3.13 SQ CONTROLLED BRIDGE READY');
 })();
 </script>
 
+
+<script>
+/* BUILD143 R19 — SQ INF PARENT -> BABY RELATION FIX
+   Consolidation only. SQ parser functions untouched.
+   Source rule:
+   - LIST OF: INF = parents
+   - VBCP passenger type I = babies
+   - parent INFT-... links baby
+   - card INFANT(S) displays babies only, no seat
+*/
+(function(){
+  const N19=s=>String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+
+  function txt19(p){
+    try{return JSON.stringify(p||{}).toUpperCase()}
+    catch(_){return String(p||'').toUpperCase()}
+  }
+
+  function cleanBabyName19(p){
+    const s=txt19(p);
+
+    // Prefer full infant name carried by VBCP when available.
+    let m=s.match(/CKIN[^A-Z0-9]*INF[^A-Z0-9]*FULL[^A-Z0-9]*NAME[^A-Z0-9]*([A-Z0-9\/ '\-]{3,80}?)(?=["},]|\\N|$)/i);
+    if(m){
+      const n=String(m[1]||'').replace(/[\\"]/g,' ').replace(/\s+/g,' ').trim();
+      if(n)return n.replace(/\//g,' ');
+    }
+
+    return String(p?.name||'')
+      .replace(/\//g,' ')
+      .replace(/\s+/g,' ')
+      .trim();
+  }
+
+  function infantRefFromParent19(p){
+    const s=txt19(p);
+
+    // Handles examples such as:
+    // INFT-MEROT/ELOUANPIERRE 04JAN25
+    // INFT-ROCKALL/F 31MAR25
+    const m=s.match(/\bINFT\s*[-:]\s*([A-Z][A-Z0-9\/ '\-]{1,80}?)(?=\s+\d{2}[A-Z]{3}\d{2}\b|["},]|\\N|$)/i);
+    if(!m)return '';
+
+    return String(m[1]||'')
+      .replace(/[\\"]/g,' ')
+      .replace(/\s+/g,' ')
+      .trim()
+      .replace(/\//g,' ');
+  }
+
+  function isBaby19(p){
+    const typ=String(p?.passengerType||p?.type||p?.paxType||'').toUpperCase().trim();
+    const seat=String(p?.seat||'').trim();
+
+    if(typ==='I'||typ==='INF'||typ==='INFANT')return !seat;
+
+    // Fallback only for explicit baby identity carried in the object.
+    const s=txt19(p);
+    return !seat && (
+      /"PASSENGERTYPE"\s*:\s*"I"/.test(s) ||
+      /CKIN[^A-Z0-9]*INF[^A-Z0-9]*FULL[^A-Z0-9]*NAME/.test(s)
+    );
+  }
+
+  function parentScore19(parent,baby){
+    const ps=txt19(parent);
+    if(!/\bINFT\b/.test(ps))return -1;
+
+    const ref=infantRefFromParent19(parent);
+    const refKey=N19(ref);
+    const babyName=cleanBabyName19(baby);
+    const babyKey=N19(babyName);
+    const rawBabyKey=N19(baby?.name||'');
+
+    if(refKey && babyKey && (refKey===babyKey || refKey.startsWith(babyKey) || babyKey.startsWith(refKey))) return 100;
+    if(refKey && rawBabyKey && (refKey===rawBabyKey || refKey.startsWith(rawBabyKey) || rawBabyKey.startsWith(refKey))) return 95;
+
+    // Same surname as a safe fallback.
+    const refSurname=String(ref||'').split(/\s+/)[0]||'';
+    const babySurname=String(babyName||'').split(/\s+/)[0]||'';
+    if(refSurname && babySurname && N19(refSurname)===N19(babySurname))return 50;
+
+    return -1;
+  }
+
+  function deriveSqInfantsR19(x){
+    const pax=Array.isArray(x?.passengers)?x.passengers:[];
+    const babies=pax.filter(isBaby19);
+    const parents=pax.filter(p=>String(p?.seat||'').trim() && /\bINFT\b/.test(txt19(p)));
+
+    const out=[];
+    const usedParents=new Set();
+    const seenBabies=new Set();
+
+    babies.forEach((baby,i)=>{
+      const babyName=cleanBabyName19(baby);
+      const babyKey=N19(babyName||baby?.name||'');
+      if(!babyKey || seenBabies.has(babyKey))return;
+
+      let best=null, bestScore=-1;
+      parents.forEach(parent=>{
+        if(usedParents.has(parent))return;
+        const score=parentScore19(parent,baby);
+        if(score>bestScore){
+          best=parent;
+          bestScore=score;
+        }
+      });
+
+      // For SQ, only keep a baby when it is linked to a parent INFT.
+      if(!best || bestScore<0)return;
+
+      seenBabies.add(babyKey);
+      usedParents.add(best);
+
+      const parentName=String(best?.name||'').replace(/\//g,' ').replace(/\s+/g,' ').trim();
+      const parentSeat=String(best?.seat||'').trim().toUpperCase();
+
+      const infant={
+        ...baby,
+        id:baby?.id||`SQ-INF-R19-${i}`,
+        name:babyName,
+        passengerType:'INF',
+        seat:'',
+        status:baby?.status||'BOOKED',
+        parentName,
+        parentSeat,
+        specific:`INF · PARENT ASSOCIÉ : ${parentName}${parentSeat?` · SIÈGE PARENT : ${parentSeat}`:''}`,
+        ssr:[...new Set([...(Array.isArray(baby?.ssr)?baby.ssr:[]),'INF'])]
+      };
+
+      out.push(infant);
+
+      best.infantName=infant.name;
+      best.infantAssociated=infant.name;
+      best.operationalDetails=[...new Set([
+        ...(Array.isArray(best?.operationalDetails)?best.operationalDetails:[]),
+        `INFANT ASSOCIÉ : ${infant.name}`
+      ])];
+    });
+
+    x.common=x.common||{};
+    x.common_lists=x.common_lists||{};
+    x.prepaSpecificities=x.prepaSpecificities||{};
+    x.prepaParticularities=x.prepaParticularities||{};
+
+    x.common_lists.INF=out;
+    x.common.INF=out.length;
+    x.prepaSpecificities['INFANT(S)']=out.length;
+    x.prepaParticularities['INFANT(S)']=out.length;
+    x.prepaParticularities.INF=out.length;
+
+    return out;
+  }
+
+  window.runSqInfantRelationFixR19=async function(flightNumber='SQ337',flightDate='2026-09-05'){
+    const fnum=String(flightNumber||'').trim().toUpperCase();
+    const fdate=String(flightDate||'').trim();
+
+    let idx=(Array.isArray(FLIGHTS)?FLIGHTS:[]).findIndex(x=>
+      String(x?.airline||'').toUpperCase()==='SQ' &&
+      String(x?.flight||x?.flightNumber||'').toUpperCase()===fnum &&
+      String(x?.date||x?.flightDate||'')===fdate
+    );
+
+    if(idx<0)throw new Error('VOL SQ INTROUVABLE DANS LE BUILD');
+
+    const x=FLIGHTS[idx];
+    const before={
+      INF:Number(x?.common?.INF||0),
+      list:Array.isArray(x?.common_lists?.INF)?x.common_lists.INF.length:0
+    };
+
+    const infants=deriveSqInfantsR19(x);
+
+    try{render()}catch(e){console.warn('R19 render',e)}
+    try{await cacheFlightsLocallyOnly(FLIGHTS)}catch(e){console.warn('R19 cache',e)}
+    try{await persistOneFlightVerifiedToD1(x,{label:'SQ INFANT RELATION FIX R19'})}
+    catch(e){console.warn('R19 persist',e)}
+
+    const result={
+      ok:true,
+      flightNumber:fnum,
+      flightDate:fdate,
+      before,
+      INF:infants.length,
+      infants:infants.map(p=>({
+        name:p.name,
+        seat:p.seat||'',
+        parentName:p.parentName||'',
+        parentSeat:p.parentSeat||'',
+        specific:p.specific||''
+      }))
+    };
+
+    console.info('R19 SQ INFANT RESULT',result);
+    return result;
+  };
+
+  // Run the relation consolidation after any successful controlled SQ injection.
+  const nativeRunR313=window.runSqControlledInjectionR313;
+  if(typeof nativeRunR313==='function'){
+    window.runSqControlledInjectionR313=async function(flightNumber,flightDate){
+      const result=await nativeRunR313.apply(this,arguments);
+      try{
+        if(result?.ok && String(flightNumber||'').toUpperCase().startsWith('SQ')){
+          await window.runSqInfantRelationFixR19(flightNumber,flightDate);
+        }
+      }catch(e){
+        console.warn('R19 INFANT post-injection consolidation',e);
+      }
+      return result;
+    };
+  }
+
+  console.log('BUILD143 R19 — SQ INF PARENT->BABY RELATION READY');
+})();
+</script>
+
 </body></html>
 <!-- V50.03: cloud status is debounced; 3 startup retries; transient sync failures no longer force immediate local mode. -->
 <!-- V50.0: generic airline PREPA engine + airline profiles; SQ/TK/BJ parser semantics unchanged. -->
