@@ -27159,6 +27159,255 @@ console.log('BUILD143 R9 — R3.13 SQ CONTROLLED BRIDGE READY');
 })();
 </script>
 
+
+<script>
+/* BUILD143 R20 — SQ AUTOMATIC BATCH
+   Infrastructure/orchestration only.
+   Protected SQ parsers remain unchanged.
+   Sequential processing prevents cross-flight state collisions.
+
+   Flow per SQ flight/date:
+   PREPA discovery
+   -> R3.13 controlled preflight
+   -> existing SQ injection bridge only when READY exists
+   -> R11/R19.4 post-consolidation
+   -> D1 persistence already handled by existing functions
+*/
+(function(){
+  const sleepR20=ms=>new Promise(r=>setTimeout(r,ms));
+
+  function normFlightR20(v){
+    const s=String(v||'').trim().toUpperCase().replace(/\s+/g,'');
+    if(/^SQ\d{2,4}$/.test(s))return s;
+    if(/^\d{2,4}$/.test(s))return 'SQ'+s;
+    return '';
+  }
+
+  function normDateR20(v){
+    const s=String(v||'').trim();
+    return /^\d{4}-\d{2}-\d{2}$/.test(s)?s:'';
+  }
+
+  function identityFromPrepaR20(item){
+    const airline=String(item?.airline||item?.company||'').trim().toUpperCase();
+    const flight=normFlightR20(item?.flightNumber||item?.flight||item?.flight_number);
+    const date=normDateR20(item?.flightDate||item?.date||item?.flight_date);
+    if((airline && airline!=='SQ') || !flight || !date)return null;
+    return {airline:'SQ',flightNumber:flight,flightDate:date,key:`${date}|SQ|${flight}`};
+  }
+
+  async function fetchSqPrepaR20(limit=2000){
+    const r=await fetch(opsApiUrl(`/api/prepa?airline=SQ&limit=${Math.max(1,Number(limit)||2000)}&includePayload=0`),{
+      cache:'no-store',
+      headers:{Accept:'application/json'}
+    });
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok)throw new Error(j?.error||`PREPA HTTP ${r.status}`);
+    return Array.isArray(j?.items)?j.items:[];
+  }
+
+  async function preflightR20(flightNumber,flightDate){
+    const r=await fetch(opsApiUrl('/api/autopilot/sq-controlled-bridge'),{
+      method:'POST',
+      cache:'no-store',
+      headers:{'Content-Type':'application/json',Accept:'application/json'},
+      body:JSON.stringify({airline:'SQ',flightNumber,flightDate})
+    });
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok||!j?.ok)throw new Error(j?.error||`PREFLIGHT HTTP ${r.status}`);
+    return j;
+  }
+
+  function currentFlightR20(flightNumber,flightDate){
+    const arr=Array.isArray(window.FLIGHTS)?window.FLIGHTS:[];
+    return arr.find(x=>
+      String(x?.airline||'').toUpperCase()==='SQ' &&
+      String(x?.flightNumber||x?.flight||'').toUpperCase()===flightNumber &&
+      String(x?.date||x?.flightDate||'')===flightDate
+    )||null;
+  }
+
+  window.listSqAutomaticBatchR20=async function(options={}){
+    const items=await fetchSqPrepaR20(options.limit||2000);
+    const map=new Map();
+
+    for(const item of items){
+      const id=identityFromPrepaR20(item);
+      if(!id)continue;
+      if(options.fromDate && id.flightDate<String(options.fromDate))continue;
+      if(options.toDate && id.flightDate>String(options.toDate))continue;
+      if(Array.isArray(options.flights)&&options.flights.length){
+        const allowed=new Set(options.flights.map(normFlightR20).filter(Boolean));
+        if(!allowed.has(id.flightNumber))continue;
+      }
+      const row=map.get(id.key)||{...id,prepaRows:0,statuses:{}};
+      row.prepaRows++;
+      const st=String(item?.status||'UNKNOWN').toUpperCase();
+      row.statuses[st]=(row.statuses[st]||0)+1;
+      map.set(id.key,row);
+    }
+
+    const rows=[...map.values()].sort((a,b)=>
+      a.flightDate.localeCompare(b.flightDate) ||
+      a.flightNumber.localeCompare(b.flightNumber)
+    );
+
+    console.table(rows.map(x=>({
+      flight:x.flightNumber,
+      date:x.flightDate,
+      prepa:x.prepaRows,
+      statuses:Object.entries(x.statuses).map(([k,v])=>`${k}:${v}`).join(' ')
+    })));
+
+    return rows;
+  };
+
+  window.runSqAutomaticBatchR20=async function(options={}){
+    if(typeof window.runSqControlledInjectionR313!=='function'){
+      throw new Error('R3.13 SQ CONTROLLED BRIDGE INDISPONIBLE');
+    }
+    if(typeof window.runSqPostConsolidationR11!=='function'){
+      throw new Error('R11 SQ POST-CONSOLIDATION INDISPONIBLE');
+    }
+
+    const dryRun=!!options.dryRun;
+    const delayMs=Math.max(0,Number(options.delayMs??400));
+    const maxFlights=Math.max(0,Number(options.maxFlights||0));
+    const includeAlreadyInjected=options.includeAlreadyInjected!==false;
+
+    let targets=await window.listSqAutomaticBatchR20(options);
+    if(maxFlights>0)targets=targets.slice(0,maxFlights);
+
+    const report={
+      ok:true,
+      dryRun,
+      startedAt:new Date().toISOString(),
+      total:targets.length,
+      injected:0,
+      consolidated:0,
+      alreadyInjected:0,
+      waiting:0,
+      missingFlight:0,
+      failed:0,
+      results:[]
+    };
+
+    console.info('R20 SQ AUTO BATCH — START',{
+      total:targets.length,
+      dryRun,
+      fromDate:options.fromDate||null,
+      toDate:options.toDate||null
+    });
+
+    for(let i=0;i<targets.length;i++){
+      const t=targets[i];
+      const base={
+        index:i+1,
+        total:targets.length,
+        flightNumber:t.flightNumber,
+        flightDate:t.flightDate,
+        key:t.key
+      };
+
+      console.info(`R20 SQ AUTO BATCH — ${i+1}/${targets.length}`,t.flightNumber,t.flightDate);
+
+      try{
+        const pre=await preflightR20(t.flightNumber,t.flightDate);
+        const ready=Number(pre?.readyCount||0);
+        const injectedCount=Number(pre?.alreadyInjectedCount||0);
+
+        if(dryRun){
+          report.results.push({...base,status:'DRY_RUN',readyCount:ready,alreadyInjectedCount:injectedCount,preflight:pre});
+          continue;
+        }
+
+        let injection=null;
+
+        if(ready>0){
+          injection=await window.runSqControlledInjectionR313(t.flightNumber,t.flightDate);
+          if(!injection?.ok)throw new Error('INJECTION SQ NON VALIDEE');
+          report.injected++;
+        }else if(injectedCount>0){
+          report.alreadyInjected++;
+          if(!includeAlreadyInjected){
+            report.results.push({...base,status:'SKIPPED_ALREADY_INJECTED',preflight:pre});
+            continue;
+          }
+        }else{
+          report.waiting++;
+          report.results.push({
+            ...base,
+            status:'WAITING_NOT_READY',
+            readyCount:ready,
+            alreadyInjectedCount:injectedCount,
+            prepaCount:Number(pre?.prepaCount||0),
+            preflight:pre
+          });
+          continue;
+        }
+
+        // The existing browser post-consolidator requires the flight object to
+        // exist in FLIGHTS. Do not invent one or silently alter flight identity.
+        if(!currentFlightR20(t.flightNumber,t.flightDate)){
+          report.missingFlight++;
+          report.results.push({
+            ...base,
+            status:'INJECTED_BUT_FLIGHT_NOT_LOADED',
+            readyCount:ready,
+            alreadyInjectedCount:injectedCount,
+            injection
+          });
+          continue;
+        }
+
+        const consolidation=await window.runSqPostConsolidationR11(t.flightNumber,t.flightDate);
+        if(!consolidation?.ok)throw new Error('POST-CONSOLIDATION SQ NON VALIDEE');
+
+        report.consolidated++;
+        report.results.push({
+          ...base,
+          status:'DONE',
+          readyCount:ready,
+          alreadyInjectedCount:injectedCount,
+          injection,
+          after:consolidation.after
+        });
+
+      }catch(error){
+        report.failed++;
+        report.ok=false;
+        report.results.push({
+          ...base,
+          status:'FAILED',
+          error:String(error?.message||error)
+        });
+        console.error('R20 SQ AUTO BATCH — FAILED',t.flightNumber,t.flightDate,error);
+      }
+
+      if(delayMs)await sleepR20(delayMs);
+    }
+
+    report.finishedAt=new Date().toISOString();
+
+    console.info('R20 SQ AUTO BATCH — FINISHED',report);
+    console.table(report.results.map(x=>({
+      flight:x.flightNumber,
+      date:x.flightDate,
+      status:x.status,
+      INF:x.after?.INF??'',
+      FQTV:x.after?.FQTV??'',
+      GROUP:x.after?.GROUP??'',
+      HCIP:x.after?.HCIP??'',
+      error:x.error||''
+    })));
+
+    return report;
+  };
+
+  console.log('BUILD143 R20 — SQ AUTOMATIC BATCH READY');
+})();
+</script>
+
 </body></html>
 <!-- V50.03: cloud status is debounced; 3 startup retries; transient sync failures no longer force immediate local mode. -->
 <!-- V50.0: generic airline PREPA engine + airline profiles; SQ/TK/BJ parser semantics unchanged. -->
