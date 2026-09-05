@@ -27219,12 +27219,41 @@ console.log('BUILD143 R9 — R3.13 SQ CONTROLLED BRIDGE READY');
   }
 
   function currentFlightR20(flightNumber,flightDate){
-    const arr=Array.isArray(window.FLIGHTS)?window.FLIGHTS:[];
+    const arr=(typeof FLIGHTS!=='undefined'&&Array.isArray(FLIGHTS))?FLIGHTS:[];
     return arr.find(x=>
       String(x?.airline||'').toUpperCase()==='SQ' &&
       String(x?.flightNumber||x?.flight||'').toUpperCase()===flightNumber &&
       String(x?.date||x?.flightDate||'')===flightDate
     )||null;
+  }
+
+  async function ensureFlightLoadedR201(flightNumber,flightDate){
+    const arr=(typeof FLIGHTS!=='undefined'&&Array.isArray(FLIGHTS))?FLIGHTS:[];
+    let idx=arr.findIndex(x=>
+      String(x?.airline||'').toUpperCase()==='SQ' &&
+      String(x?.flightNumber||x?.flight||'').toUpperCase()===flightNumber &&
+      String(x?.date||x?.flightDate||'')===flightDate
+    );
+    if(idx>=0)return {ok:true,idx,flight:arr[idx],source:'MEMORY'};
+
+    const identity=`${flightDate}|SQ|${flightNumber}`;
+    const cloud=await getOneFlightFromCloud(identity);
+    if(!cloud)return {ok:false,idx:-1,flight:null,source:'D1_NOT_FOUND'};
+
+    idx=arr.findIndex(x=>
+      String(x?.airline||'').toUpperCase()==='SQ' &&
+      String(x?.flightNumber||x?.flight||'').toUpperCase()===flightNumber &&
+      String(x?.date||x?.flightDate||'')===flightDate
+    );
+
+    if(idx<0){
+      arr.push(cloud);
+      idx=arr.length-1;
+    }else{
+      arr[idx]={...arr[idx],...cloud};
+    }
+
+    return {ok:true,idx,flight:arr[idx],source:'D1'};
   }
 
   window.listSqAutomaticBatchR20=async function(options={}){
@@ -27346,13 +27375,15 @@ console.log('BUILD143 R9 — R3.13 SQ CONTROLLED BRIDGE READY');
           continue;
         }
 
-        // The existing browser post-consolidator requires the flight object to
-        // exist in FLIGHTS. Do not invent one or silently alter flight identity.
-        if(!currentFlightR20(t.flightNumber,t.flightDate)){
+        // R20.1: automatically load the exact flight/date from D1 when it is not
+        // already present in the browser's FLIGHTS array. This keeps batch mode
+        // independent from which date/flight the user currently has open.
+        const loaded=await ensureFlightLoadedR201(t.flightNumber,t.flightDate);
+        if(!loaded.ok){
           report.missingFlight++;
           report.results.push({
             ...base,
-            status:'INJECTED_BUT_FLIGHT_NOT_LOADED',
+            status:'WAITING_FLIGHT_D1',
             readyCount:ready,
             alreadyInjectedCount:injectedCount,
             injection
@@ -27374,14 +27405,27 @@ console.log('BUILD143 R9 — R3.13 SQ CONTROLLED BRIDGE READY');
         });
 
       }catch(error){
-        report.failed++;
-        report.ok=false;
-        report.results.push({
-          ...base,
-          status:'FAILED',
-          error:String(error?.message||error)
-        });
-        console.error('R20 SQ AUTO BATCH — FAILED',t.flightNumber,t.flightDate,error);
+        const msg=String(error?.message||error||'');
+        // No operational SQ mail is terminally ignored/failed. A source that the
+        // existing parser does not yet recognize remains waiting for review/retry.
+        if(/AUCUNE INFORMATION PREPA RECONNUE/i.test(msg)){
+          report.waiting++;
+          report.results.push({
+            ...base,
+            status:'WAITING_SOURCE_REVIEW',
+            error:msg
+          });
+          console.warn('R20.1 SQ AUTO BATCH — WAITING SOURCE REVIEW',t.flightNumber,t.flightDate,msg);
+        }else{
+          report.failed++;
+          report.ok=false;
+          report.results.push({
+            ...base,
+            status:'RETRY_REQUIRED',
+            error:msg
+          });
+          console.error('R20.1 SQ AUTO BATCH — RETRY REQUIRED',t.flightNumber,t.flightDate,error);
+        }
       }
 
       if(delayMs)await sleepR20(delayMs);
@@ -27405,6 +27449,7 @@ console.log('BUILD143 R9 — R3.13 SQ CONTROLLED BRIDGE READY');
   };
 
   console.log('BUILD143 R20 — SQ AUTOMATIC BATCH READY');
+  console.log('BUILD143 R20.1 — SQ AUTO D1 LOAD + NON-TERMINAL RETRY READY');
 })();
 </script>
 
