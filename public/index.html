@@ -25685,7 +25685,7 @@ console.log('BUILD143 R9 — R3.13 SQ CONTROLLED BRIDGE READY');
       const infant={
         ...(infantMaster||{}),
         id:`SQ-INF-R10-${bi}`,
-        name:infantMaster?.name||infantName,
+        name:full?infantName:(infantMaster?.name||infantName),
         title:infantMaster?.title||'',
         seat:'',
         class:infantMaster?.class||parent.class||'Y',
