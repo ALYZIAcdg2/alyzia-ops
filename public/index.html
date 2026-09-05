@@ -26760,6 +26760,352 @@ console.log('BUILD143 R9 — R3.13 SQ CONTROLLED BRIDGE READY');
 })();
 </script>
 
+
+<script>
+/* BUILD143 R18 — SQ HCIP/VIP CATEGORIES + GROUP INLINE-BLOCK FIX
+   UI/consolidation only.
+   Protected SQ parser functions unchanged.
+   FQTV / INFANT / INBOUND / MEALS ON BOARD untouched. */
+(function(){
+  const N18=s=>String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+
+  function passengerText18(p){
+    try{return JSON.stringify(p||{}).toUpperCase()}catch(_){return String(p||'').toUpperCase()}
+  }
+
+  function master18(x,name,seat=''){
+    const arr=Array.isArray(x?.passengers)?x.passengers:[];
+    const st=String(seat||'').toUpperCase();
+    if(st){
+      const bySeat=arr.find(p=>String(p?.seat||'').toUpperCase()===st);
+      if(bySeat)return bySeat;
+    }
+    const nk=N18(name);
+    let exact=arr.find(p=>N18(p?.name)===nk);
+    if(exact)return exact;
+    return arr.find(p=>{
+      const pk=N18(p?.name);
+      return nk&&pk&&(pk.startsWith(nk)||nk.startsWith(pk));
+    })||null;
+  }
+
+  function normalizeClass18(c){
+    let cls=String(c||'Y').toUpperCase().charAt(0);
+    if(cls==='C')cls='J';
+    if(cls==='W')cls='S';
+    return ['F','J','S','Y'].includes(cls)?cls:'Y';
+  }
+
+  function cleanName18(raw){
+    return String(raw||'')
+      .replace(/\s+(MR|MRS|MS|MISS|MSTR|MDM|DR|CHR|CH)\b.*$/i,'')
+      .replace(/\//g,' ')
+      .replace(/\s+/g,' ')
+      .trim();
+  }
+
+  function passengerBlocks18(raw){
+    const text=String(raw||'').replace(/\r/g,' ').replace(/\n/g,' ');
+    const re=/(\d{1,3})\.\s*([A-Z0-9\/ '\-]+?)\s+([MFCIA])\s+CDG\s+SIN\s+([A-Z][A-Z0-9]?)(?:\s+(\d{2,3}[A-K]))?/gi;
+    const headers=[];
+    let m;
+    while((m=re.exec(text))){
+      headers.push({
+        start:m.index,
+        end:re.lastIndex,
+        seq:Number(m[1]||0),
+        rawName:String(m[2]||'').trim(),
+        name:cleanName18(m[2]),
+        passengerType:String(m[3]||'').toUpperCase(),
+        bookingClass:String(m[4]||'').toUpperCase(),
+        class:normalizeClass18(m[4]),
+        seat:String(m[5]||'').toUpperCase()
+      });
+    }
+    return headers.map((h,i)=>{
+      const end=i+1<headers.length?headers[i+1].start:text.length;
+      return {...h,text:text.slice(h.start,end)};
+    });
+  }
+
+  function groupsFromInlineBlocks18(raw,x){
+    const blocks=passengerBlocks18(raw);
+    const out=[];
+    let markerCount=0;
+
+    blocks.forEach((b,bi)=>{
+      const matches=[...String(b.text||'').matchAll(/\bOTHS-GROUPTYPE\s*-\s*([A-Z0-9][A-Z0-9 _'\/.-]*?)(?=\s+(?:OTHS|CTCE|CTCM|SSMB|CEID|INFT|EXMP|SPML|NOEX|TIME|XPBK|SNWA|ACIS|MBEN|GFML|WCH[CRS]|$))/gi)];
+      if(!matches.length)return;
+
+      matches.forEach((gm,mi)=>{
+        markerCount++;
+        const group=String(gm[1]||'').replace(/\s+/g,' ').trim().toUpperCase();
+        if(!group)return;
+        const master=master18(x,b.name,b.seat);
+
+        const item={
+          ...(master||{}),
+          id:`SQ-GROUP-R18-${bi}-${mi}`,
+          name:master?.name||b.name,
+          seat:master?.seat||b.seat||'',
+          class:master?.class||b.class||'Y',
+          bookingClass:master?.bookingClass||b.bookingClass||'',
+          etkt:master?.etkt||'',
+          status:'BOOKED',
+          pnr:group,
+          groupCode:group,
+          groupName:group,
+          specific:`GROUPE · ${group}`
+        };
+        out.push(item);
+
+        if(master){
+          master.groupCode=group;
+          master.groupName=group;
+        }
+      });
+    });
+
+    const map=new Map();
+    out.forEach(p=>{
+      const key=`${N18(p?.name)}|${String(p?.groupCode||'')}`;
+      if(key&&!map.has(key))map.set(key,p);
+    });
+    const groups=[...map.values()];
+
+    x.common=x.common||{};
+    x.common_lists=x.common_lists||{};
+    x.prepaParticularities=x.prepaParticularities||{};
+    x.common_lists.GROUP=groups;
+    x.common.GROUP=new Set(groups.map(p=>p.groupCode).filter(Boolean)).size;
+    x.prepaParticularities.GROUP=x.common.GROUP;
+
+    return {groups,markerCount,blocks:blocks.length};
+  }
+
+  async function raw18(fnum,fdate){
+    const q=new URLSearchParams({airline:'SQ',flight:fnum,limit:'100',includePayload:'1'});
+    const resp=await fetch(opsApiUrl('/api/prepa?'+q.toString()),{cache:'no-store',headers:{Accept:'application/json'}});
+    if(!resp.ok)throw new Error(`PREPA HTTP ${resp.status}`);
+    const data=await resp.json();
+    const items=(Array.isArray(data?.items)?data.items:[]).filter(it=>String(it?.flightDate||'')===fdate);
+    if(!items.length)throw new Error('AUCUNE SOURCE PREPA POUR CE VOL');
+    if(typeof window.import143BuildSpecificRaw!=='function')throw new Error('BUILD SPECIFIC RAW INDISPONIBLE');
+    const raw=await window.import143BuildSpecificRaw(items,'SQ');
+    return {items,raw};
+  }
+
+  window.runSqGroupFixR18=async function(flightNumber='SQ335',flightDate='2026-09-07'){
+    const fnum=String(flightNumber||'').trim().toUpperCase();
+    const fdate=String(flightDate||'').trim();
+    const {items,raw}=await raw18(fnum,fdate);
+
+    let idx=(typeof findFlightIndexForInbox==='function'?findFlightIndexForInbox(items[0]):-1);
+    if(idx<0){
+      idx=(Array.isArray(FLIGHTS)?FLIGHTS:[]).findIndex(x=>
+        String(x?.airline||'').toUpperCase()==='SQ' &&
+        String(x?.flight||x?.flightNumber||'').toUpperCase()===fnum &&
+        String(x?.date||x?.flightDate||'')===fdate
+      );
+    }
+    if(idx<0)throw new Error('VOL SQ INTROUVABLE DANS LE BUILD');
+
+    const x=FLIGHTS[idx];
+    const r=groupsFromInlineBlocks18(raw,x);
+
+    try{render()}catch(e){console.warn('R18 render',e)}
+    try{await cacheFlightsLocallyOnly(FLIGHTS)}catch(e){console.warn('R18 cache',e)}
+    try{await persistOneFlightVerifiedToD1(x,{label:'SQ GROUP FIX R18'})}catch(e){console.warn('R18 persist',e)}
+
+    const byGroup={};
+    r.groups.forEach(p=>{
+      const g=p.groupCode;
+      (byGroup[g]=byGroup[g]||[]).push({name:p.name,seat:p.seat||'',class:p.class||''});
+    });
+
+    const result={
+      ok:true,
+      passengerBlocks:r.blocks,
+      markerCount:r.markerCount,
+      GROUP:x.common.GROUP||0,
+      groupNames:Object.keys(byGroup),
+      groupPax:r.groups.length,
+      byGroup
+    };
+    console.info('R18 SQ GROUP RESULT',result);
+    return result;
+  };
+
+  // IMPT/HCIP/VIP/VVIP: show only non-zero categories as large rows, same model as FQTV.
+  const nativeOpenSpec18=window.openPrepaSpecificityCard;
+  window.openPrepaSpecificityCard=function(defId){
+    const x=f();
+    const id=String(defId||'').toUpperCase();
+
+    if(String(x?.airline||'').toUpperCase()==='SQ' && id==='VIP'){
+      // Rebuild detailed categories directly from canonical passengers.
+      const cats=['IMPT','HCIP','VIP','VVIP'];
+      const groups={IMPT:[],HCIP:[],VIP:[],VVIP:[]};
+
+      (x?.passengers||[]).forEach(p=>{
+        const txt=passengerText18(p);
+        cats.forEach(c=>{
+          if(new RegExp(`\\b${c}\\b`,'i').test(txt))groups[c].push(p);
+        });
+      });
+
+      // Dedupe each category by passenger.
+      cats.forEach(c=>{
+        const seen=new Set();
+        groups[c]=groups[c].filter(p=>{
+          const k=N18(p?.name)||String(p?.id||'');
+          if(!k||seen.has(k))return false;
+          seen.add(k);return true;
+        });
+      });
+
+      x.common_lists=x.common_lists||{};
+      x.common_lists.VIP=[
+        ...groups.IMPT.map(p=>({...p,specific:'IMPT'})),
+        ...groups.HCIP.map(p=>({...p,specific:'HCIP'})),
+        ...groups.VIP.map(p=>({...p,specific:'VIP'})),
+        ...groups.VVIP.map(p=>({...p,specific:'VVIP'}))
+      ];
+
+      window.__sqVipGroupsR18=groups;
+
+      const active=cats.filter(c=>groups[c].length>0);
+      showModal('IMPT / HCIP / VIP / VVIP',x.flight,`
+        <div class="meal-category-list fq-display-order">
+          ${active.map(c=>`
+            <button class="meal-category-row fqtv-cat" onclick="openSqVipCategoryR18('${c}')">
+              <span>${c}</span>
+              <b>${groups[c].length}</b>
+              <small>VOIR LES PASSAGERS</small>
+            </button>
+          `).join('') || '<div class="prepa-empty">AUCUN PASSAGER DÉTAILLÉ</div>'}
+        </div>
+      `);
+      return;
+    }
+
+    return nativeOpenSpec18.apply(this,arguments);
+  };
+
+  window.openSqVipCategoryR18=function(category,sort='name',dir='asc'){
+    const x=f();
+    const c=String(category||'').toUpperCase();
+    const source=(window.__sqVipGroupsR18?.[c]||[]).slice();
+    const list=sortPaxItems(source,sort,dir);
+
+    PAX_MODAL_ITEMS=list;
+    PAX_MODAL_SOURCE=source.slice();
+
+    const next=k=>sort===k?(dir==='asc'?'desc':'asc'):'asc';
+
+    showModal(`${c}`,x.flight,`
+      <div class="sortbar compact-sortbar">
+        <button class="${sort==='name'?'active':''}" onclick="openSqVipCategoryR18('${c}','name','${next('name')}')">NOM${sortArrow(sort==='name',dir)}</button>
+        <button class="${sort==='class'?'active':''}" onclick="openSqVipCategoryR18('${c}','class','${next('class')}')">CLASSE${sortArrow(sort==='class',dir)}</button>
+        <button class="${sort==='seat'?'active':''}" onclick="openSqVipCategoryR18('${c}','seat','${next('seat')}')">SIÈGE${sortArrow(sort==='seat',dir)}</button>
+      </div>
+      <div class="fqtv-table-wrap">
+        <div class="fqtv-table-head">
+          <span>NOM / PRÉNOM</span>
+          <span>SIÈGE</span>
+          <span>CLASSE</span>
+          <span>CATÉGORIE</span>
+          <span>DOCUMENT</span>
+        </div>
+        <div class="fqtv-table-body">
+          ${list.map((p,i)=>`
+            <button class="fqtv-table-row" onclick="openPaxFromModal(${i})">
+              <strong>${passengerDisplayName(p)}</strong>
+              <span>${p.seat||'—'}</span>
+              <span>${p.class||'—'}</span>
+              <span>${c}</span>
+              <span>${passengerDocMeta(p)||'—'}</span>
+            </button>
+          `).join('') || '<div class="prepa-empty">AUCUN PASSAGER</div>'}
+        </div>
+      </div>
+    `);
+  };
+
+  // GROUP modal stays category-first like FQTV.
+  window.openGroupModal=function(){
+    const x=f();
+    if(String(x?.airline||'').toUpperCase()!=='SQ'){
+      if(typeof window.__openGroupModalBeforeR16==='function')return window.__openGroupModalBeforeR16.apply(this,arguments);
+      return;
+    }
+
+    const list=Array.isArray(x?.common_lists?.GROUP)?x.common_lists.GROUP:[];
+    const groups={};
+    list.forEach(p=>{
+      const g=String(p?.groupCode||p?.groupName||p?.pnr||'').trim().toUpperCase();
+      if(g)(groups[g]=groups[g]||[]).push(p);
+    });
+    window.__sqGroupsR18=groups;
+    const names=Object.keys(groups).sort((a,b)=>a.localeCompare(b));
+
+    showModal(`GROUP · ${names.length}`,x.flight,`
+      <div class="meal-category-list fq-display-order">
+        ${names.map(g=>`
+          <button class="meal-category-row fqtv-cat" onclick="openSqGroupCategoryR18('${g.replace(/'/g,"\\'")}')">
+            <span>${g}</span>
+            <b>${groups[g].length}</b>
+            <small>VOIR LES PASSAGERS</small>
+          </button>
+        `).join('') || '<div class="prepa-empty">AUCUN GROUPE DÉTAILLÉ</div>'}
+      </div>
+    `);
+  };
+
+  window.openSqGroupCategoryR18=function(group,sort='name',dir='asc'){
+    const x=f();
+    const g=String(group||'').toUpperCase();
+    const source=(x?.common_lists?.GROUP||[]).filter(p=>
+      String(p?.groupCode||p?.groupName||p?.pnr||'').toUpperCase()===g
+    );
+    const list=sortPaxItems(source,sort,dir);
+    PAX_MODAL_ITEMS=list;
+    PAX_MODAL_SOURCE=source.slice();
+    const next=k=>sort===k?(dir==='asc'?'desc':'asc'):'asc';
+
+    showModal(`GROUP · ${g}`,x.flight,`
+      <div class="sortbar compact-sortbar">
+        <button class="${sort==='name'?'active':''}" onclick="openSqGroupCategoryR18('${g}','name','${next('name')}')">NOM${sortArrow(sort==='name',dir)}</button>
+        <button class="${sort==='class'?'active':''}" onclick="openSqGroupCategoryR18('${g}','class','${next('class')}')">CLASSE${sortArrow(sort==='class',dir)}</button>
+        <button class="${sort==='seat'?'active':''}" onclick="openSqGroupCategoryR18('${g}','seat','${next('seat')}')">SIÈGE${sortArrow(sort==='seat',dir)}</button>
+      </div>
+      <div class="fqtv-table-wrap">
+        <div class="fqtv-table-head">
+          <span>NOM / PRÉNOM</span>
+          <span>SIÈGE</span>
+          <span>CLASSE</span>
+          <span>GROUPE</span>
+          <span>DOCUMENT</span>
+        </div>
+        <div class="fqtv-table-body">
+          ${list.map((p,i)=>`
+            <button class="fqtv-table-row" onclick="openPaxFromModal(${i})">
+              <strong>${passengerDisplayName(p)}</strong>
+              <span>${p.seat||'—'}</span>
+              <span>${p.class||'—'}</span>
+              <span>${g}</span>
+              <span>${passengerDocMeta(p)||'—'}</span>
+            </button>
+          `).join('') || '<div class="prepa-empty">AUCUN PASSAGER</div>'}
+        </div>
+      </div>
+    `);
+  };
+
+  console.log('BUILD143 R18 — SQ VIP CATEGORIES + GROUP INLINE BLOCK READY');
+})();
+</script>
+
 </body></html>
 <!-- V50.03: cloud status is debounced; 3 startup retries; transient sync failures no longer force immediate local mode. -->
 <!-- V50.0: generic airline PREPA engine + airline profiles; SQ/TK/BJ parser semantics unchanged. -->
