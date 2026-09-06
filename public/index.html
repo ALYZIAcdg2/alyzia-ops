@@ -27622,7 +27622,39 @@ console.log('BUILD143 R9 — R3.13 SQ CONTROLLED BRIDGE READY');
     // - keep an already non-zero booking result from the existing TK flow;
     // - otherwise use exact CDG ALL PAX passenger counts by class.
     if(existingTotal>0){
-      return {ok:true,applied:false,source:'EXISTING_TK_BOOKED',total:existingTotal,byClass:{...existing}};
+      // R21.3: the existing TK flow may already have the correct per-class
+      // BOOKED values (e.g. C=12 / Y=103) while bookedTotal is still 0.
+      // Synchronize bookedTotal instead of treating the object as already fully
+      // consolidated. Parser logic itself remains unchanged.
+      const currentTotal=Number(x.bookedTotal||0);
+      if(currentTotal!==existingTotal){
+        x.bookedTotal=existingTotal;
+        x.tkBookedReference={
+          source:'EXISTING_TK_BOOKED',
+          F:Number(existing.F||0),
+          C:Number(existing.C||0),
+          Y:Number(existing.Y||0),
+          total:existingTotal,
+          updatedAt:new Date().toISOString()
+        };
+        try{await cacheFlightsLocallyOnly(arr)}catch(_){}
+        const identity=`${flightDate}|TK|${flightNumber}`;
+        try{
+          let merged=await patchFlightToCloud(identity,{
+            booked:x.booked,
+            bookedTotal:x.bookedTotal,
+            tkBookedReference:x.tkBookedReference
+          });
+          if(!merged){
+            await upsertFlightToCloud(x);
+            merged=await getOneFlightFromCloud(identity);
+          }
+          if(merged&&idx>=0)arr[idx]={...arr[idx],...merged};
+        }catch(e){
+          return {ok:false,reason:String(e?.message||e),source:'EXISTING_TK_BOOKED',total:existingTotal,byClass:{...existing}};
+        }
+      }
+      return {ok:true,applied:currentTotal!==existingTotal,source:'EXISTING_TK_BOOKED',total:existingTotal,byClass:{...existing}};
     }
 
     x.booked={...existing,F:byClass.F,C:byClass.C,Y:byClass.Y};
@@ -27660,8 +27692,10 @@ console.log('BUILD143 R9 — R3.13 SQ CONTROLLED BRIDGE READY');
 
 
   function tkCountersR21(x){
+    const bookedObj=x?.booked&&typeof x.booked==='object'?x.booked:{};
+    const bookedFromClasses=Object.values(bookedObj).reduce((a,n)=>a+Number(n||0),0);
     return {
-      booked:Number(x?.bookedTotal||0),
+      booked:Number(x?.bookedTotal||bookedFromClasses||0),
       INF:Number(x?.common?.INF||0),
       CHLD:Number(x?.common?.CHLD||0),
       WCH:Number(x?.common?.WCH||0),
@@ -27827,6 +27861,7 @@ console.log('BUILD143 R9 — R3.13 SQ CONTROLLED BRIDGE READY');
   console.log('BUILD143 R21 — TK AUTOMATIC BATCH READY · SQ R20.1 UNCHANGED');
   console.log('BUILD143 R21.1 — TK SOURCE AUTO-REFRESH + D1 BOOKED SUMMARY READY');
   console.log('BUILD143 R21.2 — TK CDG ALL PAX BOOKED REFERENCE READY');
+  console.log('BUILD143 R21.3 — TK BOOKED TOTAL SYNC READY');
 })();
 </script>
 
