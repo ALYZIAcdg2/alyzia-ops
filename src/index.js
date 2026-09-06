@@ -1,4 +1,4 @@
-// ALYZIA OPS V50.30 R3.13 — SQ CONTROLLED BRIDGE
+// ALYZIA OPS V50.30 R22.3 — BJ/VF GMAIL PDF_ BOOTSTRAP · based on R3.13
 // Read-only bridge plan for one SQ flight/date. SQ/TK/BJ/VF/TW parsers unchanged.
 // V50.28 RULE: INC/INCARRIAGE = INBOUND PAX; INBOUND SUMMARY = FLIGHT METADATA; route inbound terminates at main origin (CDG).
 // V50.27 RULE: INCARRIAGE/INC = INBOUND PASSENGERS; INBOUND CUSTOMER SUMMARY = INBOUND FLIGHTS.
@@ -6446,6 +6446,364 @@ async function lot5TestOneMessageR312(env,body){
 }
 
 
+
+/* =========================================================
+   V50.30 R22.3 — BJ / VF PDF_ GMAIL IDENTITY BOOTSTRAP
+   Infrastructure only.
+   SQ/TK/BJ/VF/TW parsers remain untouched.
+
+   Problem fixed:
+   - Gmail clean intake stored BJ/VF pdf_ documents in R2/D1
+   - but gmail_messages had no airline/flight/date
+   - therefore lot5SyncPrepaInboxForMessage() did not create PREPA rows
+
+   Identity source:
+     03/Sep/2026 BJ511 CDG - TUN
+     03/Sep/2026 VF12  CDG - SAW
+   ========================================================= */
+
+const R223_MONTHS={
+  JAN:"01",FEB:"02",MAR:"03",APR:"04",MAY:"05",JUN:"06",
+  JUL:"07",AUG:"08",SEP:"09",OCT:"10",NOV:"11",DEC:"12"
+};
+
+function r223IsoDate(day,mon,year){
+  const mm=R223_MONTHS[String(mon||"").toUpperCase()];
+  const dd=String(Number(day||0)).padStart(2,"0");
+  const yyyy=String(year||"");
+  if(!mm || !/^20\d{2}$/.test(yyyy) || !/^\d{2}$/.test(dd))return "";
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function r223DetectBjVfIdentityFromPdfText(text){
+  const raw=String(text||"")
+    .replace(/\u00a0/g," ")
+    .replace(/\r/g,"\n");
+
+  /*
+   * Header actually observed in the BJ/VF reports:
+   *   03/Sep/2026 BJ511 CDG - TUN
+   *   03/Sep/2026 VF12 CDG - SAW
+   *
+   * We deliberately do NOT use the timestamp embedded in pdf_* filename.
+   * The service date comes from the document header.
+   */
+  const m=raw.match(
+    /\b(\d{1,2})\/(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\/(20\d{2})\s+(BJ|VF)\s*(\d{1,4})\s+([A-Z]{3})\s*[-–]\s*([A-Z]{3})\b/i
+  );
+  if(!m)return null;
+
+  const airline=String(m[4]||"").toUpperCase();
+  const flightNumber=`${airline}${String(m[5]||"").replace(/\D/g,"")}`;
+  const flightDate=r223IsoDate(m[1],m[2],m[3]);
+  const origin=String(m[6]||"").toUpperCase();
+  const destination=String(m[7]||"").toUpperCase();
+
+  if(!/^(BJ|VF)\d{1,4}$/.test(flightNumber))return null;
+  if(!/^20\d{2}-\d{2}-\d{2}$/.test(flightDate))return null;
+
+  return {
+    airline,
+    flightNumber,
+    flightDate,
+    origin,
+    destination,
+    source:"PDF_HEADER"
+  };
+}
+
+function r223IsPdfOperationalFilename(filename){
+  const f=String(filename||"").trim();
+  // BJ can arrive as .pdf, VF often as .pdf.pdf.
+  return /^pdf_/i.test(f) && /\.pdf(?:\.pdf)?$/i.test(f);
+}
+
+async function r223ReadBjVfIdentityFromStoredDocuments(env,gmailMessageId){
+  if(!env.OPS_FILES)return {
+    identity:null,
+    checked:0,
+    error:"BINDING R2 OPS_FILES ABSENT"
+  };
+
+  const {results=[]}=await env.OPS_DB.prepare(`
+    SELECT
+      v.version_id,
+      v.file_id,
+      v.filename_original,
+      v.mime_type,
+      v.file_size,
+      v.r2_key,
+      v.created_at
+    FROM import_file_versions v
+    WHERE v.gmail_message_id=?
+    ORDER BY v.created_at ASC, v.version_id ASC
+  `).bind(gmailMessageId).all();
+
+  const candidates=results.filter(r=>
+    r223IsPdfOperationalFilename(r.filename_original)
+  );
+
+  let checked=0;
+  const diagnostics=[];
+
+  for(const row of candidates){
+    const r2Key=String(row.r2_key||"").trim();
+    if(!r2Key){
+      diagnostics.push({
+        versionId:String(row.version_id||""),
+        filename:String(row.filename_original||""),
+        status:"NO_R2_KEY"
+      });
+      continue;
+    }
+
+    const object=await env.OPS_FILES.get(r2Key);
+    if(!object){
+      diagnostics.push({
+        versionId:String(row.version_id||""),
+        filename:String(row.filename_original||""),
+        status:"R2_NOT_FOUND"
+      });
+      continue;
+    }
+
+    checked++;
+
+    /*
+     * Reuse the already validated Worker PDF extraction engine.
+     * This is NOT an airline parser change.
+     */
+    const extracted=await lot2ExtractTextFromR2Object(
+      object,
+      String(row.filename_original||""),
+      String(row.mime_type||"application/pdf")
+    );
+
+    const text=String(extracted?.text||"");
+    const identity=r223DetectBjVfIdentityFromPdfText(text);
+
+    diagnostics.push({
+      versionId:String(row.version_id||""),
+      filename:String(row.filename_original||""),
+      readable:!!extracted?.readable,
+      extractionReason:String(extracted?.reason||""),
+      identity:identity||null
+    });
+
+    if(identity){
+      return {
+        identity,
+        checked,
+        candidates:candidates.length,
+        diagnostics
+      };
+    }
+  }
+
+  return {
+    identity:null,
+    checked,
+    candidates:candidates.length,
+    diagnostics
+  };
+}
+
+async function r223PersistBjVfIdentity(env,gmailMessageId,identity){
+  if(!identity)return {updated:false};
+
+  const airline=String(identity.airline||"").toUpperCase();
+  const flightNumber=String(identity.flightNumber||"").toUpperCase();
+  const flightDate=String(identity.flightDate||"");
+
+  if(!/^(BJ|VF)$/.test(airline))return {updated:false};
+  if(!new RegExp(`^${airline}\\d{1,4}$`).test(flightNumber))return {updated:false};
+  if(!/^20\d{2}-\d{2}-\d{2}$/.test(flightDate))return {updated:false};
+
+  await env.OPS_DB.prepare(`
+    UPDATE gmail_messages
+    SET
+      airline=?,
+      flight_number=?,
+      flight_date=?,
+      updated_at=CURRENT_TIMESTAMP
+    WHERE gmail_message_id=?
+  `).bind(
+    airline,
+    flightNumber,
+    flightDate,
+    gmailMessageId
+  ).run();
+
+  /*
+   * Keep document/job identity coherent with the canonical Gmail identity.
+   * No document payload and no parser result is modified.
+   */
+  await env.OPS_DB.prepare(`
+    UPDATE import_files
+    SET
+      airline=?,
+      flight_number=?,
+      flight_date=?,
+      updated_at=CURRENT_TIMESTAMP
+    WHERE file_id IN (
+      SELECT DISTINCT file_id
+      FROM import_file_versions
+      WHERE gmail_message_id=?
+    )
+  `).bind(
+    airline,
+    flightNumber,
+    flightDate,
+    gmailMessageId
+  ).run().catch(()=>{});
+
+  await env.OPS_DB.prepare(`
+    UPDATE import_jobs
+    SET
+      airline=?,
+      flight_number=?,
+      flight_date=?,
+      updated_at=CURRENT_TIMESTAMP
+    WHERE gmail_message_id=?
+  `).bind(
+    airline,
+    flightNumber,
+    flightDate,
+    gmailMessageId
+  ).run().catch(()=>{});
+
+  await ensureAirlineProfile(env,airline);
+
+  /*
+   * Existing PREPA bridge. It reads import_file_versions + Drive links
+   * and creates/updates prepa_inbox. We do not duplicate its logic.
+   */
+  await lot5SyncPrepaInboxForMessage(
+    env,
+    gmailMessageId,
+    ""
+  );
+
+  return {
+    updated:true,
+    airline,
+    flightNumber,
+    flightDate
+  };
+}
+
+async function lot5TestOneMessageR223(env,body){
+  /*
+   * Preserve the complete R3.12 clean intake first.
+   * R22.3 is only a post-intake identity/bootstrap layer.
+   */
+  const base=await lot5TestOneMessageR312(env,body);
+  const gmailMessageId=String(body?.gmailMessageId||"").trim();
+
+  if(!gmailMessageId){
+    return base;
+  }
+
+  const gm=await env.OPS_DB.prepare(`
+    SELECT
+      gmail_message_id,
+      gmail_thread_id,
+      subject,
+      sender,
+      airline,
+      flight_number,
+      flight_date,
+      status,
+      received_at
+    FROM gmail_messages
+    WHERE gmail_message_id=?
+    LIMIT 1
+  `).bind(gmailMessageId).first().catch(()=>null);
+
+  /*
+   * Do not interfere with an already resolved identity, whatever the airline.
+   */
+  if(
+    gm &&
+    String(gm.airline||"").trim() &&
+    String(gm.flight_number||"").trim() &&
+    String(gm.flight_date||"").trim()
+  ){
+    return {
+      ...base,
+      r223:{
+        applied:false,
+        reason:"IDENTITY_ALREADY_RESOLVED",
+        identity:{
+          airline:String(gm.airline||""),
+          flightNumber:String(gm.flight_number||""),
+          flightDate:String(gm.flight_date||"")
+        }
+      }
+    };
+  }
+
+  const resolved=await r223ReadBjVfIdentityFromStoredDocuments(
+    env,
+    gmailMessageId
+  );
+
+  if(!resolved.identity){
+    /*
+     * No terminal error: the normal retry/review lifecycle remains available.
+     */
+    return {
+      ...base,
+      r223:{
+        applied:false,
+        reason:"NO_BJ_VF_PDF_HEADER_IDENTITY",
+        checked:Number(resolved.checked||0),
+        candidates:Number(resolved.candidates||0),
+        diagnostics:resolved.diagnostics||[]
+      }
+    };
+  }
+
+  const persisted=await r223PersistBjVfIdentity(
+    env,
+    gmailMessageId,
+    resolved.identity
+  );
+
+  const prepa=await env.OPS_DB.prepare(`
+    SELECT
+      id,
+      airline,
+      flight_number,
+      flight_date,
+      status,
+      subject,
+      attachments_json
+    FROM prepa_inbox
+    WHERE gmail_message_id=?
+    LIMIT 1
+  `).bind(gmailMessageId).first().catch(()=>null);
+
+  return {
+    ...base,
+    airline:resolved.identity.airline,
+    flightNumber:resolved.identity.flightNumber,
+    flightDate:resolved.identity.flightDate,
+    r223:{
+      applied:true,
+      source:"PDF_HEADER",
+      identity:resolved.identity,
+      persisted,
+      prepaCreated:!!prepa,
+      prepaStatus:String(prepa?.status||""),
+      checked:Number(resolved.checked||0),
+      candidates:Number(resolved.candidates||0),
+      diagnostics:resolved.diagnostics||[]
+    }
+  };
+}
+
+
 async function lot5SqControlledBridgeR313(env,body){
   await ensureLot5Tables(env);
   const airline=String(body?.airline||'SQ').trim().toUpperCase();
@@ -6538,7 +6896,7 @@ async function handleLot5(request,env,url){
     }
     if(url.pathname==='/api/gmail-clean/test-one-message'&&request.method==='POST'){
       const body=await request.json().catch(()=>({}));
-      return json(await lot5TestOneMessageR312(env,body));
+      return json(await lot5TestOneMessageR223(env,body));
     }
     if(url.pathname==='/api/gmail-clean/purge-historical-sq'&&request.method==='POST'){
       const body=await request.json().catch(()=>({}));
