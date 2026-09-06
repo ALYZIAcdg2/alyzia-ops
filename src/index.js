@@ -4061,11 +4061,21 @@ async function lot2ProcessOneJob(env,job){
 
     const operationalInfo=extracted.readable?lot2ParseOperationalInfo(extracted.text,airline,job.flight_number||version.flight_number||"",effectiveFlightDate):null;
     const listName=lot2DetectListName(extracted.text,filename);
-    const listMapping=operationalInfo && !listName && parserMode==="GENERIC"
-      ? {cardKey:"OPERATIONAL_INFO",mappingScope:"OPERATIONAL_INFO",matchedListName:"JFE SCREEN COPY"}
-      : (parserMode==="SPECIFIC_LOCKED"
-        ? {cardKey:"SPECIFIC",mappingScope:"SPECIFIC_LOCKED",matchedListName:""}
-        : lot2LookupListMapping(airline,listName));
+    // Un rapport générique complet (ex. "GENERIC REPORT") porte à la fois l'en-tête
+    // opérationnel ET la liste nominative des passagers. Le classer en OPERATIONAL_INFO
+    // effacerait les passagers (V50.16 ligne 4073) et empêcherait toute création de fiche
+    // avec contenu : on détecte donc d'abord un vrai manifeste nominatif avant de retomber
+    // sur le mode "info seule".
+    const genericManifestItems=(!listName && parserMode==="GENERIC" && extracted.readable)
+      ? lot2ExtractPassengerItemsFromGenericList(extracted.text,"","MASTER")
+      : [];
+    const listMapping=genericManifestItems.length && parserMode==="GENERIC"
+      ? {cardKey:"MASTER",mappingScope:"GENERIC_REPORT",matchedListName:"GENERIC REPORT"}
+      : (operationalInfo && !listName && parserMode==="GENERIC"
+        ? {cardKey:"OPERATIONAL_INFO",mappingScope:"OPERATIONAL_INFO",matchedListName:"JFE SCREEN COPY"}
+        : (parserMode==="SPECIFIC_LOCKED"
+          ? {cardKey:"SPECIFIC",mappingScope:"SPECIFIC_LOCKED",matchedListName:""}
+          : lot2LookupListMapping(airline,listName)));
     const cardKey=listMapping.cardKey;
     const documentType=cardKey==="OPERATIONAL_INFO"?"OPERATIONAL_INFO":lot2DocumentTypeFromCard(cardKey,filename,mime);
     const passengerCount=cardKey==="OPERATIONAL_INFO"?0:(extracted.readable?lot2ExtractPassengerCount(extracted.text,listName,cardKey):0);
