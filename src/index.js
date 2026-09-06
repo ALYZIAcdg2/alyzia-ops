@@ -8388,8 +8388,12 @@ async function handleLot5(request,env,url){
         limit:Number(url.searchParams.get('limit')||200)
       }));
     }
-    if(url.pathname==='/api/autopilot/requeue-airline'&&request.method==='POST'){
-      const body=await request.json().catch(()=>({}));
+    if(url.pathname==='/api/autopilot/requeue-airline'&&(request.method==='POST'||request.method==='GET')){
+      // GET accepté (en plus de POST) pour permettre un simple lien cliquable
+      // depuis un téléphone, sans terminal ni page intermédiaire : la CSP des
+      // Artifacts bloque tout fetch() vers un domaine externe, un bouton dans
+      // une page publiée ne peut donc jamais appeler cette route lui-même.
+      const body=request.method==='POST'?await request.json().catch(()=>({})):null;
       return json(await lot5RequeueAirlineJobsV54(env,body?.airline||url.searchParams.get('airline')||''));
     }
     if(url.pathname==='/api/autopilot/stop'&&request.method==='POST'){
