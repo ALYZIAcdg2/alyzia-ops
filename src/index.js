@@ -5643,6 +5643,9 @@ async function lot5ReconcileGmailStatesV53(env,limit=200){
     const id=String(r.gmail_message_id||""); if(!id)continue;
     try{const x=await lot5ReconcileOneGmailStateV53(env,id);counts[x.state]=(counts[x.state]||0)+1}
     catch(e){errors.push({messageId:id,error:String(e?.message||e)})}
+    // Faire tourner le backlog : les lignes déjà stables ne doivent pas
+    // monopoliser les mêmes places à chaque cycle borné.
+    await env.OPS_DB.prepare(`UPDATE gmail_messages SET updated_at=CURRENT_TIMESTAMP WHERE gmail_message_id=?`).bind(id).run().catch(()=>{});
   }
   return {ok:errors.length===0,checked:rows.length,counts,errors};
 }
@@ -6119,8 +6122,10 @@ async function lot5AutoPilotRun(env,{triggerType='MANUAL',gmailQuery='',gmailMax
     details.drive={ok:!!(driveBefore.ok&&driveAfter.ok),uploaded:Number(driveBefore.uploaded||0)+Number(driveAfter.uploaded||0),errors:[...(driveBefore.errors||[]),...(driveAfter.errors||[])]};
     driveUploaded+=Number(driveAfter.uploaded||0);
 
-    // Réconcilier un backlog large, pas seulement les 500 derniers messages.
-    const labels=await lot5ReconcileGmailStatesV53(env,1500);
+    // Lot borné : 1500 appels Gmail séquentiels maintenaient le Worker en
+    // RUNNING pendant plus de 10 minutes. La rotation ci-dessus couvre tout
+    // le backlog au fil des cycles de 5 minutes sans bloquer les injections.
+    const labels=await lot5ReconcileGmailStatesV53(env,100);
     details.gmailStates=labels;
 
     details.prepaSynced=await lot5SyncPrepaInboxRecent(env);
