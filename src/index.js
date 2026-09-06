@@ -6517,8 +6517,38 @@ async function lot5RequeueNewGenericMappings(env,limit=500){
 }
 
 /*
+ * V54 — Rejeu ciblé pour une compagnie qui vient de sortir du groupe verrouillé
+ * (ex. VF). Ses import_jobs historiques portent encore un résultat
+ * parser_mode='SPECIFIC_LOCKED'/status='READY_SPECIFIC_PARSER' d'avant le
+ * changement : lot5RequeueNewGenericMappings ne les touche jamais (elle exige
+ * déjà parser_mode='GENERIC'). On les repasse donc explicitement en QUEUED,
+ * quel que soit leur statut précédent ; le prochain cycle AUTO PILOT
+ * (lot2ProcessNext) les reclassera avec le nouveau parser, et lot5InjectAvailable
+ * injectera les cartes obtenues dans la fiche vol.
+ *
+ * Refusé pour toute compagnie encore verrouillée (LOT2_SPECIFIC_AIRLINES) :
+ * ce point d'entrée sert uniquement à rattraper un déverrouillage, jamais à
+ * forcer un retraitement générique d'un parser spécifique toujours actif.
+ */
+async function lot5RequeueAirlineJobsV54(env,airline){
+  await ensureImportProcessorTables(env);
+  const a=String(airline||"").trim().toUpperCase();
+  if(!a)return {ok:false,error:"COMPAGNIE MANQUANTE"};
+  if(LOT2_SPECIFIC_AIRLINES.has(a)){
+    return {ok:false,error:`${a} EST TOUJOURS VERROUILLÉE (SPECIFIC_LOCKED) : REQUEUE REFUSÉ`};
+  }
+  const r=await env.OPS_DB.prepare(`
+    UPDATE import_jobs
+    SET status='QUEUED',error_message=NULL,updated_at=CURRENT_TIMESTAMP
+    WHERE UPPER(airline)=?
+  `).bind(a).run();
+  await recordImportChange(env,{scope:"AIRLINE",airline:a,changeType:"REQUEUE_AFTER_UNLOCK",after:{requeued:r.meta?.changes||0}}).catch(()=>{});
+  return {ok:true,airline:a,requeued:r.meta?.changes||0};
+}
+
+/*
  * Inventaire des noms de liste NON mappés reçus par compagnie GENERIC
- * (hors SQ/TK/TW/BJ/VF, verrouillées sur leur parseur spécifique). Sert de
+ * (hors SQ/TK/TW/BJ, verrouillées sur leur parseur spécifique). Sert de
  * base pour ajouter les compagnies une à une à LOT2_GENERIC_AIRLINE_LIST_MAPPINGS
  * à partir de ce qui est réellement reçu, plutôt que de deviner.
  */
@@ -8357,6 +8387,10 @@ async function handleLot5(request,env,url){
         airline:url.searchParams.get('airline')||'',
         limit:Number(url.searchParams.get('limit')||200)
       }));
+    }
+    if(url.pathname==='/api/autopilot/requeue-airline'&&request.method==='POST'){
+      const body=await request.json().catch(()=>({}));
+      return json(await lot5RequeueAirlineJobsV54(env,body?.airline||url.searchParams.get('airline')||''));
     }
     if(url.pathname==='/api/autopilot/stop'&&request.method==='POST'){
       const active=await env.OPS_DB.prepare(`SELECT run_id FROM lot5_autopilot_runs WHERE status='RUNNING' ORDER BY started_at DESC LIMIT 1`).first();
