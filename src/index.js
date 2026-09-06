@@ -5984,6 +5984,47 @@ async function lot5RequeueNewGenericMappings(env,limit=500){
   return {ok:true,checked:rows.length,requeued,mappings};
 }
 
+/*
+ * Inventaire des noms de liste NON mappés reçus par compagnie GENERIC
+ * (hors SQ/TK/TW/BJ/VF, verrouillées sur leur parseur spécifique). Sert de
+ * base pour ajouter les compagnies une à une à LOT2_GENERIC_AIRLINE_LIST_MAPPINGS
+ * à partir de ce qui est réellement reçu, plutôt que de deviner.
+ */
+async function lot5UnmappedGenericListsReport(env,{airline='',limit=200}={}){
+  const a=String(airline||'').trim().toUpperCase();
+  const wh=[
+    "parser_mode='GENERIC'",
+    "UPPER(airline) NOT IN ('SQ','TK','TW','BJ','VF')",
+    "card_key IN ('OTHER','NO_LIST')"
+  ];
+  const binds=[];
+  if(a){wh.push("UPPER(airline)=?");binds.push(a)}
+  binds.push(Math.max(1,Math.min(1000,Number(limit||200))));
+
+  const rows=(await env.OPS_DB.prepare(`
+    SELECT airline,list_name,card_key,COUNT(*) AS n,MAX(updated_at) AS lastSeen,
+           MIN(job_id) AS sampleJobId
+    FROM import_job_results
+    WHERE ${wh.join(" AND ")}
+    GROUP BY airline,list_name,card_key
+    ORDER BY airline ASC, n DESC
+    LIMIT ?
+  `).bind(...binds).all()).results||[];
+
+  return {
+    ok:true,
+    checked:rows.length,
+    items:rows.map(r=>({
+      airline:String(r.airline||''),
+      listName:String(r.list_name||''),
+      cardKey:String(r.card_key||''),
+      count:Number(r.n||0),
+      lastSeen:String(r.lastSeen||''),
+      sampleJobId:String(r.sampleJobId||'')
+    }))
+  };
+}
+
 /* =========================================================
  * LOT 5.2 — FULL MAILBOX CONTINUOUS GMAIL SWEEP
  * ---------------------------------------------------------
@@ -7739,6 +7780,12 @@ async function handleLot5(request,env,url){
       const messageId=String(url.searchParams.get('messageId')||'').trim();
       if(messageId)return json(await lot5AuditMessageV534(env,messageId));
       return json(await lot5AuditBacklogV534(env,Number(url.searchParams.get('limit')||100),url.searchParams.get('airline')||''));
+    }
+    if(url.pathname==='/api/autopilot/unmapped-lists'&&request.method==='GET'){
+      return json(await lot5UnmappedGenericListsReport(env,{
+        airline:url.searchParams.get('airline')||'',
+        limit:Number(url.searchParams.get('limit')||200)
+      }));
     }
     if(url.pathname==='/api/autopilot/stop'&&request.method==='POST'){
       const active=await env.OPS_DB.prepare(`SELECT run_id FROM lot5_autopilot_runs WHERE status='RUNNING' ORDER BY started_at DESC LIMIT 1`).first();
