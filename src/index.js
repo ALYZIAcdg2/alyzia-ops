@@ -1,4 +1,4 @@
-// ALYZIA OPS V50.30 R22.5 — BJ/VF PDF TEXT COMPATIBILITY · based on R22.4/R3.13
+// ALYZIA OPS V50.30 R22.6 — BJ/VF SHA DEDUPE + CANONICAL RELINK · based on R22.5/R3.13
 // Read-only bridge plan for one SQ flight/date. SQ/TK/BJ/VF/TW parsers unchanged.
 // V50.28 RULE: INC/INCARRIAGE = INBOUND PAX; INBOUND SUMMARY = FLIGHT METADATA; route inbound terminates at main origin (CDG).
 // V50.27 RULE: INCARRIAGE/INC = INBOUND PASSENGERS; INBOUND CUSTOMER SUMMARY = INBOUND FLIGHTS.
@@ -6047,6 +6047,302 @@ async function lot5ReplayMissingVersionsR3(env,messageId){
   return {messageId,replayed:true,before,after:Number(afterRow?.n||0),stored};
 }
 
+
+/* =========================================================
+   V50.30 R22.6 — BJ/VF SHA DEDUPE + CANONICAL RELINK
+   Infrastructure only. SQ/TK/BJ/VF/TW parsers untouched.
+
+   Goal:
+   - same Gmail message + same SHA256 must expose ONE canonical document
+   - prefer resolved BJ/VF identity over legacy UNK/UNIDENTIFIED copy
+   - relink provenance to canonical version
+   - remove stale technical duplicate from D1/R2/Drive safely
+   - keep audit history via recordImportChange()
+   ========================================================= */
+
+function r226IsResolvedCanonicalRow(row,gm){
+  const a=String(row?.airline||"").trim().toUpperCase();
+  const f=String(row?.flight_number||"").trim().toUpperCase();
+  const d=String(row?.flight_date||"").trim();
+  const ga=String(gm?.airline||"").trim().toUpperCase();
+  const gf=String(gm?.flight_number||"").trim().toUpperCase();
+  const gd=String(gm?.flight_date||"").trim();
+  return !!ga && !!gf && !!gd && a===ga && f===gf && d===gd;
+}
+
+async function r226RelinkProvenance(env,messageId,fromRow,toRow){
+  const links=(await env.OPS_DB.prepare(`
+    SELECT source_kind,source_ref,parent_version_id,is_duplicate
+    FROM gmail_message_documents
+    WHERE gmail_message_id=? AND version_id=?
+    ORDER BY created_at ASC
+  `).bind(messageId,String(fromRow.version_id)).all().catch(()=>({results:[]}))).results||[];
+
+  for(const l of links){
+    await cleanLinkMessageDocumentV3(env,{
+      gmailMessageId:messageId,
+      versionId:String(toRow.version_id),
+      fileId:String(toRow.file_id),
+      sourceKind:String(l.source_kind||"ATTACHMENT"),
+      sourceRef:String(l.source_ref||""),
+      parentVersionId:String(l.parent_version_id||""),
+      isDuplicate:true
+    }).catch(()=>{});
+  }
+
+  await env.OPS_DB.prepare(`
+    DELETE FROM gmail_message_documents
+    WHERE gmail_message_id=? AND version_id=?
+  `).bind(messageId,String(fromRow.version_id)).run().catch(()=>{});
+
+  return links.length;
+}
+
+async function r226RemoveStaleDuplicate(env,messageId,stale,canonical,gm){
+  const staleVersionId=String(stale.version_id||"");
+  const staleFileId=String(stale.file_id||"");
+  const staleR2Key=String(stale.r2_key||"");
+  const canonicalR2Key=String(canonical.r2_key||"");
+  const staleDriveId=String(stale.drive_file_id||"");
+  const canonicalDriveId=String(canonical.drive_file_id||"");
+
+  const relinked=await r226RelinkProvenance(
+    env,messageId,stale,canonical
+  );
+
+  // Remove generic result/injection artifacts belonging only to the stale
+  // unresolved technical version. The canonical specific job is preserved.
+  const staleJobs=(await env.OPS_DB.prepare(`
+    SELECT job_id
+    FROM import_jobs
+    WHERE version_id=?
+  `).bind(staleVersionId).all().catch(()=>({results:[]}))).results||[];
+
+  for(const j of staleJobs){
+    const jobId=String(j.job_id||"");
+    if(!jobId)continue;
+    await env.OPS_DB.prepare(`
+      DELETE FROM flight_import_injections WHERE result_job_id=?
+    `).bind(jobId).run().catch(()=>{});
+    await env.OPS_DB.prepare(`
+      DELETE FROM flight_import_cards WHERE job_id=? OR version_id=?
+    `).bind(jobId,staleVersionId).run().catch(()=>{});
+    await env.OPS_DB.prepare(`
+      DELETE FROM import_job_results WHERE job_id=?
+    `).bind(jobId).run().catch(()=>{});
+  }
+
+  await env.OPS_DB.prepare(`
+    DELETE FROM import_jobs WHERE version_id=?
+  `).bind(staleVersionId).run().catch(()=>{});
+
+  // Trash only the duplicate Drive FILE, never the canonical one/folder.
+  let driveTrashed=false;
+  let driveTrashError="";
+  if(staleDriveId && staleDriveId!==canonicalDriveId){
+    try{
+      const ds=await googleDriveStatus(env).catch(()=>({configured:false}));
+      if(ds?.configured){
+        const dr=await trashDriveFoldersDirect(env,[staleDriveId]);
+        driveTrashed=(dr?.trashed||[]).includes(staleDriveId)
+          || (dr?.missing||[]).includes(staleDriveId);
+        if((dr?.errors||[]).length){
+          driveTrashError=JSON.stringify(dr.errors);
+        }
+      }
+    }catch(e){
+      driveTrashError=String(e?.message||e);
+    }
+  }
+
+  await env.OPS_DB.prepare(`
+    DELETE FROM lot5_drive_files WHERE version_id=?
+  `).bind(staleVersionId).run().catch(()=>{});
+
+  // Remove stale R2 bytes only when the canonical version points elsewhere.
+  let r2Deleted=false;
+  if(
+    env.OPS_FILES &&
+    staleR2Key &&
+    staleR2Key!==canonicalR2Key
+  ){
+    try{
+      await env.OPS_FILES.delete(staleR2Key);
+      r2Deleted=true;
+    }catch(e){}
+  }
+
+  await env.OPS_DB.prepare(`
+    DELETE FROM import_file_versions WHERE version_id=?
+  `).bind(staleVersionId).run();
+
+  // Remove the now-orphan import_files shell only when no version remains.
+  const remaining=await env.OPS_DB.prepare(`
+    SELECT COUNT(*) AS n
+    FROM import_file_versions
+    WHERE file_id=?
+  `).bind(staleFileId).first().catch(()=>({n:0}));
+
+  if(Number(remaining?.n||0)===0){
+    await env.OPS_DB.prepare(`
+      DELETE FROM import_files WHERE file_id=?
+    `).bind(staleFileId).run().catch(()=>{});
+  }
+
+  await recordImportChange(env,{
+    scope:"FILE",
+    airline:String(gm.airline||""),
+    flightNumber:String(gm.flight_number||""),
+    flightDate:String(gm.flight_date||""),
+    gmailMessageId:messageId,
+    fileId:String(canonical.file_id||""),
+    versionId:String(canonical.version_id||""),
+    changeType:"R226_SHA_DUPLICATE_RELINKED",
+    before:{
+      staleVersionId,
+      staleFileId,
+      staleDriveId,
+      staleR2Key
+    },
+    after:{
+      canonicalVersionId:String(canonical.version_id||""),
+      canonicalFileId:String(canonical.file_id||""),
+      sha256:String(canonical.sha256||""),
+      relinked,
+      driveTrashed,
+      driveTrashError,
+      r2Deleted
+    }
+  }).catch(()=>{});
+
+  return {
+    staleVersionId,
+    canonicalVersionId:String(canonical.version_id||""),
+    sha256:String(canonical.sha256||""),
+    relinked,
+    driveTrashed,
+    driveTrashError,
+    r2Deleted
+  };
+}
+
+async function r226ConsolidateMessageSha(env,messageId){
+  const gm=await env.OPS_DB.prepare(`
+    SELECT gmail_message_id,airline,flight_number,flight_date,received_at,internal_date
+    FROM gmail_messages
+    WHERE gmail_message_id=?
+    LIMIT 1
+  `).bind(messageId).first().catch(()=>null);
+
+  if(!gm)return {messageId,applied:false,reason:"MESSAGE_NOT_FOUND"};
+
+  const airline=String(gm.airline||"").trim().toUpperCase();
+  const flightNumber=String(gm.flight_number||"").trim().toUpperCase();
+  const flightDate=lot5CanonicalFlightDate(
+    gm.flight_date||"",
+    gm.received_at||gm.internal_date||""
+  )||String(gm.flight_date||"");
+
+  if(!/^(BJ|VF)$/.test(airline) || !flightNumber || !flightDate){
+    return {messageId,applied:false,reason:"NOT_RESOLVED_BJ_VF"};
+  }
+
+  gm.airline=airline;
+  gm.flight_number=flightNumber;
+  gm.flight_date=flightDate;
+
+  const rows=(await env.OPS_DB.prepare(`
+    SELECT
+      v.version_id,
+      v.file_id,
+      v.gmail_message_id,
+      v.filename_original,
+      v.mime_type,
+      v.sha256,
+      v.r2_key,
+      v.created_at,
+      f.airline,
+      f.flight_number,
+      f.flight_date,
+      f.document_type,
+      d.drive_file_id,
+      d.drive_folder_id
+    FROM import_file_versions v
+    LEFT JOIN import_files f ON f.file_id=v.file_id
+    LEFT JOIN lot5_drive_files d ON d.version_id=v.version_id
+    WHERE v.gmail_message_id=?
+      AND COALESCE(v.sha256,'')<>''
+    ORDER BY v.created_at ASC
+  `).bind(messageId).all().catch(()=>({results:[]}))).results||[];
+
+  const groups=new Map();
+  for(const r of rows){
+    const sha=String(r.sha256||"").trim().toLowerCase();
+    if(!sha)continue;
+    if(!groups.has(sha))groups.set(sha,[]);
+    groups.get(sha).push(r);
+  }
+
+  const removed=[];
+  for(const [sha,list] of groups.entries()){
+    if(list.length<2)continue;
+
+    const canonical=list.find(r=>r226IsResolvedCanonicalRow(r,gm));
+    if(!canonical)continue;
+
+    for(const stale of list){
+      if(String(stale.version_id)===String(canonical.version_id))continue;
+
+      // Safety gate: only clean legacy unresolved/wrong-identity copies for
+      // EXACT same Gmail message + exact SHA. Never merge two different
+      // canonical BJ/VF flights.
+      const staleA=String(stale.airline||"").trim().toUpperCase();
+      const staleF=String(stale.flight_number||"").trim().toUpperCase();
+      const staleD=String(stale.flight_date||"").trim();
+
+      const clearlyLegacy=
+        !staleA ||
+        staleA==="UNK" ||
+        !staleF ||
+        staleF==="UNIDENTIFIED" ||
+        !staleD ||
+        staleD==="UNKNOWN_DATE" ||
+        staleA!==airline ||
+        staleF!==flightNumber ||
+        staleD!==flightDate;
+
+      if(!clearlyLegacy)continue;
+
+      removed.push(
+        await r226RemoveStaleDuplicate(
+          env,messageId,stale,canonical,gm
+        )
+      );
+    }
+  }
+
+  // Rebuild PREPA after consolidation so one SHA appears only once.
+  await lot5SyncPrepaInboxForMessage(env,messageId,"").catch(()=>{});
+
+  const after=await env.OPS_DB.prepare(`
+    SELECT COUNT(*) AS n
+    FROM import_file_versions
+    WHERE gmail_message_id=?
+  `).bind(messageId).first().catch(()=>({n:0}));
+
+  return {
+    messageId,
+    applied:removed.length>0,
+    airline,
+    flightNumber,
+    flightDate,
+    removedCount:removed.length,
+    remainingVersions:Number(after?.n||0),
+    removed
+  };
+}
+
+
 async function lot5SpecificReadyForMessagesR3(env,messageIds){
   const ids=[...new Set((messageIds||[]).map(x=>String(x||'').trim()).filter(Boolean))];
   if(!ids.length)return [];
@@ -6068,11 +6364,16 @@ async function lot5TestBatchV535(env,body){
   if(!ids.length)return {ok:false,error:'messageIds requis'};
   if(ids.length>20)return {ok:false,error:'Maximum 20 messages'};
   const stored=[]; const replay=[];
+  const r226=[];
   for(const id of ids){
     try{stored.push(await storeGmailMessage(env,id));}
     catch(e){stored.push({messageId:id,status:'ERROR_IMPORT',error:String(e?.message||e)})}
     await lot5RepairMessageIdentityV533(env,id).catch(()=>{});
     try{replay.push(await lot5ReplayMissingVersionsR3(env,id));}catch(e){replay.push({messageId:id,error:String(e?.message||e)})}
+
+    // R22.6 — clean legacy UNK copy BEFORE Drive archiving / parser processing.
+    try{r226.push(await r226ConsolidateMessageSha(env,id));}
+    catch(e){r226.push({messageId:id,applied:false,error:String(e?.message||e)})}
   }
   const driveBefore=await lot5ArchiveDriveForMessagesV535(env,ids);
   const qs=ids.map(()=>'?').join(',');
@@ -6097,7 +6398,7 @@ async function lot5TestBatchV535(env,body){
     audits.push(await lot5AuditMessageV534(env,id).catch(e=>({messageId:id,error:String(e?.message||e)})));
   }
   const specificReady=await lot5SpecificReadyForMessagesR3(env,ids);
-  return {ok:true,testMode:true,r3:true,messageCount:ids.length,stored,replay,processedJobs:processed.length,driveUploaded:Number(driveBefore.uploaded||0)+Number(driveAfter.uploaded||0),injected,waiting,specificReadyCount:specificReady.length,specificReady,injectionErrors,audits};
+  return {ok:true,testMode:true,r3:true,messageCount:ids.length,stored,replay,r226,processedJobs:processed.length,driveUploaded:Number(driveBefore.uploaded||0)+Number(driveAfter.uploaded||0),injected,waiting,specificReadyCount:specificReady.length,specificReady,injectionErrors,audits};
 }
 
 async function lot5ReconcileCanonicalStatusesR4(env,limit=2000){
