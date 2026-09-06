@@ -381,7 +381,7 @@ function normalizePrepaPayload(body) {
 
 function defaultImportModeForAirline(airline){
   const code=String(airline||"").trim().toUpperCase();
-  return ["SQ","TK","TW","BJ","VF"].includes(code) ? "SPECIFIC" : "GENERIC";
+  return ["SQ","TK","TW","BJ"].includes(code) ? "SPECIFIC" : "GENERIC";
 }
 
 async function ensureAirlineProfile(env,airline){
@@ -1638,8 +1638,13 @@ function extractFlightTokenV53(text){
   while((m=re.exec(src))){
     const airline=String(m[1]||"").toUpperCase();
     if(!isValidAirlineCodeV53(airline))continue;
-    const num=String(m[2]||"").toUpperCase();
+    let num=String(m[2]||"").toUpperCase();
     if(!/\d/.test(num))continue;
+    // Source iPort (IZ/TB) : le même vol peut être numéroté "742" ou "0742"
+    // selon la liste ("All passengers" vs "PIL by SSR category"). Sans cette
+    // normalisation, ces deux formats créent deux fiches vol distinctes pour
+    // le même vol réel.
+    if(/^(IZ|TB)$/.test(airline))num=num.replace(/^0+(?=\d)/,"");
     return {airline,flightNumber:`${airline}${num}`};
   }
   return null;
@@ -1691,6 +1696,10 @@ function isOperationalCandidateMailV53(subject,bodyText,parts,flightBase){
   const hasFlight=!!(flightBase?.airline&&flightBase?.flightNumber&&isValidAirlineCodeV53(flightBase.airline));
   if(!hasFlight)return false;
   if(/\bPREPA\b|\bCHECK\s+IN\s+INFORMATION\b|\bJFE\s+SCREEN\s+COPY\b|\bLIST\s+OF\s*:|\bALTEA\b|\bSSR\b|\bFQTV\b|\bETKT\b|\bOUTBOUND\b|\bINBOUND\b/.test(src))return true;
+  // Source iPort (res2.iport.servers@res2.eu) : corps mail texte sans pièce jointe,
+  // format "LIST TOTAL:" propre à IZ/TB, jamais "LIST OF:". Sans ce cas dédié,
+  // ces mails sont ignorés IGNORED_NON_OPERATIONAL et invisibles côté fiche vol.
+  if(/^(IZ|TB)$/.test(String(flightBase?.airline||"").toUpperCase()) && lot2IsIportBodyV1(body))return true;
   return (parts||[]).some(p=>{
     const f=String(p?.filename||"").toLowerCase();
     const mime=String(p?.mimeType||"").toLowerCase();
@@ -2397,12 +2406,13 @@ function mailRawDateToIso(raw,receivedAt){
   return `${y}-${months[m[2]]}-${String(Number(m[1])).padStart(2,"0")}`;
 }
 
-function plainTextOperationalKindV53(subject,body){
+function plainTextOperationalKindV53(subject,body,flightBase){
   const src=lot2Upper(`${subject||""}\n${body||""}`);
   const tk=/\bTK\d{1,4}\b/.test(src) && /\bCHECK\s+IN\s+INFORMATION\b/.test(src);
   if(tk)return "TK_TEXT";
   const jfe=/\bJFE\s+SCREEN\s+COPY\b/.test(src);
   if(jfe)return "JFE_SCREEN_COPY";
+  if(/^(IZ|TB)$/.test(String(flightBase?.airline||"").toUpperCase()) && lot2IsIportBodyV1(body))return "IPORT_TEXT";
   // V3.5: TW et autres prépas texte reconnues par identité vol + marqueurs opérationnels.
   // On ne change aucun parser spécifique : on transforme seulement le corps Gmail en vraie source importable.
   const hasFlight=/\b(?:[A-Z][A-Z0-9]|[0-9][A-Z0-9])\s?\d{2,4}\b/.test(src);
@@ -2410,13 +2420,13 @@ function plainTextOperationalKindV53(subject,body){
   if(hasFlight && hasOps)return /\bTW\s?\d{2,4}\b/.test(src)?"TW_TEXT":"MAIL_BODY_TEXT";
   return "";
 }
-function isPlainTextOperationalMail(subject,body){return !!plainTextOperationalKindV53(subject,body)}
+function isPlainTextOperationalMail(subject,body,flightBase){return !!plainTextOperationalKindV53(subject,body,flightBase)}
 
 async function storeVirtualPlainTextImport(env,{messageId,subject,receivedAt,bodyText,flightBase}){
   const text=String(bodyText||"").replace(/\u0000/g,"").trim();
   // R3: ne jamais créer de source BODY vide/quasi vide.
   if(text.length<20 || !/[A-Z0-9]{4}/i.test(text))return {added:0,updated:0,duplicate:0,created:false};
-  if(!isPlainTextOperationalMail(subject,text))return {added:0,updated:0,duplicate:0,created:false};
+  if(!isPlainTextOperationalMail(subject,text,flightBase))return {added:0,updated:0,duplicate:0,created:false};
 
   const flight=detectMailFlight(subject,"jfe_screen_copy.txt",text);
   if(!flight.airline && flightBase)Object.assign(flight,flightBase);
@@ -2424,9 +2434,9 @@ async function storeVirtualPlainTextImport(env,{messageId,subject,receivedAt,bod
   const airline=flight.airline||"UNK";
   const flightNumber=flight.flightNumber||"UNIDENTIFIED";
   const flightDate=mailRawDateToIso(flight.flightDate||flightBase?.flightDate||"UNKNOWN_DATE",receivedAt);
-  const textKind=plainTextOperationalKindV53(subject,text);
-  const docType=textKind==="TK_TEXT"?"TK_TEXT":(textKind==="TW_TEXT"?"TW_TEXT":"OPERATIONAL_INFO");
-  const filename=textKind==="TK_TEXT"?"tk_prepa_plain_text.txt":(textKind==="TW_TEXT"?"tw_prepa_plain_text.txt":(textKind==="JFE_SCREEN_COPY"?"jfe_screen_copy_plain_text.txt":"mail_body_operational.txt"));
+  const textKind=plainTextOperationalKindV53(subject,text,flightBase);
+  const docType=textKind==="TK_TEXT"?"TK_TEXT":(textKind==="TW_TEXT"?"TW_TEXT":(textKind==="IPORT_TEXT"?"IPORT_TEXT":"OPERATIONAL_INFO"));
+  const filename=textKind==="TK_TEXT"?"tk_prepa_plain_text.txt":(textKind==="TW_TEXT"?"tw_prepa_plain_text.txt":(textKind==="JFE_SCREEN_COPY"?"jfe_screen_copy_plain_text.txt":(textKind==="IPORT_TEXT"?"iport_plain_text.txt":"mail_body_operational.txt")));
   const norm=normalizeFilename(filename);
   const bytes=new TextEncoder().encode(text);
   const sha=await sha256Hex(bytes);
@@ -2963,7 +2973,12 @@ async function importPipelineStatus(env){
  *   LIST OF: XXXXX = carte correspondante.
  * ========================================================= */
 
-const LOT2_SPECIFIC_AIRLINES = new Set(["SQ","TK","BJ","VF","TW"]);
+// VF (AJet) est sortie du groupe verrouillé : BUILD143 ne produit aucune fiche vol
+// pour VF (aucun résultat SPECIFIC_LOCKED n'est jamais confirmé), le vol reste donc
+// éternellement sans fiche. VF a un format PD4ML propre (voir plus bas) : elle est
+// désormais traitée en GENERIC par ce Worker, comme 3O/WB/OZ. BJ reste verrouillé
+// et inchangé.
+const LOT2_SPECIFIC_AIRLINES = new Set(["SQ","TK","BJ","TW"]);
 
 async function ensureImportProcessorTables(env){
   await ensureGmailPipelineTables(env);
@@ -3363,7 +3378,14 @@ const LOT2_GENERIC_DEFAULT_LIST_MAPPINGS = [
   ["ALL CUSTOMERS","MASTER"],
   ["ALL PAX","MASTER"],
   ["ALL RESERVATION","MASTER"],
+  // "PDF-ACC" (sans suffixe) est un sous-ensemble "accepté" des mêmes
+  // passagers que ALL CUSTOMERS, même structure — vu identique chez LO et S4.
+  ["PDF-ACC","MASTER"],
   ["FQTV","FQTV"],
+  // "FQA" est le nom de liste réel envoyé par la plupart des compagnies
+  // génériques (A9, AI, AT, EI, FB, LO, MS, RJ, S4, SB, SK, DE...), pas
+  // seulement J2/AH où il était mappé jusqu'ici en dur par compagnie.
+  ["FQA","FQTV"],
   ["WCH","WCH"],
   ["WCHR","WCH"],
   ["WCHS","WCH"],
@@ -3376,8 +3398,14 @@ const LOT2_GENERIC_DEFAULT_LIST_MAPPINGS = [
   ["CHLD","CHLD"],
   ["CHILD","CHLD"],
   ["KID","CHLD"],
+  // Enfants + bébés combinés dans un seul document — vu identique chez RJ et
+  // S4. Chacun garde sa propre carte (INF/CHLD), voir lot3MergeFlightData.
+  ["PDF-INFKID","INFKID"],
   ["ETKT","ETKT"],
   ["TICKET","ETKT"],
+  // "PDF-ACCWEB" (enregistrement web) vu identique chez 3O/AH/EI/RJ/SB —
+  // contenu vérifié sur 3O (44 passagers, "CHL-WEB", sièges attribués).
+  ["PDF-ACCWEB","WEB"],
   ["EMD","EMD"],
   ["MEAL","MEAL"],
   ["SPML","MEAL"],
@@ -3391,36 +3419,73 @@ const LOT2_GENERIC_DEFAULT_LIST_MAPPINGS = [
   ["INAD","INAD"],
   ["DEPA","DEPA"],
   ["DEPU","DEPU"],
+  // "SR-" (Special Request) est un préfixe Amadeus partagé, observé
+  // identique chez A9, AT et SK.
+  ["SR-DEPA","DEPA"],
+  ["SR-DEPU","DEPU"],
+  ["SR-PETC","PETC"],
+  ["SR-AVIH","AVIH"],
   ["UMNR","UMNR"],
   ["UM","UMNR"],
   ["MAAS","MAAS"],
+  // Personnel compagnie (standby/bookable) — vu identique chez EI, LO, RJ.
+  ["STF","STAFF"],
   ["INC","INBOUND"],
   ["INCARRIAGE","INBOUND"],
   ["ONC","OUTBOUND"],
   ["ONCARRIAGE","OUTBOUND"],
   ["INBOUND CUSTOMER SUMMARY","INBOUND_SUMMARY"],
-  ["ONCARRIAGE CUSTOMER SUMMARY","OUTBOUND_SUMMARY"]
+  ["ONCARRIAGE CUSTOMER SUMMARY","OUTBOUND_SUMMARY"],
+  // Liste combinée INC+ONC dans un seul document — vue identique chez
+  // OZ, DE, AI et SK. Contenu vérifié sur OZ.
+  ["ONC* INC","CONNECTIONS"]
 ];
 
 const LOT2_GENERIC_AIRLINE_LIST_MAPPINGS = {
+  A9: [
+    // Préfixe "PDF-" observé uniquement sur INAD pour cette compagnie.
+    ["PDF-INAD","INAD"]
+  ],
+  MS: [
+    // "CAS-SB" (Casual Standby) : équivalent MS de STF-SB, sans code
+    // distinctif propre dans la liste elle-même.
+    ["CAS-SB","STAFF"]
+  ],
+  TS: [
+    // Même structure que PDF-ACC (liste passagers "accepted"), mais
+    // avec le préfixe numéroté propre à TS.
+    ["PDF-02ACC","MASTER"]
+  ],
   "3O": [
-    // Air Arabia Maroc : liste d'enregistrement web ("CHL-WEB" sur chaque
-    // ligne passager, sièges déjà attribués).
-    ["PDF-ACCWEB","WEB"]
+    // Certains rapports préfixent les listes standards par "PDF-ACC, " (le
+    // contenu reste identique à la liste ETKT/KID nue observée par ailleurs).
+    ["PDF-ACC, ETKT","ETKT"],
+    ["PDF-ACC, KID","CHLD"]
   ],
   OZ: [
     // Libellés techniques observés dans les rapports Altea Asiana.
     ["PDF-M2","MEAL"],
     ["PDF-S1","STAFF"],
     ["PDF-Z8","WEB"],
-    ["PDF-Z93","EMD"],
-    ["ONC* INC","CONNECTIONS"]
+    ["PDF-Z93","EMD"]
   ],
   DE: [
     // Condor utilise des numéros de listes à la place des noms fonctionnels.
     ["PDF-02","WEB"],
-    ["PDF-10","WCH"],
-    ["ONC* INC","CONNECTIONS"]
+    ["PDF-10","WCH"]
+  ],
+  WB: [
+    // RwandAir préfixe systématiquement ses listes par "X-TRT". X-TRT seule
+    // est un export complet des passagers (comme ALL CUSTOMERS/MASTER).
+    ["X-TRT","MASTER"],
+    ["X-TRT, ETKT","ETKT"],
+    ["X-TRT, ONC","OUTBOUND"],
+    ["X-TRT, INC","INBOUND"],
+    ["X-TRT, KID","CHLD"],
+    ["X-TRT, INF","INF"],
+    ["X-TRT, WCH","WCH"],
+    ["X-TRT, FQA","FQTV"],
+    ["X-TRT, EMD","EMD"]
   ],
   J2: [
     ["FQA","FQTV"],
@@ -3768,6 +3833,387 @@ function lot2SsrFromCard(cardKey,specific){
   return [c,s].filter(Boolean);
 }
 
+/* =========================================================
+ * V54 — SOURCE IPORT (res2.iport.servers@res2.eu), IZ/TB
+ * ---------------------------------------------------------
+ * Format spécifique : corps mail texte brut, sans "LIST OF:", avec un
+ * en-tête "IZ742 06SEP CDG LIST TOTAL: 97Y", un nom de liste sur sa
+ * propre ligne (ALL PASSENGERS / CHILDREN / PASSENGERS WITH INFT /
+ * PASSENGERS CHECKED-IN VIA INTERNET / PIL BY SSR CATEGORY), un en-tête
+ * de colonnes puis des lignes préfixées par "---" ou un numéro de BCN,
+ * terminées par "END NAMES". Complètement distinct du pipeline Altea
+ * "LIST OF:" : ne touche à aucune compagnie déjà mappée.
+ * ========================================================= */
+
+const IPORT_AIRLINES = new Set(["IZ","TB"]);
+
+const IPORT_LIST_LABELS = {
+  ALL_PASSENGERS:"IPORT ALL PASSENGERS",
+  CHILDREN:"IPORT CHILDREN",
+  INFANTS:"IPORT PASSENGERS WITH INFT",
+  WEB_CHECKIN:"IPORT PASSENGERS CHECKED-IN VIA INTERNET",
+  PIL_SSR:"IPORT PIL BY SSR CATEGORY"
+};
+
+const IPORT_LIST_CARD_KEYS = {
+  ALL_PASSENGERS:"MASTER",
+  CHILDREN:"CHLD",
+  INFANTS:"INF",
+  WEB_CHECKIN:"WEB",
+  PIL_SSR:"IPORT_SSR"
+};
+
+function lot2IportListKindFromBody(text){
+  const lines=String(text||"").replace(/\r/g,"\n").split(/\n/).map(l=>l.trim()).filter(Boolean);
+  for(const line of lines.slice(0,6)){
+    const u=lot2Upper(line);
+    if(/^ALL\s+PASSENGERS$/.test(u))return "ALL_PASSENGERS";
+    if(/^CHILDREN$/.test(u))return "CHILDREN";
+    if(/^PASSENGERS\s+WITH\s+INFT$/.test(u))return "INFANTS";
+    if(/^PASSENGERS\s+CHECKED-IN\s+VIA\s+INTERNET$/.test(u))return "WEB_CHECKIN";
+    if(/^PIL\s+BY\s+SSR\s+CATEGORY/.test(u))return "PIL_SSR";
+  }
+  return "";
+}
+
+function lot2IsIportBodyV1(text){
+  const t=String(text||"");
+  if(!/\bLIST\s+TOTAL\s*:/i.test(t))return false;
+  return !!lot2IportListKindFromBody(t) || /^---\s/m.test(t) || /\bEND\s+NAMES\b/i.test(t);
+}
+
+function lot2IportSplitNameAndRest(tail){
+  const t=String(tail||"");
+  const m=t.match(/^([A-Z][A-Z'\-]*\/[A-Z][A-Z'\-]*)(.*)$/);
+  if(!m)return null;
+  let rest=m[2]||"";
+  // Nom tronqué en largeur fixe et collé au champ suivant par un point
+  // (ex. "SADOVNIKWEISS/LEONA.7F") au lieu d'un espace normal.
+  rest=rest.replace(/^\./," ");
+  return {name:m[1],rest};
+}
+
+function lot2IportPassengerType(pt){
+  const p=String(pt||"").toUpperCase();
+  if(p.startsWith("I"))return "INF";
+  if(p.startsWith("C"))return "CHLD";
+  return "ADT";
+}
+
+function lot2IportGender(pt){
+  const p=String(pt||"").toUpperCase();
+  if(p.endsWith("F"))return "F";
+  if(p.endsWith("M"))return "M";
+  return "";
+}
+
+function lot2IportParsePassengerRow(rawLine,kind){
+  const line=String(rawLine||"").trim();
+  if(!line)return null;
+  if(/^END\s+NAMES$/i.test(line))return null;
+  if(/^BCN\s+NAME\s+SEAT\b/i.test(line))return null;
+  const head=line.match(/^(---|\d{1,6})\s+(.+)$/);
+  if(!head)return null;
+  const bcn=head[1]==="---"?"":head[1];
+  const n1=lot2IportSplitNameAndRest(head[2]);
+  if(!n1)return null;
+  const name=n1.name;
+  let rest=n1.rest.trim();
+  let seat="";
+  const seatMatch=rest.match(/^(\d{1,2}[A-Z])\s+(.*)$/);
+  if(seatMatch){seat=seatMatch[1];rest=seatMatch[2]}
+  const tokens=rest.split(/\s+/).filter(Boolean);
+  const cc=tokens.shift()||"";
+  const pt=tokens.shift()||"";
+  const des=tokens.shift()||"";
+  const st=tokens.shift()||"";
+  let parentName="",infDob="";
+  if(kind==="INFANTS"){
+    const n2=lot2IportSplitNameAndRest(tokens.join(" "));
+    if(n2){
+      parentName=n2.name;
+      const dobMatch=n2.rest.trim().match(/^(\d{1,2}[A-Z]{3}\d{2,4})/);
+      infDob=dobMatch?dobMatch[1]:n2.rest.trim();
+    }
+    tokens.length=0;
+  }
+  return {bcn,name,seat,cc,pt,des,st,parentName,infDob,extra:tokens.join(" ")};
+}
+
+function lot2IportBuildItem(row,kind,seq){
+  const cKey=IPORT_LIST_CARD_KEYS[kind]||"OTHER";
+  const passengerType=lot2IportPassengerType(row.pt);
+  const item={
+    id:`IPORT-${cKey}-${seq}-${row.name}`,
+    seq,
+    name:row.name,
+    title:"",
+    gender:lot2IportGender(row.pt),
+    passengerType,
+    class:row.cc,
+    cabinClass:row.cc,
+    origin:"",
+    destination:row.des,
+    acceptance:row.st,
+    seat:row.seat,
+    specific:"",
+    note:"",
+    listName:IPORT_LIST_LABELS[kind]||kind,
+    cardKey:cKey,
+    source:"IPORT_TEXT",
+    ssr:[],
+    bcn:row.bcn
+  };
+  if(kind==="CHILDREN"){
+    item.ssr=["CHLD"];
+    item.note=row.extra;
+  }else if(kind==="INFANTS"){
+    item.ssr=["INF"];
+    item.parentName=row.parentName;
+    item.infantDob=row.infDob;
+    item.note=[row.parentName?`Parent ${row.parentName}`:"",row.infDob?`DOB ${row.infDob}`:""].filter(Boolean).join(" · ");
+  }else if(kind==="WEB_CHECKIN"){
+    item.status="WEB";
+    item.note=row.extra;
+  }else{
+    item.note=row.extra;
+  }
+  return item;
+}
+
+const IPORT_SSR_SECTION_TARGET = {MEALS:"MEAL",MEDICAL:"WCH",SEATS:"OTHER",OTHER:"OTHER"};
+
+function lot2IportExtractSsrItems(text){
+  const lines=String(text||"").replace(/\r/g,"\n").split(/\n/);
+  const items=[];
+  let section="";
+  let seq=0;
+  for(const raw of lines){
+    const trimmed=String(raw||"").trim();
+    const sectionMatch=trimmed.match(/^\*-\*-\*-\*-\*-\*\s+([A-Z]+)\s+\*-\*-\*-\*-\*-\*$/i);
+    if(sectionMatch){section=sectionMatch[1].toUpperCase();continue}
+    if(!section)continue;
+    if(/^SEAT\s+NAME\s+PT\s+DES\s+SSR$/i.test(trimmed))continue;
+    if(/^NO\s+(MEALS|SEATS)$/i.test(trimmed))continue;
+    const m=trimmed.match(/^(\d{1,2}[A-Z])\s+(.+?)\s+([A-Z]{2})\s+([A-Z]{3})\s+(\S+)(.*)$/);
+    if(!m)continue;
+    const seat=m[1];
+    const name=m[2];
+    const pt=m[3];
+    const des=m[4];
+    const ssrCode=m[5].replace(/\.$/,"");
+    const tailText=String(m[6]||"").trim();
+    // YCTC/IZIT ne sont pas des SSR d'assistance : ce sont des confirmations
+    // internes de siège payant (bruit commercial), à ne jamais mettre dans la fiche.
+    if(/^(YCTC|IZIT)/i.test(ssrCode))continue;
+    const target=IPORT_SSR_SECTION_TARGET[section]||"OTHER";
+    seq++;
+    items.push({
+      id:`IPORT-SSR-${seq}-${name}`,
+      seq,name,title:"",
+      gender:lot2IportGender(pt),
+      passengerType:lot2IportPassengerType(pt),
+      class:"",cabinClass:"",
+      origin:"",destination:des,
+      acceptance:"",
+      seat,
+      specific:ssrCode,
+      category:ssrCode,
+      note:tailText,
+      listName:IPORT_LIST_LABELS.PIL_SSR,
+      cardKey:"IPORT_SSR",
+      source:"IPORT_TEXT",
+      ssr:[ssrCode],
+      iportSection:target
+    });
+  }
+  return items;
+}
+
+function lot2IportExtractPassengerItems(text,kind){
+  if(kind==="PIL_SSR")return lot2IportExtractSsrItems(text);
+  const lines=String(text||"").replace(/\r/g,"\n").split(/\n/);
+  const items=[];
+  let seq=0;
+  for(const raw of lines){
+    const row=lot2IportParsePassengerRow(raw,kind);
+    if(!row)continue;
+    seq++;
+    items.push(lot2IportBuildItem(row,kind,seq));
+  }
+  return items;
+}
+
+function lot2IportClassCounts(items){
+  const out={};
+  for(const p of items||[]){
+    const c=String(p.class||p.cabinClass||"").toUpperCase();
+    if(!c)continue;
+    out[c]=(out[c]||0)+1;
+  }
+  return out;
+}
+
+/* =========================================================
+ * V54 — VF (AJet), sortie du groupe verrouillé
+ * ---------------------------------------------------------
+ * Format PD4ML propre à VF : "ALL Reservetion List" / "Check-In List
+ * Boarded" / "Eticket List" / "Outbound Summary List" / "SSR List", avec
+ * un en-tête "DD/Mon/YYYY VF## ORG - DST" (même famille que BJ, mais
+ * traité indépendamment — voir r223DetectVfIdentityFromPdfText). Chaque
+ * champ d'un passager est sur sa propre ligne dans le flux texte extrait
+ * (une valeur par ligne, ordre de colonnes variable selon la liste), donc
+ * l'extraction se fait par RECONNAISSANCE DE FORME de chaque ligne plutôt
+ * que par position fixe. Complètement indépendant du pipeline Altea
+ * "LIST OF:" et du parser BJ verrouillé.
+ * ========================================================= */
+
+const VF_LIST_LABELS = {
+  RESERVATION:"VF ALL RESERVATION LIST",
+  CHECKIN:"VF CHECK-IN LIST BOARDED",
+  ETICKET:"VF ETICKET LIST",
+  OUTBOUND_SUMMARY:"VF OUTBOUND SUMMARY LIST",
+  SSR:"VF SSR LIST"
+};
+
+const VF_LIST_CARD_KEYS = {
+  RESERVATION:"MASTER",
+  CHECKIN:"BOARDED",
+  ETICKET:"ETKT",
+  OUTBOUND_SUMMARY:"OUTBOUND_SUMMARY",
+  SSR:"SSR"
+};
+
+const VF_HEADER_WORDS = new Set([
+  "NO","SURNAME","NAME","GC","PNR","STATUS","OWNER","TICKET","FLIGHT",
+  "FROM","TO","INV","VOL","DOS","CC","SEAT","SEQ","BAG","DIFF","STS",
+  "EXPLANATION","HAS","CBAG","TK_NO","INBOUND","PAYMENT","SSR","VF","BJ",
+  "MAIN","CI","OUT","RES","TOTAL","CBBG","EXST","PC","WEIGHT","END","LIST"
+]);
+
+function lot2VfListKindFromText(text){
+  const lines=String(text||"").replace(/\r/g,"\n").split(/\n/).map(l=>l.trim()).filter(Boolean);
+  const title=lot2Upper(lines[0]||"");
+  if(/^ALL\s+RESERVETION\s+LIST$/.test(title))return "RESERVATION";
+  if(/^CHECK-?IN\s+LIST\s+BOARDED$/.test(title))return "CHECKIN";
+  if(/^ETICKET\s+LIST$/.test(title))return "ETICKET";
+  if(/^OUTBOUND\s+SUMMARY\s+LIST$/.test(title))return "OUTBOUND_SUMMARY";
+  if(/^SSR\s+LIST$/.test(title))return "SSR";
+  return "";
+}
+
+function lot2VfExtractRoute(text){
+  // Même en-tête que r223DetectVfIdentityFromPdfText, réutilisé ici pour
+  // connaître précisément les deux seuls codes aéroport valides du document :
+  // sans ça, un nom de famille de 3 lettres (ex. "BAS") est indiscernable
+  // d'un code aéroport générique et casse l'alignement des champs suivants.
+  const m=String(text||"").match(
+    /\b(\d{1,2})\/(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\/(20\d{2})\s+(?:BJ|VF)\s*\d{1,4}\s+([A-Z]{3})\s*[-–]\s*([A-Z]{3})\b/i
+  );
+  return m?{origin:m[3].toUpperCase(),destination:m[4].toUpperCase()}:{origin:"",destination:""};
+}
+
+function lot2VfClassifyToken(raw,route){
+  const t=String(raw||"").trim();
+  if(!t)return {type:"skip"};
+  const u=t.toUpperCase();
+  if(VF_HEADER_WORDS.has(u))return {type:"skip"};
+  if(route && (u===route.origin || u===route.destination))return {type:"airport",value:u};
+  if(/^\d{2}:\d{2}:\d{2}$/.test(u))return {type:"skip"};
+  if(/^\d{2}\/\d{2}\/\d{4}$/.test(u))return {type:"skip"};
+  // Lignes SSR ("CBAG : CBAG- 8KG CAB", "FQTV : TK204054333 T", ...).
+  const ssrM=t.match(/^([A-Z][A-Z0-9]{1,7})\s*:\s*(.+)$/);
+  if(ssrM)return {type:"ssr",code:ssrM[1].toUpperCase(),text:ssrM[2].trim()};
+  if(/^\d{1,2}$/.test(u))return {type:"skip"}; // numéro de ligne ("No")
+  if(/^\d{10,13}$/.test(u))return {type:"ticket",value:u};
+  // PNR à 6 caractères, toujours préfixé d'un chiffre dans ce système
+  // (contrairement à un nom de famille pur-lettres qui peut aussi faire 6 caractères).
+  if(/^[0-9][A-Z0-9]{5}$/.test(u))return {type:"pnr",value:u};
+  if(/^\d{1,2}[A-Z]$/.test(u))return {type:"seat",value:u};
+  // "YES"/"NO" (colonne "**Has Cbag" de Check-In List Boarded) ressemblent à un
+  // code classe (Y+2 caractères) mais n'en sont pas : à exclure explicitement.
+  if(u==="YES"||u==="NO")return {type:"skip"};
+  if(/^Y[A-Z0-9]{1,2}$/.test(u))return {type:"class",value:u};
+  if(/^[A-Z]{2}$/.test(u))return {type:"skip"}; // statut vol / code 2 lettres bruit
+  if(/^[A-Z]{1,2}\d{1,3}$/.test(u))return {type:"skip"}; // code groupe (GC)
+  if(/^(?:TK|CX|OP|1[A-Z])?\s*TICKET$/i.test(t))return {type:"skip"};
+  if(/^[A-Z][A-Z .'-]*$/.test(t) && t.length>=2)return {type:"name",value:t.replace(/\s+/g," ").trim()};
+  return {type:"skip"};
+}
+
+function lot2VfScanRecords(text){
+  const route=lot2VfExtractRoute(text);
+  const lines=String(text||"").replace(/\r/g,"\n").split(/\n/);
+  const records=[];
+  let cur=null;
+  const fresh=(surname)=>({surname,name:undefined,pnr:"",ticket:"",seat:"",cls:"",ssr:[]});
+  for(const raw of lines){
+    const tok=lot2VfClassifyToken(raw,route);
+    if(tok.type==="name"){
+      if(!cur)cur=fresh(tok.value);
+      else if(cur.surname===undefined)cur.surname=tok.value;
+      else if(cur.name===undefined)cur.name=tok.value;
+      else{records.push(cur);cur=fresh(tok.value)}
+    }else if(cur){
+      if(tok.type==="pnr")cur.pnr=tok.value;
+      else if(tok.type==="ticket")cur.ticket=tok.value;
+      else if(tok.type==="seat")cur.seat=tok.value;
+      else if(tok.type==="class")cur.cls=tok.value;
+      else if(tok.type==="ssr")cur.ssr.push({code:tok.code,text:tok.text});
+    }
+  }
+  if(cur && cur.surname!==undefined && cur.name!==undefined)records.push(cur);
+  return records.filter(r=>r.surname && r.name);
+}
+
+function lot2VfBuildItem(rec,kind,seq){
+  const cKey=VF_LIST_CARD_KEYS[kind]||"OTHER";
+  const item={
+    id:`VF-${cKey}-${seq}-${rec.surname}-${rec.name}`,
+    seq,
+    name:`${rec.surname}/${rec.name}`,
+    title:"",
+    gender:"",
+    passengerType:"ADT",
+    class:rec.cls,
+    cabinClass:rec.cls,
+    origin:"",
+    destination:"",
+    acceptance:"",
+    seat:rec.seat,
+    specific:"",
+    note:"",
+    listName:VF_LIST_LABELS[kind]||kind,
+    cardKey:cKey,
+    source:"VF_PD4ML",
+    ssr:[],
+    pnr:rec.pnr,
+    etkt:rec.ticket,
+    documentNumber:rec.ticket
+  };
+  if(kind==="SSR"){
+    item.ssr=rec.ssr.map(s=>s.code);
+    item.note=rec.ssr.map(s=>`${s.code}: ${s.text}`).join(" · ");
+  }
+  return item;
+}
+
+function lot2VfExtractPassengerItems(text,kind){
+  if(kind==="OUTBOUND_SUMMARY")return [];
+  const records=lot2VfScanRecords(text);
+  return records.map((rec,i)=>lot2VfBuildItem(rec,kind,i+1));
+}
+
+function lot2VfClassCounts(items){
+  const out={};
+  for(const p of items||[]){
+    const c=String(p.class||p.cabinClass||"").toUpperCase();
+    if(!c)continue;
+    out[c]=(out[c]||0)+1;
+  }
+  return out;
+}
+
 function lot2ExtractPassengerItemsFromGenericList(text,listName,cardKey){
   /*
    * V50.23 — extraction nominative générique propre.
@@ -3856,7 +4302,9 @@ function lot2ExtractPassengerItemsFromGenericList(text,listName,cardKey){
       item.note=details;
     }else if(cKey==="FQTV"){
       const tokens=details.split(/\s+/).filter(Boolean);
-      const tier=tokens.find(t=>!/^(ACCRUAL|AH\d{6,})$/i.test(t))||"FQA";
+      // Le numéro de billet/référence (ex. AF5378418086, KL5377187980) ne doit
+      // jamais être pris pour un palier fidélité, quelle que soit la compagnie.
+      const tier=tokens.find(t=>!/^(ACCRUAL|[A-Z]{2}\d{6,})$/i.test(t))||"FQA";
       const next1=String(lines[i+1]||"").trim();
       const next2=String(lines[i+2]||"").trim();
       const ffid=(next1.match(/\b[A-Z]{2}\d{6,}\b/i)||[])[0]||"";
@@ -3885,6 +4333,13 @@ function lot2ExtractPassengerItemsFromGenericList(text,listName,cardKey){
       item.note=details;
     }else if(cKey==="INF"){
       item.ssr=["INF"];
+      item.specific="";
+      item.note=details;
+    }else if(cKey==="INFKID"){
+      // Enfants/bébés combinés dans un seul document : chaque ligne garde
+      // son vrai type (INF/CHLD), la séparation en cartes distinctes se
+      // fait ensuite dans lot3MergeFlightData.
+      item.ssr=[item.passengerType==="INF"?"INF":"CHLD"];
       item.specific="";
       item.note=details;
     }else if(cKey==="WEB"){
@@ -4107,7 +4562,21 @@ async function lot2ProcessOneJob(env,job){
     let effectiveFileId=version.file_id;
     let effectiveVersionId=version.version_id;
 
-    if(parserMode==="GENERIC" && extracted.readable){
+    // Source iPort (IZ/TB) : format "LIST TOTAL:" texte, jamais "LIST OF:" Altea.
+    // Détecté en premier pour ne jamais retomber sur la logique GENERIC/Altea.
+    const iportKind=(parserMode==="GENERIC" && IPORT_AIRLINES.has(airline) && extracted.readable)
+      ? lot2IportListKindFromBody(extracted.text)
+      : "";
+    // Source VF (AJet, PD4ML) : "ALL Reservetion List"/"Eticket List"/... jamais
+    // "LIST OF:" Altea non plus. VF n'est plus SPECIFIC_LOCKED (voir plus haut) :
+    // parserMode vaut déjà GENERIC ici, mais son format reste entièrement différent
+    // d'Altea et se détecte/s'extrait via son propre pipeline dédié.
+    const vfKind=(parserMode==="GENERIC" && airline==="VF" && extracted.readable)
+      ? lot2VfListKindFromText(extracted.text)
+      : "";
+    const specialKind=iportKind||vfKind;
+
+    if(parserMode==="GENERIC" && extracted.readable && !specialKind){
       const detectedDate=lot2DetectFlightDateFromReportLine(extracted.text,airline,job.flight_number||version.flight_number||"",effectiveFlightDate);
       if(detectedDate.iso && detectedDate.iso!==effectiveFlightDate){
         const upd=await lot2UpdateJobFlightDate(env,job,version,detectedDate.iso,detectedDate);
@@ -4118,29 +4587,37 @@ async function lot2ProcessOneJob(env,job){
       }
     }
 
-    const operationalInfo=extracted.readable?lot2ParseOperationalInfo(extracted.text,airline,job.flight_number||version.flight_number||"",effectiveFlightDate):null;
-    const listName=lot2DetectListName(extracted.text,filename);
+    const operationalInfo=(!specialKind && extracted.readable)?lot2ParseOperationalInfo(extracted.text,airline,job.flight_number||version.flight_number||"",effectiveFlightDate):null;
+    const listName=iportKind?(IPORT_LIST_LABELS[iportKind]||iportKind):(vfKind?(VF_LIST_LABELS[vfKind]||vfKind):lot2DetectListName(extracted.text,filename));
     // Un rapport générique complet (ex. "GENERIC REPORT") porte à la fois l'en-tête
     // opérationnel ET la liste nominative des passagers. Le classer en OPERATIONAL_INFO
     // effacerait les passagers (V50.16 ligne 4073) et empêcherait toute création de fiche
     // avec contenu : on détecte donc d'abord un vrai manifeste nominatif avant de retomber
     // sur le mode "info seule".
-    const genericManifestItems=(!listName && parserMode==="GENERIC" && extracted.readable)
+    const genericManifestItems=(!specialKind && !listName && parserMode==="GENERIC" && extracted.readable)
       ? lot2ExtractPassengerItemsFromGenericList(extracted.text,"","MASTER")
       : [];
-    const listMapping=genericManifestItems.length && parserMode==="GENERIC"
-      ? {cardKey:"MASTER",mappingScope:"GENERIC_REPORT",matchedListName:"GENERIC REPORT"}
-      : (operationalInfo && !listName && parserMode==="GENERIC"
-        ? {cardKey:"OPERATIONAL_INFO",mappingScope:"OPERATIONAL_INFO",matchedListName:"JFE SCREEN COPY"}
-        : (parserMode==="SPECIFIC_LOCKED"
-          ? {cardKey:"SPECIFIC",mappingScope:"SPECIFIC_LOCKED",matchedListName:""}
-          : lot2LookupListMapping(airline,listName)));
+    const listMapping=iportKind
+      ? {cardKey:IPORT_LIST_CARD_KEYS[iportKind]||"OTHER",mappingScope:"IPORT",matchedListName:listName}
+      : (vfKind
+        ? {cardKey:VF_LIST_CARD_KEYS[vfKind]||"OTHER",mappingScope:"VF",matchedListName:listName}
+        : (genericManifestItems.length && parserMode==="GENERIC"
+          ? {cardKey:"MASTER",mappingScope:"GENERIC_REPORT",matchedListName:"GENERIC REPORT"}
+          : (operationalInfo && !listName && parserMode==="GENERIC"
+            ? {cardKey:"OPERATIONAL_INFO",mappingScope:"OPERATIONAL_INFO",matchedListName:"JFE SCREEN COPY"}
+            : (parserMode==="SPECIFIC_LOCKED"
+              ? {cardKey:"SPECIFIC",mappingScope:"SPECIFIC_LOCKED",matchedListName:""}
+              : lot2LookupListMapping(airline,listName)))));
     const cardKey=listMapping.cardKey;
     const documentType=cardKey==="OPERATIONAL_INFO"?"OPERATIONAL_INFO":lot2DocumentTypeFromCard(cardKey,filename,mime);
-    const passengerCount=cardKey==="OPERATIONAL_INFO"?0:(extracted.readable?lot2ExtractPassengerCount(extracted.text,listName,cardKey):0);
-    const classCounts=cardKey==="OPERATIONAL_INFO"?{}:(extracted.readable?lot2ExtractClassCountsForDocument(extracted.text,listName,cardKey):{});
-    const passengerItems=(cardKey==="OPERATIONAL_INFO"||!extracted.readable||cardKey==="INBOUND_SUMMARY"||cardKey==="OUTBOUND_SUMMARY")?[]:lot2ExtractPassengerItemsFromGenericList(extracted.text,listName,cardKey);
-    const connectionRows=(cardKey==="OPERATIONAL_INFO"||!extracted.readable)?[]:lot2ExtractConnectionRows(extracted.text,listName,cardKey);
+    const passengerItems=iportKind
+      ? lot2IportExtractPassengerItems(extracted.text,iportKind)
+      : (vfKind
+        ? lot2VfExtractPassengerItems(extracted.text,vfKind)
+        : ((cardKey==="OPERATIONAL_INFO"||!extracted.readable||cardKey==="INBOUND_SUMMARY"||cardKey==="OUTBOUND_SUMMARY")?[]:lot2ExtractPassengerItemsFromGenericList(extracted.text,listName,cardKey)));
+    const passengerCount=specialKind?passengerItems.length:(cardKey==="OPERATIONAL_INFO"?0:(extracted.readable?lot2ExtractPassengerCount(extracted.text,listName,cardKey):0));
+    const classCounts=iportKind?lot2IportClassCounts(passengerItems):(vfKind?lot2VfClassCounts(passengerItems):(cardKey==="OPERATIONAL_INFO"?{}:(extracted.readable?lot2ExtractClassCountsForDocument(extracted.text,listName,cardKey):{})));
+    const connectionRows=(specialKind||cardKey==="OPERATIONAL_INFO"||!extracted.readable)?[]:lot2ExtractConnectionRows(extracted.text,listName,cardKey);
     const fqtvCategories=cardKey==="FQTV"?lot2FqtvCategories(passengerItems):{};
 
     let resultStatus="CLASSIFIED";
@@ -4410,7 +4887,7 @@ function lot3PaxKey(p){
 
 
 function lot3IsProtectedSpecificAirline(airline){
-  return ["SQ","TK","TW","BJ","VF"].includes(String(airline||"").trim().toUpperCase());
+  return ["SQ","TK","TW","BJ"].includes(String(airline||"").trim().toUpperCase());
 }
 
 function lot3PaxNameKey(p){
@@ -4866,6 +5343,53 @@ function lot3MergeFlightData(current,row,card){
     return lot3SanitizeFlightGeneric(merged);
   }
 
+  /*
+   * Certaines compagnies livrent enfants et bébés dans un seul PDF
+   * (ex. "PDF-INFKID"). Chacun garde sa propre carte (INF ou CHLD) au
+   * lieu d'être fusionné dans une carte unique.
+   */
+  if(card.cardKey==="INFKID"){
+    base.imports=imports;
+    let merged=base;
+    for(const type of ["INF","CHLD"]){
+      const passengerItems=(card.passengerItems||[]).filter(p=>String(p?.passengerType||"").toUpperCase()===type);
+      if(!passengerItems.length)continue;
+      merged=lot3MergeFlightData(merged,row,{
+        ...card,
+        cardKey:type,
+        label:type,
+        passengerItems,
+        passengers:passengerItems,
+        passengerCount:passengerItems.length
+      });
+    }
+    return lot3SanitizeFlightGeneric(merged);
+  }
+
+  /*
+   * Source iPort (IZ/TB) : "PIL BY SSR CATEGORY" regroupe plusieurs sections
+   * (MEALS/MEDICAL/SEATS/OTHER) dans un seul mail. Chaque passager est routé
+   * vers sa vraie carte (MEAL/WCH/OTHER) via son SSR réel, jamais fusionné
+   * dans une carte technique "IPORT_SSR".
+   */
+  if(card.cardKey==="IPORT_SSR"){
+    base.imports=imports;
+    let merged=base;
+    for(const target of ["MEAL","WCH","OTHER"]){
+      const passengerItems=(card.passengerItems||[]).filter(p=>String(p?.iportSection||"").toUpperCase()===target);
+      if(!passengerItems.length)continue;
+      merged=lot3MergeFlightData(merged,row,{
+        ...card,
+        cardKey:target,
+        label:target,
+        passengerItems,
+        passengers:passengerItems,
+        passengerCount:passengerItems.length
+      });
+    }
+    return lot3SanitizeFlightGeneric(merged);
+  }
+
   if(["INBOUND","OUTBOUND","INBOUND_SUMMARY","OUTBOUND_SUMMARY"].includes(card.cardKey)){
     const isInbound=card.cardKey==="INBOUND" || card.cardKey==="INBOUND_SUMMARY";
     const isSummary=card.cardKey==="INBOUND_SUMMARY" || card.cardKey==="OUTBOUND_SUMMARY";
@@ -5288,8 +5812,11 @@ const LOT5_VERSION="V50.30_R3_13_SQ_CONTROLLED_BRIDGE";
 // 5.3.5 scope: pipeline recovery + Gmail body + historical replay + Drive archive + fast summary.
 // Specific parsers remain byte-for-byte untouched.
 // Gmail -> identity -> R2/D1 -> Drive -> existing parser -> flight injection -> exclusive Gmail state.
-// Parsers TK/BJ/VF/SQ/TW are intentionally untouched.
-const LOT5_PROTECTED_AIRLINES=new Set(["SQ","TK","BJ","VF","TW"]);
+// Parsers TK/BJ/SQ/TW are intentionally untouched. VF sortie du groupe verrouillé
+// (voir LOT2_SPECIFIC_AIRLINES) : elle est injectée par ce Worker comme les
+// compagnies GENERIC, plus jamais en attente d'une confirmation BUILD143 qui
+// n'arrive jamais pour ce format.
+const LOT5_PROTECTED_AIRLINES=new Set(["SQ","TK","BJ","TW"]);
 
 async function ensureLot5Tables(env){
   await ensureLot3Tables(env);
@@ -5909,7 +6436,7 @@ async function lot5InjectAvailable(env,cfg){
   const op=(await env.OPS_DB.prepare(`
     SELECT * FROM import_job_results
     WHERE parser_mode='GENERIC'
-      AND UPPER(airline) NOT IN ('SQ','TK','TW','BJ','VF')
+      AND UPPER(airline) NOT IN ('SQ','TK','TW','BJ')
       AND card_key='OPERATIONAL_INFO'
       AND status IN ('OPERATIONAL_INFO_READY','WAITING_FLIGHT')
     ORDER BY updated_at DESC
@@ -5928,7 +6455,7 @@ async function lot5InjectAvailable(env,cfg){
     LEFT JOIN flights f
       ON f.identity=(r.flight_date || '|' || UPPER(r.airline) || '|' || UPPER(r.flight_number))
     WHERE r.parser_mode='GENERIC'
-      AND UPPER(r.airline) NOT IN ('SQ','TK','TW','BJ','VF')
+      AND UPPER(r.airline) NOT IN ('SQ','TK','TW','BJ')
       AND r.card_key IS NOT NULL AND r.card_key<>''
       AND r.card_key NOT IN ('NO_LIST','OPERATIONAL_INFO','OTHER')
       AND r.status IN ('GENERIC_CARD_READY','GENERIC_MASTER_READY','WAITING_FLIGHT')
@@ -5953,7 +6480,7 @@ async function lot5RequeueNewGenericMappings(env,limit=500){
     SELECT r.job_id,r.airline,r.list_name,r.card_key,r.status
     FROM import_job_results r
     WHERE r.parser_mode='GENERIC'
-      AND UPPER(r.airline) NOT IN ('SQ','TK','TW','BJ','VF')
+      AND UPPER(r.airline) NOT IN ('SQ','TK','TW','BJ')
       AND r.card_key='OTHER'
       AND r.status IN ('GENERIC_CARD_OTHER','WAITING_FLIGHT','INJECTED')
     ORDER BY r.updated_at DESC
@@ -5999,7 +6526,7 @@ async function lot5UnmappedGenericListsReport(env,{airline='',limit=200}={}){
   const a=String(airline||'').trim().toUpperCase();
   const wh=[
     "parser_mode='GENERIC'",
-    "UPPER(airline) NOT IN ('SQ','TK','TW','BJ','VF')",
+    "UPPER(airline) NOT IN ('SQ','TK','TW','BJ')",
     "card_key IN ('OTHER','NO_LIST')"
   ];
   const binds=[];
@@ -7280,21 +7807,18 @@ function r223IsoDate(day,mon,year){
   return `${yyyy}-${mm}-${dd}`;
 }
 
-function r223DetectBjVfIdentityFromPdfText(text){
+function r223DetectBjIdentityFromPdfText(text){
+  // Header observé pour BJ (Nouvelair) : "03/Sep/2026 BJ511 CDG - TUN".
+  // Fonction et regex indépendantes de VF : une évolution du format BJ ne
+  // touche jamais r223DetectVfIdentityFromPdfText, et inversement.
+  // On n'utilise volontairement jamais l'horodatage du nom de fichier pdf_* :
+  // la date du vol vient uniquement de l'en-tête du document.
   const raw=String(text||"")
     .replace(/\u00a0/g," ")
     .replace(/\r/g,"\n");
 
-  /*
-   * Header actually observed in the BJ/VF reports:
-   *   03/Sep/2026 BJ511 CDG - TUN
-   *   03/Sep/2026 VF12 CDG - SAW
-   *
-   * We deliberately do NOT use the timestamp embedded in pdf_* filename.
-   * The service date comes from the document header.
-   */
   const m=raw.match(
-    /\b(\d{1,2})\/(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\/(20\d{2})\s+(BJ|VF)\s*(\d{1,4})\s+([A-Z]{3})\s*[-–]\s*([A-Z]{3})\b/i
+    /\b(\d{1,2})\/(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\/(20\d{2})\s+(BJ)\s*(\d{1,4})\s+([A-Z]{3})\s*[-\u2013]\s*([A-Z]{3})\b/i
   );
   if(!m)return null;
 
@@ -7304,7 +7828,7 @@ function r223DetectBjVfIdentityFromPdfText(text){
   const origin=String(m[6]||"").toUpperCase();
   const destination=String(m[7]||"").toUpperCase();
 
-  if(!/^(BJ|VF)\d{1,4}$/.test(flightNumber))return null;
+  if(!/^BJ\d{1,4}$/.test(flightNumber))return null;
   if(!/^20\d{2}-\d{2}-\d{2}$/.test(flightDate))return null;
 
   return {
@@ -7315,6 +7839,48 @@ function r223DetectBjVfIdentityFromPdfText(text){
     destination,
     source:"PDF_HEADER"
   };
+}
+
+function r223DetectVfIdentityFromPdfText(text){
+  // Header observé pour VF (AJet) : "03/Sep/2026 VF12 CDG - SAW".
+  // Fonction et regex indépendantes de BJ : une évolution du format VF ne
+  // touche jamais r223DetectBjIdentityFromPdfText, et inversement.
+  // On n'utilise volontairement jamais l'horodatage du nom de fichier pdf_* :
+  // la date du vol vient uniquement de l'en-tête du document.
+  const raw=String(text||"")
+    .replace(/\u00a0/g," ")
+    .replace(/\r/g,"\n");
+
+  const m=raw.match(
+    /\b(\d{1,2})\/(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\/(20\d{2})\s+(VF)\s*(\d{1,4})\s+([A-Z]{3})\s*[-\u2013]\s*([A-Z]{3})\b/i
+  );
+  if(!m)return null;
+
+  const airline=String(m[4]||"").toUpperCase();
+  const flightNumber=`${airline}${String(m[5]||"").replace(/\D/g,"")}`;
+  const flightDate=r223IsoDate(m[1],m[2],m[3]);
+  const origin=String(m[6]||"").toUpperCase();
+  const destination=String(m[7]||"").toUpperCase();
+
+  if(!/^VF\d{1,4}$/.test(flightNumber))return null;
+  if(!/^20\d{2}-\d{2}-\d{2}$/.test(flightDate))return null;
+
+  return {
+    airline,
+    flightNumber,
+    flightDate,
+    origin,
+    destination,
+    source:"PDF_HEADER"
+  };
+}
+
+function r223DetectBjVfIdentityFromPdfText(text){
+  // Point d'entrée conservé pour les appelants qui ne savent pas encore, à ce
+  // stade, laquelle des deux compagnies ils lisent (le préfixe "pdf_" est
+  // commun aux deux). La détection elle-même reste individuelle par
+  // compagnie via r223DetectBjIdentityFromPdfText / r223DetectVfIdentityFromPdfText.
+  return r223DetectBjIdentityFromPdfText(text) || r223DetectVfIdentityFromPdfText(text);
 }
 
 function r223IsPdfOperationalFilename(filename){
