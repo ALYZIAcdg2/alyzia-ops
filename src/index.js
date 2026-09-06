@@ -3406,7 +3406,11 @@ const LOT2_GENERIC_AIRLINE_LIST_MAPPINGS = {
   "3O": [
     // Air Arabia Maroc : liste d'enregistrement web ("CHL-WEB" sur chaque
     // ligne passager, sièges déjà attribués).
-    ["PDF-ACCWEB","WEB"]
+    ["PDF-ACCWEB","WEB"],
+    // Certains rapports préfixent les listes standards par "PDF-ACC, " (le
+    // contenu reste identique à la liste ETKT/KID nue observée par ailleurs).
+    ["PDF-ACC, ETKT","ETKT"],
+    ["PDF-ACC, KID","CHLD"]
   ],
   OZ: [
     // Libellés techniques observés dans les rapports Altea Asiana.
