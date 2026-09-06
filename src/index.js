@@ -3364,6 +3364,10 @@ const LOT2_GENERIC_DEFAULT_LIST_MAPPINGS = [
   ["ALL PAX","MASTER"],
   ["ALL RESERVATION","MASTER"],
   ["FQTV","FQTV"],
+  // "FQA" est le nom de liste réel envoyé par la plupart des compagnies
+  // génériques (A9, AI, AT, EI, FB, LO, MS, RJ, S4, SB, SK, DE...), pas
+  // seulement J2/AH où il était mappé jusqu'ici en dur par compagnie.
+  ["FQA","FQTV"],
   ["WCH","WCH"],
   ["WCHR","WCH"],
   ["WCHS","WCH"],
@@ -3391,6 +3395,12 @@ const LOT2_GENERIC_DEFAULT_LIST_MAPPINGS = [
   ["INAD","INAD"],
   ["DEPA","DEPA"],
   ["DEPU","DEPU"],
+  // "SR-" (Special Request) est un préfixe Amadeus partagé, observé
+  // identique chez A9, AT et SK.
+  ["SR-DEPA","DEPA"],
+  ["SR-DEPU","DEPU"],
+  ["SR-PETC","PETC"],
+  ["SR-AVIH","AVIH"],
   ["UMNR","UMNR"],
   ["UM","UMNR"],
   ["MAAS","MAAS"],
@@ -3403,6 +3413,10 @@ const LOT2_GENERIC_DEFAULT_LIST_MAPPINGS = [
 ];
 
 const LOT2_GENERIC_AIRLINE_LIST_MAPPINGS = {
+  A9: [
+    // Préfixe "PDF-" observé uniquement sur INAD pour cette compagnie.
+    ["PDF-INAD","INAD"]
+  ],
   "3O": [
     // Air Arabia Maroc : liste d'enregistrement web ("CHL-WEB" sur chaque
     // ligne passager, sièges déjà attribués).
@@ -3873,7 +3887,9 @@ function lot2ExtractPassengerItemsFromGenericList(text,listName,cardKey){
       item.note=details;
     }else if(cKey==="FQTV"){
       const tokens=details.split(/\s+/).filter(Boolean);
-      const tier=tokens.find(t=>!/^(ACCRUAL|AH\d{6,})$/i.test(t))||"FQA";
+      // Le numéro de billet/référence (ex. AF5378418086, KL5377187980) ne doit
+      // jamais être pris pour un palier fidélité, quelle que soit la compagnie.
+      const tier=tokens.find(t=>!/^(ACCRUAL|[A-Z]{2}\d{6,})$/i.test(t))||"FQA";
       const next1=String(lines[i+1]||"").trim();
       const next2=String(lines[i+2]||"").trim();
       const ffid=(next1.match(/\b[A-Z]{2}\d{6,}\b/i)||[])[0]||"";
