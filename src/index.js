@@ -5950,14 +5950,14 @@ async function lot5AutoPilotRun(env,{triggerType='MANUAL',gmailQuery='',gmailMax
     await lot5CheckpointV534(env,'GMAIL');
 
     // 5.3.4 : réparer l'identité AVANT Drive et AVANT toute décision de statut.
-    details.identityRepair=await lot5RepairIdentityBacklogV534(env,1200);
+    // Borné pour laisser du temps CPU au parsing dans chaque cycle.
+    details.identityRepair=await lot5RepairIdentityBacklogV534(env,100);
     await lot5CheckpointV534(env,'IDENTITY');
 
-    // Archiver les sources physiques dès que l'identité canonique est disponible.
-    const driveBefore=await lot5ArchiveDrive(env);
+    // Priorité opérationnelle : une rafale d'uploads Drive ne doit jamais
+    // empêcher le même cycle d'atteindre parsing puis injection D1.
+    const driveBefore={ok:true,skipped:true,reason:'DEFERRED_UNTIL_AFTER_INJECTION',uploaded:0,errors:[]};
     details.driveBeforeParse=driveBefore;
-    driveUploaded+=Number(driveBefore.uploaded||0);
-    await lot5CheckpointV534(env,'DRIVE_BEFORE_PARSE');
 
     const processRuns=[];
     for(let i=0;i<cfg.processLoops;i++){
@@ -5974,7 +5974,8 @@ async function lot5AutoPilotRun(env,{triggerType='MANUAL',gmailQuery='',gmailMax
     resultsInjected=Number(inj.injected||0);
     await lot5CheckpointV534(env,'INJECT');
 
-    // Deuxième passe Drive pour toute source devenue admissible pendant le traitement.
+    // Archivage après injection : les fiches restent disponibles même lorsque
+    // le backlog Google Drive est volumineux ou temporairement lent.
     const driveAfter=await lot5ArchiveDrive(env);
     details.driveAfterParse=driveAfter;
     details.drive={ok:!!(driveBefore.ok&&driveAfter.ok),uploaded:Number(driveBefore.uploaded||0)+Number(driveAfter.uploaded||0),errors:[...(driveBefore.errors||[]),...(driveAfter.errors||[])]};
