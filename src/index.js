@@ -3363,6 +3363,9 @@ const LOT2_GENERIC_DEFAULT_LIST_MAPPINGS = [
   ["ALL CUSTOMERS","MASTER"],
   ["ALL PAX","MASTER"],
   ["ALL RESERVATION","MASTER"],
+  // "PDF-ACC" (sans suffixe) est un sous-ensemble "accepté" des mêmes
+  // passagers que ALL CUSTOMERS, même structure — vu identique chez LO et S4.
+  ["PDF-ACC","MASTER"],
   ["FQTV","FQTV"],
   // "FQA" est le nom de liste réel envoyé par la plupart des compagnies
   // génériques (A9, AI, AT, EI, FB, LO, MS, RJ, S4, SB, SK, DE...), pas
@@ -3380,6 +3383,8 @@ const LOT2_GENERIC_DEFAULT_LIST_MAPPINGS = [
   ["CHLD","CHLD"],
   ["CHILD","CHLD"],
   ["KID","CHLD"],
+  // Enfants + bébés combinés dans un seul document — vu identique chez RJ et S4.
+  ["PDF-INFKID","CHLD"],
   ["ETKT","ETKT"],
   ["TICKET","ETKT"],
   // "PDF-ACCWEB" (enregistrement web) vu identique chez 3O/AH/EI/RJ/SB —
@@ -3407,6 +3412,8 @@ const LOT2_GENERIC_DEFAULT_LIST_MAPPINGS = [
   ["UMNR","UMNR"],
   ["UM","UMNR"],
   ["MAAS","MAAS"],
+  // Personnel compagnie (standby/bookable) — vu identique chez EI, LO, RJ.
+  ["STF","STAFF"],
   ["INC","INBOUND"],
   ["INCARRIAGE","INBOUND"],
   ["ONC","OUTBOUND"],
@@ -3422,6 +3429,16 @@ const LOT2_GENERIC_AIRLINE_LIST_MAPPINGS = {
   A9: [
     // Préfixe "PDF-" observé uniquement sur INAD pour cette compagnie.
     ["PDF-INAD","INAD"]
+  ],
+  MS: [
+    // "CAS-SB" (Casual Standby) : équivalent MS de STF-SB, sans code
+    // distinctif propre dans la liste elle-même.
+    ["CAS-SB","STAFF"]
+  ],
+  TS: [
+    // Même structure que PDF-ACC (liste passagers "accepted"), mais
+    // avec le préfixe numéroté propre à TS.
+    ["PDF-02ACC","MASTER"]
   ],
   "3O": [
     // Certains rapports préfixent les listes standards par "PDF-ACC, " (le
