@@ -28134,6 +28134,229 @@ console.log('BUILD143 R9 — R3.13 SQ CONTROLLED BRIDGE READY');
 })();
 </script>
 
+
+<script>
+/* BUILD143 R22.1 — BJ/VF PDF_ IDENTITY DISCOVERY FALLBACK
+   Fixes R22 total=0 when /api/prepa rows are not yet tagged BJ/VF.
+   No SQ/TK/BJ/VF parser is modified.
+*/
+(function(){
+  const MONTHS_R221={JAN:'01',FEB:'02',MAR:'03',APR:'04',MAY:'05',JUN:'06',JUL:'07',AUG:'08',SEP:'09',OCT:'10',NOV:'11',DEC:'12'};
+  const cacheR221={at:0,items:[]};
+
+  function pad2R221(n){return String(n).padStart(2,'0')}
+  function pdfNameR221(it){
+    const names=[];
+    if(it?.subject)names.push(String(it.subject));
+    for(const a of Array.isArray(it?.attachments)?it.attachments:[]){
+      names.push(String(a?.name||a?.filename||''));
+    }
+    return names.find(x=>/^pdf_/i.test(x.trim()))||'';
+  }
+  function dateFromHeaderR221(d,m,y){
+    const mm=MONTHS_R221[String(m||'').toUpperCase()];
+    return mm?`${y}-${mm}-${pad2R221(d)}`:'';
+  }
+  function identityFromRawR221(raw){
+    const t=String(raw||'').replace(/\u00a0/g,' ');
+    let m=t.match(/\b(\d{1,2})\/([A-Za-z]{3})\/(\d{4})\s+(BJ|VF)\s*(\d{1,4})\s+([A-Z]{3})\s*[-–]\s*([A-Z]{3})\b/i);
+    if(!m)return null;
+    const airline=m[4].toUpperCase();
+    const flightNumber=airline+m[5];
+    const flightDate=dateFromHeaderR221(m[1],m[2],m[3]);
+    if(!flightDate)return null;
+    return {airline,flightNumber,flightDate,origin:m[6].toUpperCase(),destination:m[7].toUpperCase(),key:`${flightDate}|${airline}|${flightNumber}`};
+  }
+
+  async function fetchAllPrepaR221(includePayload=1,limit=2000){
+    const r=await fetch(opsApiUrl(`/api/prepa?limit=${Math.max(1,Number(limit)||2000)}&includePayload=${includePayload?1:0}`),{
+      cache:'no-store',headers:{Accept:'application/json'}
+    });
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok)throw new Error(j?.error||`PREPA ALL HTTP ${r.status}`);
+    return Array.isArray(j?.items)?j.items:[];
+  }
+
+  async function rawOneR221(it){
+    try{
+      const raw=await window.import143BuildSpecificRaw([it],'');
+      return String(raw||'');
+    }catch(_){return ''}
+  }
+
+  async function discoverR221({force=false,limit=2000}={}){
+    if(!force && cacheR221.items.length && Date.now()-cacheR221.at<60000)return cacheR221.items;
+    const all=await fetchAllPrepaR221(1,limit);
+    const candidates=all.filter(it=>pdfNameR221(it));
+    const out=[];
+    for(let i=0;i<candidates.length;i++){
+      const it=candidates[i];
+      const raw=await rawOneR221(it);
+      const id=identityFromRawR221(raw);
+      if(!id)continue;
+      const clone={...it,
+        airline:id.airline,company:id.airline,
+        flightNumber:id.flightNumber,flight:id.flightNumber,
+        flightDate:id.flightDate,date:id.flightDate,
+        __r221Raw:raw,__r221Identity:id,__r221PdfName:pdfNameR221(it)
+      };
+      out.push(clone);
+    }
+    cacheR221.at=Date.now();cacheR221.items=out;
+    console.info('R22.1 BJ/VF PDF_ DISCOVERY',{all:all.length,candidates:candidates.length,resolved:out.length});
+    return out;
+  }
+
+  async function groupedR221(airline,options={}){
+    const c=String(airline||'').toUpperCase();
+    const rows=(await discoverR221(options)).filter(x=>x.airline===c);
+    const allowed=Array.isArray(options.flights)&&options.flights.length
+      ?new Set(options.flights.map(v=>String(v||'').toUpperCase().replace(/\s+/g,'')).map(v=>/^\d+$/.test(v)?c+v:v)):null;
+    const map=new Map();
+    for(const it of rows){
+      const id=it.__r221Identity;
+      if(options.fromDate&&id.flightDate<String(options.fromDate))continue;
+      if(options.toDate&&id.flightDate>String(options.toDate))continue;
+      if(allowed&&!allowed.has(id.flightNumber))continue;
+      const g=map.get(id.key)||{...id,prepaRows:0,statuses:{},documents:{},items:[]};
+      g.prepaRows++;g.items.push(it);
+      const st=String(it?.status||'UNKNOWN').toUpperCase();
+      g.statuses[st]=(g.statuses[st]||0)+1;
+      const fn=it.__r221PdfName||pdfNameR221(it)||'pdf_unknown';
+      g.documents[fn]=(g.documents[fn]||0)+1;
+      map.set(id.key,g);
+    }
+    return [...map.values()].sort((a,b)=>a.flightDate.localeCompare(b.flightDate)||a.flightNumber.localeCompare(b.flightNumber));
+  }
+
+  async function listR221(airline,options={}){
+    let rows=[];
+    try{
+      // Keep R22 fast path if D1 identity is already tagged.
+      rows=await (airline==='BJ'?window.listBjAutomaticBatchR22(options):window.listVfAutomaticBatchR22(options));
+    }catch(_){}
+    if(rows.length)return rows;
+    rows=await groupedR221(airline,{...options,force:true});
+    console.table(rows.map(x=>({
+      flight:x.flightNumber,date:x.flightDate,route:`${x.origin}-${x.destination}`,
+      prepa:x.prepaRows,pdf_docs:Object.keys(x.documents).length,
+      statuses:Object.entries(x.statuses).map(([k,v])=>`${k}:${v}`).join(' ')
+    })));
+    return rows;
+  }
+
+  function ensureFlightR221(first,raw){
+    let idx=(typeof findFlightIndexForInbox==='function'?findFlightIndexForInbox(first):-1);
+    if(idx>=0)return idx;
+
+    const id=first.__r221Identity||identityFromRawR221(raw);
+    if(!id)return -1;
+
+    // VF is generic and can use existing auto-create.
+    if(id.airline==='VF' && typeof v5002EnsureFlightFromInbox==='function'){
+      return v5002EnsureFlightFromInbox(first,raw,{allowSpecific:true});
+    }
+
+    // BJ specific parser historically expects an existing flight.
+    // If absent, create only the standard flight shell; parser remains untouched.
+    if(id.airline==='BJ' && typeof defaultFlightObject==='function' && typeof FLIGHTS!=='undefined' && Array.isArray(FLIGHTS)){
+      const created=defaultFlightObject(['','BJ',id.flightNumber,id.destination,'','','',id.flightDate]);
+      created.airline='BJ';created.company='BJ';created.flightNumber=id.flightNumber;created.flight=id.flightNumber;
+      created.date=id.flightDate;created.flightDate=id.flightDate;created.dep=id.origin||'CDG';created.dest=id.destination||'';
+      created.autoCreatedFromPrepa=true;created.importedAt=new Date().toISOString();
+      FLIGHTS.push(created);
+      return FLIGHTS.length-1;
+    }
+    return -1;
+  }
+
+  async function applyGroupR221(group){
+    const c=group.airline;
+    const items=group.items||[];
+    if(!items.length)return {ok:false,status:'WAITING_NO_SOURCE'};
+
+    // Use already extracted PDF text to avoid decoding a second time.
+    const raw=items.map(it=>String(it.__r221Raw||'').trim()).filter(Boolean).join('\n\n');
+    if(!raw.trim())throw new Error(`SOURCES ${c} VIDES`);
+
+    const first={...items[0],
+      airline:c,company:c,flightNumber:group.flightNumber,flight:group.flightNumber,
+      flightDate:group.flightDate,date:group.flightDate
+    };
+    let idx=await ensureFlightR221(first,raw);
+    if(idx<0)throw new Error(`VOL ${c} NON CRÉÉ`);
+
+    // Existing parser entrypoint only.
+    await applyInboxRawWithExistingParser(first,idx,raw);
+
+    try{await cacheFlightsLocallyOnly(FLIGHTS)}catch(_){}
+    try{await persistOneFlightVerifiedToD1(FLIGHTS[idx],{label:`${c} R22.1 PDF_ BATCH`})}catch(e){console.warn('R22.1 D1',e)}
+
+    try{await setPrepaInboxGroupStatus(items,'PROCESSED')}catch(_){}
+    import143SummaryAt=0;
+
+    const x=FLIGHTS[idx];
+    const bookedObj=x?.booked&&typeof x.booked==='object'?x.booked:{};
+    return {
+      ok:true,status:'DONE',
+      booked:Number(x?.bookedTotal||Object.values(bookedObj).reduce((a,n)=>a+Number(n||0),0)||0),
+      pax:Array.isArray(x?.passengers)?x.passengers.length:0,
+      INF:Number(x?.common?.INF||0),CHLD:Number(x?.common?.CHLD||0),WCH:Number(x?.common?.WCH||0),
+      FQTV:Number(x?.common?.FQTV||0),ETK:Number(x?.common?.ETK||x?.etk||0),EMD:Number(x?.common?.EMD||x?.emd||0),
+      INBOUND:Array.isArray(x?.inbound)?x.inbound.length:0,OUTBOUND:Array.isArray(x?.outbound)?x.outbound.length:0,
+      documents:Object.keys(group.documents||{}).length
+    };
+  }
+
+  async function runR221(airline,options={}){
+    const c=String(airline||'').toUpperCase();
+    const dryRun=!!options.dryRun;
+    const groups=await listR221(c,options);
+    const report={ok:true,airline:c,dryRun,startedAt:new Date().toISOString(),total:groups.length,done:0,waiting:0,retry:0,results:[]};
+
+    console.info(`R22.1 ${c} AUTO BATCH — START`,{total:groups.length,dryRun});
+    for(let i=0;i<groups.length;i++){
+      const g=groups[i],base={index:i+1,total:groups.length,flightNumber:g.flightNumber,flightDate:g.flightDate,key:g.key};
+      console.info(`R22.1 ${c} — ${i+1}/${groups.length}`,g.flightNumber,g.flightDate,Object.keys(g.documents||{}));
+      if(dryRun){
+        report.results.push({...base,status:'DRY_RUN',prepaRows:g.prepaRows,pdfDocs:Object.keys(g.documents||{}),route:`${g.origin}-${g.destination}`});
+        continue;
+      }
+      try{
+        const r=await applyGroupR221(g);
+        if(r.ok)report.done++;else report.waiting++;
+        report.results.push({...base,...r});
+      }catch(e){
+        report.retry++;report.ok=false;
+        report.results.push({...base,status:'RETRY_REQUIRED',error:String(e?.message||e)});
+      }
+    }
+    report.finishedAt=new Date().toISOString();
+    console.info(`R22.1 ${c} AUTO BATCH — FINISHED`,report);
+    console.table(report.results.map(x=>({
+      flight:x.flightNumber,date:x.flightDate,status:x.status,BOOKED:x.booked??'',PAX:x.pax??'',
+      INF:x.INF??'',CHLD:x.CHLD??'',WCH:x.WCH??'',FQTV:x.FQTV??'',ETK:x.ETK??'',EMD:x.EMD??'',
+      IN:x.INBOUND??'',OUT:x.OUTBOUND??'',docs:x.documents??x.pdfDocs?.length??'',error:x.error||''
+    })));
+    return report;
+  }
+
+  window.listBjAutomaticBatchR221=(o={})=>listR221('BJ',o);
+  window.listVfAutomaticBatchR221=(o={})=>listR221('VF',o);
+  window.runBjAutomaticBatchR221=(o={})=>runR221('BJ',o);
+  window.runVfAutomaticBatchR221=(o={})=>runR221('VF',o);
+  window.runBjVfAutomaticBatchR221=async function(o={}){
+    const out={startedAt:new Date().toISOString()};
+    out.BJ=await runR221('BJ',o.bj||o);
+    out.VF=await runR221('VF',o.vf||o);
+    out.ok=out.BJ.ok&&out.VF.ok;out.finishedAt=new Date().toISOString();
+    console.info('R22.1 BJ+VF FINISHED',out);return out;
+  };
+
+  console.log('BUILD143 R22.1 — BJ/VF PDF_ DISCOVERY READY · PARSERS UNCHANGED');
+})();
+</script>
+
 </body></html>
 <!-- V50.03: cloud status is debounced; 3 startup retries; transient sync failures no longer force immediate local mode. -->
 <!-- V50.0: generic airline PREPA engine + airline profiles; SQ/TK/BJ parser semantics unchanged. -->
