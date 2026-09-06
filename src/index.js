@@ -4073,7 +4073,9 @@ const VF_LIST_LABELS = {
   CHECKIN:"VF CHECK-IN LIST BOARDED",
   ETICKET:"VF ETICKET LIST",
   OUTBOUND_SUMMARY:"VF OUTBOUND SUMMARY LIST",
-  SSR:"VF SSR LIST"
+  SSR:"VF SSR LIST",
+  FQTV:"VF FQTV LIST",
+  INFANT:"VF PASSENGER WITH INFANT LIST"
 };
 
 const VF_LIST_CARD_KEYS = {
@@ -4081,14 +4083,20 @@ const VF_LIST_CARD_KEYS = {
   CHECKIN:"BOARDED",
   ETICKET:"ETKT",
   OUTBOUND_SUMMARY:"OUTBOUND_SUMMARY",
-  SSR:"SSR"
+  SSR:"SSR",
+  FQTV:"FQTV",
+  INFANT:"INFANT"
 };
 
 const VF_HEADER_WORDS = new Set([
   "NO","SURNAME","NAME","GC","PNR","STATUS","OWNER","TICKET","FLIGHT",
   "FROM","TO","INV","VOL","DOS","CC","SEAT","SEQ","BAG","DIFF","STS",
   "EXPLANATION","HAS","CBAG","TK_NO","INBOUND","PAYMENT","SSR","VF","BJ",
-  "MAIN","CI","OUT","RES","TOTAL","CBBG","EXST","PC","WEIGHT","END","LIST"
+  "MAIN","CI","OUT","RES","TOTAL","CBBG","EXST","PC","WEIGHT","END","LIST",
+  // Colonnes propres à FQTV List et Passenger With Infant (absentes des
+  // autres listes VF, donc jamais rencontrées ailleurs par accident).
+  "GENDER","FFID","BONUS POINTS","TIER POINTS","CARD TYPE",
+  "G","INFANT","INFANT SURNAME","INFANT NAME","INFANT DOB","C.S"
 ]);
 
 function lot2VfListKindFromText(text){
@@ -4099,6 +4107,8 @@ function lot2VfListKindFromText(text){
   if(/^ETICKET\s+LIST$/.test(title))return "ETICKET";
   if(/^OUTBOUND\s+SUMMARY\s+LIST$/.test(title))return "OUTBOUND_SUMMARY";
   if(/^SSR\s+LIST$/.test(title))return "SSR";
+  if(/^FQTV\s+LIST$/.test(title))return "FQTV";
+  if(/^PASSENGER\s+WITH\s+INFANT$/.test(title))return "INFANT";
   return "";
 }
 
@@ -4198,8 +4208,95 @@ function lot2VfBuildItem(rec,kind,seq){
   return item;
 }
 
+// Passenger With Infant a une structure différente des autres listes VF :
+// chaque enregistrement porte DEUX identités consécutives (adulte puis
+// bébé), et non un simple couple nom/prénom. Le classifieur générique
+// (lot2VfClassifyToken/lot2VfScanRecords) ne peut pas s'y appliquer tel
+// quel : il compterait 4 "name" par ligne et casserait l'alignement.
+// On utilise donc un scanner dédié, avec la lettre de genre (F/M, seule
+// sur sa ligne) comme marqueur de bascule adulte → bébé.
+function lot2VfClassifyInfantToken(raw,route){
+  const t=String(raw||"").trim();
+  if(!t)return {type:"skip"};
+  const u=t.toUpperCase();
+  if(VF_HEADER_WORDS.has(u))return {type:"skip"};
+  if(/^[FM]$/.test(u))return {type:"gender"};
+  if(route && (u===route.origin || u===route.destination))return {type:"airport",value:u};
+  if(/^\d{2}\/\d{2}\/\d{4}$/.test(u))return {type:"dob",value:u};
+  if(/^Y[A-Z0-9]{1,2}$/.test(u))return {type:"class",value:u};
+  if(/^\d{1,2}$/.test(u))return {type:"skip"};
+  if(/^[A-Z]{2}$/.test(u))return {type:"skip"};
+  if(/^[A-Z][A-Z .'-]*$/.test(t) && t.length>=2)return {type:"name",value:t.replace(/\s+/g," ").trim()};
+  return {type:"skip"};
+}
+
+function lot2VfScanInfantRecords(text){
+  const route=lot2VfExtractRoute(text);
+  const lines=String(text||"").replace(/\r/g,"\n").split(/\n/);
+  const records=[];
+  let cur=null;
+  let stage="ADULT";
+  const fresh=()=>({surname:undefined,name:undefined,infantSurname:undefined,infantName:undefined,infantDob:"",cls:""});
+  for(const raw of lines){
+    const tok=lot2VfClassifyInfantToken(raw,route);
+    if(tok.type==="name"){
+      if(!cur){cur=fresh();stage="ADULT";}
+      if(stage==="ADULT"){
+        if(cur.surname===undefined)cur.surname=tok.value;
+        else if(cur.name===undefined)cur.name=tok.value;
+        else{records.push(cur);cur=fresh();cur.surname=tok.value;stage="ADULT";}
+      }else{
+        if(cur.infantSurname===undefined)cur.infantSurname=tok.value;
+        else if(cur.infantName===undefined)cur.infantName=tok.value;
+        else{records.push(cur);cur=fresh();cur.surname=tok.value;stage="ADULT";}
+      }
+    }else if(cur){
+      if(tok.type==="gender")stage="INFANT";
+      else if(tok.type==="dob")cur.infantDob=tok.value;
+      else if(tok.type==="class")cur.cls=tok.value;
+    }
+  }
+  if(cur && cur.surname!==undefined && cur.name!==undefined)records.push(cur);
+  return records.filter(r=>r.surname && r.name);
+}
+
+function lot2VfBuildInfantItem(rec,seq){
+  const hasInfant=Boolean(rec.infantSurname && rec.infantName);
+  return {
+    id:`VF-INFANT-${seq}-${rec.surname}-${rec.name}`,
+    seq,
+    name:`${rec.surname}/${rec.name}`,
+    title:"",
+    gender:"",
+    passengerType:"ADT",
+    class:rec.cls,
+    cabinClass:rec.cls,
+    origin:"",
+    destination:"",
+    acceptance:"",
+    seat:"",
+    specific:"",
+    note:hasInfant?`INFANT: ${rec.infantSurname}/${rec.infantName}${rec.infantDob?` (${rec.infantDob})`:""}`:"",
+    listName:VF_LIST_LABELS.INFANT,
+    cardKey:VF_LIST_CARD_KEYS.INFANT,
+    source:"VF_PD4ML",
+    ssr:[],
+    pnr:"",
+    etkt:"",
+    documentNumber:"",
+    infantName:hasInfant?`${rec.infantSurname}/${rec.infantName}`:"",
+    infantDob:rec.infantDob
+  };
+}
+
+function lot2VfExtractInfantItems(text){
+  const records=lot2VfScanInfantRecords(text);
+  return records.map((rec,i)=>lot2VfBuildInfantItem(rec,i+1));
+}
+
 function lot2VfExtractPassengerItems(text,kind){
   if(kind==="OUTBOUND_SUMMARY")return [];
+  if(kind==="INFANT")return lot2VfExtractInfantItems(text);
   const records=lot2VfScanRecords(text);
   return records.map((rec,i)=>lot2VfBuildItem(rec,kind,i+1));
 }
