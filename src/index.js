@@ -7808,11 +7808,11 @@ function r223IsoDate(day,mon,year){
 }
 
 function r223DetectBjIdentityFromPdfText(text){
-  // Header observe pour BJ (Nouvelair) : "03/Sep/2026 BJ511 CDG - TUN".
-  // Fonction et regex independantes de VF : une evolution du format BJ ne
+  // Header observé pour BJ (Nouvelair) : "03/Sep/2026 BJ511 CDG - TUN".
+  // Fonction et regex indépendantes de VF : une évolution du format BJ ne
   // touche jamais r223DetectVfIdentityFromPdfText, et inversement.
-  // We deliberately do NOT use the timestamp embedded in pdf_* filename.
-  // The service date comes from the document header.
+  // On n'utilise volontairement jamais l'horodatage du nom de fichier pdf_* :
+  // la date du vol vient uniquement de l'en-tête du document.
   const raw=String(text||"")
     .replace(/\u00a0/g," ")
     .replace(/\r/g,"\n");
@@ -7842,11 +7842,11 @@ function r223DetectBjIdentityFromPdfText(text){
 }
 
 function r223DetectVfIdentityFromPdfText(text){
-  // Header observe pour VF (AJet) : "03/Sep/2026 VF12 CDG - SAW".
-  // Fonction et regex independantes de BJ : une evolution du format VF ne
+  // Header observé pour VF (AJet) : "03/Sep/2026 VF12 CDG - SAW".
+  // Fonction et regex indépendantes de BJ : une évolution du format VF ne
   // touche jamais r223DetectBjIdentityFromPdfText, et inversement.
-  // We deliberately do NOT use the timestamp embedded in pdf_* filename.
-  // The service date comes from the document header.
+  // On n'utilise volontairement jamais l'horodatage du nom de fichier pdf_* :
+  // la date du vol vient uniquement de l'en-tête du document.
   const raw=String(text||"")
     .replace(/\u00a0/g," ")
     .replace(/\r/g,"\n");
