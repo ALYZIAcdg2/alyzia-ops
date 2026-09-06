@@ -8,6 +8,10 @@
     "binding": "ASSETS"
   },
 
+  "triggers": {
+    "crons": ["*/5 * * * *"]
+  },
+
   "services": [
     {
       "binding": "SARIA",
