@@ -1,4 +1,4 @@
-// ALYZIA OPS V50.30 R22.3 — BJ/VF GMAIL PDF_ BOOTSTRAP · based on R3.13
+// ALYZIA OPS V50.30 R22.4 — BJ/VF PDF_ PRE-OPERATIONAL GATE · based on R22.3/R3.13
 // Read-only bridge plan for one SQ flight/date. SQ/TK/BJ/VF/TW parsers unchanged.
 // V50.28 RULE: INC/INCARRIAGE = INBOUND PAX; INBOUND SUMMARY = FLIGHT METADATA; route inbound terminates at main origin (CDG).
 // V50.27 RULE: INCARRIAGE/INC = INBOUND PASSENGERS; INBOUND CUSTOMER SUMMARY = INBOUND FLIGHTS.
@@ -2473,6 +2473,115 @@ async function storeVirtualPlainTextImport(env,{messageId,subject,receivedAt,bod
   return {added:existingFile?0:1,updated:existingFile?1:0,duplicate:0,created:true};
 }
 
+
+/* =========================================================
+   V50.30 R22.4 — BJ/VF pdf_ PRE-OPERATIONAL GATE
+   Infrastructure only. Airline parsers are untouched.
+
+   Rule:
+   - any Gmail subject OR attachment logical filename beginning with "pdf_"
+     is an operational candidate and MUST NOT be terminally ignored.
+   - when possible, resolve BJ/VF identity directly from PDF content before
+     document storage, so R2/D1 paths are canonical on first write.
+   - if identity is still unavailable, the document is nevertheless stored;
+     R22.3 post-intake bootstrap can resolve it from R2 afterward.
+   ========================================================= */
+
+function r224IsPdfPrefixCandidate(subject,parts){
+  if(/^pdf_/i.test(String(subject||"").trim()))return true;
+  return (Array.isArray(parts)?parts:[]).some(p=>
+    /^pdf_/i.test(String(p?.filename||"").trim())
+  );
+}
+
+async function r224ProbeBjVfIdentityFromAttachments(
+  env,messageId,subject,parts,attachmentCache
+){
+  const pdfPrefixCandidate=r224IsPdfPrefixCandidate(subject,parts);
+  if(!pdfPrefixCandidate)return {
+    candidate:false,
+    identity:null,
+    checked:0,
+    diagnostics:[]
+  };
+
+  let checked=0;
+  const diagnostics=[];
+
+  for(const part of Array.isArray(parts)?parts:[]){
+    const attachmentId=String(part?.body?.attachmentId||"").trim();
+    if(!attachmentId)continue;
+
+    const filename=String(part?.filename||"attachment").trim();
+    const mime=String(part?.mimeType||"application/octet-stream").trim();
+
+    // If subject starts pdf_, accept its attachment even when Gmail gave a
+    // generic/empty filename. Otherwise require the attachment prefix itself.
+    const logicalPdfCandidate=
+      /^pdf_/i.test(filename) ||
+      /^pdf_/i.test(String(subject||"").trim());
+
+    if(!logicalPdfCandidate)continue;
+
+    try{
+      let bytes=attachmentCache.get(attachmentId);
+      if(!bytes){
+        const att=await gmailFetch(
+          env,
+          `/messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachmentId)}`
+        );
+        bytes=b64urlToBytes(att.data||"");
+        attachmentCache.set(attachmentId,bytes);
+      }
+
+      checked++;
+
+      // Existing Worker PDF text engine only; no BJ/VF parser is invoked here.
+      const ex=await lot2ExtractPdfTextFromBytes(bytes).catch(e=>({
+        text:"",
+        error:String(e?.message||e)
+      }));
+
+      const text=String(ex?.text||"");
+      const identity=r223DetectBjVfIdentityFromPdfText(text);
+
+      diagnostics.push({
+        filename,
+        mime,
+        checked:true,
+        textLength:text.length,
+        identity:identity||null,
+        error:String(ex?.error||"")
+      });
+
+      if(identity){
+        return {
+          candidate:true,
+          identity,
+          checked,
+          diagnostics
+        };
+      }
+    }catch(e){
+      diagnostics.push({
+        filename,
+        mime,
+        checked:false,
+        identity:null,
+        error:String(e?.message||e)
+      });
+    }
+  }
+
+  return {
+    candidate:true,
+    identity:null,
+    checked,
+    diagnostics
+  };
+}
+
+
 async function storeGmailMessage(env,messageId){
   await ensureGmailPipelineTables(env);
 
@@ -2499,8 +2608,34 @@ async function storeGmailMessage(env,messageId){
     flightBase.flightDate=lot5CanonicalFlightDate(flightBase.flightDate,receivedAt)||flightBase.flightDate;
   }
 
+  // R22.4 — pdf_ is an operational source family for BJ/VF and must be
+  // evaluated BEFORE the IGNORED_NON_OPERATIONAL gate.
+  const r224PdfCandidate=r224IsPdfPrefixCandidate(subject,parts);
+  let r224Probe=null;
+
+  if(
+    r224PdfCandidate &&
+    !(flightBase.airline&&flightBase.flightNumber&&flightBase.flightDate)
+  ){
+    r224Probe=await r224ProbeBjVfIdentityFromAttachments(
+      env,messageId,subject,parts,attachmentCache
+    );
+
+    if(r224Probe?.identity){
+      flightBase={
+        ...flightBase,
+        airline:r224Probe.identity.airline,
+        flightNumber:r224Probe.identity.flightNumber,
+        flightDate:r224Probe.identity.flightDate,
+        origin:r224Probe.identity.origin||flightBase.origin||"",
+        destination:r224Probe.identity.destination||flightBase.destination||""
+      };
+    }
+  }
+
   const operational=isOperationalCandidateMailV53(subject,bodyText,parts,flightBase)
-    || (flightBase.airline==='SQ' && !!flightBase.flightNumber && !!flightBase.flightDate);
+    || (flightBase.airline==='SQ' && !!flightBase.flightNumber && !!flightBase.flightDate)
+    || r224PdfCandidate;
 
   await env.OPS_DB.prepare(`
     INSERT INTO gmail_messages
@@ -2556,18 +2691,44 @@ async function storeGmailMessage(env,messageId){
       }
 
       let probeText=bodyText.slice(0,5000);
-      if(flightBase.airline==='SQ' && (/\.pdf$/i.test(filename)||String(mime).toLowerCase().includes('pdf'))){
+      const r224PdfPart=
+        /^pdf_/i.test(filename) ||
+        /^pdf_/i.test(String(subject||"").trim());
+
+      if(
+        (flightBase.airline==='SQ' && (/\.pdf$/i.test(filename)||String(mime).toLowerCase().includes('pdf'))) ||
+        r224PdfPart
+      ){
         const ex=await lot2ExtractPdfTextFromBytes(bytes).catch(()=>({text:''}));
         probeText += '\n'+String(ex?.text||'').slice(0,12000);
+
+        // For BJ/VF pdf_ documents, supplement the generic mail detector with
+        // the exact PDF-header identity resolver. This is routing only.
+        if(r224PdfPart){
+          const r224Identity=r223DetectBjVfIdentityFromPdfText(String(ex?.text||''));
+          if(r224Identity){
+            flightBase={
+              ...flightBase,
+              airline:r224Identity.airline,
+              flightNumber:r224Identity.flightNumber,
+              flightDate:r224Identity.flightDate,
+              origin:r224Identity.origin||flightBase.origin||"",
+              destination:r224Identity.destination||flightBase.destination||""
+            };
+          }
+        }
       }else if(flightBase.airline==='SQ' && (/\.eml$/i.test(filename)||String(mime).toLowerCase()==='message/rfc822')){
         probeText += '\n'+new TextDecoder().decode(bytes).slice(0,20000);
       }
 
       const found=detectMailFlight(subject,filename,probeText);
+      const r224ResolvedBjVf=/^(BJ|VF)$/.test(String(flightBase.airline||"").toUpperCase());
       const flight={
-        airline:found.airline||flightBase.airline,
-        flightNumber:found.flightNumber||flightBase.flightNumber,
-        flightDate:lot5CanonicalFlightDate(found.flightDate||flightBase.flightDate,receivedAt)||(found.flightDate||flightBase.flightDate)
+        airline:r224ResolvedBjVf ? flightBase.airline : (found.airline||flightBase.airline),
+        flightNumber:r224ResolvedBjVf ? flightBase.flightNumber : (found.flightNumber||flightBase.flightNumber),
+        flightDate:r224ResolvedBjVf
+          ? flightBase.flightDate
+          : (lot5CanonicalFlightDate(found.flightDate||flightBase.flightDate,receivedAt)||(found.flightDate||flightBase.flightDate))
       };
       const docType=guessDocumentType(filename,mime,probeText.slice(0,5000));
 
@@ -6514,8 +6675,10 @@ function r223DetectBjVfIdentityFromPdfText(text){
 
 function r223IsPdfOperationalFilename(filename){
   const f=String(filename||"").trim();
-  // BJ can arrive as .pdf, VF often as .pdf.pdf.
-  return /^pdf_/i.test(f) && /\.pdf(?:\.pdf)?$/i.test(f);
+  // R22.4: operational rule is the LOGICAL filename prefix.
+  // BJ may arrive without .pdf extension and as application/octet-stream.
+  // VF may arrive as .pdf.pdf. Extension must therefore never be mandatory.
+  return /^pdf_/i.test(f);
 }
 
 async function r223ReadBjVfIdentityFromStoredDocuments(env,gmailMessageId){
@@ -6729,11 +6892,32 @@ async function lot5TestOneMessageR223(env,body){
     String(gm.flight_number||"").trim() &&
     String(gm.flight_date||"").trim()
   ){
+    const resolvedAirline=String(gm.airline||"").trim().toUpperCase();
+    let prepaSynced=false;
+
+    // R22.4: when pre-gate resolution already found BJ/VF identity,
+    // force the existing PREPA bridge once documents have been stored.
+    if(/^(BJ|VF)$/.test(resolvedAirline)){
+      await ensureAirlineProfile(env,resolvedAirline).catch(()=>{});
+      await lot5SyncPrepaInboxForMessage(env,gmailMessageId,"").catch(()=>{});
+      const prepa=await env.OPS_DB.prepare(`
+        SELECT id
+        FROM prepa_inbox
+        WHERE gmail_message_id=?
+        LIMIT 1
+      `).bind(gmailMessageId).first().catch(()=>null);
+      prepaSynced=!!prepa;
+    }
+
     return {
       ...base,
+      airline:String(gm.airline||""),
+      flightNumber:String(gm.flight_number||""),
+      flightDate:String(gm.flight_date||""),
       r223:{
         applied:false,
         reason:"IDENTITY_ALREADY_RESOLVED",
+        prepaCreated:prepaSynced,
         identity:{
           airline:String(gm.airline||""),
           flightNumber:String(gm.flight_number||""),
