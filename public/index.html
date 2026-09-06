@@ -27555,6 +27555,110 @@ console.log('BUILD143 R9 — R3.13 SQ CONTROLLED BRIDGE READY');
     return {attempted:ids.length,ok,failed};
   }
 
+  async function tkAllPaxBookedR212(flightNumber,flightDate){
+    if(typeof window.import143BuildSpecificRaw!=='function'){
+      return {ok:false,reason:'RAW BUILDER INDISPONIBLE'};
+    }
+
+    const q=new URLSearchParams({
+      airline:'TK',
+      flight:flightNumber,
+      limit:'100',
+      includePayload:'1'
+    });
+    const r=await fetch(opsApiUrl('/api/prepa?'+q.toString()),{
+      cache:'no-store',
+      headers:{Accept:'application/json'}
+    });
+    if(!r.ok)return {ok:false,reason:`PREPA HTTP ${r.status}`};
+
+    const j=await r.json().catch(()=>({}));
+    const items=(Array.isArray(j?.items)?j.items:[]).filter(
+      x=>String(x?.flightDate||'')===String(flightDate||'')
+    );
+    if(!items.length)return {ok:false,reason:'AUCUNE PREPA TK EXACTE'};
+
+    const raw=await window.import143BuildSpecificRaw(items,'TK');
+    if(!raw)return {ok:false,reason:'RAW TK VIDE'};
+
+    // Existing TK parser helper, used read-only. We do not change parser semantics:
+    // CDG ALL PAX is an additional authoritative BOOKED reference when the
+    // CHECK IN INFORMATION booked counters are absent/not applied.
+    const master=parseTkAllPaxMaster(raw);
+    if(!Array.isArray(master)||!master.length){
+      return {ok:false,reason:'CDG ALL PAX ABSENT',rawChars:String(raw||'').length};
+    }
+
+    const unique=tkUniquePassengerList(master);
+    const byClass={F:0,C:0,Y:0};
+    unique.forEach(p=>{
+      const c=String(p?.class||'').toUpperCase();
+      if(Object.prototype.hasOwnProperty.call(byClass,c))byClass[c]++;
+    });
+    const total=byClass.F+byClass.C+byClass.Y;
+    if(!total)return {ok:false,reason:'CDG ALL PAX SANS CLASSE'};
+
+    const arr=(typeof FLIGHTS!=='undefined'&&Array.isArray(FLIGHTS))?FLIGHTS:[];
+    let idx=arr.findIndex(x=>
+      String(x?.airline||'').toUpperCase()==='TK' &&
+      String(x?.flightNumber||x?.flight||'').toUpperCase()===flightNumber &&
+      String(x?.date||x?.flightDate||'')===flightDate
+    );
+
+    let x=idx>=0?arr[idx]:null;
+    if(!x){
+      try{x=await getOneFlightFromCloud(`${flightDate}|TK|${flightNumber}`)}catch(_){}
+      if(x){
+        arr.push(x);
+        idx=arr.length-1;
+      }
+    }
+    if(!x)return {ok:false,reason:'VOL TK INTROUVABLE'};
+
+    const existing=x.booked&&typeof x.booked==='object'?x.booked:{};
+    const existingTotal=Object.values(existing).reduce((a,n)=>a+Number(n||0),0);
+
+    // Priority rule:
+    // - keep an already non-zero booking result from the existing TK flow;
+    // - otherwise use exact CDG ALL PAX passenger counts by class.
+    if(existingTotal>0){
+      return {ok:true,applied:false,source:'EXISTING_TK_BOOKED',total:existingTotal,byClass:{...existing}};
+    }
+
+    x.booked={...existing,F:byClass.F,C:byClass.C,Y:byClass.Y};
+    x.bookedTotal=total;
+    x.tkBookedReference={
+      source:'CDG ALL PAX',
+      F:byClass.F,C:byClass.C,Y:byClass.Y,total,
+      updatedAt:new Date().toISOString()
+    };
+
+    try{await cacheFlightsLocallyOnly(arr)}catch(_){}
+
+    // Persist the exact flight identity directly: batch must not depend on the
+    // flight currently selected in the UI.
+    const identity=`${flightDate}|TK|${flightNumber}`;
+    let merged=null;
+    try{
+      merged=await patchFlightToCloud(identity,{
+        booked:x.booked,
+        bookedTotal:x.bookedTotal,
+        tkBookedReference:x.tkBookedReference
+      });
+      if(!merged){
+        await upsertFlightToCloud(x);
+        merged=await getOneFlightFromCloud(identity);
+      }
+    }catch(e){
+      return {ok:false,reason:String(e?.message||e),total,byClass};
+    }
+
+    if(merged&&idx>=0)arr[idx]={...arr[idx],...merged};
+
+    return {ok:true,applied:true,source:'CDG ALL PAX',total,byClass};
+  }
+
+
   function tkCountersR21(x){
     return {
       booked:Number(x?.bookedTotal||0),
@@ -27666,12 +27770,15 @@ console.log('BUILD143 R9 — R3.13 SQ CONTROLLED BRIDGE READY');
           continue;
         }
 
-        // Read back the persisted exact TK flight/date. This avoids stale local
-        // bookedTotal values in the batch summary.
+        // R21.2: BOOKED fallback/reference from the exact TK `CDG ALL PAX`
+        // section. Existing non-zero TK booked values keep priority.
+        const bookedReference=await tkAllPaxBookedR212(t.flightNumber,t.flightDate);
+
+        // Read back the persisted exact TK flight/date after ALL PAX consolidation.
         const flight=await tkFlightSnapshotR21(t.flightNumber,t.flightDate);
         const counts=tkCountersR21(flight);
         report.done++;
-        report.results.push({...base,status:'DONE',sourceRefresh,...counts});
+        report.results.push({...base,status:'DONE',sourceRefresh,bookedReference,...counts});
 
       }catch(error){
         const msg=String(error?.message||error||'');
@@ -27719,6 +27826,7 @@ console.log('BUILD143 R9 — R3.13 SQ CONTROLLED BRIDGE READY');
 
   console.log('BUILD143 R21 — TK AUTOMATIC BATCH READY · SQ R20.1 UNCHANGED');
   console.log('BUILD143 R21.1 — TK SOURCE AUTO-REFRESH + D1 BOOKED SUMMARY READY');
+  console.log('BUILD143 R21.2 — TK CDG ALL PAX BOOKED REFERENCE READY');
 })();
 </script>
 
