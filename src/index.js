@@ -1,4 +1,4 @@
-// ALYZIA OPS V50.30 R22.4 — BJ/VF PDF_ PRE-OPERATIONAL GATE · based on R22.3/R3.13
+// ALYZIA OPS V50.30 R22.5 — BJ/VF PDF TEXT COMPATIBILITY · based on R22.4/R3.13
 // Read-only bridge plan for one SQ flight/date. SQ/TK/BJ/VF/TW parsers unchanged.
 // V50.28 RULE: INC/INCARRIAGE = INBOUND PAX; INBOUND SUMMARY = FLIGHT METADATA; route inbound terminates at main origin (CDG).
 // V50.27 RULE: INCARRIAGE/INC = INBOUND PASSENGERS; INBOUND CUSTOMER SUMMARY = INBOUND FLIGHTS.
@@ -3147,6 +3147,28 @@ function lot2LooksLikeRealAlteaText(text){
   if(/\b(?:INBOUND|ONCARRIAGE)\s+CUSTOMER\s+SUMMARY\b/.test(up))return true;
   if(/\bGENERIC\s+REPORT\b/.test(up) && /\bJ\d{1,4}\b/.test(up))return true;
   if(/\d{1,3}\.[A-Z][A-Z' .-]+\/[A-Z][A-Z' .-]+/.test(up))return true;
+
+  /*
+   * R22.5 — Nouvelair / AJet PDF reports.
+   * This is ONLY an extraction/readability signature, not an airline parser.
+   *
+   * Examples observed:
+   *   ALL Reservetion List
+   *   03/Sep/2026 BJ511 CDG - TUN
+   *   03/Sep/2026 VF12  CDG - SAW
+   *
+   * Keep the service date sourced from document content; filename timestamps
+   * are never used as flight dates.
+   */
+  if(
+    /\b\d{1,2}\/(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\/20\d{2}\s+(?:BJ|VF)\s*\d{1,4}\s+[A-Z]{3}\s*[-–]\s*[A-Z]{3}\b/.test(up)
+  )return true;
+
+  if(
+    /\b(?:ALL\s+RESERVETION\s+LIST|SSR\s*LIST|CHECK[- ]?IN\s*LIST|FQTV\s*LIST|OUTBOUND\s+SUMMARY\s+LIST|ETICKET\s*LIST|EMD\s*LIST|PASSENGER\s+WITH\s+INFANT|PASS2)\b/.test(up) &&
+    /\b(?:BJ|VF)\s*\d{1,4}\b/.test(up)
+  )return true;
+
   return false;
 }
 
@@ -3179,18 +3201,47 @@ async function lot2ExtractPdfTextFromBytes(bytes){
     Object.assign(cmap,lot2ParsePdfToUnicodeMap(txt));
   }
 
-  const pieces=[];
+  const extractedPieces=[];
+  const validatedPieces=[];
+
   for(const txt of decodedTexts){
     const extracted=lot2ExtractPdfTextOperations(txt,cmap);
-    if(lot2LooksLikeRealAlteaText(extracted))pieces.push(extracted);
+    if(!extracted)continue;
+    extractedPieces.push(extracted);
+    if(lot2LooksLikeRealAlteaText(extracted))validatedPieces.push(extracted);
   }
 
-  const text=lot2CleanText(pieces.join("\n"));
+  /*
+   * Existing Altea behavior remains unchanged by default:
+   * use only streams that individually match an operational-text signature.
+   *
+   * R22.5 BJ/VF compatibility:
+   * PD4ML reports often put the BJ/VF header only on page 1. Other pages
+   * contain passenger rows but no repeated header, so the former per-stream
+   * filter discarded pages 2+.
+   *
+   * If the COMPLETE extracted document has a BJ/VF header, preserve ALL
+   * extracted text streams. No BJ/VF business parser is called here.
+   */
+  const allText=lot2CleanText(extractedPieces.join("\n"));
+  const bjVfDocument=
+    /\b\d{1,2}\/(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\/20\d{2}\s+(?:BJ|VF)\s*\d{1,4}\s+[A-Z]{3}\s*[-–]\s*[A-Z]{3}\b/i.test(allText);
+
+  const text=bjVfDocument
+    ? allText
+    : lot2CleanText(validatedPieces.join("\n"));
+
   if(!text){
     return {text:"",readable:false,reason:`PDF_TEXT_NOT_EXTRACTED_INFLATED_${inflated}`};
   }
 
-  return {text,readable:true,reason:"PDF_TEXT_EXTRACTED_FLATE_TOUNICODE"};
+  return {
+    text,
+    readable:true,
+    reason:bjVfDocument
+      ? "PDF_TEXT_EXTRACTED_FLATE_BJ_VF_PD4ML"
+      : "PDF_TEXT_EXTRACTED_FLATE_TOUNICODE"
+  };
 }
 
 async function lot2ExtractTextFromR2Object(object,filename,mime){
