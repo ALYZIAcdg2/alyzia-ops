@@ -3403,6 +3403,11 @@ const LOT2_GENERIC_DEFAULT_LIST_MAPPINGS = [
 ];
 
 const LOT2_GENERIC_AIRLINE_LIST_MAPPINGS = {
+  "3O": [
+    // Air Arabia Maroc : liste d'enregistrement web ("CHL-WEB" sur chaque
+    // ligne passager, sièges déjà attribués).
+    ["PDF-ACCWEB","WEB"]
+  ],
   OZ: [
     // Libellés techniques observés dans les rapports Altea Asiana.
     ["PDF-M2","MEAL"],
