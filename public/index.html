@@ -28313,7 +28313,16 @@ console.log('BUILD143 R9 — R3.13 SQ CONTROLLED BRIDGE READY');
       airline:c,company:c,flightNumber:group.flightNumber,flight:group.flightNumber,
       flightDate:group.flightDate,date:group.flightDate
     };
-    let idx=await ensureFlightR221(first,raw);
+    // R22.3.2 — use the EXISTING BUILD143 flight resolver.
+    // ensureFlightR221 never existed in this scope and caused RETRY_REQUIRED.
+    let idx=(typeof findFlightIndexForInbox==='function'
+      ? findFlightIndexForInbox(first)
+      : -1);
+
+    if(idx<0 && typeof v5002EnsureFlightFromInbox==='function'){
+      idx=await v5002EnsureFlightFromInbox(first,raw,{allowSpecific:true});
+    }
+
     if(idx<0)throw new Error(`VOL ${c} NON CRÉÉ`);
 
     // Existing parser entrypoint only.
