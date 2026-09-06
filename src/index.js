@@ -2805,9 +2805,47 @@ async function gmailSyncNow(env,body){
   const messages=list.messages||[];
   const results=[];
   const errors=[];
+
+  /*
+   * Un cron repasse toujours par la page Gmail la plus récente. Ne pas
+   * retélécharger à chaque fois les PDF déjà acquis : cela empêchait le cycle
+   * d'atteindre le parsing et l'injection lors des rafales Altea.
+   * Les états d'erreur restent rejouables automatiquement.
+   */
+  const messageIds=messages.map(m=>String(m?.id||"")).filter(Boolean);
+  const known=new Map();
+  if(messageIds.length){
+    const placeholders=messageIds.map(()=>"?").join(",");
+    const rows=(await env.OPS_DB.prepare(`
+      SELECT
+        g.gmail_message_id,
+        g.status,
+        (SELECT COUNT(*) FROM import_file_versions v WHERE v.gmail_message_id=g.gmail_message_id) AS version_count,
+        (SELECT COUNT(*) FROM gmail_message_documents d WHERE d.gmail_message_id=g.gmail_message_id) AS document_link_count
+      FROM gmail_messages g
+      WHERE g.gmail_message_id IN (${placeholders})
+    `).bind(...messageIds).all()).results||[];
+    rows.forEach(row=>known.set(String(row.gmail_message_id||""),row));
+  }
+
+  let skippedKnown=0;
+  const retryableStatuses=new Set(["ERROR","ERROR_IMPORT","ERROR_INJECT","REVIEW"]);
   for(const m of messages){
+    const messageId=String(m?.id||"");
+    const prior=known.get(messageId);
+    const priorStatus=String(prior?.status||"").toUpperCase();
+    const safelyKnown=prior && !retryableStatuses.has(priorStatus) && (
+      priorStatus==="IGNORED_NON_OPERATIONAL" ||
+      Number(prior.version_count||0)>0 ||
+      Number(prior.document_link_count||0)>0
+    );
+    if(safelyKnown){
+      skippedKnown++;
+      results.push({status:priorStatus,messageId,skippedKnown:true});
+      continue;
+    }
     try{
-      results.push(await storeGmailMessage(env,m.id));
+      results.push(await storeGmailMessage(env,messageId));
     }catch(e){
       // LOT 5.2 : un mail défectueux ne bloque jamais le reste de la page.
       errors.push({messageId:String(m?.id||""),error:String(e?.message||e)});
@@ -2830,6 +2868,7 @@ async function gmailSyncNow(env,body){
     processed:results.length,
     attempted:messages.length,
     failed:errors.length,
+    skippedKnown,
     nextPageToken:list.nextPageToken||"",
     results,
     errors
@@ -5173,7 +5212,7 @@ function lot5Config(env){
     // - toute la boîte Gmail, y compris archives / spam / corbeille via in:anywhere
     // - corps mail + JFE SCREEN COPY + PDF + TXT + EML sont tous collectés
     gmailQuery:String(env.ALYZIA_AUTOPILOT_GMAIL_QUERY||'in:anywhere').trim()||'in:anywhere',
-    gmailMax:Math.max(1,Math.min(100,Number(env.ALYZIA_AUTOPILOT_GMAIL_MAX||100))),
+    gmailMax:Math.max(1,Math.min(100,Number(env.ALYZIA_AUTOPILOT_GMAIL_MAX||20))),
     gmailPagesPerRun:Math.max(1,Math.min(3,Number(env.ALYZIA_AUTOPILOT_GMAIL_PAGES_PER_RUN||2))),
 
     processBatch:Math.max(1,Math.min(50,Number(env.ALYZIA_AUTOPILOT_PROCESS_BATCH||50))),
