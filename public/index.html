@@ -28357,6 +28357,165 @@ console.log('BUILD143 R9 — R3.13 SQ CONTROLLED BRIDGE READY');
 })();
 </script>
 
+
+<script>
+/* BUILD143 R22.2 — BJ/VF GMAIL BOOTSTRAP
+   Purpose:
+   - bootstrap verified BJ/VF Gmail pdf_ messages into /api/prepa
+   - then run existing R22.1 discovery/batch
+   - no SQ/TK/BJ/VF parser change
+*/
+(function(){
+  const BJ_IDS_R222 = [
+    // 02 Sep 2026 batch -> BJ511 / 03SEP / CDG-TUN
+    '1a06352f3621f11d', // ALL Reservation
+    '1a063537ff22a77c', // SSR
+    '1a06353bc0210d49', // Check-In Boarded
+    '1a0635413d5242aa', // FQTV
+    '1a063546d3cf8fa8', // PASS2
+    // 30 Aug historical batch
+    '1a054313127c7bfc', // ALL Reservation
+    '1a05431b9a6a4d45', // SSR
+    '1a05432184ab0c16', // Check-In Boarded
+    '1a0543258b6548b7', // Passenger With Infant
+    '1a05432ce88a0b38', // EMD
+    '1a054330f5118b57', // FQTV
+    '1a0543e3b54b505e', // ALL Reservation
+    '1a0543e7a257b273', // SSR
+    '1a0543ee49184062', // Check-In Boarded
+    '1a0543f7de83a3a2'  // FQTV
+  ];
+
+  const VF_IDS_R222 = [
+    // 02 Sep 2026 batch -> VF12 / 03SEP / CDG-SAW
+    '1a0634db6887bd7b', // ALL Reservation
+    '1a0634e4d097e919', // SSR
+    '1a0634eeb8bcbeee', // Check-In Boarded
+    '1a06350660fc0370', // FQTV
+    '1a06350a5003b734', // Outbound Summary
+    '1a0635165f2809bd', // Eticket
+    // 30 Aug historical batch -> VF12 / 31AUG / CDG-SAW
+    '1a05440f1a0a1453', // ALL Reservation
+    '1a0544146f3e7eba', // SSR
+    '1a05441a84be5776', // Outbound Summary
+    '1a05442c8db44222', // Check-In Boarded
+    '1a05442d6bae9438', // FQTV
+    '1a054434b6330f70', // Passenger With Infant
+    '1a0544391a8caa45'  // FQTV duplicate/second capture
+  ];
+
+  function uniqR222(a){ return [...new Set((a||[]).filter(Boolean).map(String))]; }
+  const sleepR222 = ms => new Promise(r=>setTimeout(r,ms));
+
+  async function callOneR222(gmailMessageId){
+    const r = await fetch(opsApiUrl('/api/gmail-clean/test-one-message'),{
+      method:'POST',
+      cache:'no-store',
+      headers:{'Content-Type':'application/json',Accept:'application/json'},
+      body:JSON.stringify({gmailMessageId})
+    });
+    const j=await r.json().catch(()=>({}));
+    return {gmailMessageId,ok:!!(r.ok&&j?.ok),http:r.status,result:j};
+  }
+
+  async function bootstrapIdsR222(airline, ids, options={}){
+    const delayMs=Math.max(0,Number(options.delayMs??250));
+    const list=uniqR222(ids);
+    const out={
+      airline,
+      startedAt:new Date().toISOString(),
+      total:list.length,
+      ok:0,failed:0,results:[]
+    };
+    console.info(`R22.2 ${airline} GMAIL BOOTSTRAP — START`,{total:list.length});
+
+    for(let i=0;i<list.length;i++){
+      const id=list[i];
+      console.info(`R22.2 ${airline} BOOTSTRAP — ${i+1}/${list.length}`,id);
+      try{
+        const r=await callOneR222(id);
+        if(r.ok) out.ok++; else out.failed++;
+        out.results.push(r);
+      }catch(e){
+        out.failed++;
+        out.results.push({gmailMessageId:id,ok:false,error:String(e?.message||e)});
+      }
+      if(delayMs)await sleepR222(delayMs);
+    }
+
+    out.finishedAt=new Date().toISOString();
+    console.info(`R22.2 ${airline} GMAIL BOOTSTRAP — FINISHED`,out);
+    console.table(out.results.map(x=>({
+      gmail:x.gmailMessageId,
+      ok:x.ok,
+      http:x.http??'',
+      status:x.result?.status||x.result?.result?.status||'',
+      airline:x.result?.airline||x.result?.result?.airline||'',
+      flight:x.result?.flightNumber||x.result?.result?.flightNumber||'',
+      date:x.result?.flightDate||x.result?.result?.flightDate||'',
+      error:x.error||x.result?.error||''
+    })));
+    return out;
+  }
+
+  async function prepaCheckR222(){
+    const r=await fetch(opsApiUrl('/api/prepa?limit=2000&includePayload=1'),{
+      cache:'no-store',headers:{Accept:'application/json'}
+    });
+    const j=await r.json().catch(()=>({}));
+    const a=Array.isArray(j?.items)?j.items:[];
+    const bj=a.filter(x=>String(x?.airline||'').toUpperCase()==='BJ');
+    const vf=a.filter(x=>String(x?.airline||'').toUpperCase()==='VF');
+    console.info('R22.2 PREPA CHECK',{total:a.length,BJ:bj.length,VF:vf.length});
+    console.table([...bj,...vf].map(x=>({
+      id:x.id,airline:x.airline,flight:x.flightNumber,date:x.flightDate,
+      subject:x.subject,gmail:x.gmailMessageId,attachments:Array.isArray(x.attachments)?x.attachments.length:0,status:x.status
+    })));
+    return {total:a.length,BJ:bj,VF:vf};
+  }
+
+  window.bootstrapBjGmailR222=(options={})=>bootstrapIdsR222('BJ',BJ_IDS_R222,options);
+  window.bootstrapVfGmailR222=(options={})=>bootstrapIdsR222('VF',VF_IDS_R222,options);
+
+  window.bootstrapBjVfGmailR222=async function(options={}){
+    const out={startedAt:new Date().toISOString()};
+    if(options.skipBJ!==true) out.BJ=await window.bootstrapBjGmailR222(options.bj||options);
+    if(options.skipVF!==true) out.VF=await window.bootstrapVfGmailR222(options.vf||options);
+    await sleepR222(Math.max(500,Number(options.postWaitMs||1200)));
+    out.prepa=await prepaCheckR222();
+    out.ok=(out.BJ?.failed||0)===0 && (out.VF?.failed||0)===0;
+    out.finishedAt=new Date().toISOString();
+    console.info('R22.2 BJ+VF GMAIL BOOTSTRAP — FINISHED',out);
+    return out;
+  };
+
+  window.runBjVfAutomaticBatchR222=async function(options={}){
+    const out={startedAt:new Date().toISOString(),bootstrap:null,BJ:null,VF:null};
+
+    if(options.bootstrap!==false){
+      out.bootstrap=await window.bootstrapBjVfGmailR222(options.bootstrapOptions||{});
+    }
+
+    await sleepR222(Math.max(800,Number(options.postBootstrapWaitMs||1500)));
+
+    // Reuse R22.1 discovery/batch; parsers remain untouched.
+    const bjOpts=options.bj||{};
+    const vfOpts=options.vf||{};
+    out.BJ=await window.runBjAutomaticBatchR221(bjOpts);
+    out.VF=await window.runVfAutomaticBatchR221(vfOpts);
+
+    out.ok=(out.BJ?.ok!==false)&&(out.VF?.ok!==false)&&((out.bootstrap?.BJ?.failed||0)===0)&&((out.bootstrap?.VF?.failed||0)===0);
+    out.finishedAt=new Date().toISOString();
+    console.info('R22.2 BJ+VF FULL PIPELINE — FINISHED',out);
+    return out;
+  };
+
+  window.checkBjVfPrepaR222=prepaCheckR222;
+
+  console.log('BUILD143 R22.2 — BJ/VF GMAIL BOOTSTRAP READY · PARSERS UNCHANGED');
+})();
+</script>
+
 </body></html>
 <!-- V50.03: cloud status is debounced; 3 startup retries; transient sync failures no longer force immediate local mode. -->
 <!-- V50.0: generic airline PREPA engine + airline profiles; SQ/TK/BJ parser semantics unchanged. -->
