@@ -381,7 +381,7 @@ function normalizePrepaPayload(body) {
 
 function defaultImportModeForAirline(airline){
   const code=String(airline||"").trim().toUpperCase();
-  return ["SQ","TK","TW","BJ","VF"].includes(code) ? "SPECIFIC" : "GENERIC";
+  return ["SQ","TK","TW","BJ"].includes(code) ? "SPECIFIC" : "GENERIC";
 }
 
 async function ensureAirlineProfile(env,airline){
@@ -2973,7 +2973,12 @@ async function importPipelineStatus(env){
  *   LIST OF: XXXXX = carte correspondante.
  * ========================================================= */
 
-const LOT2_SPECIFIC_AIRLINES = new Set(["SQ","TK","BJ","VF","TW"]);
+// VF (AJet) est sortie du groupe verrouillé : BUILD143 ne produit aucune fiche vol
+// pour VF (aucun résultat SPECIFIC_LOCKED n'est jamais confirmé), le vol reste donc
+// éternellement sans fiche. VF a un format PD4ML propre (voir plus bas) : elle est
+// désormais traitée en GENERIC par ce Worker, comme 3O/WB/OZ. BJ reste verrouillé
+// et inchangé.
+const LOT2_SPECIFIC_AIRLINES = new Set(["SQ","TK","BJ","TW"]);
 
 async function ensureImportProcessorTables(env){
   await ensureGmailPipelineTables(env);
@@ -4049,6 +4054,166 @@ function lot2IportClassCounts(items){
   return out;
 }
 
+/* =========================================================
+ * V54 — VF (AJet), sortie du groupe verrouillé
+ * ---------------------------------------------------------
+ * Format PD4ML propre à VF : "ALL Reservetion List" / "Check-In List
+ * Boarded" / "Eticket List" / "Outbound Summary List" / "SSR List", avec
+ * un en-tête "DD/Mon/YYYY VF## ORG - DST" (même famille que BJ, mais
+ * traité indépendamment — voir r223DetectVfIdentityFromPdfText). Chaque
+ * champ d'un passager est sur sa propre ligne dans le flux texte extrait
+ * (une valeur par ligne, ordre de colonnes variable selon la liste), donc
+ * l'extraction se fait par RECONNAISSANCE DE FORME de chaque ligne plutôt
+ * que par position fixe. Complètement indépendant du pipeline Altea
+ * "LIST OF:" et du parser BJ verrouillé.
+ * ========================================================= */
+
+const VF_LIST_LABELS = {
+  RESERVATION:"VF ALL RESERVATION LIST",
+  CHECKIN:"VF CHECK-IN LIST BOARDED",
+  ETICKET:"VF ETICKET LIST",
+  OUTBOUND_SUMMARY:"VF OUTBOUND SUMMARY LIST",
+  SSR:"VF SSR LIST"
+};
+
+const VF_LIST_CARD_KEYS = {
+  RESERVATION:"MASTER",
+  CHECKIN:"BOARDED",
+  ETICKET:"ETKT",
+  OUTBOUND_SUMMARY:"OUTBOUND_SUMMARY",
+  SSR:"SSR"
+};
+
+const VF_HEADER_WORDS = new Set([
+  "NO","SURNAME","NAME","GC","PNR","STATUS","OWNER","TICKET","FLIGHT",
+  "FROM","TO","INV","VOL","DOS","CC","SEAT","SEQ","BAG","DIFF","STS",
+  "EXPLANATION","HAS","CBAG","TK_NO","INBOUND","PAYMENT","SSR","VF","BJ",
+  "MAIN","CI","OUT","RES","TOTAL","CBBG","EXST","PC","WEIGHT","END","LIST"
+]);
+
+function lot2VfListKindFromText(text){
+  const lines=String(text||"").replace(/\r/g,"\n").split(/\n/).map(l=>l.trim()).filter(Boolean);
+  const title=lot2Upper(lines[0]||"");
+  if(/^ALL\s+RESERVETION\s+LIST$/.test(title))return "RESERVATION";
+  if(/^CHECK-?IN\s+LIST\s+BOARDED$/.test(title))return "CHECKIN";
+  if(/^ETICKET\s+LIST$/.test(title))return "ETICKET";
+  if(/^OUTBOUND\s+SUMMARY\s+LIST$/.test(title))return "OUTBOUND_SUMMARY";
+  if(/^SSR\s+LIST$/.test(title))return "SSR";
+  return "";
+}
+
+function lot2VfExtractRoute(text){
+  // Même en-tête que r223DetectVfIdentityFromPdfText, réutilisé ici pour
+  // connaître précisément les deux seuls codes aéroport valides du document :
+  // sans ça, un nom de famille de 3 lettres (ex. "BAS") est indiscernable
+  // d'un code aéroport générique et casse l'alignement des champs suivants.
+  const m=String(text||"").match(
+    /\b(\d{1,2})\/(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\/(20\d{2})\s+(?:BJ|VF)\s*\d{1,4}\s+([A-Z]{3})\s*[-–]\s*([A-Z]{3})\b/i
+  );
+  return m?{origin:m[3].toUpperCase(),destination:m[4].toUpperCase()}:{origin:"",destination:""};
+}
+
+function lot2VfClassifyToken(raw,route){
+  const t=String(raw||"").trim();
+  if(!t)return {type:"skip"};
+  const u=t.toUpperCase();
+  if(VF_HEADER_WORDS.has(u))return {type:"skip"};
+  if(route && (u===route.origin || u===route.destination))return {type:"airport",value:u};
+  if(/^\d{2}:\d{2}:\d{2}$/.test(u))return {type:"skip"};
+  if(/^\d{2}\/\d{2}\/\d{4}$/.test(u))return {type:"skip"};
+  // Lignes SSR ("CBAG : CBAG- 8KG CAB", "FQTV : TK204054333 T", ...).
+  const ssrM=t.match(/^([A-Z][A-Z0-9]{1,7})\s*:\s*(.+)$/);
+  if(ssrM)return {type:"ssr",code:ssrM[1].toUpperCase(),text:ssrM[2].trim()};
+  if(/^\d{1,2}$/.test(u))return {type:"skip"}; // numéro de ligne ("No")
+  if(/^\d{10,13}$/.test(u))return {type:"ticket",value:u};
+  // PNR à 6 caractères, toujours préfixé d'un chiffre dans ce système
+  // (contrairement à un nom de famille pur-lettres qui peut aussi faire 6 caractères).
+  if(/^[0-9][A-Z0-9]{5}$/.test(u))return {type:"pnr",value:u};
+  if(/^\d{1,2}[A-Z]$/.test(u))return {type:"seat",value:u};
+  // "YES"/"NO" (colonne "**Has Cbag" de Check-In List Boarded) ressemblent à un
+  // code classe (Y+2 caractères) mais n'en sont pas : à exclure explicitement.
+  if(u==="YES"||u==="NO")return {type:"skip"};
+  if(/^Y[A-Z0-9]{1,2}$/.test(u))return {type:"class",value:u};
+  if(/^[A-Z]{2}$/.test(u))return {type:"skip"}; // statut vol / code 2 lettres bruit
+  if(/^[A-Z]{1,2}\d{1,3}$/.test(u))return {type:"skip"}; // code groupe (GC)
+  if(/^(?:TK|CX|OP|1[A-Z])?\s*TICKET$/i.test(t))return {type:"skip"};
+  if(/^[A-Z][A-Z .'-]*$/.test(t) && t.length>=2)return {type:"name",value:t.replace(/\s+/g," ").trim()};
+  return {type:"skip"};
+}
+
+function lot2VfScanRecords(text){
+  const route=lot2VfExtractRoute(text);
+  const lines=String(text||"").replace(/\r/g,"\n").split(/\n/);
+  const records=[];
+  let cur=null;
+  const fresh=(surname)=>({surname,name:undefined,pnr:"",ticket:"",seat:"",cls:"",ssr:[]});
+  for(const raw of lines){
+    const tok=lot2VfClassifyToken(raw,route);
+    if(tok.type==="name"){
+      if(!cur)cur=fresh(tok.value);
+      else if(cur.surname===undefined)cur.surname=tok.value;
+      else if(cur.name===undefined)cur.name=tok.value;
+      else{records.push(cur);cur=fresh(tok.value)}
+    }else if(cur){
+      if(tok.type==="pnr")cur.pnr=tok.value;
+      else if(tok.type==="ticket")cur.ticket=tok.value;
+      else if(tok.type==="seat")cur.seat=tok.value;
+      else if(tok.type==="class")cur.cls=tok.value;
+      else if(tok.type==="ssr")cur.ssr.push({code:tok.code,text:tok.text});
+    }
+  }
+  if(cur && cur.surname!==undefined && cur.name!==undefined)records.push(cur);
+  return records.filter(r=>r.surname && r.name);
+}
+
+function lot2VfBuildItem(rec,kind,seq){
+  const cKey=VF_LIST_CARD_KEYS[kind]||"OTHER";
+  const item={
+    id:`VF-${cKey}-${seq}-${rec.surname}-${rec.name}`,
+    seq,
+    name:`${rec.surname}/${rec.name}`,
+    title:"",
+    gender:"",
+    passengerType:"ADT",
+    class:rec.cls,
+    cabinClass:rec.cls,
+    origin:"",
+    destination:"",
+    acceptance:"",
+    seat:rec.seat,
+    specific:"",
+    note:"",
+    listName:VF_LIST_LABELS[kind]||kind,
+    cardKey:cKey,
+    source:"VF_PD4ML",
+    ssr:[],
+    pnr:rec.pnr,
+    etkt:rec.ticket,
+    documentNumber:rec.ticket
+  };
+  if(kind==="SSR"){
+    item.ssr=rec.ssr.map(s=>s.code);
+    item.note=rec.ssr.map(s=>`${s.code}: ${s.text}`).join(" · ");
+  }
+  return item;
+}
+
+function lot2VfExtractPassengerItems(text,kind){
+  if(kind==="OUTBOUND_SUMMARY")return [];
+  const records=lot2VfScanRecords(text);
+  return records.map((rec,i)=>lot2VfBuildItem(rec,kind,i+1));
+}
+
+function lot2VfClassCounts(items){
+  const out={};
+  for(const p of items||[]){
+    const c=String(p.class||p.cabinClass||"").toUpperCase();
+    if(!c)continue;
+    out[c]=(out[c]||0)+1;
+  }
+  return out;
+}
+
 function lot2ExtractPassengerItemsFromGenericList(text,listName,cardKey){
   /*
    * V50.23 — extraction nominative générique propre.
@@ -4402,8 +4567,16 @@ async function lot2ProcessOneJob(env,job){
     const iportKind=(parserMode==="GENERIC" && IPORT_AIRLINES.has(airline) && extracted.readable)
       ? lot2IportListKindFromBody(extracted.text)
       : "";
+    // Source VF (AJet, PD4ML) : "ALL Reservetion List"/"Eticket List"/... jamais
+    // "LIST OF:" Altea non plus. VF n'est plus SPECIFIC_LOCKED (voir plus haut) :
+    // parserMode vaut déjà GENERIC ici, mais son format reste entièrement différent
+    // d'Altea et se détecte/s'extrait via son propre pipeline dédié.
+    const vfKind=(parserMode==="GENERIC" && airline==="VF" && extracted.readable)
+      ? lot2VfListKindFromText(extracted.text)
+      : "";
+    const specialKind=iportKind||vfKind;
 
-    if(parserMode==="GENERIC" && extracted.readable && !iportKind){
+    if(parserMode==="GENERIC" && extracted.readable && !specialKind){
       const detectedDate=lot2DetectFlightDateFromReportLine(extracted.text,airline,job.flight_number||version.flight_number||"",effectiveFlightDate);
       if(detectedDate.iso && detectedDate.iso!==effectiveFlightDate){
         const upd=await lot2UpdateJobFlightDate(env,job,version,detectedDate.iso,detectedDate);
@@ -4414,33 +4587,37 @@ async function lot2ProcessOneJob(env,job){
       }
     }
 
-    const operationalInfo=(!iportKind && extracted.readable)?lot2ParseOperationalInfo(extracted.text,airline,job.flight_number||version.flight_number||"",effectiveFlightDate):null;
-    const listName=iportKind?(IPORT_LIST_LABELS[iportKind]||iportKind):lot2DetectListName(extracted.text,filename);
+    const operationalInfo=(!specialKind && extracted.readable)?lot2ParseOperationalInfo(extracted.text,airline,job.flight_number||version.flight_number||"",effectiveFlightDate):null;
+    const listName=iportKind?(IPORT_LIST_LABELS[iportKind]||iportKind):(vfKind?(VF_LIST_LABELS[vfKind]||vfKind):lot2DetectListName(extracted.text,filename));
     // Un rapport générique complet (ex. "GENERIC REPORT") porte à la fois l'en-tête
     // opérationnel ET la liste nominative des passagers. Le classer en OPERATIONAL_INFO
     // effacerait les passagers (V50.16 ligne 4073) et empêcherait toute création de fiche
     // avec contenu : on détecte donc d'abord un vrai manifeste nominatif avant de retomber
     // sur le mode "info seule".
-    const genericManifestItems=(!iportKind && !listName && parserMode==="GENERIC" && extracted.readable)
+    const genericManifestItems=(!specialKind && !listName && parserMode==="GENERIC" && extracted.readable)
       ? lot2ExtractPassengerItemsFromGenericList(extracted.text,"","MASTER")
       : [];
     const listMapping=iportKind
       ? {cardKey:IPORT_LIST_CARD_KEYS[iportKind]||"OTHER",mappingScope:"IPORT",matchedListName:listName}
-      : (genericManifestItems.length && parserMode==="GENERIC"
-        ? {cardKey:"MASTER",mappingScope:"GENERIC_REPORT",matchedListName:"GENERIC REPORT"}
-        : (operationalInfo && !listName && parserMode==="GENERIC"
-          ? {cardKey:"OPERATIONAL_INFO",mappingScope:"OPERATIONAL_INFO",matchedListName:"JFE SCREEN COPY"}
-          : (parserMode==="SPECIFIC_LOCKED"
-            ? {cardKey:"SPECIFIC",mappingScope:"SPECIFIC_LOCKED",matchedListName:""}
-            : lot2LookupListMapping(airline,listName))));
+      : (vfKind
+        ? {cardKey:VF_LIST_CARD_KEYS[vfKind]||"OTHER",mappingScope:"VF",matchedListName:listName}
+        : (genericManifestItems.length && parserMode==="GENERIC"
+          ? {cardKey:"MASTER",mappingScope:"GENERIC_REPORT",matchedListName:"GENERIC REPORT"}
+          : (operationalInfo && !listName && parserMode==="GENERIC"
+            ? {cardKey:"OPERATIONAL_INFO",mappingScope:"OPERATIONAL_INFO",matchedListName:"JFE SCREEN COPY"}
+            : (parserMode==="SPECIFIC_LOCKED"
+              ? {cardKey:"SPECIFIC",mappingScope:"SPECIFIC_LOCKED",matchedListName:""}
+              : lot2LookupListMapping(airline,listName)))));
     const cardKey=listMapping.cardKey;
     const documentType=cardKey==="OPERATIONAL_INFO"?"OPERATIONAL_INFO":lot2DocumentTypeFromCard(cardKey,filename,mime);
     const passengerItems=iportKind
       ? lot2IportExtractPassengerItems(extracted.text,iportKind)
-      : ((cardKey==="OPERATIONAL_INFO"||!extracted.readable||cardKey==="INBOUND_SUMMARY"||cardKey==="OUTBOUND_SUMMARY")?[]:lot2ExtractPassengerItemsFromGenericList(extracted.text,listName,cardKey));
-    const passengerCount=iportKind?passengerItems.length:(cardKey==="OPERATIONAL_INFO"?0:(extracted.readable?lot2ExtractPassengerCount(extracted.text,listName,cardKey):0));
-    const classCounts=iportKind?lot2IportClassCounts(passengerItems):(cardKey==="OPERATIONAL_INFO"?{}:(extracted.readable?lot2ExtractClassCountsForDocument(extracted.text,listName,cardKey):{}));
-    const connectionRows=(iportKind||cardKey==="OPERATIONAL_INFO"||!extracted.readable)?[]:lot2ExtractConnectionRows(extracted.text,listName,cardKey);
+      : (vfKind
+        ? lot2VfExtractPassengerItems(extracted.text,vfKind)
+        : ((cardKey==="OPERATIONAL_INFO"||!extracted.readable||cardKey==="INBOUND_SUMMARY"||cardKey==="OUTBOUND_SUMMARY")?[]:lot2ExtractPassengerItemsFromGenericList(extracted.text,listName,cardKey)));
+    const passengerCount=specialKind?passengerItems.length:(cardKey==="OPERATIONAL_INFO"?0:(extracted.readable?lot2ExtractPassengerCount(extracted.text,listName,cardKey):0));
+    const classCounts=iportKind?lot2IportClassCounts(passengerItems):(vfKind?lot2VfClassCounts(passengerItems):(cardKey==="OPERATIONAL_INFO"?{}:(extracted.readable?lot2ExtractClassCountsForDocument(extracted.text,listName,cardKey):{})));
+    const connectionRows=(specialKind||cardKey==="OPERATIONAL_INFO"||!extracted.readable)?[]:lot2ExtractConnectionRows(extracted.text,listName,cardKey);
     const fqtvCategories=cardKey==="FQTV"?lot2FqtvCategories(passengerItems):{};
 
     let resultStatus="CLASSIFIED";
@@ -4710,7 +4887,7 @@ function lot3PaxKey(p){
 
 
 function lot3IsProtectedSpecificAirline(airline){
-  return ["SQ","TK","TW","BJ","VF"].includes(String(airline||"").trim().toUpperCase());
+  return ["SQ","TK","TW","BJ"].includes(String(airline||"").trim().toUpperCase());
 }
 
 function lot3PaxNameKey(p){
@@ -5635,8 +5812,11 @@ const LOT5_VERSION="V50.30_R3_13_SQ_CONTROLLED_BRIDGE";
 // 5.3.5 scope: pipeline recovery + Gmail body + historical replay + Drive archive + fast summary.
 // Specific parsers remain byte-for-byte untouched.
 // Gmail -> identity -> R2/D1 -> Drive -> existing parser -> flight injection -> exclusive Gmail state.
-// Parsers TK/BJ/VF/SQ/TW are intentionally untouched.
-const LOT5_PROTECTED_AIRLINES=new Set(["SQ","TK","BJ","VF","TW"]);
+// Parsers TK/BJ/SQ/TW are intentionally untouched. VF sortie du groupe verrouillé
+// (voir LOT2_SPECIFIC_AIRLINES) : elle est injectée par ce Worker comme les
+// compagnies GENERIC, plus jamais en attente d'une confirmation BUILD143 qui
+// n'arrive jamais pour ce format.
+const LOT5_PROTECTED_AIRLINES=new Set(["SQ","TK","BJ","TW"]);
 
 async function ensureLot5Tables(env){
   await ensureLot3Tables(env);
@@ -6256,7 +6436,7 @@ async function lot5InjectAvailable(env,cfg){
   const op=(await env.OPS_DB.prepare(`
     SELECT * FROM import_job_results
     WHERE parser_mode='GENERIC'
-      AND UPPER(airline) NOT IN ('SQ','TK','TW','BJ','VF')
+      AND UPPER(airline) NOT IN ('SQ','TK','TW','BJ')
       AND card_key='OPERATIONAL_INFO'
       AND status IN ('OPERATIONAL_INFO_READY','WAITING_FLIGHT')
     ORDER BY updated_at DESC
@@ -6275,7 +6455,7 @@ async function lot5InjectAvailable(env,cfg){
     LEFT JOIN flights f
       ON f.identity=(r.flight_date || '|' || UPPER(r.airline) || '|' || UPPER(r.flight_number))
     WHERE r.parser_mode='GENERIC'
-      AND UPPER(r.airline) NOT IN ('SQ','TK','TW','BJ','VF')
+      AND UPPER(r.airline) NOT IN ('SQ','TK','TW','BJ')
       AND r.card_key IS NOT NULL AND r.card_key<>''
       AND r.card_key NOT IN ('NO_LIST','OPERATIONAL_INFO','OTHER')
       AND r.status IN ('GENERIC_CARD_READY','GENERIC_MASTER_READY','WAITING_FLIGHT')
@@ -6300,7 +6480,7 @@ async function lot5RequeueNewGenericMappings(env,limit=500){
     SELECT r.job_id,r.airline,r.list_name,r.card_key,r.status
     FROM import_job_results r
     WHERE r.parser_mode='GENERIC'
-      AND UPPER(r.airline) NOT IN ('SQ','TK','TW','BJ','VF')
+      AND UPPER(r.airline) NOT IN ('SQ','TK','TW','BJ')
       AND r.card_key='OTHER'
       AND r.status IN ('GENERIC_CARD_OTHER','WAITING_FLIGHT','INJECTED')
     ORDER BY r.updated_at DESC
@@ -6346,7 +6526,7 @@ async function lot5UnmappedGenericListsReport(env,{airline='',limit=200}={}){
   const a=String(airline||'').trim().toUpperCase();
   const wh=[
     "parser_mode='GENERIC'",
-    "UPPER(airline) NOT IN ('SQ','TK','TW','BJ','VF')",
+    "UPPER(airline) NOT IN ('SQ','TK','TW','BJ')",
     "card_key IN ('OTHER','NO_LIST')"
   ];
   const binds=[];
