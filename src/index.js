@@ -3414,7 +3414,8 @@ const LOT2_GENERIC_AIRLINE_LIST_MAPPINGS = {
   DE: [
     // Condor utilise des numéros de listes à la place des noms fonctionnels.
     ["PDF-02","WEB"],
-    ["PDF-10","WCH"]
+    ["PDF-10","WCH"],
+    ["ONC* INC","CONNECTIONS"]
   ],
   J2: [
     ["FQA","FQTV"],
@@ -5957,7 +5958,6 @@ async function lot5RequeueNewGenericMappings(env,limit=500){
   }
   return {ok:true,checked:rows.length,requeued,mappings};
 }
-
 
 /* =========================================================
  * LOT 5.2 — FULL MAILBOX CONTINUOUS GMAIL SWEEP
