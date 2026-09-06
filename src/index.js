@@ -3426,6 +3426,19 @@ const LOT2_GENERIC_AIRLINE_LIST_MAPPINGS = {
     ["PDF-10","WCH"],
     ["ONC* INC","CONNECTIONS"]
   ],
+  WB: [
+    // RwandAir préfixe systématiquement ses listes par "X-TRT". X-TRT seule
+    // est un export complet des passagers (comme ALL CUSTOMERS/MASTER).
+    ["X-TRT","MASTER"],
+    ["X-TRT, ETKT","ETKT"],
+    ["X-TRT, ONC","OUTBOUND"],
+    ["X-TRT, INC","INBOUND"],
+    ["X-TRT, KID","CHLD"],
+    ["X-TRT, INF","INF"],
+    ["X-TRT, WCH","WCH"],
+    ["X-TRT, FQA","FQTV"],
+    ["X-TRT, EMD","EMD"]
+  ],
   J2: [
     ["FQA","FQTV"],
     ["ONC","OUTBOUND"],
