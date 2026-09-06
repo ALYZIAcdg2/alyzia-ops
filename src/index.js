@@ -3412,7 +3412,10 @@ const LOT2_GENERIC_DEFAULT_LIST_MAPPINGS = [
   ["ONC","OUTBOUND"],
   ["ONCARRIAGE","OUTBOUND"],
   ["INBOUND CUSTOMER SUMMARY","INBOUND_SUMMARY"],
-  ["ONCARRIAGE CUSTOMER SUMMARY","OUTBOUND_SUMMARY"]
+  ["ONCARRIAGE CUSTOMER SUMMARY","OUTBOUND_SUMMARY"],
+  // Liste combinée INC+ONC dans un seul document — vue identique chez
+  // OZ, DE, AI et SK. Contenu vérifié sur OZ.
+  ["ONC* INC","CONNECTIONS"]
 ];
 
 const LOT2_GENERIC_AIRLINE_LIST_MAPPINGS = {
@@ -3431,14 +3434,12 @@ const LOT2_GENERIC_AIRLINE_LIST_MAPPINGS = {
     ["PDF-M2","MEAL"],
     ["PDF-S1","STAFF"],
     ["PDF-Z8","WEB"],
-    ["PDF-Z93","EMD"],
-    ["ONC* INC","CONNECTIONS"]
+    ["PDF-Z93","EMD"]
   ],
   DE: [
     // Condor utilise des numéros de listes à la place des noms fonctionnels.
     ["PDF-02","WEB"],
-    ["PDF-10","WCH"],
-    ["ONC* INC","CONNECTIONS"]
+    ["PDF-10","WCH"]
   ],
   WB: [
     // RwandAir préfixe systématiquement ses listes par "X-TRT". X-TRT seule
