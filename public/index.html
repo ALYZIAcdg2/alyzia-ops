@@ -28230,17 +28230,62 @@ console.log('BUILD143 R9 — R3.13 SQ CONTROLLED BRIDGE READY');
   }
 
   async function listR221(airline,options={}){
-    let rows=[];
-    try{
-      // Keep R22 fast path if D1 identity is already tagged.
-      rows=await (airline==='BJ'?window.listBjAutomaticBatchR22(options):window.listVfAutomaticBatchR22(options));
-    }catch(_){}
-    if(rows.length)return rows;
-    rows=await groupedR221(airline,{...options,force:true});
+    const c=String(airline||'').toUpperCase();
+
+    // R22.3 FRONTEND SOURCE HYDRATION:
+    // D1 identity rows are now reliable after Worker R22.6, but the old R22
+    // fast path returned summary-only groups (no `items`), causing
+    // applyGroupR221() => WAITING_NO_SOURCE.
+    //
+    // Build rich groups directly from PREPA with includePayload=1 so every
+    // group carries the exact source rows. No airline parser is changed.
+    const all=await fetchPrepaR22(c,options.limit||2000,1);
+    const allowed=Array.isArray(options.flights)&&options.flights.length
+      ?new Set(options.flights.map(v=>normFlightR22(v,c)).filter(Boolean)):null;
+    const map=new Map();
+
+    for(const it of all){
+      const id=identityR22(it,c);
+      if(!id)continue;
+      if(options.fromDate&&id.flightDate<String(options.fromDate))continue;
+      if(options.toDate&&id.flightDate>String(options.toDate))continue;
+      if(allowed&&!allowed.has(id.flightNumber))continue;
+
+      const g=map.get(id.key)||{
+        ...id,origin:'',destination:'',prepaRows:0,statuses:{},documents:{},items:[]
+      };
+      g.prepaRows++;
+      g.items.push(it);
+
+      const st=String(it?.status||'UNKNOWN').toUpperCase();
+      g.statuses[st]=(g.statuses[st]||0)+1;
+
+      // Logical pdf_ source can be in subject OR nested attachment filename.
+      const names=[];
+      if(it?.subject)names.push(String(it.subject));
+      for(const a of Array.isArray(it?.attachments)?it.attachments:[]){
+        names.push(String(a?.name||a?.filename||''));
+      }
+      for(const n of names){
+        const fn=String(n||'').trim();
+        if(/^pdf_/i.test(fn))g.documents[fn]=(g.documents[fn]||0)+1;
+      }
+
+      map.set(id.key,g);
+    }
+
+    let rows=[...map.values()].sort((a,b)=>
+      a.flightDate.localeCompare(b.flightDate)||a.flightNumber.localeCompare(b.flightNumber)
+    );
+
+    // Fallback to legacy PDF-header discovery only if PREPA has no canonical rows.
+    if(!rows.length)rows=await groupedR221(c,{...options,force:true});
+
     console.table(rows.map(x=>({
-      flight:x.flightNumber,date:x.flightDate,route:`${x.origin}-${x.destination}`,
-      prepa:x.prepaRows,pdf_docs:Object.keys(x.documents).length,
-      statuses:Object.entries(x.statuses).map(([k,v])=>`${k}:${v}`).join(' ')
+      flight:x.flightNumber,date:x.flightDate,route:`${x.origin||''}-${x.destination||''}`,
+      prepa:x.prepaRows,pdf_docs:Object.keys(x.documents||{}).length,
+      source_items:Array.isArray(x.items)?x.items.length:0,
+      statuses:Object.entries(x.statuses||{}).map(([k,v])=>`${k}:${v}`).join(' ')
     })));
     return rows;
   }
@@ -28275,8 +28320,15 @@ console.log('BUILD143 R9 — R3.13 SQ CONTROLLED BRIDGE READY');
     const items=group.items||[];
     if(!items.length)return {ok:false,status:'WAITING_NO_SOURCE'};
 
-    // Use already extracted PDF text to avoid decoding a second time.
-    const raw=items.map(it=>String(it.__r221Raw||'').trim()).filter(Boolean).join('\n\n');
+    // R22.3: canonical PREPA rows do not necessarily carry __r221Raw.
+    // Hydrate raw lazily through the existing BUILD143 source reader.
+    const rawParts=[];
+    for(const it of items){
+      let part=String(it.__r221Raw||'').trim();
+      if(!part)part=String(await rawOneR221(it)||'').trim();
+      if(part)rawParts.push(part);
+    }
+    const raw=rawParts.join('\n\n');
     if(!raw.trim())throw new Error(`SOURCES ${c} VIDES`);
 
     const first={...items[0],
