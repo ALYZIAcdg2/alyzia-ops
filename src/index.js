@@ -5932,15 +5932,28 @@ async function lot5RequeueNewGenericMappings(env,limit=500){
   let requeued=0;
   const mappings=[];
   for(const row of rows){
-    const mapping=lot2LookupListMapping(row.airline,row.list_name);
-    if(!mapping.cardKey || ["OTHER","NO_LIST"].includes(mapping.cardKey))continue;
+    const airline=String(row.airline||"").trim().toUpperCase();
+    const storedListName=String(row.list_name||"").trim();
+    // Les résultats produits avant V50.30 pouvaient garder le compteur M
+    // dans le nom DE (ex. "ETKT M208"). On normalise ici l'ancien nom afin
+    // de décider s'il mérite un reparse avec le parseur corrigé.
+    const normalizedListName=storedListName
+      .replace(/\b(?:TOTAL|TTL)\b.*$/i,"")
+      .replace(/(^|\s)[FJCWSYM]\s*\d+(?=\s|$)/gi,"$1")
+      .replace(/\s+/g," ")
+      .trim();
+    const mapping=lot2LookupListMapping(airline,normalizedListName);
+    // Avant la correction des compteurs autonomes, OZ "PDF-S1" avait été
+    // tronqué en "PDF-". Le contenu source permet de retrouver le vrai code.
+    const reparsedOzoneStaff=airline==="OZ" && /^PDF-?$/i.test(storedListName);
+    if((!mapping.cardKey || ["OTHER","NO_LIST"].includes(mapping.cardKey)) && !reparsedOzoneStaff)continue;
     await env.OPS_DB.prepare(`
       UPDATE import_jobs
       SET status='QUEUED',error_message=NULL,updated_at=CURRENT_TIMESTAMP
       WHERE job_id=?
     `).bind(String(row.job_id||"")).run();
     requeued++;
-    mappings.push({jobId:String(row.job_id||""),airline:String(row.airline||""),listName:String(row.list_name||""),cardKey:mapping.cardKey});
+    mappings.push({jobId:String(row.job_id||""),airline,listName:storedListName,normalizedListName,cardKey:reparsedOzoneStaff?"REPARSE_PDF_S1":mapping.cardKey});
   }
   return {ok:true,checked:rows.length,requeued,mappings};
 }
