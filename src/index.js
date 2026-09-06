@@ -3364,6 +3364,7 @@ const LOT2_GENERIC_DEFAULT_LIST_MAPPINGS = [
   ["ALL PAX","MASTER"],
   ["ALL RESERVATION","MASTER"],
   ["FQTV","FQTV"],
+  ["FQA","FQTV"],
   ["WCH","WCH"],
   ["WCHR","WCH"],
   ["WCHS","WCH"],
@@ -3398,6 +3399,8 @@ const LOT2_GENERIC_DEFAULT_LIST_MAPPINGS = [
   ["INCARRIAGE","INBOUND"],
   ["ONC","OUTBOUND"],
   ["ONCARRIAGE","OUTBOUND"],
+  ["ONC* INC","CONNECTIONS"],
+  ["STF","STAFF"],
   ["INBOUND CUSTOMER SUMMARY","INBOUND_SUMMARY"],
   ["ONCARRIAGE CUSTOMER SUMMARY","OUTBOUND_SUMMARY"]
 ];
@@ -3416,6 +3419,14 @@ const LOT2_GENERIC_AIRLINE_LIST_MAPPINGS = {
     ["PDF-02","WEB"],
     ["PDF-10","WCH"],
     ["ONC* INC","CONNECTIONS"]
+  ],
+  SK: [
+    // Rapports techniques SAS identifiés par leur contenu Altea.
+    ["PDF-92","WCH"],
+    ["PDF-06","WCH"],
+    ["PDF-03","OUTBOUND"],
+    ["PDF-07","STAFF"],
+    ["PDF-09","MEAL"]
   ],
   J2: [
     ["FQA","FQTV"],
@@ -3459,6 +3470,29 @@ function lot2LookupListMapping(airline,listName){
     if(raw===lot2NormalizeListKey(name)){
       return {cardKey, mappingScope:"DEFAULT", matchedListName:name};
     }
+  }
+
+  // Libellés techniques explicites communs aux compagnies génériques.
+  if(/^(?:SR )?(?:PETC|AVIH)$/.test(raw)){
+    return {cardKey:"PET_AV",mappingScope:"DEFAULT_PATTERN",matchedListName:"PETC_AVIH"};
+  }
+  if(/(?:^| )DEPA(?: |$)/.test(raw)){
+    return {cardKey:"DEPA",mappingScope:"DEFAULT_PATTERN",matchedListName:"DEPA"};
+  }
+  if(/(?:^| )DEPU(?: |$)/.test(raw)){
+    return {cardKey:"DEPU",mappingScope:"DEFAULT_PATTERN",matchedListName:"DEPU"};
+  }
+  if(/(?:^| )INAD(?: |$)/.test(raw)){
+    return {cardKey:"INAD",mappingScope:"DEFAULT_PATTERN",matchedListName:"INAD"};
+  }
+  if(/ACCWEB/.test(raw)){
+    return {cardKey:"WEB",mappingScope:"DEFAULT_PATTERN",matchedListName:"ACCWEB"};
+  }
+  if(/ACC ETKT/.test(raw)){
+    return {cardKey:"ETKT",mappingScope:"DEFAULT_PATTERN",matchedListName:"ACC_ETKT"};
+  }
+  if(/ACC (?:KID|CHLD|CHILD)/.test(raw)){
+    return {cardKey:"CHLD",mappingScope:"DEFAULT_PATTERN",matchedListName:"ACC_KID"};
   }
 
   // Groupes de codes repas : si le nom explicite LIST OF est un code meal connu.
@@ -3795,7 +3829,7 @@ function lot2ExtractPassengerItemsFromGenericList(text,listName,cardKey){
     const continuation=[];
     for(let j=i+1;j<lines.length;j++){
       const next=String(lines[j]||"").replace(/\s+/g," ").trim();
-      if(/^\d{1,3}\.\s+/.test(next))break;
+      if(/^\d{1,3}\.\s*/.test(next))break;
       if(/^(?:LIST\s+OF:|[A-Z0-9]{2,6}\s+\d{1,2}[A-Z]{3}\s+[A-Z]{3}\s+STD)/i.test(next))break;
       if(next)continuation.push(next);
       if(continuation.length>=12)break;
@@ -3845,24 +3879,27 @@ function lot2ExtractPassengerItemsFromGenericList(text,listName,cardKey){
       item.codes=details.split(/\s+/).filter(Boolean);
       item.note=details;
     }else if(cKey==="FQTV"){
-      const tokens=details.split(/\s+/).filter(Boolean);
-      const tier=tokens.find(t=>!/^(ACCRUAL|AH\d{6,})$/i.test(t))||"FQA";
-      const next1=String(lines[i+1]||"").trim();
-      const next2=String(lines[i+2]||"").trim();
-      const ffid=(next1.match(/\b[A-Z]{2}\d{6,}\b/i)||[])[0]||"";
-      item.specific=String(tier||"FQA").toUpperCase();
+      const ffid=(details.match(/\b[A-Z]{2}\d{6,10}\b/i)||[])[0]||"";
+      const tier=(details.match(/\b(TAHAT|DJURDJURA|PLATINUM|GOLD|SAPPHIRE|SILVER|RUBY|EMERALD|BLUE)\b/i)||[])[1]||"";
+      item.specific=String(tier||"").toUpperCase();
       item.category=item.specific;
-      item.fqtv={program:"AH",tier:item.specific,number:ffid,ffid};
+      item.fqtv={program:ffid.slice(0,2),tier:item.specific,number:ffid,ffid,status:/\bACCRUAL\b/i.test(details)?"ACCRUAL":""};
       item.ssr=["FQTV"];
-      item.note=[ffid,next2 && /ACCRUAL/i.test(next2)?"ACCRUAL":""].filter(Boolean).join(" · ");
+      item.note=[ffid,/\bACCRUAL\b/i.test(details)?"ACCRUAL":""].filter(Boolean).join(" · ");
     }else if(cKey==="INBOUND" || cKey==="OUTBOUND" || cKey==="CONNECTIONS"){
-      const conn=details.match(/\b([IO])-([A-Z0-9]{2,5})\s+([A-Z]{3})\b/i);
-      if(conn){
-        item.connection={
+      const connections=[];
+      for(const conn of details.matchAll(/\b([IO])-([A-Z0-9]{2,8})\s+([A-Z]{3})\b/gi)){
+        const value={
           direction:conn[1].toUpperCase()==="I"?"INBOUND":"OUTBOUND",
           flight:conn[2].toUpperCase(),
           airport:conn[3].toUpperCase()
         };
+        if(!connections.some(x=>x.direction===value.direction&&x.flight===value.flight&&x.airport===value.airport))connections.push(value);
+      }
+      item.connections=connections;
+      const expectedDirection=cKey==="INBOUND"?"INBOUND":cKey==="OUTBOUND"?"OUTBOUND":"";
+      item.connection=connections.find(x=>!expectedDirection||x.direction===expectedDirection)||connections[0]||null;
+      if(item.connection){
         item.specific=`${item.connection.direction} ${item.connection.flight} ${item.connection.airport}`;
       }else{
         item.specific="";
@@ -3888,6 +3925,12 @@ function lot2ExtractPassengerItemsFromGenericList(text,listName,cardKey){
       item.specific=item.category;
       item.ssr=["STAFF"];
       item.note=details;
+    }else if(cKey==="PET_AV"){
+      const animalCode=(details.match(/\b(PETC|AVIH)\b/i)||[])[1]||"PET_AV";
+      item.category=String(animalCode).toUpperCase();
+      item.specific=item.category;
+      item.ssr=[item.category];
+      item.note=details;
     }else if(cKey==="MEAL"){
       const meal=(details.match(/\b([A-Z]{2}ML)(?:-[A-Z0-9]+)?\b/i)||[])[1]||"MEAL";
       item.category=String(meal).toUpperCase();
@@ -3909,7 +3952,7 @@ function lot2ExtractPassengerItemsFromGenericList(text,listName,cardKey){
 function lot2FqtvCategories(passengerItems){
   const out={};
   for(const p of passengerItems||[]){
-    const cat=String(p.category||p.specific||"FQA").toUpperCase()||"FQA";
+    const cat=String(p.category||p.specific||"FQTV").toUpperCase()||"FQTV";
     out[cat]=(out[cat]||0)+1;
   }
   return out;
@@ -3924,7 +3967,7 @@ function lot2ExtractConnectionRows(text,listName,cardKey){
   for(const line of up.split(/\n+/)){
     const r=line.trim().replace(/\s+/g," ");
     if(!r || /^(FLTNR|BOOKED|TER:|GATE:|CDG-|INBOUND CONNECTION|OUTBOUND CONNECTION)/.test(r))continue;
-    const m=r.match(/\b([A-Z0-9]{2,5})\s+(\d{3,4})\s+([A-Z]{3})\s+([A-Z]{3})\s+(\d{1,2}H[0-5]\d)\s+(\d{1,3})\s+(\d{1,3})\b/);
+    const m=r.match(/\b([A-Z0-9]{2,8})\s+(\d{3,4})\s+([A-Z]{3})\s+([A-Z]{3})\s+(\d{1,2}H[0-5]\d)\s+(\d{1,3})\s+(\d{1,3})\b/);
     if(m){
       rows.push({
         flight:m[1],
@@ -4568,6 +4611,7 @@ function lot3DedupePassengerArray(arr){
 function lot3CleanConnectionRows(rows,dir,base){
   const out=[];
   const byFlight=new Map();
+  const passengerKeys=new Map();
   for(const raw of Array.isArray(rows)?rows:[]){
     const r={...(raw||{})};
     r.flight=String(r.flight||"").trim().toUpperCase();
@@ -4575,6 +4619,20 @@ function lot3CleanConnectionRows(rows,dir,base){
     r.from=String(r.from||"").trim().toUpperCase();
     r.to=String(r.to||"").trim().toUpperCase();
     r.time=String(r.time||"").trim();
+    const isPassengerRow=!Array.isArray(raw?.passengers) && !!String(raw?.name||raw?.passenger||"").trim();
+    if(isPassengerRow){
+      // Les listes nominatives INC/ONC affichent une ligne par passager.
+      // Ne pas les écraser en regroupant uniquement sur le numéro de vol.
+      const key=[r.flight,lot3PaxEtktKeys(r)[0]||lot3PaxPnrKey(r)||lot3PaxNameKey(r),lot3PaxSeatKey(r)].join("|");
+      if(passengerKeys.has(key)){
+        const idx=passengerKeys.get(key);
+        out[idx]=lot3MergePassengerInfo(out[idx],r);
+      }else{
+        passengerKeys.set(key,out.length);
+        out.push(r);
+      }
+      continue;
+    }
     r.passengers=lot3DedupePassengerArray(r.passengers||[]);
     const key=r.flight;
     if(!byFlight.has(key)){
@@ -4648,6 +4706,8 @@ function lot3NormalizePassengerForUi(p,card){
     x.ssr=["CHLD"];
   }else if(c==="INF"){
     x.ssr=["INF"];
+  }else if(c==="PET_AV"){
+    x.ssr=[x.category||x.specific||"PET_AV"].filter(Boolean);
   }else if(c==="INBOUND"||c==="OUTBOUND"){
     x.ssr=[c];
   }else if(c==="EMD"||c==="ETKT"||c==="MASTER"||c==="WEB"){
@@ -4801,7 +4861,7 @@ function lot3MergeFlightData(current,row,card){
     });
   }
 
-  const map={WCH:"WCH",CHLD:"CHLD",INF:"INF",EMD:"EMD",ETKT:"ETK",FQTV:"FQTV",STAFF:"STAFF",MEAL:"MEAL",UMNR:"UMNR",MAAS:"MAAS",INAD:"INAD",DEPA:"DEPA",DEPU:"DEPU"};
+  const map={WCH:"WCH",CHLD:"CHLD",INF:"INF",EMD:"EMD",ETKT:"ETK",FQTV:"FQTV",STAFF:"STAFF",MEAL:"MEAL",PET_AV:"PET_AV",UMNR:"UMNR",MAAS:"MAAS",INAD:"INAD",DEPA:"DEPA",DEPU:"DEPU"};
   const existingKey=map[String(card.cardKey||"").toUpperCase()];
   if(existingKey){
     const count=Number(card.passengerCount||0);
@@ -4831,7 +4891,13 @@ function lot3MergeFlightData(current,row,card){
     base.imports=imports;
     let merged=base;
     for(const direction of ["INBOUND","OUTBOUND"]){
-      const passengerItems=(card.passengerItems||[]).filter(p=>String(p?.connection?.direction||"").toUpperCase()===direction);
+      const passengerItems=[];
+      for(const p of (card.passengerItems||[])){
+        const connections=Array.isArray(p?.connections)&&p.connections.length?p.connections:(p?.connection?[p.connection]:[]);
+        for(const connection of connections.filter(x=>String(x?.direction||"").toUpperCase()===direction)){
+          passengerItems.push({...p,connection,connections});
+        }
+      }
       if(!passengerItems.length)continue;
       merged=lot3MergeFlightData(merged,row,{
         ...card,
@@ -5923,12 +5989,18 @@ async function lot5InjectAvailable(env,cfg){
 
 async function lot5RequeueNewGenericMappings(env,limit=500){
   const rows=(await env.OPS_DB.prepare(`
-    SELECT r.job_id,r.airline,r.list_name,r.card_key,r.status
+    SELECT r.job_id,r.airline,r.list_name,r.card_key,r.status,r.result_json
     FROM import_job_results r
     WHERE r.parser_mode='GENERIC'
       AND UPPER(r.airline) NOT IN ('SQ','TK','TW','BJ','VF')
-      AND r.card_key='OTHER'
-      AND r.status IN ('GENERIC_CARD_OTHER','WAITING_FLIGHT','INJECTED')
+      AND (
+        (r.card_key='OTHER' AND r.status IN ('GENERIC_CARD_OTHER','WAITING_FLIGHT','INJECTED'))
+        OR (
+          r.card_key IN ('CONNECTIONS','INBOUND','OUTBOUND')
+          AND r.status='INJECTED'
+          AND COALESCE(r.result_json,'') NOT LIKE '%"connections":%'
+        )
+      )
     ORDER BY r.updated_at DESC
     LIMIT ?
   `).bind(Math.max(1,Math.min(1000,Number(limit||500)))).all()).results||[];
