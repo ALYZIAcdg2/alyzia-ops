@@ -5794,8 +5794,15 @@ async function lot5AuditMessageV534(env,messageId){
   };
 }
 
-async function lot5AuditBacklogV534(env,limit=100){
-  const rows=(await env.OPS_DB.prepare(`SELECT gmail_message_id FROM gmail_messages WHERE status<>'IGNORED_NON_OPERATIONAL' ORDER BY updated_at DESC LIMIT ?`).bind(Math.max(1,Math.min(500,Number(limit||100)))).all()).results||[];
+async function lot5AuditBacklogV534(env,limit=100,airline=''){
+  const a=String(airline||'').trim().toUpperCase();
+  // Sans filtre compagnie, les mails vides retraités à chaque cycle (updated_at
+  // toujours rafraîchi) monopolisent le tri "plus récent d'abord" et masquent
+  // les autres compagnies. Le filtre permet de cibler une compagnie précise
+  // sans augmenter limit (donc sans risquer l'erreur Cloudflare 1102).
+  const wh=a?`status<>'IGNORED_NON_OPERATIONAL' AND UPPER(airline)=?`:`status<>'IGNORED_NON_OPERATIONAL'`;
+  const binds=a?[a,Math.max(1,Math.min(500,Number(limit||100)))]:[Math.max(1,Math.min(500,Number(limit||100)))];
+  const rows=(await env.OPS_DB.prepare(`SELECT gmail_message_id FROM gmail_messages WHERE ${wh} ORDER BY updated_at DESC LIMIT ?`).bind(...binds).all()).results||[];
   const summary={checked:0,received:0,imported:0,injected:0,validated:0,review:0,error:0,driveComplete:0,drivePending:0,flightMissing:0};
   const items=[];
   for(const r of rows){
@@ -7731,7 +7738,7 @@ async function handleLot5(request,env,url){
     if(url.pathname==='/api/autopilot/audit'&&request.method==='GET'){
       const messageId=String(url.searchParams.get('messageId')||'').trim();
       if(messageId)return json(await lot5AuditMessageV534(env,messageId));
-      return json(await lot5AuditBacklogV534(env,Number(url.searchParams.get('limit')||100)));
+      return json(await lot5AuditBacklogV534(env,Number(url.searchParams.get('limit')||100),url.searchParams.get('airline')||''));
     }
     if(url.pathname==='/api/autopilot/stop'&&request.method==='POST'){
       const active=await env.OPS_DB.prepare(`SELECT run_id FROM lot5_autopilot_runs WHERE status='RUNNING' ORDER BY started_at DESC LIMIT 1`).first();
