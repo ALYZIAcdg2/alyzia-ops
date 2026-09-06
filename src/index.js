@@ -3382,6 +3382,9 @@ const LOT2_GENERIC_DEFAULT_LIST_MAPPINGS = [
   ["KID","CHLD"],
   ["ETKT","ETKT"],
   ["TICKET","ETKT"],
+  // "PDF-ACCWEB" (enregistrement web) vu identique chez 3O/AH/EI/RJ/SB —
+  // contenu vérifié sur 3O (44 passagers, "CHL-WEB", sièges attribués).
+  ["PDF-ACCWEB","WEB"],
   ["EMD","EMD"],
   ["MEAL","MEAL"],
   ["SPML","MEAL"],
@@ -3418,9 +3421,6 @@ const LOT2_GENERIC_AIRLINE_LIST_MAPPINGS = {
     ["PDF-INAD","INAD"]
   ],
   "3O": [
-    // Air Arabia Maroc : liste d'enregistrement web ("CHL-WEB" sur chaque
-    // ligne passager, sièges déjà attribués).
-    ["PDF-ACCWEB","WEB"],
     // Certains rapports préfixent les listes standards par "PDF-ACC, " (le
     // contenu reste identique à la liste ETKT/KID nue observée par ailleurs).
     ["PDF-ACC, ETKT","ETKT"],
