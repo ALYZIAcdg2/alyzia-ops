@@ -3795,8 +3795,13 @@ function lot2ExtractPassengerItemsFromGenericList(text,listName,cardKey){
     const continuation=[];
     for(let j=i+1;j<lines.length;j++){
       const next=String(lines[j]||"").replace(/\s+/g," ").trim();
-      if(/^\d{1,3}\.\s+/.test(next))break;
+      // Le format réel Altea n'a jamais d'espace après le point ("2.NOM"), contrairement
+      // à l'ancienne regex qui exigeait "\s+" et ne s'arrêtait donc jamais ici : chaque
+      // passager avalait tout le reste du document jusqu'à la limite de 12 lignes.
+      if(/^\d{1,3}\.\s*\S/.test(next))break;
       if(/^(?:LIST\s+OF:|[A-Z0-9]{2,6}\s+\d{1,2}[A-Z]{3}\s+[A-Z]{3}\s+STD)/i.test(next))break;
+      // En-tête de page répété ("Report content") : bruit à ignorer, pas une fin de bloc.
+      if(/^REPORT\s+CONTENT$/i.test(next))continue;
       if(next)continuation.push(next);
       if(continuation.length>=12)break;
     }
