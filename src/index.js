@@ -3919,11 +3919,29 @@ function lot2ParseOperationalInfo(text,airline,flightNumber,currentIso){
    */
   const raw=String(text||"").replace(/\r/g,"\n");
   const up=lot2Upper(raw);
-  if(!/\bJFE\s+SCREEN\s+COPY\b/.test(up) && !/\bAIRCRAFT\b/.test(up))return null;
+  const genericReport=/\bGENERIC\s+REPORT\b/.test(up);
+  if(!/\bJFE\s+SCREEN\s+COPY\b/.test(up) && !/\bAIRCRAFT\b/.test(up) && !genericReport)return null;
 
   const info={};
   const detectedDate=lot2DetectFlightDateFromReportLine(raw,airline,flightNumber,currentIso);
   if(detectedDate.iso)info.date=detectedDate.iso;
+
+  // Rapports Altea génériques : identité et STD dans l'en-tête, route dans
+  // les lignes passagers (ex. OZ502 06SEP CDG STD1910 / ... CDG ICN ...).
+  if(genericReport){
+    const cleanFlight=String(flightNumber||"").toUpperCase().replace(/[^A-Z0-9]/g,"");
+    const headerRe=new RegExp(`\\b${cleanFlight}\\s+\\d{1,2}[A-Z]{3}\\s+([A-Z]{3})\\s+STD\\s*([0-2]?\\d{3})\\b`);
+    const hm=up.match(headerRe);
+    if(hm){
+      info.dep=hm[1];
+      info.std=lot2CleanClock(hm[2]);
+    }
+    const passengerRoute=up.match(/^\s*\d+\.[^\n]*?\s([A-Z]{3})\s+([A-Z]{3})\s+[A-Z][A-Z0-9]?\s/m);
+    if(passengerRoute){
+      info.dep=info.dep||passengerRoute[1];
+      if(passengerRoute[2]!==info.dep)info.dest=passengerRoute[2];
+    }
+  }
 
   // Route depuis bloc AIRPORT ou ligne CDG-ALG.
   const airportBlock=raw.match(/\bAIRPORT\s*:\s*([\s\S]{0,180}?)(?:\bELAPSED\s+TIME\b|\bSCHEDULED\b|\bTOTAL\s+ELAPSED\b)/i);
@@ -4948,9 +4966,25 @@ async function lot3InjectOneResult(env,row,options={}){
     return await lot3InjectOperationalInfo(env,row,options);
   }
   const identity=lot3IdentityFromRow(row);
-  const existing=await getFlightByIdentity(env,identity);
+  let existing=await getFlightByIdentity(env,identity);
   const before=existing?JSON.stringify(existing):null;
   const card=lot3BuildImportCard(row);
+
+  /*
+   * Un Generic Report complet porte une identité, une date, une route et un
+   * STD vérifiables. Il peut donc initialiser la fiche réelle avant d'y
+   * injecter sa carte. Un document partiel sans route reste WAITING_FLIGHT.
+   */
+  if(!existing){
+    const info=lot3SafeResultJson(row.result_json).operationalInfo||{};
+    if(info.date && info.dep && info.dest && info.std){
+      existing=lot3MergeOperationalInfo(null,row);
+      existing.airline=String(row.airline||"").toUpperCase();
+      existing.flight=String(row.flight_number||"").toUpperCase();
+      existing.date=String(row.flight_date||info.date||"");
+      await upsertFlight(env,existing);
+    }
+  }
 
   /*
    * V50.16 — No stub flight fix.
