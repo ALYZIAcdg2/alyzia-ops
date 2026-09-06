@@ -7627,21 +7627,18 @@ function r223IsoDate(day,mon,year){
   return `${yyyy}-${mm}-${dd}`;
 }
 
-function r223DetectBjVfIdentityFromPdfText(text){
+function r223DetectBjIdentityFromPdfText(text){
+  // Header observe pour BJ (Nouvelair) : "03/Sep/2026 BJ511 CDG - TUN".
+  // Fonction et regex independantes de VF : une evolution du format BJ ne
+  // touche jamais r223DetectVfIdentityFromPdfText, et inversement.
+  // We deliberately do NOT use the timestamp embedded in pdf_* filename.
+  // The service date comes from the document header.
   const raw=String(text||"")
     .replace(/\u00a0/g," ")
     .replace(/\r/g,"\n");
 
-  /*
-   * Header actually observed in the BJ/VF reports:
-   *   03/Sep/2026 BJ511 CDG - TUN
-   *   03/Sep/2026 VF12 CDG - SAW
-   *
-   * We deliberately do NOT use the timestamp embedded in pdf_* filename.
-   * The service date comes from the document header.
-   */
   const m=raw.match(
-    /\b(\d{1,2})\/(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\/(20\d{2})\s+(BJ|VF)\s*(\d{1,4})\s+([A-Z]{3})\s*[-–]\s*([A-Z]{3})\b/i
+    /\b(\d{1,2})\/(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\/(20\d{2})\s+(BJ)\s*(\d{1,4})\s+([A-Z]{3})\s*[-\u2013]\s*([A-Z]{3})\b/i
   );
   if(!m)return null;
 
@@ -7651,7 +7648,7 @@ function r223DetectBjVfIdentityFromPdfText(text){
   const origin=String(m[6]||"").toUpperCase();
   const destination=String(m[7]||"").toUpperCase();
 
-  if(!/^(BJ|VF)\d{1,4}$/.test(flightNumber))return null;
+  if(!/^BJ\d{1,4}$/.test(flightNumber))return null;
   if(!/^20\d{2}-\d{2}-\d{2}$/.test(flightDate))return null;
 
   return {
@@ -7662,6 +7659,48 @@ function r223DetectBjVfIdentityFromPdfText(text){
     destination,
     source:"PDF_HEADER"
   };
+}
+
+function r223DetectVfIdentityFromPdfText(text){
+  // Header observe pour VF (AJet) : "03/Sep/2026 VF12 CDG - SAW".
+  // Fonction et regex independantes de BJ : une evolution du format VF ne
+  // touche jamais r223DetectBjIdentityFromPdfText, et inversement.
+  // We deliberately do NOT use the timestamp embedded in pdf_* filename.
+  // The service date comes from the document header.
+  const raw=String(text||"")
+    .replace(/\u00a0/g," ")
+    .replace(/\r/g,"\n");
+
+  const m=raw.match(
+    /\b(\d{1,2})\/(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\/(20\d{2})\s+(VF)\s*(\d{1,4})\s+([A-Z]{3})\s*[-\u2013]\s*([A-Z]{3})\b/i
+  );
+  if(!m)return null;
+
+  const airline=String(m[4]||"").toUpperCase();
+  const flightNumber=`${airline}${String(m[5]||"").replace(/\D/g,"")}`;
+  const flightDate=r223IsoDate(m[1],m[2],m[3]);
+  const origin=String(m[6]||"").toUpperCase();
+  const destination=String(m[7]||"").toUpperCase();
+
+  if(!/^VF\d{1,4}$/.test(flightNumber))return null;
+  if(!/^20\d{2}-\d{2}-\d{2}$/.test(flightDate))return null;
+
+  return {
+    airline,
+    flightNumber,
+    flightDate,
+    origin,
+    destination,
+    source:"PDF_HEADER"
+  };
+}
+
+function r223DetectBjVfIdentityFromPdfText(text){
+  // Point d'entrée conservé pour les appelants qui ne savent pas encore, à ce
+  // stade, laquelle des deux compagnies ils lisent (le préfixe "pdf_" est
+  // commun aux deux). La détection elle-même reste individuelle par
+  // compagnie via r223DetectBjIdentityFromPdfText / r223DetectVfIdentityFromPdfText.
+  return r223DetectBjIdentityFromPdfText(text) || r223DetectVfIdentityFromPdfText(text);
 }
 
 function r223IsPdfOperationalFilename(filename){
