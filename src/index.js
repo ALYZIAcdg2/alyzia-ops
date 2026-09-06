@@ -2829,12 +2829,12 @@ async function gmailSyncNow(env,body){
   }
 
   let skippedKnown=0;
-  const retryableStatuses=new Set(["ERROR","ERROR_IMPORT","ERROR_INJECT","REVIEW"]);
   for(const m of messages){
     const messageId=String(m?.id||"");
     const prior=known.get(messageId);
     const priorStatus=String(prior?.status||"").toUpperCase();
-    const safelyKnown=prior && !retryableStatuses.has(priorStatus) && (
+    const retryable=new Set(["ERROR","ERROR_IMPORT","ERROR_INJECT","REVIEW"]);
+    const safelyKnown=prior && !retryable.has(priorStatus) && (
       priorStatus==="IGNORED_NON_OPERATIONAL" ||
       Number(prior.version_count||0)>0 ||
       Number(prior.document_link_count||0)>0
@@ -3328,7 +3328,9 @@ function lot2DetectListName(text,filename){
   function cleanListName(v){
     return String(v||"")
       .replace(/\b(?:TOTAL|TTL)\b.*$/i,"")
-      .replace(/\b[FJCWSY]\s*\d+\b/gi,"")
+      // Retirer seulement les compteurs de classe autonomes. Ne pas tronquer
+      // les codes de rapports comme PDF-S1 / PDF-M2 / PDF-Z8.
+      .replace(/(^|\s)[FJCWSYM]\s*\d+(?=\s|$)/gi,"$1")
       .replace(/\s+/g," ")
       .trim();
   }
@@ -3401,6 +3403,20 @@ const LOT2_GENERIC_DEFAULT_LIST_MAPPINGS = [
 ];
 
 const LOT2_GENERIC_AIRLINE_LIST_MAPPINGS = {
+  OZ: [
+    // Libellés techniques observés dans les rapports Altea Asiana.
+    ["PDF-M2","MEAL"],
+    ["PDF-S1","STAFF"],
+    ["PDF-Z8","WEB"],
+    ["PDF-Z93","EMD"],
+    ["ONC* INC","CONNECTIONS"]
+  ],
+  DE: [
+    // Condor utilise des numéros de listes à la place des noms fonctionnels.
+    ["PDF-02","WEB"],
+    ["PDF-10","WCH"],
+    ["ONC* INC","CONNECTIONS"]
+  ],
   J2: [
     ["FQA","FQTV"],
     ["ONC","OUTBOUND"],
@@ -3473,10 +3489,11 @@ function lot2ExtractClassCounts(text){
   if(!header)return out;
 
   const h=header[0];
-  for(const m of h.matchAll(/\b([FJCWSY])\s*(\d{1,4})\b/g)){
-    const k=m[1];
+  for(const m of h.matchAll(/\b([FJCWSYM])\s*(\d{1,4})\b/g)){
+    const rawClass=m[1];
+    const k=rawClass==="M"?"Y":rawClass==="J"?"C":rawClass;
     const n=Number(m[2]||0);
-    if(Number.isFinite(n))out[k]=n;
+    if(Number.isFinite(n))out[k]=(out[k]||0)+n;
   }
 
   return out;
@@ -3712,7 +3729,8 @@ function lot2CleanClock(v){
 function lot2PassengerClassFromCode(v){
   const s=String(v||"").toUpperCase().trim();
   if(!s)return "";
-  return s[0]||"";
+  const rawClass=s[0]||"";
+  return rawClass==="M"?"Y":rawClass==="J"?"C":rawClass;
 }
 
 function lot2CleanPassengerName(v){
@@ -3733,7 +3751,7 @@ function lot2SplitNameTitle(full){
 function lot2SsrFromCard(cardKey,specific){
   const c=String(cardKey||"").toUpperCase();
   const s=String(specific||"").toUpperCase();
-  if(c==="ETKT"||c==="EMD"||c==="MASTER")return [];
+  if(c==="ETKT"||c==="EMD"||c==="MASTER"||c==="WEB")return [];
   if(c==="FQTV")return ["FQTV",s].filter(Boolean);
   if(c==="CHLD")return ["CHLD"];
   if(c==="INF")return ["INF"];
@@ -3741,6 +3759,7 @@ function lot2SsrFromCard(cardKey,specific){
   if(c==="INBOUND_SUMMARY"||c==="OUTBOUND_SUMMARY")return [];
   if(c==="INBOUND")return ["INBOUND",s].filter(Boolean);
   if(c==="OUTBOUND")return ["OUTBOUND",s].filter(Boolean);
+  if(c==="CONNECTIONS")return [];
   return [c,s].filter(Boolean);
 }
 
@@ -3767,18 +3786,30 @@ function lot2ExtractPassengerItemsFromGenericList(text,listName,cardKey){
     const name=split.name;
     const title=split.title;
     const gender=String(m[3]||"").toUpperCase();
-    const passengerType=gender==="A"?"ADT":gender==="C"?"CHLD":gender==="I"?"INF":"";
+    const passengerType=gender==="C"?"CHLD":gender==="I"?"INF":"ADT";
     const origin=String(m[4]||"").toUpperCase();
     const destination=String(m[5]||"").toUpperCase();
     const cls=lot2PassengerClassFromCode(m[6]);
     const acceptance=String(m[6]||"").toUpperCase();
     const rest=String(m[7]||"").trim();
+    const continuation=[];
+    for(let j=i+1;j<lines.length;j++){
+      const next=String(lines[j]||"").replace(/\s+/g," ").trim();
+      if(/^\d{1,3}\.\s+/.test(next))break;
+      if(/^(?:LIST\s+OF:|[A-Z0-9]{2,6}\s+\d{1,2}[A-Z]{3}\s+[A-Z]{3}\s+STD)/i.test(next))break;
+      if(next)continuation.push(next);
+      if(continuation.length>=12)break;
+    }
+    const details=[rest,...continuation].filter(Boolean).join(" ").replace(/\s+/g," ").trim();
+    const seatMatch=details.match(/\b0*(\d{1,3})([A-Z])\b/);
+    const seat=seatMatch?`${String(Number(seatMatch[1])).padStart(2,"0")}${seatMatch[2].toUpperCase()}`:"";
 
     const item={
       id:`${cKey||"GEN"}-${seq}-${name}`,
       seq,name,title,gender,passengerType,
       class:cls,cabinClass:cls,
       origin,destination,acceptance,
+      seat,
       specific:"",
       note:"",
       listName,
@@ -3788,32 +3819,33 @@ function lot2ExtractPassengerItemsFromGenericList(text,listName,cardKey){
     };
 
     if(cKey==="MASTER"){
-      const tk=(rest.match(/\b(\d{10,})\b/)||[])[1]||"";
+      const tk=(details.match(/\b(\d{10,})\b/)||[])[1]||"";
       if(tk)item.etkt=tk;
       item.specific="";
       item.note="";
       item.ssr=[];
     }else if(cKey==="ETKT"){
-      const tk=(rest.match(/\b(\d{10,})\b/)||[])[1]||"";
+      const tk=(details.match(/\b(\d{10,})\b/)||[])[1]||"";
       item.etkt=tk;
       item.documentNumber=tk;
       item.specific="";
       item.ssr=[];
     }else if(cKey==="EMD"){
-      const emd=(rest.match(/\b(\d{10,}[A-Z0-9]*)\b/)||[])[1]||"";
+      const docs=[...details.matchAll(/\b(\d{10,}[A-Z0-9]*)\b/g)].map(x=>x[1]);
+      const emd=docs.length>1?docs[docs.length-1]:(docs[0]||"");
       item.emd=emd;
       item.documentNumber=emd;
       item.specific="";
       item.ssr=[];
     }else if(cKey==="WCH"){
-      const code=(rest.match(/\b(WCHR|WCHS|WCHC|WCMP|WCBD|WCLB)\b/i)||[])[1]||"WCH";
+      const code=(details.match(/\b(WCHR|WCHS|WCHC|WCMP|WCBD|WCLB)\b/i)||[])[1]||"WCH";
       item.specific=String(code).toUpperCase();
       item.category=item.specific;
       item.ssr=[item.specific];
-      item.codes=rest.split(/\s+/).filter(Boolean);
-      item.note=rest;
+      item.codes=details.split(/\s+/).filter(Boolean);
+      item.note=details;
     }else if(cKey==="FQTV"){
-      const tokens=rest.split(/\s+/).filter(Boolean);
+      const tokens=details.split(/\s+/).filter(Boolean);
       const tier=tokens.find(t=>!/^(ACCRUAL|AH\d{6,})$/i.test(t))||"FQA";
       const next1=String(lines[i+1]||"").trim();
       const next2=String(lines[i+2]||"").trim();
@@ -3823,8 +3855,8 @@ function lot2ExtractPassengerItemsFromGenericList(text,listName,cardKey){
       item.fqtv={program:"AH",tier:item.specific,number:ffid,ffid};
       item.ssr=["FQTV"];
       item.note=[ffid,next2 && /ACCRUAL/i.test(next2)?"ACCRUAL":""].filter(Boolean).join(" · ");
-    }else if(cKey==="INBOUND" || cKey==="OUTBOUND"){
-      const conn=rest.match(/\b([IO])-([A-Z0-9]{2,5})\s+([A-Z]{3})\b/i);
+    }else if(cKey==="INBOUND" || cKey==="OUTBOUND" || cKey==="CONNECTIONS"){
+      const conn=details.match(/\b([IO])-([A-Z0-9]{2,5})\s+([A-Z]{3})\b/i);
       if(conn){
         item.connection={
           direction:conn[1].toUpperCase()==="I"?"INBOUND":"OUTBOUND",
@@ -3835,20 +3867,37 @@ function lot2ExtractPassengerItemsFromGenericList(text,listName,cardKey){
       }else{
         item.specific="";
       }
-      item.ssr=[cKey];
-      item.note=rest;
+      item.ssr=item.connection?[item.connection.direction]:[];
+      item.note=details;
     }else if(cKey==="CHLD"){
       item.ssr=["CHLD"];
       item.specific="";
-      item.note=rest;
+      item.note=details;
     }else if(cKey==="INF"){
       item.ssr=["INF"];
       item.specific="";
-      item.note=rest;
+      item.note=details;
+    }else if(cKey==="WEB"){
+      item.status="WEB";
+      item.ssr=[];
+      item.specific="";
+      item.note="";
+    }else if(cKey==="STAFF"){
+      const staffCode=(details.match(/\b(STF-(?:BK|SB)|BOOKABLE\s+STAFF|REBATE\s+STAFF)\b/i)||[])[1]||"STAFF";
+      item.category=String(staffCode).toUpperCase();
+      item.specific=item.category;
+      item.ssr=["STAFF"];
+      item.note=details;
+    }else if(cKey==="MEAL"){
+      const meal=(details.match(/\b([A-Z]{2}ML)(?:-[A-Z0-9]+)?\b/i)||[])[1]||"MEAL";
+      item.category=String(meal).toUpperCase();
+      item.specific=item.category;
+      item.ssr=["MEAL",item.category].filter((v,k,a)=>a.indexOf(v)===k);
+      item.note=details;
     }else{
-      item.specific=rest;
+      item.specific=details;
       item.ssr=lot2SsrFromCard(cKey,item.specific);
-      item.note=rest;
+      item.note=details;
     }
 
     items.push(item);
@@ -4502,6 +4551,9 @@ function lot3CleanImportedPassengerStrict(p){
   if(x.cardKey==="EMD"){
     x.ssr=[];x.specific="";x.note="";
   }
+  if(x.cardKey==="WEB"){
+    x.ssr=[];x.specific="";x.note="";x.status="WEB";
+  }
   return x;
 }
 
@@ -4608,8 +4660,11 @@ function lot3NormalizePassengerForUi(p,card){
     x.ssr=["INF"];
   }else if(c==="INBOUND"||c==="OUTBOUND"){
     x.ssr=[c];
-  }else if(c==="EMD"||c==="ETKT"||c==="MASTER"){
+  }else if(c==="EMD"||c==="ETKT"||c==="MASTER"||c==="WEB"){
     x.ssr=Array.isArray(x.ssr)?x.ssr:[];
+    if(c==="WEB")x.status="WEB";
+  }else if(c==="CONNECTIONS"){
+    x.ssr=x.connection?.direction?[String(x.connection.direction).toUpperCase()]:[];
   }else{
     x.ssr=[c].filter(Boolean);
   }
@@ -4748,6 +4803,14 @@ function lot3MergeFlightData(current,row,card){
     });
   }
 
+  if(card.cardKey==="WEB"){
+    base.web=base.web||{};
+    Object.entries(card.classCounts||{}).forEach(([k,v])=>{
+      const n=Number(v||0);
+      if(n>0)base.web[String(k).toUpperCase()]=Math.max(Number(base.web[String(k).toUpperCase()]||0),n);
+    });
+  }
+
   const map={WCH:"WCH",CHLD:"CHLD",INF:"INF",EMD:"EMD",ETKT:"ETK",FQTV:"FQTV",STAFF:"STAFF",MEAL:"MEAL",UMNR:"UMNR",MAAS:"MAAS",INAD:"INAD",DEPA:"DEPA",DEPU:"DEPU"};
   const existingKey=map[String(card.cardKey||"").toUpperCase()];
   if(existingKey){
@@ -4768,6 +4831,30 @@ function lot3MergeFlightData(current,row,card){
     }
   }
 
+
+  /*
+   * Certaines compagnies livrent INC et ONC dans un seul PDF. On conserve la
+   * source CONNECTIONS puis on injecte chaque passager dans la direction
+   * portée par sa ligne I-/O-, sans créer de SSR technique CONNECTIONS.
+   */
+  if(card.cardKey==="CONNECTIONS"){
+    base.imports=imports;
+    let merged=base;
+    for(const direction of ["INBOUND","OUTBOUND"]){
+      const passengerItems=(card.passengerItems||[]).filter(p=>String(p?.connection?.direction||"").toUpperCase()===direction);
+      if(!passengerItems.length)continue;
+      merged=lot3MergeFlightData(merged,row,{
+        ...card,
+        cardKey:direction,
+        label:direction,
+        passengerItems,
+        passengers:passengerItems,
+        passengerCount:passengerItems.length,
+        connectionRows:[]
+      });
+    }
+    return lot3SanitizeFlightGeneric(merged);
+  }
 
   if(["INBOUND","OUTBOUND","INBOUND_SUMMARY","OUTBOUND_SUMMARY"].includes(card.cardKey)){
     const isInbound=card.cardKey==="INBOUND" || card.cardKey==="INBOUND_SUMMARY";
@@ -5566,6 +5653,9 @@ async function lot5ReconcileGmailStatesV53(env,limit=200){
     const id=String(r.gmail_message_id||""); if(!id)continue;
     try{const x=await lot5ReconcileOneGmailStateV53(env,id);counts[x.state]=(counts[x.state]||0)+1}
     catch(e){errors.push({messageId:id,error:String(e?.message||e)})}
+    // Faire tourner le backlog : les lignes déjà stables ne doivent pas
+    // monopoliser les mêmes places à chaque cycle borné.
+    await env.OPS_DB.prepare(`UPDATE gmail_messages SET updated_at=CURRENT_TIMESTAMP WHERE gmail_message_id=?`).bind(id).run().catch(()=>{});
   }
   return {ok:errors.length===0,checked:rows.length,counts,errors};
 }
@@ -5817,13 +5907,19 @@ async function lot5InjectAvailable(env,cfg){
 
   // 2) Les cartes sont injectées uniquement sur une fiche vol existante.
   const cards=(await env.OPS_DB.prepare(`
-    SELECT * FROM import_job_results
-    WHERE parser_mode='GENERIC'
-      AND UPPER(airline) NOT IN ('SQ','TK','TW','BJ','VF')
-      AND card_key IS NOT NULL AND card_key<>''
-      AND card_key NOT IN ('NO_LIST','OPERATIONAL_INFO','OTHER')
-      AND status IN ('GENERIC_CARD_READY','GENERIC_MASTER_READY','WAITING_FLIGHT')
-    ORDER BY updated_at DESC
+    SELECT r.* FROM import_job_results r
+    LEFT JOIN flights f
+      ON f.identity=(r.flight_date || '|' || UPPER(r.airline) || '|' || UPPER(r.flight_number))
+    WHERE r.parser_mode='GENERIC'
+      AND UPPER(r.airline) NOT IN ('SQ','TK','TW','BJ','VF')
+      AND r.card_key IS NOT NULL AND r.card_key<>''
+      AND r.card_key NOT IN ('NO_LIST','OPERATIONAL_INFO','OTHER')
+      AND r.status IN ('GENERIC_CARD_READY','GENERIC_MASTER_READY','WAITING_FLIGHT')
+    -- Une carte dont la fiche existe doit toujours passer avant un ancien
+    -- WAITING_FLIGHT sans fiche. Sinon les mêmes lignes bloquent le backlog.
+    ORDER BY CASE WHEN f.identity IS NOT NULL THEN 0 ELSE 1 END,
+             CASE WHEN r.status='WAITING_FLIGHT' THEN 1 ELSE 0 END,
+             r.updated_at DESC
     LIMIT ?
   `).bind(cfg.injectBatch).all()).results||[];
   for(const row of cards){
@@ -5835,6 +5931,46 @@ async function lot5InjectAvailable(env,cfg){
   return {ok:errors.length===0,injected,waiting,errors};
 }
 
+async function lot5RequeueNewGenericMappings(env,limit=500){
+  const rows=(await env.OPS_DB.prepare(`
+    SELECT r.job_id,r.airline,r.list_name,r.card_key,r.status
+    FROM import_job_results r
+    WHERE r.parser_mode='GENERIC'
+      AND UPPER(r.airline) NOT IN ('SQ','TK','TW','BJ','VF')
+      AND r.card_key='OTHER'
+      AND r.status IN ('GENERIC_CARD_OTHER','WAITING_FLIGHT','INJECTED')
+    ORDER BY r.updated_at DESC
+    LIMIT ?
+  `).bind(Math.max(1,Math.min(1000,Number(limit||500)))).all()).results||[];
+
+  let requeued=0;
+  const mappings=[];
+  for(const row of rows){
+    const airline=String(row.airline||"").trim().toUpperCase();
+    const storedListName=String(row.list_name||"").trim();
+    // Les résultats produits avant V50.30 pouvaient garder le compteur M
+    // dans le nom DE (ex. "ETKT M208"). On normalise ici l'ancien nom afin
+    // de décider s'il mérite un reparse avec le parseur corrigé.
+    const normalizedListName=storedListName
+      .replace(/\b(?:TOTAL|TTL)\b.*$/i,"")
+      .replace(/(^|\s)[FJCWSYM]\s*\d+(?=\s|$)/gi,"$1")
+      .replace(/\s+/g," ")
+      .trim();
+    const mapping=lot2LookupListMapping(airline,normalizedListName);
+    // Avant la correction des compteurs autonomes, OZ "PDF-S1" avait été
+    // tronqué en "PDF-". Le contenu source permet de retrouver le vrai code.
+    const reparsedOzoneStaff=airline==="OZ" && /^PDF-?$/i.test(storedListName);
+    if((!mapping.cardKey || ["OTHER","NO_LIST"].includes(mapping.cardKey)) && !reparsedOzoneStaff)continue;
+    await env.OPS_DB.prepare(`
+      UPDATE import_jobs
+      SET status='QUEUED',error_message=NULL,updated_at=CURRENT_TIMESTAMP
+      WHERE job_id=?
+    `).bind(String(row.job_id||"")).run();
+    requeued++;
+    mappings.push({jobId:String(row.job_id||""),airline,listName:storedListName,normalizedListName,cardKey:reparsedOzoneStaff?"REPARSE_PDF_S1":mapping.cardKey});
+  }
+  return {ok:true,checked:rows.length,requeued,mappings};
+}
 
 /* =========================================================
  * LOT 5.2 — FULL MAILBOX CONTINUOUS GMAIL SWEEP
@@ -5964,6 +6100,11 @@ async function lot5AutoPilotRun(env,{triggerType='MANUAL',gmailQuery='',gmailMax
     details.identityRepair=await lot5RepairIdentityBacklogV534(env,100);
     await lot5CheckpointV534(env,'IDENTITY');
 
+    // Rejouer automatiquement les listes techniques qui viennent d'obtenir
+    // un mapping fonctionnel (ex. OZ PDF-M2/PDF-S1/PDF-Z8/PDF-Z93/ONC* INC).
+    details.genericMappingReplay=await lot5RequeueNewGenericMappings(env,500);
+    await lot5CheckpointV534(env,'GENERIC_MAPPING_REPLAY');
+
     // Priorité opérationnelle : une rafale d'uploads Drive ne doit jamais
     // empêcher le même cycle d'atteindre parsing puis injection D1.
     const driveBefore={ok:true,skipped:true,reason:'DEFERRED_UNTIL_AFTER_INJECTION',uploaded:0,errors:[]};
@@ -5991,8 +6132,10 @@ async function lot5AutoPilotRun(env,{triggerType='MANUAL',gmailQuery='',gmailMax
     details.drive={ok:!!(driveBefore.ok&&driveAfter.ok),uploaded:Number(driveBefore.uploaded||0)+Number(driveAfter.uploaded||0),errors:[...(driveBefore.errors||[]),...(driveAfter.errors||[])]};
     driveUploaded+=Number(driveAfter.uploaded||0);
 
-    // Réconcilier un backlog large, pas seulement les 500 derniers messages.
-    const labels=await lot5ReconcileGmailStatesV53(env,1500);
+    // Lot borné : 1500 appels Gmail séquentiels maintenaient le Worker en
+    // RUNNING pendant plus de 10 minutes. La rotation ci-dessus couvre tout
+    // le backlog au fil des cycles de 5 minutes sans bloquer les injections.
+    const labels=await lot5ReconcileGmailStatesV53(env,100);
     details.gmailStates=labels;
 
     details.prepaSynced=await lot5SyncPrepaInboxRecent(env);
