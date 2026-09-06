@@ -3328,7 +3328,9 @@ function lot2DetectListName(text,filename){
   function cleanListName(v){
     return String(v||"")
       .replace(/\b(?:TOTAL|TTL)\b.*$/i,"")
-      .replace(/\b[FJCWSY]\s*\d+\b/gi,"")
+      // Retirer seulement les compteurs de classe autonomes. Ne pas tronquer
+      // les codes de rapports comme PDF-S1 / PDF-M2 / PDF-Z8.
+      .replace(/(^|\s)[FJCWSYM]\s*\d+(?=\s|$)/gi,"$1")
       .replace(/\s+/g," ")
       .trim();
   }
@@ -3486,10 +3488,11 @@ function lot2ExtractClassCounts(text){
   if(!header)return out;
 
   const h=header[0];
-  for(const m of h.matchAll(/\b([FJCWSY])\s*(\d{1,4})\b/g)){
-    const k=m[1];
+  for(const m of h.matchAll(/\b([FJCWSYM])\s*(\d{1,4})\b/g)){
+    const rawClass=m[1];
+    const k=rawClass==="M"?"Y":rawClass==="J"?"C":rawClass;
     const n=Number(m[2]||0);
-    if(Number.isFinite(n))out[k]=n;
+    if(Number.isFinite(n))out[k]=(out[k]||0)+n;
   }
 
   return out;
@@ -3725,7 +3728,8 @@ function lot2CleanClock(v){
 function lot2PassengerClassFromCode(v){
   const s=String(v||"").toUpperCase().trim();
   if(!s)return "";
-  return s[0]||"";
+  const rawClass=s[0]||"";
+  return rawClass==="M"?"Y":rawClass==="J"?"C":rawClass;
 }
 
 function lot2CleanPassengerName(v){
