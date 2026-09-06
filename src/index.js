@@ -3383,8 +3383,9 @@ const LOT2_GENERIC_DEFAULT_LIST_MAPPINGS = [
   ["CHLD","CHLD"],
   ["CHILD","CHLD"],
   ["KID","CHLD"],
-  // Enfants + bébés combinés dans un seul document — vu identique chez RJ et S4.
-  ["PDF-INFKID","CHLD"],
+  // Enfants + bébés combinés dans un seul document — vu identique chez RJ et
+  // S4. Chacun garde sa propre carte (INF/CHLD), voir lot3MergeFlightData.
+  ["PDF-INFKID","INFKID"],
   ["ETKT","ETKT"],
   ["TICKET","ETKT"],
   // "PDF-ACCWEB" (enregistrement web) vu identique chez 3O/AH/EI/RJ/SB —
@@ -3936,6 +3937,13 @@ function lot2ExtractPassengerItemsFromGenericList(text,listName,cardKey){
       item.note=details;
     }else if(cKey==="INF"){
       item.ssr=["INF"];
+      item.specific="";
+      item.note=details;
+    }else if(cKey==="INFKID"){
+      // Enfants/bébés combinés dans un seul document : chaque ligne garde
+      // son vrai type (INF/CHLD), la séparation en cartes distinctes se
+      // fait ensuite dans lot3MergeFlightData.
+      item.ssr=[item.passengerType==="INF"?"INF":"CHLD"];
       item.specific="";
       item.note=details;
     }else if(cKey==="WEB"){
@@ -4912,6 +4920,29 @@ function lot3MergeFlightData(current,row,card){
         passengers:passengerItems,
         passengerCount:passengerItems.length,
         connectionRows:[]
+      });
+    }
+    return lot3SanitizeFlightGeneric(merged);
+  }
+
+  /*
+   * Certaines compagnies livrent enfants et bébés dans un seul PDF
+   * (ex. "PDF-INFKID"). Chacun garde sa propre carte (INF ou CHLD) au
+   * lieu d'être fusionné dans une carte unique.
+   */
+  if(card.cardKey==="INFKID"){
+    base.imports=imports;
+    let merged=base;
+    for(const type of ["INF","CHLD"]){
+      const passengerItems=(card.passengerItems||[]).filter(p=>String(p?.passengerType||"").toUpperCase()===type);
+      if(!passengerItems.length)continue;
+      merged=lot3MergeFlightData(merged,row,{
+        ...card,
+        cardKey:type,
+        label:type,
+        passengerItems,
+        passengers:passengerItems,
+        passengerCount:passengerItems.length
       });
     }
     return lot3SanitizeFlightGeneric(merged);
