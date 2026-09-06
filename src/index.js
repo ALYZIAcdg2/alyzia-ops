@@ -381,7 +381,7 @@ function normalizePrepaPayload(body) {
 
 function defaultImportModeForAirline(airline){
   const code=String(airline||"").trim().toUpperCase();
-  return ["SQ","TK","BJ"].includes(code) ? "SPECIFIC" : "GENERIC";
+  return ["SQ","TK","TW","BJ","VF"].includes(code) ? "SPECIFIC" : "GENERIC";
 }
 
 async function ensureAirlineProfile(env,airline){
@@ -3353,6 +3353,10 @@ const LOT2_GENERIC_DEFAULT_LIST_MAPPINGS = [
   ["UMNR","UMNR"],
   ["UM","UMNR"],
   ["MAAS","MAAS"],
+  ["INC","INBOUND"],
+  ["INCARRIAGE","INBOUND"],
+  ["ONC","OUTBOUND"],
+  ["ONCARRIAGE","OUTBOUND"],
   ["INBOUND CUSTOMER SUMMARY","INBOUND_SUMMARY"],
   ["ONCARRIAGE CUSTOMER SUMMARY","OUTBOUND_SUMMARY"]
 ];
@@ -4280,7 +4284,7 @@ function lot3PaxKey(p){
 
 
 function lot3IsProtectedSpecificAirline(airline){
-  return ["SQ","TK","TW","BJ"].includes(String(airline||"").trim().toUpperCase());
+  return ["SQ","TK","TW","BJ","VF"].includes(String(airline||"").trim().toUpperCase());
 }
 
 function lot3PaxNameKey(p){
@@ -5715,6 +5719,7 @@ async function lot5InjectAvailable(env,cfg){
   const op=(await env.OPS_DB.prepare(`
     SELECT * FROM import_job_results
     WHERE parser_mode='GENERIC'
+      AND UPPER(airline) NOT IN ('SQ','TK','TW','BJ','VF')
       AND card_key='OPERATIONAL_INFO'
       AND status IN ('OPERATIONAL_INFO_READY','WAITING_FLIGHT')
     ORDER BY updated_at DESC
@@ -5731,8 +5736,10 @@ async function lot5InjectAvailable(env,cfg){
   const cards=(await env.OPS_DB.prepare(`
     SELECT * FROM import_job_results
     WHERE parser_mode='GENERIC'
-      AND card_key IS NOT NULL AND card_key<>'' AND card_key<>'NO_LIST' AND card_key<>'OPERATIONAL_INFO'
-      AND status IN ('GENERIC_CARD_READY','GENERIC_MASTER_READY','GENERIC_CARD_OTHER','WAITING_FLIGHT')
+      AND UPPER(airline) NOT IN ('SQ','TK','TW','BJ','VF')
+      AND card_key IS NOT NULL AND card_key<>''
+      AND card_key NOT IN ('NO_LIST','OPERATIONAL_INFO','OTHER')
+      AND status IN ('GENERIC_CARD_READY','GENERIC_MASTER_READY','WAITING_FLIGHT')
     ORDER BY updated_at DESC
     LIMIT ?
   `).bind(cfg.injectBatch).all()).results||[];
