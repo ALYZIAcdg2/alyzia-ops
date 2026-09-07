@@ -6547,7 +6547,14 @@ async function lot5RepairMessageIdentityV533(env,messageId){
   const flightDate=lot5CanonicalFlightDate(detected.flightDate||gm.flight_date||'',gm.received_at||gm.internal_date||'');
   if(!isValidAirlineCodeV53(airline) || !flightNumber.startsWith(airline) || !/^20\d{2}-\d{2}-\d{2}$/.test(flightDate))return {...gm,airline,flight_number:flightNumber,flight_date:flightDate,identityValid:false};
 
-  const changed=airline!==String(gm.airline||'').toUpperCase() || flightNumber!==String(gm.flight_number||'').toUpperCase().replace(/\s+/g,'') || flightDate!==lot5CanonicalFlightDate(gm.flight_date||'',gm.received_at||gm.internal_date||'');
+  // Comparer à la valeur BRUTE stockée, jamais à sa propre canonicalisation :
+  // canonicaliser deux fois "06SEP" donne toujours la même date ISO, donc
+  // comparer flightDate à lot5CanonicalFlightDate(gm.flight_date,...) ne peut
+  // jamais détecter qu'une valeur stockée n'a encore jamais été canonicalisée
+  // (ex. anciens mails IZ stockés "06SEP" avant l'ajout de leur canonicalisation
+  // à l'ingestion) — la réparation se croyait alors "à jour" et ne touchait
+  // jamais import_job_results, empêchant l'injection indéfiniment.
+  const changed=airline!==String(gm.airline||'').toUpperCase() || flightNumber!==String(gm.flight_number||'').toUpperCase().replace(/\s+/g,'') || flightDate!==String(gm.flight_date||'');
   if(changed){
     await env.OPS_DB.prepare(`UPDATE gmail_messages SET airline=?,flight_number=?,flight_date=?,updated_at=CURRENT_TIMESTAMP WHERE gmail_message_id=?`).bind(airline,flightNumber,flightDate,messageId).run();
     // Réparer uniquement les lignes techniques de CE message. Aucun parser n'est modifié.
