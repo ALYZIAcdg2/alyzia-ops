@@ -4088,7 +4088,12 @@ const VF_LIST_CARD_KEYS = {
   OUTBOUND_SUMMARY:"OUTBOUND_SUMMARY",
   SSR:"SSR",
   FQTV:"FQTV",
-  INFANT:"INFANT",
+  // cardKey "INF" (pas "INFANT") : c'est le littéral attendu partout ailleurs
+  // dans le pipeline générique (map de lot3MergeFlightData, switch de
+  // lot3NormalizePassengerForUi, split INFKID...). Avec "INFANT" ici, aucune
+  // de ces branches ne matchait jamais : la carte INF n'était donc jamais
+  // alimentée malgré un document Passenger With Infant bien injecté.
+  INFANT:"INF",
   OUTBOUND_DETAILS:"OUTBOUND",
   INBOUND_DETAILS:"INBOUND",
   CHLD:"CHLD"
