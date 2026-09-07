@@ -4012,11 +4012,23 @@ function lot2IportParsePassengerRow(rawLine,kind){
   const st=tokens.shift()||"";
   let parentName="",infDob="";
   if(kind==="INFANTS"){
-    const n2=lot2IportSplitNameAndRest(tokens.join(" "));
+    const tail=tokens.join(" ");
+    const n2=lot2IportSplitNameAndRest(tail);
     if(n2){
       parentName=n2.name;
       const dobMatch=n2.rest.trim().match(/^(\d{1,2}[A-Z]{3}\d{2,4})/);
       infDob=dobMatch?dobMatch[1]:n2.rest.trim();
+    }else{
+      // Nom du parent tronqué en largeur fixe au point de perdre jusqu'au
+      // séparateur "/" lui-même (ex. "MARCIANOSMA.26JAN26", sans "/" du tout) :
+      // le nom seul ne matche plus lot2IportSplitNameAndRest, mais la date de
+      // naissance en fin de champ reste récupérable. Sans ce repli, tout
+      // (nom du parent ET date) était silencieusement perdu.
+      const dobMatch=tail.match(/(\d{1,2}[A-Z]{3}\d{2,4})\s*$/);
+      if(dobMatch){
+        infDob=dobMatch[1];
+        parentName=tail.slice(0,dobMatch.index).replace(/\.$/,"").trim();
+      }
     }
     tokens.length=0;
   }
