@@ -1823,6 +1823,42 @@ async function lot5RepaintCleanLabelColorsV1(env){
   return {ok:true,total:all.length,updated,unchanged,skipped,errors};
 }
 
+/*
+ * Certains mails portent PLUSIEURS étiquettes de statut à la fois (ex.
+ * ALYZIA/3O/MAIL TRAITÉ ET ALYZIA/3O/FICHE VOL OK simultanément, ou même
+ * un mail ambigu étiqueté FICHE VOL OK pour une dizaine de compagnies
+ * différentes en même temps). Cause : setGmailPipelineState() ne recolle
+ * les étiquettes (ajout + retrait de toutes les autres) QUE lorsqu'un mail
+ * change réellement de statut ("transition"). Un mail resté au même statut
+ * depuis une ancienne version du code — d'avant que ce nettoyage n'existe,
+ * ou d'avant une re-détection de compagnie — garde donc pour toujours les
+ * étiquettes périmées d'alors, jamais retirées depuis.
+ *
+ * Ce passage force le réalignement : pour chaque mail, réapplique son statut
+ * ACTUEL en base (sans le recalculer), ce qui déclenche le nettoyage complet
+ * de setGmailPipelineState() même si le statut ne "change" pas. N'affecte ni
+ * les fiches de vol, ni le code des parseurs — uniquement les étiquettes.
+ */
+async function lot5ForceRelabelAllV1(env,limit=1500){
+  await ensureGmailPipelineTables(env);
+  const rows=(await env.OPS_DB.prepare(`
+    SELECT gmail_message_id,status FROM gmail_messages
+    WHERE status<>'IGNORED_NON_OPERATIONAL' AND status<>''
+    ORDER BY updated_at DESC LIMIT ?
+  `).bind(Math.max(1,Math.min(3000,Number(limit||1500)))).all()).results||[];
+  let relabeled=0,skipped=0,errors=0;
+  for(const r of rows){
+    const messageId=String(r.gmail_message_id||'');
+    const status=String(r.status||'').toUpperCase();
+    if(!messageId || !GMAIL_PIPELINE_STATE_KEYS.has(status)){skipped++;continue}
+    try{
+      await setGmailPipelineState(env,messageId,status,{archive:status!=='RECEIVED'});
+      relabeled++;
+    }catch(e){errors++;}
+  }
+  return {ok:true,checked:rows.length,relabeled,skipped,errors};
+}
+
 function extractHeader(message,name){
   const wanted=String(name||'').toLowerCase();
   const headers=Array.isArray(message?.payload?.headers)?message.payload.headers:[];
@@ -8838,6 +8874,14 @@ async function handleLot5(request,env,url){
       // Recolore les labels Gmail ALYZIA/* déjà créés selon CLEAN_LABEL_COLORS
       // (changer la constante seule ne touche que les FUTURS labels créés).
       return json(await lot5RepaintCleanLabelColorsV1(env));
+    }
+    if(url.pathname==='/api/autopilot/force-relabel'&&(request.method==='POST'||request.method==='GET')){
+      // Corrige les mails avec plusieurs étiquettes de statut à la fois
+      // (ex. MAIL TRAITÉ + FICHE VOL OK simultanément) en réappliquant le
+      // statut actuel de chaque mail, ce qui force le retrait de toute
+      // étiquette périmée.
+      const body=request.method==='POST'?await request.json().catch(()=>({})):null;
+      return json(await lot5ForceRelabelAllV1(env,Number(body?.limit||url.searchParams.get('limit')||1500)));
     }
     if(url.pathname==='/api/autopilot/repair-identities'&&request.method==='POST'){
       const body=await request.json().catch(()=>({}));
