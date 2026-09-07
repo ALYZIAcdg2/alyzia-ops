@@ -17387,6 +17387,11 @@ function openBooked(sort='name',classFilter='ALL',groupFilter='ALL',dir='asc'){
    );
  }else if(sort==='seat'){
    items.sort((a,b)=>String(a.seat||'').localeCompare(String(b.seat||''),undefined,{numeric:true})*sign);
+ }else if(sort==='group'){
+   items.sort((a,b)=>
+     (String(a.groupCode||'').localeCompare(String(b.groupCode||''),undefined,{numeric:true}) ||
+     String(passengerDisplayName(a)).localeCompare(String(passengerDisplayName(b))))*sign
+   );
  }else{
    items.sort((a,b)=>String(passengerDisplayName(a)).localeCompare(String(passengerDisplayName(b)))*sign);
  }
@@ -17396,6 +17401,7 @@ function openBooked(sort='name',classFilter='ALL',groupFilter='ALL',dir='asc'){
    <button class="${sort==='class'?'active':''}" onclick="openBooked('class','${classFilter}','${groupFilter}','${next('class')}')">CLASSE${sortArrow(sort==='class',dir)}</button>
    <button class="${sort==='seat'?'active':''}" onclick="openBooked('seat','${classFilter}','${groupFilter}','${next('seat')}')">SIÈGE${sortArrow(sort==='seat',dir)}</button>
    <button class="${sort==='name'?'active':''}" onclick="openBooked('name','${classFilter}','${groupFilter}','${next('name')}')">NOM${sortArrow(sort==='name',dir)}</button>
+   <button class="${sort==='group'?'active':''}" onclick="openBooked('group','${classFilter}','${groupFilter}','${next('group')}')">CODE GROUPE${sortArrow(sort==='group',dir)}</button>
  </div>`;
 
  const filters=`<div class="booked-class-filter">
@@ -24012,7 +24018,7 @@ try{
 /* Explicit modal column models. */
 .paxlist.b134-booked .paxlist-head,
 .paxlist.b134-booked .paxrow{
-  grid-template-columns:minmax(280px,1fr) 115px 100px!important;
+  grid-template-columns:minmax(280px,1fr) 115px 100px minmax(140px,.7fr)!important;
 }
 .paxlist.b134-card .paxlist-head,
 .paxlist.b134-card .paxrow,
@@ -24032,8 +24038,6 @@ try{
 }
 
 @media(max-width:620px){
-  .paxlist.b134-booked .paxlist-head,
-  .paxlist.b134-booked .paxrow,
   .paxlist.b134-card .paxlist-head,
   .paxlist.b134-card .paxrow,
   .paxlist.b134-doc .paxlist-head,
@@ -24045,6 +24049,12 @@ try{
   .paxlist.b134-doc .paxlist-head span:nth-child(4),
   .paxlist.b134-doc .paxrow>*:nth-child(4){
     display:none!important;
+  }
+  /* CODE GROUPE reste visible sur mobile (demande explicite) : colonnes
+     resserrées plutôt que masquées comme pour les autres listes. */
+  .paxlist.b134-booked .paxlist-head,
+  .paxlist.b134-booked .paxrow{
+    grid-template-columns:minmax(0,1fr) 46px 40px 56px!important;
   }
 }
 </style>
@@ -24199,7 +24209,7 @@ try{
     const rows=list.map((p,i)=>{
       const nm=typeof passengerDisplayName==='function'?passengerDisplayName(p):(p.name||'PASSAGER');
       const base=`<strong>${H(nm)}</strong><span class="seat">${H(p.seat||'—')}</span><span class="class-cell">${H(p.class||'—')}</span>`;
-      if(mode==='BOOKED')return `<button class="paxrow" onclick="openPaxFromModal(${i})">${base}</button>`;
+      if(mode==='BOOKED')return `<button class="paxrow" onclick="openPaxFromModal(${i})">${base}<span class="specific">${H(p.groupCode||'—')}</span></button>`;
       if(mode==='ETK')return `<button class="paxrow" onclick="openPaxFromModal(${i})">${base}<span class="specific">${H(p.etkt||'—')}</span></button>`;
       if(mode==='EMD')return `<button class="paxrow" onclick="openPaxFromModal(${i})">${base}<span class="specific">${H(p.emd||'—')}</span></button>`;
       const info=[ssrText(p),cleanSpecific(p)].filter(Boolean).join(' · ')||'—';
@@ -24209,7 +24219,7 @@ try{
     let cls='b134-card',head='';
     if(mode==='BOOKED'){
       cls='b134-booked';
-      head='<div class="paxlist-head"><span>NOM / PRÉNOM</span><span>SIÈGE</span><span>CLASSE</span></div>';
+      head='<div class="paxlist-head"><span>NOM / PRÉNOM</span><span>SIÈGE</span><span>CLASSE</span><span>CODE GROUPE</span></div>';
     }else if(mode==='ETK'){
       cls='b134-doc';
       head='<div class="paxlist-head"><span>NOM / PRÉNOM</span><span>SIÈGE</span><span>CLASSE</span><span>ETKT</span></div>';
