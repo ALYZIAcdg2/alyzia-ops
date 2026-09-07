@@ -4969,7 +4969,11 @@ function lot3BuildImportCard(row){
       versionId:String(row.version_id||""),
       injectedAt:new Date().toISOString()
     },
-    passengers:Array.isArray(result.passengerItems)?result.passengerItems:[],
+    // "passengers" et "passengerItems" étaient historiquement dupliqués à
+    // l'identique dans la fiche vol JSON alors que seul passengerItems est
+    // jamais relu : sur un vol à gros volume (ex. VF avec MASTER 250+/ETKT
+    // 240+ passagers), ce doublon fait dépasser la limite de taille D1
+    // (SQLITE_TOOBIG) et bloque l'injection de TOUTES les cartes du vol.
     passengerItems:Array.isArray(result.passengerItems)?result.passengerItems:[],
     connectionRows:Array.isArray(result.connectionRows)?result.connectionRows:[],
     fqtvCategories:result.fqtvCategories||{},
