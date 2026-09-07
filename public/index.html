@@ -23565,7 +23565,6 @@ try{
     if(cleanToken(x.specific)==='')x.specific='';
     if(/^\d{10,}/.test(String(x.note||'')) || /\b(MASTER|TKNE)\b/i.test(String(x.note||'')))x.note='';
     delete x.document;
-    delete x.groupCode; // inutile pour générique
     return x;
   }
   function mergePax(a,b){
