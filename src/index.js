@@ -6493,6 +6493,18 @@ async function lot5SpecificFlightAlreadyBuilt(env,airline,flightNumber,flightDat
   }catch(e){return false}
 }
 
+// Un document déjà réellement injecté (import_job_results.status='INJECTED') ne doit
+// plus être bloqué en RECEIVED par un archivage Drive encore en cours : Drive est une
+// sauvegarde, pas une condition d'existence de la fiche vol.
+async function lot5MessageHasInjectedResultV53(env,messageId){
+  const row=await env.OPS_DB.prepare(`
+    SELECT COUNT(*) AS n FROM import_job_results r
+    JOIN import_jobs j ON j.job_id=r.job_id
+    WHERE j.gmail_message_id=? AND UPPER(r.status)='INJECTED'
+  `).bind(messageId).first().catch(()=>null);
+  return Number(row?.n||0)>0;
+}
+
 async function lot5ReconcileOneGmailStateV53(env,messageId){
   let gm=await env.OPS_DB.prepare(`SELECT status,airline,flight_number,flight_date,subject,snippet,received_at,internal_date FROM gmail_messages WHERE gmail_message_id=? LIMIT 1`).bind(messageId).first();
   if(!gm)return {messageId,state:"MISSING"};
@@ -6511,12 +6523,16 @@ async function lot5ReconcileOneGmailStateV53(env,messageId){
 
   // 5.3.3 : un mail ne peut pas être déclaré IMPORTÉ tant que ses versions distinctes
   // ne sont pas réellement archivées dans Drive (si Drive est actif et connecté).
+  // Mais si le document a déjà été réellement injecté dans une fiche vol, ce n'est
+  // qu'une sauvegarde en retard, pas une raison de garder le mail en MAIL TRAITÉ :
+  // même logique que pour les compagnies verrouillées (le label doit refléter la
+  // fiche vol réelle, pas un archivage Drive encore en cours).
   const cfg=lot5Config(env);
   if(cfg.driveEnabled){
     const ds=await googleDriveStatus(env).catch(()=>({configured:false}));
     if(ds?.configured){
       const cov=await lot5DriveCoverageForMessageV533(env,messageId);
-      if(cov.total>0 && !cov.complete){
+      if(cov.total>0 && !cov.complete && !(await lot5MessageHasInjectedResultV53(env,messageId))){
         await transition("RECEIVED");
         return {messageId,state:"RECEIVED",drivePending:true,driveCoverage:cov};
       }
