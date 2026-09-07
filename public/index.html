@@ -14459,6 +14459,10 @@ function syncCompanyConfigFromFlights(records){
  }
 
  if(!latest?.bundle)return false;
+ // Ne jamais écraser une sauvegarde locale plus récente par une lecture cloud
+ // encore périmée (le temps que le POST se propage) : sinon le polling toutes
+ // les 1.5s peut annuler un ENREGISTRER de CONFIG COMPAGNIE presque aussitôt.
+ if(latest.ts && COMPANY_CONFIG_LOCAL_SAVE_TS && latest.ts<COMPANY_CONFIG_LOCAL_SAVE_TS)return false;
  try{
    const incoming=latest.bundle;
    Object.keys(COMPANY_CONFIG_DEFAULT).forEach(a=>{
@@ -14472,6 +14476,7 @@ function syncCompanyConfigFromFlights(records){
 }
 
 async function publishCompanyConfigToCloud(){
+ beginOpsCloudWrite();
  try{
    const record=companyConfigSystemRecord();
    const ok=await upsertFlightToCloud(record);
@@ -14482,6 +14487,8 @@ async function publishCompanyConfigToCloud(){
  }catch(e){
    console.warn('CONFIG COMPAGNIE CLOUD',e);
    return false;
+ }finally{
+   endOpsCloudWrite();
  }
 }
 
@@ -14773,8 +14780,16 @@ function loadCompanyConfig(){
  }
 }
 let COMPANY_CONFIG=loadCompanyConfig();
+// V50.33 — Horodatage de la dernière sauvegarde LOCALE de COMPANY_CONFIG :
+// silentCloudRefresh() interroge le cloud toutes les 1.5s. Sans ce garde-fou,
+// un ENREGISTRER dans CONFIG COMPAGNIE pouvait être immédiatement écrasé par
+// le tick suivant si le GET cloud renvoyait encore l'ancienne version (le
+// temps que le POST de publishCompanyConfigToCloud() se propage) : la carte
+// se décochait bien un instant, puis revenait aussitôt à l'état d'avant.
+let COMPANY_CONFIG_LOCAL_SAVE_TS=0;
 
 function saveCompanyConfig(){
+ COMPANY_CONFIG_LOCAL_SAVE_TS=Date.now();
  try{localStorage.setItem(COMPANY_CONFIG_KEY,JSON.stringify(COMPANY_CONFIG))}catch(e){}
 }
 
