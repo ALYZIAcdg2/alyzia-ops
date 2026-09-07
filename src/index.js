@@ -4092,6 +4092,14 @@ const VF_LIST_CARD_KEYS = {
   INBOUND_DETAILS:"INBOUND"
 };
 
+/*
+ * Codes SSR "repas" repérés dans la vraie liste SSR VF (confirmés un par un,
+ * pas de convention IATA fiable ici : BNDL/CPDR/DSML/EBML ne se ressemblent
+ * pas et ne finissent pas tous en "ML"). Liste à étendre au fur et à mesure
+ * que d'autres codes repas sont identifiés dans de vrais documents.
+ */
+const VF_MEAL_SSR_CODES=new Set(["BNDL","CPDR","DSML","EBML"]);
+
 const VF_HEADER_WORDS = new Set([
   "NO","SURNAME","NAME","GC","PNR","STATUS","OWNER","TICKET","FLIGHT",
   "FROM","TO","INV","VOL","DOS","CC","SEAT","SEQ","BAG","DIFF","STS",
@@ -5735,6 +5743,19 @@ function lot3MergeFlightData(current,row,card){
         passengerItems:cbagItems,
         passengers:cbagItems,
         passengerCount:cbagItems.length,
+        connectionRows:[]
+      });
+    }
+    // Repas (BNDL/CPDR/DSML/EBML...) : même principe que CBAG ci-dessus.
+    const mealItems=card.passengerItems.filter(p=>Array.isArray(p.ssr)&&p.ssr.some(s=>VF_MEAL_SSR_CODES.has(s)));
+    if(mealItems.length){
+      base=lot3MergeFlightData(base,row,{
+        ...card,
+        cardKey:"MEAL",
+        label:"MEAL",
+        passengerItems:mealItems,
+        passengers:mealItems,
+        passengerCount:mealItems.length,
         connectionRows:[]
       });
     }
