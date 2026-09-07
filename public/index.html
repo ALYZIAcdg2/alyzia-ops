@@ -5228,7 +5228,7 @@ html,body{
  margin:8px 0 12px;padding:9px;border:1px solid #d9e5f0;
  border-radius:10px;background:#f8fbff
 }
-.booked-group-filter>span{
+.booked-group-filter>span,.booked-group-filter>label{
  font-size:10px;font-weight:950;color:#5e748a;margin-right:3px
 }
 .booked-group-filter button{
@@ -5237,6 +5237,11 @@ html,body{
 }
 .booked-group-filter button.active{
  background:#0b6fe8;color:#fff;border-color:#0b6fe8
+}
+.booked-group-filter select{
+ min-height:32px;padding:5px 8px;border:1px solid #bfd2e5;
+ border-radius:8px;background:#fff;color:#17324f;font-weight:900;font-size:11px;
+ flex:1;min-width:140px;max-width:260px
 }
 
 /* OUTBOUND must remain operationally prominent */
@@ -17412,11 +17417,21 @@ function openBooked(sort='name',classFilter='ALL',groupFilter='ALL',dir='asc'){
      </button>`).join('')}
  </div>`;
 
- const groupCodes=[...new Set((x.passengers||[]).map(p=>String(p.groupCode||'').toUpperCase()).filter(Boolean))].sort();
+ const groupCodeCounts={};
+ (x.passengers||[]).forEach(p=>{
+   const g=String(p.groupCode||'').toUpperCase();
+   if(g)groupCodeCounts[g]=(groupCodeCounts[g]||0)+1;
+ });
+ const groupCodes=Object.keys(groupCodeCounts).sort();
+ // Trop de codes groupe pour des boutons (vol volumineux) : une seule liste
+ // déroulante compacte plutôt qu'une rangée de boutons qui prend toute la
+ // largeur de l'écran.
  const groupFilters=groupCodes.length?`<div class="booked-group-filter">
-   <span>CODE GROUPE</span>
-   <button class="${groupFilter==='ALL'?'active':''}" onclick="openBooked('${sort}','${classFilter}','ALL','${dir}')">TOUS</button>
-   ${groupCodes.map(g=>`<button class="${groupFilter===g?'active':''}" onclick="openBooked('${sort}','${classFilter}','${g}','${dir}')">${g}</button>`).join('')}
+   <label for="bookedGroupSelect">CODE GROUPE</label>
+   <select id="bookedGroupSelect" onchange="openBooked('${sort}','${classFilter}',this.value,'${dir}')">
+     <option value="ALL"${groupFilter==='ALL'?' selected':''}>TOUS (${groupCodes.length} codes)</option>
+     ${groupCodes.map(g=>`<option value="${g}"${groupFilter===g?' selected':''}>${g} (${groupCodeCounts[g]})</option>`).join('')}
+   </select>
  </div>`:'';
 
  const count=items.length;
