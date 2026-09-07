@@ -2892,6 +2892,39 @@ async function storeGmailMessage(env,messageId){
   return {status:finalStatus,messageId,attachments:parts.length,virtualText,nestedEml,added,updated,duplicate,error,replaying,flightBase};
 }
 
+/*
+ * gmailSyncNow() ne retraite jamais un mail déjà connu en IGNORED_NON_OPERATIONAL
+ * (garde "safelyKnown", volontaire pour ne pas re-télécharger en boucle). Si un
+ * mail a été classé non opérationnel par une VERSION ANTÉRIEURE du code puis que
+ * le code a changé depuis (ex. ajout du support IZ/TB), il reste ignoré pour
+ * toujours : aucun sync ultérieur ne le réévalue. Cette fonction force la
+ * réévaluation de storeGmailMessage() pour les mails actuellement ignorés qui
+ * correspondent au filtre, sans attendre un nouveau mail.
+ */
+async function lot5ReclassifyIgnoredV1(env,{airlineHint='',subjectLike='',limit=20}={}){
+  await ensureGmailPipelineTables(env);
+  const wh=["status='IGNORED_NON_OPERATIONAL'"];
+  const binds=[];
+  if(subjectLike){wh.push("subject LIKE ?");binds.push(`%${subjectLike}%`)}
+  if(airlineHint){wh.push("UPPER(airline)=?");binds.push(String(airlineHint).toUpperCase())}
+  binds.push(Math.max(1,Math.min(50,Number(limit||20))));
+  const rows=(await env.OPS_DB.prepare(`
+    SELECT gmail_message_id FROM gmail_messages
+    WHERE ${wh.join(" AND ")}
+    ORDER BY updated_at DESC LIMIT ?
+  `).bind(...binds).all()).results||[];
+  let reclassified=0,stillIgnored=0; const errors=[]; const results=[];
+  for(const row of rows){
+    const messageId=String(row.gmail_message_id||''); if(!messageId)continue;
+    try{
+      const r=await storeGmailMessage(env,messageId);
+      results.push({messageId,status:r?.status});
+      if(r?.status && r.status!=='IGNORED_NON_OPERATIONAL')reclassified++; else stillIgnored++;
+    }catch(e){errors.push({messageId,error:String(e?.message||e)})}
+  }
+  return {ok:errors.length===0,checked:rows.length,reclassified,stillIgnored,errors,results};
+}
+
 async function gmailSyncNow(env,body){
   await ensureGmailPipelineTables(env);
   const query=String(body?.query||"in:anywhere").trim();
@@ -8917,6 +8950,17 @@ async function handleLot5(request,env,url){
       // Recolore les labels Gmail ALYZIA/* déjà créés selon CLEAN_LABEL_COLORS
       // (changer la constante seule ne touche que les FUTURS labels créés).
       return json(await lot5RepaintCleanLabelColorsV1(env));
+    }
+    if(url.pathname==='/api/autopilot/reclassify-ignored'&&(request.method==='POST'||request.method==='GET')){
+      // Réévalue les mails marqués IGNORED_NON_OPERATIONAL par une version
+      // antérieure du code (ex. IZ/TB avant l'ajout du support iPort) : un
+      // sync normal ne les retouche jamais tant qu'ils restent dans cet état.
+      const body=request.method==='POST'?await request.json().catch(()=>({})):null;
+      return json(await lot5ReclassifyIgnoredV1(env,{
+        airlineHint:body?.airline||url.searchParams.get('airline')||'',
+        subjectLike:body?.subjectLike||url.searchParams.get('subjectLike')||'',
+        limit:Number(body?.limit||url.searchParams.get('limit')||20)
+      }));
     }
     if(url.pathname==='/api/autopilot/force-relabel'&&(request.method==='POST'||request.method==='GET')){
       // Corrige les mails avec plusieurs étiquettes de statut à la fois
