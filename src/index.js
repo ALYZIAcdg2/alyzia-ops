@@ -8750,9 +8750,11 @@ async function handleLot5(request,env,url){
       const body=await request.json().catch(()=>({}));
       return json(await lot5ReconcileCanonicalStatusesR4(env,Number(body?.limit||2000)));
     }
-    if(url.pathname==='/api/autopilot/reconcile-labels'&&request.method==='POST'){
-      const body=await request.json().catch(()=>({}));
-      const result=await lot5ReconcileGmailStatesV53(env,Number(body?.limit||1500));
+    if(url.pathname==='/api/autopilot/reconcile-labels'&&(request.method==='POST'||request.method==='GET')){
+      // GET accepté (comme requeue-airline/reset-flight-lists) pour un lien cliquable
+      // depuis un téléphone, sans devoir passer par le cron (toutes les 5 min).
+      const body=request.method==='POST'?await request.json().catch(()=>({})):null;
+      const result=await lot5ReconcileGmailStatesV53(env,Number(body?.limit||url.searchParams.get('limit')||1500));
       const synced=await lot5SyncPrepaInboxRecent(env);
       return json({ok:result.ok,result,prepaSynced:synced});
     }
