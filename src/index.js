@@ -7348,6 +7348,12 @@ async function lot5AutoPilotRun(env,{triggerType='MANUAL',gmailQuery='',gmailMax
     details.genericMappingReplay=await lot5RequeueNewGenericMappings(env,500);
     await lot5CheckpointV534(env,'GENERIC_MAPPING_REPLAY');
 
+    // Auto-guérison : un mail classé IGNORED_NON_OPERATIONAL par une ancienne
+    // version du code ne serait sinon jamais réévalué automatiquement.
+    // Lot volontairement petit pour ne jamais peser sur le cycle de 5 minutes.
+    details.reclassifyIgnored=await lot5ReclassifyIgnoredV1(env,{limit:10}).catch(e=>({ok:false,error:String(e?.message||e)}));
+    await lot5CheckpointV534(env,'RECLASSIFY_IGNORED');
+
     // Priorité opérationnelle : une rafale d'uploads Drive ne doit jamais
     // empêcher le même cycle d'atteindre parsing puis injection D1.
     const driveBefore={ok:true,skipped:true,reason:'DEFERRED_UNTIL_AFTER_INJECTION',uploaded:0,errors:[]};
