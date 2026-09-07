@@ -5568,8 +5568,16 @@ function lot3MergeFlightData(current,row,card){
     const count=Number(card.passengerCount||0);
     if(count>0)base.common[existingKey]=Math.max(Number(base.common[existingKey]||0),count);
     if(Array.isArray(card.passengerItems)&&card.passengerItems.length){
-      const old=Array.isArray(base.common_lists[existingKey])?base.common_lists[existingKey]:[];
-      const seen=new Set(old.map(p=>[p.name,p.seat,p.class,p.specific,p.note].map(x=>String(x||"").toUpperCase()).join("|")));
+      /*
+       * Upsert par IDENTITÉ passager (ETKT/PNR+nom/...), jamais par contenu.
+       * L'ancien code dédupliquait sur [name,seat,class,specific,note] : dès
+       * qu'un correctif changeait specific/note pour un passager déjà présent,
+       * la clé changeait et une DEUXIÈME entrée était ajoutée au lieu de
+       * remplacer l'ancienne (corrompue) — un simple rejeu ne pouvait donc
+       * jamais corriger des données déjà injectées, seulement en empiler
+       * une copie corrigée à côté de l'ancienne toujours affichée.
+       */
+      const list=Array.isArray(base.common_lists[existingKey])?base.common_lists[existingKey].slice():[];
       for(const p0 of card.passengerItems){
         const p=lot3NormalizePassengerForUi(p0,card);
         const masterIdx=lot3FindPassengerIndex(base.passengers||[],p,base.airline);
@@ -5587,10 +5595,11 @@ function lot3MergeFlightData(current,row,card){
          * (ETKT, code groupe...), jamais à écraser l'identité de la carte.
          */
         const merged=master?lot3MergePassengerInfo(p,master):p;
-        const key=[merged.name,merged.seat,merged.class,merged.specific,merged.note].map(x=>String(x||"").toUpperCase()).join("|");
-        if(!seen.has(key)){old.push(merged);seen.add(key);}
+        const idx=lot3FindPassengerIndex(list,merged,base.airline);
+        if(idx>=0)list[idx]=merged;
+        else list.push(merged);
       }
-      base.common_lists[existingKey]=old;
+      base.common_lists[existingKey]=list;
     }
   }
 
@@ -8743,6 +8752,36 @@ async function handleLot5(request,env,url){
       // une page publiée ne peut donc jamais appeler cette route lui-même.
       const body=request.method==='POST'?await request.json().catch(()=>({})):null;
       return json(await lot5RequeueAirlineJobsV54(env,body?.airline||url.searchParams.get('airline')||''));
+    }
+    if(url.pathname==='/api/autopilot/reset-flight-lists'&&(request.method==='POST'||request.method==='GET')){
+      /*
+       * Avant le correctif d'upsert par identité (voir lot3MergeFlightData),
+       * les entrées de common_lists se dédupliquaient par CONTENU, pas par
+       * passager : un correctif changeant note/specific pour un passager déjà
+       * injecté ajoutait une copie corrigée à côté de l'ancienne au lieu de la
+       * remplacer, et un simple rejeu (requeue-airline) ne pouvait donc pas
+       * nettoyer des données déjà corrompues en base. Cet endpoint vide
+       * common/common_lists/imports.cards d'une fiche vol précise (elle sera
+       * intégralement reconstruite au prochain requeue) sans toucher au
+       * dossier passager consolidé (base.passengers) ni aux jobs source.
+       */
+      const body=request.method==='POST'?await request.json().catch(()=>({})):null;
+      const airline=String(body?.airline||url.searchParams.get('airline')||'').trim().toUpperCase();
+      const flightNumber=String(body?.flightNumber||url.searchParams.get('flightNumber')||'').trim().toUpperCase();
+      const flightDate=String(body?.flightDate||url.searchParams.get('flightDate')||'').trim();
+      if(!airline||!flightNumber||!flightDate)return json({ok:false,error:'PARAMÈTRES MANQUANTS (airline, flightNumber, flightDate=AAAA-MM-JJ)'},400);
+      const identity=[flightDate,airline,flightNumber].join('|');
+      const row=await env.OPS_DB.prepare(`SELECT data_json FROM flights WHERE identity=? LIMIT 1`).bind(identity).first();
+      if(!row)return json({ok:false,error:'VOL INTROUVABLE',identity},404);
+      const x=JSON.parse(row.data_json||'{}');
+      const before={common:{...(x.common||{})},commonListsKeys:Object.keys(x.common_lists||{})};
+      x.common={};
+      x.common_lists={};
+      if(x.imports&&typeof x.imports==='object')x.imports.cards={};
+      x.inbound=[];
+      x.outbound=[];
+      await upsertFlight(env,x);
+      return json({ok:true,identity,before,message:'Cartes dérivées vidées — recliquer sur requeue-airline pour les reconstruire avec le code à jour.'});
     }
     if(url.pathname==='/api/autopilot/stop'&&request.method==='POST'){
       const active=await env.OPS_DB.prepare(`SELECT run_id FROM lot5_autopilot_runs WHERE status='RUNNING' ORDER BY started_at DESC LIMIT 1`).first();
