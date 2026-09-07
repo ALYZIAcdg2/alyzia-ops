@@ -23175,7 +23175,8 @@ try{
       MAAS:'MAAS',
       INAD:'INAD',
       DEPA:'DEPA',
-      DEPU:'DEPU'
+      DEPU:'DEPU',
+      CBAG:'CBAG'
     };
 
     Object.keys(map).forEach(cardKey=>{
@@ -23201,7 +23202,7 @@ try{
 
   function v5023GenericImportedKeys(x){
     v5023ApplyImportedToExistingModel(x);
-    const keys=['INF','CHLD','WCH','INAD','DEPA','DEPU','FQTV','STAFF','EMD','ETK','MEAL','UMNR','MAAS'];
+    const keys=['INF','CHLD','WCH','INAD','DEPA','DEPU','FQTV','STAFF','EMD','ETK','CBAG','MEAL','UMNR','MAAS'];
     return keys.filter(k=>{
       const n=v5023Num(x?.common?.[k]);
       const list=Array.isArray(x?.common_lists?.[k])?x.common_lists[k]:[];
