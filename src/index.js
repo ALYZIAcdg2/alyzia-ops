@@ -1852,6 +1852,7 @@ async function lot5ForceRelabelAllV1(env,limit=40){
     ORDER BY updated_at DESC LIMIT ?
   `).bind(Math.max(1,Math.min(200,Number(limit||40)))).all()).results||[];
   let relabeled=0,skipped=0,errors=0;
+  const sampleErrors=[];
   for(const r of rows){
     const messageId=String(r.gmail_message_id||'');
     const status=String(r.status||'').toUpperCase();
@@ -1859,9 +1860,12 @@ async function lot5ForceRelabelAllV1(env,limit=40){
     try{
       await setGmailPipelineState(env,messageId,status,{archive:status!=='RECEIVED'});
       relabeled++;
-    }catch(e){errors++;}
+    }catch(e){
+      errors++;
+      if(sampleErrors.length<5)sampleErrors.push({messageId,status,error:String(e?.message||e)});
+    }
   }
-  return {ok:true,checked:rows.length,relabeled,skipped,errors};
+  return {ok:true,checked:rows.length,relabeled,skipped,errors,sampleErrors};
 }
 
 function extractHeader(message,name){
