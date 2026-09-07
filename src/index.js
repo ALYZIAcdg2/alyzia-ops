@@ -7025,14 +7025,20 @@ async function lot5RequeueAirlineJobsV54(env,airline){
 }
 
 /*
- * Reset "à zéro" du traitement, toutes compagnies génériques confondues, en un
- * seul appel — sans toucher au code des parseurs. Les compagnies encore
- * verrouillées (SQ/TK/BJ/TW) sont automatiquement exclues, comme le refuse déjà
- * lot5RequeueAirlineJobsV54 pour un appel individuel : "on ne les traite pas
- * pour le moment" est donc déjà le comportement par défaut. Ne touche pas aux
- * fiches de vol déjà construites (x.common/x.passengers) : seul le statut de
- * traitement (import_jobs + étiquette Gmail) repart de zéro, pour repasser
- * proprement par tout le pipeline corrigé cette session.
+ * Reset "à zéro" du traitement, TOUTES compagnies confondues (génériques +
+ * verrouillées), en un seul appel — sans toucher au code des parseurs.
+ *
+ * - Compagnies génériques (VF, 3O...) : import_jobs repart en QUEUED (comme
+ *   lot5RequeueAirlineJobsV54 individuellement) + statut Gmail à RECEIVED.
+ * - Compagnies verrouillées (SQ/TK/BJ/TW) : le Worker ne les parse jamais
+ *   lui-même, il n'y a donc pas de import_jobs serveur à requeue pour elles ;
+ *   seul le statut Gmail repart à RECEIVED, pour qu'elles soient réévaluées
+ *   au prochain reconcile — celles déjà réellement injectées retombent tout
+ *   de suite en VALIDÉ (voir lot5SpecificFlightAlreadyBuilt), les autres
+ *   restent en attente comme avant (comportement SQ inchangé, juste un vrai
+ *   redémarrage à zéro de l'étiquette).
+ *
+ * Ne touche pas aux fiches de vol déjà construites (x.common/x.passengers).
  */
 async function lot5RequeueAllGenericAirlinesV54(env){
   await ensureImportProcessorTables(env);
@@ -7046,7 +7052,17 @@ async function lot5RequeueAllGenericAirlinesV54(env){
     if(r.ok)totalRequeued+=Number(r.requeued||0);
   }
   const skipped=[...new Set(rows.map(r=>String(r.a||'')))].filter(a=>a && LOT2_SPECIFIC_AIRLINES.has(a));
-  return {ok:true,airlinesRequeued:airlines,skippedLocked:skipped,totalRequeued,perAirline};
+
+  const lockedReset=[];
+  for(const a of LOT2_SPECIFIC_AIRLINES){
+    const r=await env.OPS_DB.prepare(`
+      UPDATE gmail_messages SET status='RECEIVED',updated_at=CURRENT_TIMESTAMP
+      WHERE UPPER(airline)=? AND status<>'IGNORED_NON_OPERATIONAL'
+    `).bind(a).run().catch(()=>null);
+    lockedReset.push({airline:a,gmailStatusReset:Number(r?.meta?.changes||0)});
+  }
+
+  return {ok:true,airlinesRequeued:airlines,totalRequeued,perAirline,lockedAirlinesGmailStatusReset:lockedReset};
 }
 
 /*
@@ -8910,9 +8926,11 @@ async function handleLot5(request,env,url){
       return json(await lot5RequeueAirlineJobsV54(env,body?.airline||url.searchParams.get('airline')||''));
     }
     if(url.pathname==='/api/autopilot/requeue-all'&&(request.method==='POST'||request.method==='GET')){
-      // Reset "à zéro" du traitement pour toutes les compagnies génériques en un
-      // clic (SQ/TK/BJ/TW automatiquement exclues, verrouillées). Ne touche pas
-      // aux fiches de vol déjà construites, seulement au statut de traitement.
+      // Reset "à zéro" du traitement pour TOUTES les compagnies en un clic :
+      // requeue complet (import_jobs + étiquette) pour les génériques, et
+      // remise à RECEIVED de l'étiquette Gmail pour les verrouillées (SQ/TK/
+      // BJ/TW n'ont pas de import_jobs serveur à requeue). Ne touche pas aux
+      // fiches de vol déjà construites, ni au code des parseurs.
       return json(await lot5RequeueAllGenericAirlinesV54(env));
     }
     if(url.pathname==='/api/autopilot/reset-flight-lists'&&(request.method==='POST'||request.method==='GET')){
