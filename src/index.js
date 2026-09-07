@@ -5426,7 +5426,7 @@ function lot3UpsertPassengers(base,card){
 }
 
 function lot3MergeFlightData(current,row,card){
-  const base=lot3SanitizeFlightGeneric(current && typeof current==="object"?{...current}:{});
+  let base=lot3SanitizeFlightGeneric(current && typeof current==="object"?{...current}:{});
   const identity=lot3IdentityFromRow(row);
 
   base.date=base.date || String(row.flight_date||"");
@@ -5529,7 +5529,7 @@ function lot3MergeFlightData(current,row,card){
     });
   }
 
-  const map={WCH:"WCH",CHLD:"CHLD",INF:"INF",EMD:"EMD",ETKT:"ETK",FQTV:"FQTV",STAFF:"STAFF",MEAL:"MEAL",UMNR:"UMNR",MAAS:"MAAS",INAD:"INAD",DEPA:"DEPA",DEPU:"DEPU"};
+  const map={WCH:"WCH",CHLD:"CHLD",INF:"INF",EMD:"EMD",ETKT:"ETK",FQTV:"FQTV",STAFF:"STAFF",MEAL:"MEAL",UMNR:"UMNR",MAAS:"MAAS",INAD:"INAD",DEPA:"DEPA",DEPU:"DEPU",CBAG:"CBAG"};
   const existingKey=map[String(card.cardKey||"").toUpperCase()];
   if(existingKey){
     const count=Number(card.passengerCount||0);
@@ -5712,6 +5712,34 @@ function lot3MergeFlightData(current,row,card){
   }
 
   base.imports=imports;
+
+  /*
+   * VF SSR List : CBAG n'y est qu'une simple mention par passager
+   * ("CBAG : CBAG- 8KG CAB"), sans carte dédiée. On en extrait une carte
+   * CBAG à la volée (même mécanisme que CONNECTIONS ci-dessus), qui passe
+   * ensuite par le "map" générique déjà en place pour WCH/MEAL/etc.
+   * FQTV reste alimenté uniquement par sa propre liste dédiée VF FQTV List :
+   * le dupliquer ici depuis SSR créerait des entrées non fusionnables
+   * (note/specific différents) dans base.common_lists.FQTV.
+   * Important : cet appel récursif doit venir APRÈS "base.imports=imports"
+   * ci-dessus, sinon il écraserait la carte CBAG qu'il vient de créer avec
+   * l'ancien "imports" local (sans CBAG) capturé en début de fonction.
+   */
+  if(card.cardKey==="SSR" && Array.isArray(card.passengerItems)){
+    const cbagItems=card.passengerItems.filter(p=>Array.isArray(p.ssr)&&p.ssr.includes("CBAG"));
+    if(cbagItems.length){
+      base=lot3MergeFlightData(base,row,{
+        ...card,
+        cardKey:"CBAG",
+        label:"CBAG",
+        passengerItems:cbagItems,
+        passengers:cbagItems,
+        passengerCount:cbagItems.length,
+        connectionRows:[]
+      });
+    }
+  }
+
   return lot3SanitizeFlightGeneric(base);
 }
 
