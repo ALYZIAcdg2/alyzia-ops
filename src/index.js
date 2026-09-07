@@ -1851,7 +1851,7 @@ async function lot5ForceRelabelAllV1(env,limit=40){
     WHERE status<>'IGNORED_NON_OPERATIONAL' AND status<>''
     ORDER BY updated_at DESC LIMIT ?
   `).bind(Math.max(1,Math.min(200,Number(limit||40)))).all()).results||[];
-  let relabeled=0,skipped=0,errors=0;
+  let relabeled=0,skipped=0,errors=0,goneDeleted=0;
   const sampleErrors=[];
   for(const r of rows){
     const messageId=String(r.gmail_message_id||'');
@@ -1861,11 +1861,21 @@ async function lot5ForceRelabelAllV1(env,limit=40){
       await setGmailPipelineState(env,messageId,status,{archive:status!=='RECEIVED'});
       relabeled++;
     }catch(e){
+      const msg=String(e?.message||e);
+      // Le mail a été supprimé directement dans Gmail depuis : notre base
+      // garde encore sa trace mais il n'y a plus rien à réétiqueter. On
+      // nettoie la ligne fantôme au lieu de la retenter à chaque lot (elle
+      // échouerait indéfiniment et prendrait la place de vrais correctifs).
+      if(/not found/i.test(msg)){
+        await env.OPS_DB.prepare(`DELETE FROM gmail_messages WHERE gmail_message_id=?`).bind(messageId).run().catch(()=>{});
+        goneDeleted++;
+        continue;
+      }
       errors++;
-      if(sampleErrors.length<5)sampleErrors.push({messageId,status,error:String(e?.message||e)});
+      if(sampleErrors.length<5)sampleErrors.push({messageId,status,error:msg});
     }
   }
-  return {ok:true,checked:rows.length,relabeled,skipped,errors,sampleErrors};
+  return {ok:true,checked:rows.length,relabeled,goneDeleted,skipped,errors,sampleErrors};
 }
 
 function extractHeader(message,name){
