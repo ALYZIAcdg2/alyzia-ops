@@ -8601,9 +8601,12 @@ async function handleLot5(request,env,url){
   try{
     if(url.pathname==='/api/autopilot/status'&&request.method==='GET')return json(await lot5Status(env));
     if(url.pathname==='/api/autopilot/test-batch'&&request.method==='POST'){ const body=await request.json().catch(()=>({})); return json(await lot5TestBatchV535(env,body)); }
-    if(url.pathname==='/api/autopilot/run'&&request.method==='POST'){
-      const body=await request.json().catch(()=>({}));
-      return json(await lot5AutoPilotRun(env,{triggerType:'MANUAL',gmailQuery:String(body?.query||''),gmailMax:Number(body?.maxMessages||0)}));
+    if(url.pathname==='/api/autopilot/run'&&(request.method==='POST'||request.method==='GET')){
+      // GET accepté en plus de POST : permet de déclencher un cycle complet
+      // (sync Gmail + classification + injection) d'un simple clic sur mobile,
+      // sans attendre le prochain passage du cron (toutes les 5 min).
+      const body=request.method==='POST'?await request.json().catch(()=>({})):{};
+      return json(await lot5AutoPilotRun(env,{triggerType:'MANUAL',gmailQuery:String(body?.query||url.searchParams.get('query')||''),gmailMax:Number(body?.maxMessages||url.searchParams.get('maxMessages')||0)}));
     }
     if(url.pathname==='/api/autopilot/reconcile-canonical-status'&&request.method==='POST'){
       const body=await request.json().catch(()=>({}));
