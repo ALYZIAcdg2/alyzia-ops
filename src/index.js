@@ -1772,7 +1772,10 @@ const CLEAN_LABEL_SUFFIX={
   ERROR_INJECT:'ERREUR'
 };
 const CLEAN_LABEL_COLORS={
-  'MAIL TRAITÉ':{backgroundColor:'#4986e7',textColor:'#ffffff'},
+  // V50.34 — demande utilisateur : ERREUR rouge / TRAITÉ jaune / FICHE OK vert.
+  // MAIL TRAITÉ passe de bleu à jaune (même jaune que IGNORÉ_DOUBLON, déjà
+  // dans la palette Gmail validée par ce code).
+  'MAIL TRAITÉ':{backgroundColor:'#fad165',textColor:'#000000'},
   'IMPORTÉ':{backgroundColor:'#ffad46',textColor:'#000000'},
   'FICHE VOL OK':{backgroundColor:'#16a766',textColor:'#ffffff'},
   'ERREUR':{backgroundColor:'#cc3a21',textColor:'#ffffff'},
@@ -1793,6 +1796,31 @@ async function applyCleanLabelColorV1(env,labelId,suffix){
   const color=CLEAN_LABEL_COLORS[suffix];
   if(!labelId||!color)return;
   await gmailFetch(env,`/labels/${encodeURIComponent(labelId)}`,{method:'PATCH',body:JSON.stringify({color})}).catch(()=>{});
+}
+
+// La couleur n'est appliquée par ensureGmailLabel() qu'à la CRÉATION d'un
+// label : changer CLEAN_LABEL_COLORS ne repeint pas les labels déjà créés
+// dans Gmail (ex. ALYZIA/VF/MAIL TRAITÉ existe déjà en bleu). Cette fonction
+// repeint tous les labels ALYZIA/*/<suffixe> existants avec la couleur
+// actuelle de CLEAN_LABEL_COLORS.
+async function lot5RepaintCleanLabelColorsV1(env){
+  const labels=await gmailFetch(env,"/labels");
+  const all=Array.isArray(labels?.labels)?labels.labels:[];
+  let updated=0,unchanged=0,skipped=0,errors=0;
+  for(const l of all){
+    const name=String(l?.name||'');
+    if(!name.startsWith('ALYZIA/'))continue;
+    const suffix=name.split('/').pop();
+    const color=CLEAN_LABEL_COLORS[suffix];
+    if(!color){skipped++;continue}
+    if(l?.color?.backgroundColor===color.backgroundColor && l?.color?.textColor===color.textColor){unchanged++;continue}
+    try{
+      await gmailFetch(env,`/labels/${encodeURIComponent(l.id)}`,{method:'PATCH',body:JSON.stringify({color})});
+      updated++;
+    }catch(e){errors++;}
+  }
+  GMAIL_LABEL_ID_CACHE=null;
+  return {ok:true,total:all.length,updated,unchanged,skipped,errors};
 }
 
 function extractHeader(message,name){
@@ -8757,6 +8785,11 @@ async function handleLot5(request,env,url){
       const result=await lot5ReconcileGmailStatesV53(env,Number(body?.limit||url.searchParams.get('limit')||1500));
       const synced=await lot5SyncPrepaInboxRecent(env);
       return json({ok:result.ok,result,prepaSynced:synced});
+    }
+    if(url.pathname==='/api/autopilot/repaint-labels'&&(request.method==='POST'||request.method==='GET')){
+      // Recolore les labels Gmail ALYZIA/* déjà créés selon CLEAN_LABEL_COLORS
+      // (changer la constante seule ne touche que les FUTURS labels créés).
+      return json(await lot5RepaintCleanLabelColorsV1(env));
     }
     if(url.pathname==='/api/autopilot/repair-identities'&&request.method==='POST'){
       const body=await request.json().catch(()=>({}));
