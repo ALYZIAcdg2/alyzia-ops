@@ -17423,6 +17423,10 @@ function openBooked(sort='name',classFilter='ALL',groupFilter='ALL',dir='asc'){
  PAX_MODAL_SOURCE=items.slice();
  PAX_MODAL_ITEMS=items.slice();
 
+ // Voir commentaire dans le patch générique de paxRows : le titre de la
+ // modale n'est pas encore à jour au moment où paxRows() construit son HTML
+ // (showModal ne l'a pas encore ouverte), donc on le lui indique explicitement.
+ window.__paxRowsModeHint='BOOKED';
  showModal(
    `BOOKED · ${classFilter==='ALL'?sum(x.booked):classFilter+' '+count}`,
    x.flight,
@@ -24018,7 +24022,7 @@ try{
 /* Explicit modal column models. */
 .paxlist.b134-booked .paxlist-head,
 .paxlist.b134-booked .paxrow{
-  grid-template-columns:minmax(280px,1fr) 115px 100px minmax(140px,.7fr)!important;
+  grid-template-columns:minmax(280px,1fr) 115px 100px!important;
 }
 .paxlist.b134-card .paxlist-head,
 .paxlist.b134-card .paxrow,
@@ -24050,11 +24054,9 @@ try{
   .paxlist.b134-doc .paxrow>*:nth-child(4){
     display:none!important;
   }
-  /* CODE GROUPE reste visible sur mobile (demande explicite) : colonnes
-     resserrées plutôt que masquées comme pour les autres listes. */
   .paxlist.b134-booked .paxlist-head,
   .paxlist.b134-booked .paxrow{
-    grid-template-columns:minmax(0,1fr) 46px 40px 56px!important;
+    grid-template-columns:minmax(0,1fr) 58px 48px!important;
   }
 }
 </style>
@@ -24209,7 +24211,7 @@ try{
     const rows=list.map((p,i)=>{
       const nm=typeof passengerDisplayName==='function'?passengerDisplayName(p):(p.name||'PASSAGER');
       const base=`<strong>${H(nm)}</strong><span class="seat">${H(p.seat||'—')}</span><span class="class-cell">${H(p.class||'—')}</span>`;
-      if(mode==='BOOKED')return `<button class="paxrow" onclick="openPaxFromModal(${i})">${base}<span class="specific">${H(p.groupCode||'—')}</span></button>`;
+      if(mode==='BOOKED')return `<button class="paxrow" onclick="openPaxFromModal(${i})">${base}</button>`;
       if(mode==='ETK')return `<button class="paxrow" onclick="openPaxFromModal(${i})">${base}<span class="specific">${H(p.etkt||'—')}</span></button>`;
       if(mode==='EMD')return `<button class="paxrow" onclick="openPaxFromModal(${i})">${base}<span class="specific">${H(p.emd||'—')}</span></button>`;
       const info=[ssrText(p),cleanSpecific(p)].filter(Boolean).join(' · ')||'—';
@@ -24219,7 +24221,7 @@ try{
     let cls='b134-card',head='';
     if(mode==='BOOKED'){
       cls='b134-booked';
-      head='<div class="paxlist-head"><span>NOM / PRÉNOM</span><span>SIÈGE</span><span>CLASSE</span><span>CODE GROUPE</span></div>';
+      head='<div class="paxlist-head"><span>NOM / PRÉNOM</span><span>SIÈGE</span><span>CLASSE</span></div>';
     }else if(mode==='ETK'){
       cls='b134-doc';
       head='<div class="paxlist-head"><span>NOM / PRÉNOM</span><span>SIÈGE</span><span>CLASSE</span><span>ETKT</span></div>';
@@ -24296,8 +24298,21 @@ try{
   window.paxRows=function(items,count){
     const fx=x();
     if(!generic(fx))return nativePaxRows.apply(this,arguments);
-    const title=U(document.getElementById('modalTitle')?.textContent||'');
-    const mode=title.startsWith('BOOKED')?'BOOKED':title.startsWith('ETK')?'ETK':title.startsWith('EMD')?'EMD':'CARD';
+    /*
+     * paxRows() est appelé pour CONSTRUIRE le contenu d'une modale AVANT que
+     * showModal() ne l'ouvre et ne mette à jour #modalTitle : lire le titre
+     * DOM ici renvoyait donc le titre de la modale PRÉCÉDENTE (encore
+     * affichée à ce moment), pas celle en cours de construction. openBooked
+     * pose maintenant explicitement window.__paxRowsModeHint avant d'appeler
+     * paxRows ; on ne retombe sur le sniff du titre DOM que si aucun indice
+     * explicite n'a été fourni.
+     */
+    let mode=window.__paxRowsModeHint||'';
+    window.__paxRowsModeHint='';
+    if(!mode){
+      const title=U(document.getElementById('modalTitle')?.textContent||'');
+      mode=title.startsWith('BOOKED')?'BOOKED':title.startsWith('ETK')?'ETK':title.startsWith('EMD')?'EMD':'CARD';
+    }
     return rowsHtml(items,count,mode);
   };
 
