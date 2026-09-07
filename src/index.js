@@ -6470,6 +6470,29 @@ async function lot5DriveCoverageForMessageV533(env,messageId){
   return {total,archived,complete:total>0 && archived>=total};
 }
 
+// Compagnies "verrouillées" : l'extraction tourne encore dans le navigateur
+// (BUILD143), jamais sur le serveur. Sans confirmation navigateur, un mail
+// pouvait rester bloqué en MAIL TRAITÉ/RECEIVED indéfiniment même quand la
+// fiche vol correspondante avait déjà été construite (ex. mail en double,
+// ou navigateur fermé avant la confirmation) — alors qu'une compagnie
+// générique passe en FICHE VOL OK dès que le serveur a réellement injecté.
+// Pour donner la même logique à toutes les compagnies : avant de reboucler
+// sur RECEIVED/REVIEW, on vérifie si la fiche vol existe déjà avec de vrais
+// passagers ; si oui, le mail est considéré VALIDÉ au lieu de rester en
+// attente d'une confirmation qui n'arrivera peut-être jamais pour CE mail
+// précis (un autre mail identique a pu déjà tout construire).
+const LOT5_LOCKED_AIRLINES_V53=new Set(['SQ','TK','BJ','TW']);
+async function lot5SpecificFlightAlreadyBuilt(env,airline,flightNumber,flightDate){
+  if(!airline||!flightNumber||!flightDate)return false;
+  try{
+    const identity=[String(flightDate).trim(),String(airline).trim().toUpperCase(),String(flightNumber).trim().toUpperCase()].join("|");
+    const row=await env.OPS_DB.prepare(`SELECT data_json FROM flights WHERE identity=? LIMIT 1`).bind(identity).first();
+    if(!row)return false;
+    const x=JSON.parse(row.data_json||'{}');
+    return Array.isArray(x.passengers)&&x.passengers.length>0;
+  }catch(e){return false}
+}
+
 async function lot5ReconcileOneGmailStateV53(env,messageId){
   let gm=await env.OPS_DB.prepare(`SELECT status,airline,flight_number,flight_date,subject,snippet,received_at,internal_date FROM gmail_messages WHERE gmail_message_id=? LIMIT 1`).bind(messageId).first();
   if(!gm)return {messageId,state:"MISSING"};
@@ -6478,7 +6501,7 @@ async function lot5ReconcileOneGmailStateV53(env,messageId){
   const currentState=String(gm.status||"").toUpperCase();
   const transition=async(state)=>{if(currentState!==state)await setGmailPipelineState(env,messageId,state,{archive:state!=="RECEIVED"}).catch(()=>{})};
   if(!gm.identityValid && (!gm.airline||!gm.flight_number||!gm.flight_date||!isValidAirlineCodeV53(gm.airline))){
-    if(String(gm.airline||'').toUpperCase()==='SQ' || /\bSQ\s*\d{1,4}\b/i.test(String(gm.subject||''))){
+    if(LOT5_LOCKED_AIRLINES_V53.has(String(gm.airline||'').toUpperCase()) || /\bSQ\s*\d{1,4}\b/i.test(String(gm.subject||''))){
       await transition("RECEIVED");
       return {messageId,state:"RECEIVED",pendingIdentity:true};
     }
@@ -6507,7 +6530,11 @@ async function lot5ReconcileOneGmailStateV53(env,messageId){
     return {messageId,state};
   }
   if(jobs.some(j=>String(j.status||"").toUpperCase()==="ERROR")){
-    if(String(gm.airline||'').toUpperCase()==='SQ'){
+    if(LOT5_LOCKED_AIRLINES_V53.has(String(gm.airline||'').toUpperCase())){
+      if(await lot5SpecificFlightAlreadyBuilt(env,gm.airline,gm.flight_number,gm.flight_date)){
+        await transition("VALIDATED");
+        return {messageId,state:"VALIDATED",specificAlreadyBuilt:true};
+      }
       await transition("RECEIVED");
       return {messageId,state:"RECEIVED",retryTechnical:true};
     }
@@ -6526,7 +6553,11 @@ async function lot5ReconcileOneGmailStateV53(env,messageId){
     return {messageId,state:"RECEIVED",parsePending:true};
   }
   if(!results.length){
-    if(String(gm.airline||'').toUpperCase()==='SQ'){
+    if(LOT5_LOCKED_AIRLINES_V53.has(String(gm.airline||'').toUpperCase())){
+      if(await lot5SpecificFlightAlreadyBuilt(env,gm.airline,gm.flight_number,gm.flight_date)){
+        await transition("VALIDATED");
+        return {messageId,state:"VALIDATED",specificAlreadyBuilt:true};
+      }
       await transition("RECEIVED");
       return {messageId,state:"RECEIVED",reason:"SQ_RETRY_PARSER_RESULT"};
     }
@@ -6560,7 +6591,17 @@ async function lot5ReconcileOneGmailStateV53(env,messageId){
     await transition("INJECTED");
     return {messageId,state:"INJECTED",partial:true,genericResults:generic.length,specificResults:specific.length};
   }
-  // Un résultat spécifique non encore confirmé reste IMPORTÉ, jamais VALIDÉ artificiellement.
+  // Un résultat spécifique non confirmé par le navigateur (specific-browser-complete)
+  // reste IMPORTÉ par défaut — mais si la fiche vol a par ailleurs déjà été construite
+  // avec de vrais passagers (ex. un mail en double déjà traité par un autre message),
+  // ce n'est pas une validation artificielle : c'est le même signal que la confirmation
+  // navigateur aurait produit, juste constaté a posteriori.
+  if(specific.length>0 && LOT5_LOCKED_AIRLINES_V53.has(String(gm.airline||'').toUpperCase())){
+    if(await lot5SpecificFlightAlreadyBuilt(env,gm.airline,gm.flight_number,gm.flight_date)){
+      await transition("VALIDATED");
+      return {messageId,state:"VALIDATED",specificAlreadyBuilt:true};
+    }
+  }
   await transition("IMPORTED");
   return {messageId,state:"IMPORTED",specificPending:specific.length>0};
 }
