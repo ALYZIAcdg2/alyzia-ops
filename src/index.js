@@ -4282,24 +4282,30 @@ function lot2VfScanInfantRecords(text){
   const lines=String(text||"").replace(/\r/g,"\n").split(/\n/);
   const records=[];
   let cur=null;
-  let stage="ADULT";
   const fresh=()=>({surname:undefined,name:undefined,infantSurname:undefined,infantName:undefined,infantDob:"",cls:""});
+  const adultDone=(r)=>r.surname!==undefined && r.name!==undefined;
+  const recordDone=(r)=>adultDone(r) && r.infantSurname!==undefined && r.infantName!==undefined;
+  // Le document réel n'affiche pas de lettre de genre entre le couple
+  // adulte et le couple bébé (vérifié sur un PDF réel) : la bascule se
+  // fait donc sur l'état des champs déjà remplis (2 noms = adulte, puis
+  // 2 noms suivants = bébé), pas sur un jeton "genre" qui n'existe pas
+  // toujours dans le flux.
   for(const raw of lines){
     const tok=lot2VfClassifyInfantToken(raw,route);
     if(tok.type==="name"){
-      if(!cur){cur=fresh();stage="ADULT";}
-      if(stage==="ADULT"){
+      if(!cur || recordDone(cur)){
+        if(cur)records.push(cur);
+        cur=fresh();
+      }
+      if(!adultDone(cur)){
         if(cur.surname===undefined)cur.surname=tok.value;
-        else if(cur.name===undefined)cur.name=tok.value;
-        else{records.push(cur);cur=fresh();cur.surname=tok.value;stage="ADULT";}
+        else cur.name=tok.value;
       }else{
         if(cur.infantSurname===undefined)cur.infantSurname=tok.value;
-        else if(cur.infantName===undefined)cur.infantName=tok.value;
-        else{records.push(cur);cur=fresh();cur.surname=tok.value;stage="ADULT";}
+        else cur.infantName=tok.value;
       }
     }else if(cur){
-      if(tok.type==="gender")stage="INFANT";
-      else if(tok.type==="dob")cur.infantDob=tok.value;
+      if(tok.type==="dob")cur.infantDob=tok.value;
       else if(tok.type==="class")cur.cls=tok.value;
     }
   }
@@ -4309,21 +4315,32 @@ function lot2VfScanInfantRecords(text){
 
 function lot2VfBuildInfantItem(rec,seq){
   const hasInfant=Boolean(rec.infantSurname && rec.infantName);
+  const parentName=`${rec.surname}/${rec.name}`;
+  const infantName=hasInfant?`${rec.infantSurname}/${rec.infantName}`:"";
+  const cabinClass=lot2PassengerClassFromCode(rec.cls);
   return {
+    /*
+     * Le nom affiché dans la LISTE doit être celui du BÉBÉ, pas du parent :
+     * avec le nom du parent, lot3FindPassengerIndex rapprochait cette ligne
+     * du dossier MASTER du même adulte (déjà réservé en tant que passager),
+     * donnant l'impression d'un doublon du parent. Le nom du parent reste
+     * disponible dans le dossier (specific/note) pour rattacher le bébé au
+     * bon adulte, sans provoquer ce rapprochement.
+     */
     id:`VF-INFANT-${seq}-${rec.surname}-${rec.name}`,
     seq,
-    name:`${rec.surname}/${rec.name}`,
+    name:hasInfant?infantName:parentName,
     title:"",
     gender:"",
-    passengerType:"ADT",
-    class:rec.cls,
-    cabinClass:rec.cls,
+    passengerType:"INF",
+    class:cabinClass,
+    cabinClass:cabinClass,
     origin:"",
     destination:"",
-    acceptance:"",
+    acceptance:rec.cls,
     seat:"",
-    specific:"",
-    note:hasInfant?`INFANT: ${rec.infantSurname}/${rec.infantName}${rec.infantDob?` (${rec.infantDob})`:""}`:"",
+    specific:`PARENT: ${parentName}`,
+    note:`PARENT: ${parentName}${rec.infantDob?` · NÉ(E) LE ${rec.infantDob}`:""}`,
     listName:VF_LIST_LABELS.INFANT,
     cardKey:VF_LIST_CARD_KEYS.INFANT,
     source:"VF_PD4ML",
@@ -4331,7 +4348,8 @@ function lot2VfBuildInfantItem(rec,seq){
     pnr:"",
     etkt:"",
     documentNumber:"",
-    infantName:hasInfant?`${rec.infantSurname}/${rec.infantName}`:"",
+    parentName,
+    infantName,
     infantDob:rec.infantDob
   };
 }
