@@ -6580,21 +6580,18 @@ async function lot5RepairMessageIdentityV533(env,messageId){
   const flightDate=lot5CanonicalFlightDate(detected.flightDate||gm.flight_date||'',gm.received_at||gm.internal_date||'');
   if(!isValidAirlineCodeV53(airline) || !flightNumber.startsWith(airline) || !/^20\d{2}-\d{2}-\d{2}$/.test(flightDate))return {...gm,airline,flight_number:flightNumber,flight_date:flightDate,identityValid:false};
 
-  // Comparer à la valeur BRUTE stockée, jamais à sa propre canonicalisation :
-  // canonicaliser deux fois "06SEP" donne toujours la même date ISO, donc
-  // comparer flightDate à lot5CanonicalFlightDate(gm.flight_date,...) ne peut
-  // jamais détecter qu'une valeur stockée n'a encore jamais été canonicalisée
-  // (ex. anciens mails IZ stockés "06SEP" avant l'ajout de leur canonicalisation
-  // à l'ingestion) — la réparation se croyait alors "à jour" et ne touchait
-  // jamais import_job_results, empêchant l'injection indéfiniment.
-  const changed=airline!==String(gm.airline||'').toUpperCase() || flightNumber!==String(gm.flight_number||'').toUpperCase().replace(/\s+/g,'') || flightDate!==String(gm.flight_date||'');
-  if(changed){
-    await env.OPS_DB.prepare(`UPDATE gmail_messages SET airline=?,flight_number=?,flight_date=?,updated_at=CURRENT_TIMESTAMP WHERE gmail_message_id=?`).bind(airline,flightNumber,flightDate,messageId).run();
-    // Réparer uniquement les lignes techniques de CE message. Aucun parser n'est modifié.
-    await env.OPS_DB.prepare(`UPDATE import_files SET airline=?,flight_number=?,flight_date=?,updated_at=CURRENT_TIMESTAMP WHERE file_id IN (SELECT DISTINCT file_id FROM import_file_versions WHERE gmail_message_id=?)`).bind(airline,flightNumber,flightDate,messageId).run().catch(()=>{});
-    await env.OPS_DB.prepare(`UPDATE import_jobs SET airline=?,flight_number=?,flight_date=?,updated_at=CURRENT_TIMESTAMP WHERE gmail_message_id=?`).bind(airline,flightNumber,flightDate,messageId).run().catch(()=>{});
-    await env.OPS_DB.prepare(`UPDATE import_job_results SET airline=?,flight_number=?,flight_date=?,updated_at=CURRENT_TIMESTAMP WHERE job_id IN (SELECT job_id FROM import_jobs WHERE gmail_message_id=?)`).bind(airline,flightNumber,flightDate,messageId).run().catch(()=>{});
-  }
+  // Toujours réparer les 3 tables techniques (jobs/résultats/fichiers), même
+  // quand gmail_messages n'a "rien à changer" : les 4 UPDATE ne sont pas
+  // atomiques, et un Worker interrompu en cours de route (ex. limite de
+  // ressources) peut avoir mis à jour gmail_messages sans jamais atteindre
+  // import_job_results — la comparaison ci-dessus, basée uniquement sur
+  // gmail_messages, ne peut alors plus jamais détecter cet écart résiduel.
+  await env.OPS_DB.batch([
+    env.OPS_DB.prepare(`UPDATE gmail_messages SET airline=?,flight_number=?,flight_date=?,updated_at=CURRENT_TIMESTAMP WHERE gmail_message_id=?`).bind(airline,flightNumber,flightDate,messageId),
+    env.OPS_DB.prepare(`UPDATE import_files SET airline=?,flight_number=?,flight_date=?,updated_at=CURRENT_TIMESTAMP WHERE file_id IN (SELECT DISTINCT file_id FROM import_file_versions WHERE gmail_message_id=?)`).bind(airline,flightNumber,flightDate,messageId),
+    env.OPS_DB.prepare(`UPDATE import_jobs SET airline=?,flight_number=?,flight_date=?,updated_at=CURRENT_TIMESTAMP WHERE gmail_message_id=?`).bind(airline,flightNumber,flightDate,messageId),
+    env.OPS_DB.prepare(`UPDATE import_job_results SET airline=?,flight_number=?,flight_date=?,updated_at=CURRENT_TIMESTAMP WHERE job_id IN (SELECT job_id FROM import_jobs WHERE gmail_message_id=?)`).bind(airline,flightNumber,flightDate,messageId)
+  ]).catch(()=>{});
   return {...gm,airline,flight_number:flightNumber,flight_date:flightDate,identityValid:true};
 }
 
