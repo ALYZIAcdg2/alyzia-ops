@@ -9700,9 +9700,33 @@ async function handleGmailPipeline(request,env,url){
     if(url.pathname==="/api/gmail/status" && request.method==="GET")return json(await gmailStatus(env));
     if(url.pathname==="/api/gmail/oauth/start" && request.method==="GET")return gmailOAuthStart(request,env);
     if(url.pathname==="/api/gmail/oauth/callback" && request.method==="GET")return gmailOAuthCallback(request,env,url);
-    if(url.pathname==="/api/gmail/sync-now" && request.method==="POST"){
-      const body=await request.json().catch(()=>({}));
-      return json(await gmailSyncNow(env,body));
+    if(url.pathname==="/api/gmail/sync-now" && (request.method==="POST"||request.method==="GET")){
+      /*
+       * Endpoint volontairement léger et SANS le verrou "un seul AUTO PILOT à la
+       * fois" de lot5AutoPilotRun : ce dernier peut rester bloqué en RUNNING
+       * plusieurs minutes lorsque le carnet d'identités incomplètes (ex. gros
+       * volume SQ en attente de révision) est important, ce qui empêchait
+       * d'atteindre de nouveaux documents même avec une recherche Gmail ciblée
+       * (le paramètre "query" ne s'applique qu'au balayage Gmail, pas aux
+       * étapes suivantes du cycle complet). Ici on fait uniquement : sync
+       * Gmail ciblé -> classification -> injection, sans réparation d'identité
+       * ni audit, pour rester rapide même quand l'auto pilot complet est bloqué.
+       */
+      const body=request.method==="POST"?await request.json().catch(()=>({})):{
+        query:url.searchParams.get('query')||'',
+        maxMessages:Number(url.searchParams.get('maxMessages')||0)
+      };
+      const sync=await gmailSyncNow(env,body);
+      const processRuns=[];
+      let jobsProcessed=0;
+      for(let i=0;i<3;i++){
+        const r=await lot2ProcessNext(env,{limit:20});
+        processRuns.push({found:r.found,processed:r.processed?.length||0});
+        jobsProcessed+=Number(r.processed?.length||0);
+        if(!r.found)break;
+      }
+      const inject=await lot5InjectAvailable(env,lot5Config(env));
+      return json({ok:true,sync,process:processRuns,jobsProcessed,inject});
     }
     if(url.pathname==="/api/import-pipeline/status" && request.method==="GET")return json(await lot2PipelineSummary(env));
     if(url.pathname==="/api/import-pipeline/results" && request.method==="GET")return json(await lot2Results(env,url));
