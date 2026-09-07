@@ -4075,7 +4075,9 @@ const VF_LIST_LABELS = {
   OUTBOUND_SUMMARY:"VF OUTBOUND SUMMARY LIST",
   SSR:"VF SSR LIST",
   FQTV:"VF FQTV LIST",
-  INFANT:"VF PASSENGER WITH INFANT LIST"
+  INFANT:"VF PASSENGER WITH INFANT LIST",
+  OUTBOUND_DETAILS:"VF OUTBOUND PASSENGER DETAILS LIST",
+  INBOUND_DETAILS:"VF INBOUND PASSENGER DETAILS LIST"
 };
 
 const VF_LIST_CARD_KEYS = {
@@ -4085,7 +4087,9 @@ const VF_LIST_CARD_KEYS = {
   OUTBOUND_SUMMARY:"OUTBOUND_SUMMARY",
   SSR:"SSR",
   FQTV:"FQTV",
-  INFANT:"INFANT"
+  INFANT:"INFANT",
+  OUTBOUND_DETAILS:"OUTBOUND",
+  INBOUND_DETAILS:"INBOUND"
 };
 
 const VF_HEADER_WORDS = new Set([
@@ -4096,7 +4100,10 @@ const VF_HEADER_WORDS = new Set([
   // Colonnes propres à FQTV List et Passenger With Infant (absentes des
   // autres listes VF, donc jamais rencontrées ailleurs par accident).
   "GENDER","FFID","BONUS POINTS","TIER POINTS","CARD TYPE",
-  "G","INFANT","INFANT SURNAME","INFANT NAME","INFANT DOB","C.S"
+  "G","INFANT","INFANT SURNAME","INFANT NAME","INFANT DOB","C.S",
+  // Colonnes à ignorer explicitement dans SSR List (demande utilisateur) :
+  // Payment Status/CC/C.S ne sont pas des informations passager exploitables.
+  "PAYMENT STATUS","CABIN","CLASS","CPN","CPN STATUS"
 ]);
 
 function lot2VfListKindFromText(text){
@@ -4109,6 +4116,8 @@ function lot2VfListKindFromText(text){
   if(/^SSR\s+LIST$/.test(title))return "SSR";
   if(/^FQTV\s+LIST$/.test(title))return "FQTV";
   if(/^PASSENGER\s+WITH\s+INFANT$/.test(title))return "INFANT";
+  if(/^OUTBOUND\s+PASSENGER\s+DETAILS\s+LIST$/.test(title))return "OUTBOUND_DETAILS";
+  if(/^INBOUND\s+PASSENGER\s+DETAILS\s+LIST$/.test(title))return "INBOUND_DETAILS";
   return "";
 }
 
@@ -4294,9 +4303,92 @@ function lot2VfExtractInfantItems(text){
   return records.map((rec,i)=>lot2VfBuildInfantItem(rec,i+1));
 }
 
+/*
+ * Outbound/Inbound Passenger Details List : structure entièrement différente
+ * des autres listes VF (un passager par correspondance, pas une simple table
+ * nom/classe/siège). Chaque enregistrement est repérable par le marqueur
+ * répété "VF12/CDG-SAW=>" (le vol principal), immuable pour tout le document :
+ * on découpe le texte sur ce marqueur plutôt que de classer token par token.
+ * Vérifié contre le vrai PDF fourni : Nom/Prénom sont dans l'ordre PRÉNOM puis
+ * NOM (inversé par rapport aux autres listes VF), et les colonnes Genre/Classe
+ * cabine ne portent aucun texte extractible dans ce document (comme les
+ * colonnes à 0 des autres listes) — la classe cabine VF n'ayant qu'un seul
+ * niveau, elle est donc fixée à "Y".
+ */
+function lot2VfScanConnectionRecords(text){
+  const lines=String(text||"").replace(/\r/g,"\n").split(/\n/).map(l=>l.trim()).filter(Boolean);
+  const boundaryRe=/^VF\d{1,4}\/[A-Z]{3}-[A-Z]{3}=>$/;
+  const pnrRe=/^[0-9][A-Z0-9]{5}$/;
+  const flightRe=/^(VF\d{1,4})\/(\d{1,2}[A-Z]{3})\/([A-Z]{3})\/STD:(\d{2}:\d{2})/;
+  const records=[];
+  let i=0;
+  while(i<lines.length){
+    if(!boundaryRe.test(lines[i])){i++;continue;}
+    i++;
+    if(i<lines.length && /^STA:/i.test(lines[i]))i++;
+    const flightLine1=lines[i]||"";i++;
+    i++; // continuation "Time Diff : XhYm", toujours sur exactement 2 lignes au total
+    const m=flightLine1.match(flightRe);
+    const given=lines[i]||"";i++;
+    const surnameParts=[];
+    while(i<lines.length && !pnrRe.test(lines[i]) && !boundaryRe.test(lines[i])){
+      surnameParts.push(lines[i]);i++;
+    }
+    let pnr="";
+    if(i<lines.length && pnrRe.test(lines[i])){pnr=lines[i].toUpperCase();i++;}
+    let weight="";
+    while(i<lines.length && /^\d{1,3}$/.test(lines[i])){weight=lines[i];i++;}
+    if(m && given && surnameParts.length){
+      records.push({
+        flightNumber:m[1].toUpperCase(),
+        destination:m[3].toUpperCase(),
+        std:m[4],
+        given:given.replace(/\s+/g," ").trim(),
+        surname:surnameParts.join(" ").replace(/\s+/g," ").trim(),
+        pnr,weight
+      });
+    }
+  }
+  return records;
+}
+
+function lot2VfBuildConnectionItem(rec,direction,seq){
+  return {
+    id:`VF-${direction}-${seq}-${rec.surname}-${rec.given}`,
+    seq,
+    name:`${rec.surname}/${rec.given}`,
+    title:"",
+    gender:"",
+    passengerType:"ADT",
+    class:"Y",
+    cabinClass:"Y",
+    origin:"",
+    destination:rec.destination,
+    acceptance:"",
+    seat:"",
+    specific:"",
+    note:"",
+    listName:direction==="OUTBOUND"?VF_LIST_LABELS.OUTBOUND_DETAILS:VF_LIST_LABELS.INBOUND_DETAILS,
+    cardKey:direction,
+    source:"VF_PD4ML",
+    ssr:[],
+    pnr:rec.pnr,
+    etkt:"",
+    documentNumber:"",
+    connection:{flight:rec.flightNumber,airport:rec.destination,direction:direction.toLowerCase(),std:rec.std}
+  };
+}
+
+function lot2VfExtractConnectionItems(text,direction){
+  const records=lot2VfScanConnectionRecords(text);
+  return records.map((rec,i)=>lot2VfBuildConnectionItem(rec,direction,i+1));
+}
+
 function lot2VfExtractPassengerItems(text,kind){
   if(kind==="OUTBOUND_SUMMARY")return [];
   if(kind==="INFANT")return lot2VfExtractInfantItems(text);
+  if(kind==="OUTBOUND_DETAILS")return lot2VfExtractConnectionItems(text,"OUTBOUND");
+  if(kind==="INBOUND_DETAILS")return lot2VfExtractConnectionItems(text,"INBOUND");
   const records=lot2VfScanRecords(text);
   return records.map((rec,i)=>lot2VfBuildItem(rec,kind,i+1));
 }
