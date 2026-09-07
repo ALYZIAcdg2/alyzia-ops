@@ -4643,7 +4643,7 @@ html,body{
 .company-config-card{
  width:100%;display:grid;grid-template-columns:72px minmax(0,1fr) 28px;
  align-items:center;gap:12px;text-align:left;padding:12px;border:1px solid #dbe5ee;
- border-radius:12px;background:#fff;cursor:pointer
+ border-radius:12px;background:#fff;cursor:pointer;border-left:5px solid #9cb4c8
 }
 .company-config-card.tk{border-left:5px solid #d71920}
 .company-config-card.sq{border-left:5px solid #d79b21}
@@ -14461,7 +14461,7 @@ function syncCompanyConfigFromFlights(records){
  if(!latest?.bundle)return false;
  try{
    const incoming=latest.bundle;
-   ['TK','SQ','BJ','TW'].forEach(a=>{
+   Object.keys(COMPANY_CONFIG_DEFAULT).forEach(a=>{
      if(incoming[a]){
        COMPANY_CONFIG[a]=JSON.parse(JSON.stringify(incoming[a]));
      }
@@ -14639,6 +14639,49 @@ const COMPANY_PARTICULARITY_DEFS={
  ]
 };
 
+/*
+ * V50.32 — Base CONFIG COMPAGNIE pour les compagnies "génériques" (import PDF
+ * automatique, ex. VF) listées dans le fichier Excel CONFIGURATION_COMPAGNIES
+ * (feuilles "CARTE SSR" et "AFFICHAGE LISTE DE VOL (KPI)"). Les identifiants
+ * reprennent volontairement les clés déjà produites par le pipeline générique
+ * (v5023GenericImportedKeys : INF, CHLD, WCH, INAD, DEPA, DEPU, FQTV, STAFF,
+ * EMD, ETK, CBAG, MEAL, UMNR, MAAS) pour que les cases à cocher agissent
+ * réellement sur les cartes déjà affichées ; VIP/BLND_DEAF/PET_AV/SVAN_ESAN/
+ * EXST_CBBG sont prêtes à l'emploi mais restent des cartes vides tant que le
+ * pipeline générique ne produit pas encore cette donnée pour ces compagnies.
+ * Tout est visible par défaut (cases cochées) : identique au comportement
+ * actuel tant que l'utilisateur n'a pas renvoyé le fichier Excel rempli.
+ */
+const GENERIC_COMPANY_PARTICULARITY_DEFS=[
+ {id:'INF',label:'INFANT(S)',codes:['INF'],icon:'🧑‍🧒'},
+ {id:'CHLD',label:"CHLD / TOY'S",codes:['CHLD'],icon:'🧒'},
+ {id:'WCH',label:'WCHR / WCHS / WCHC · WCMP / WCLB / WCOB',codes:['WCHR','WCHS','WCHC','WCMP','WCLB','WCOB'],icon:'♿'},
+ {id:'BLND_DEAF',label:'BLND / DEAF',codes:['BLND','DEAF'],icon:'◔'},
+ {id:'UMNR',label:'UMNR',codes:['UMNR'],icon:'♟'},
+ {id:'MAAS',label:'MAAS',codes:['MAAS'],icon:'•'},
+ {id:'VIP',label:'VIP',codes:['VIP'],icon:'☆'},
+ {id:'FQTV',label:'FQTV',codes:['FQTV'],icon:'▤',special:'fqtv'},
+ {id:'STAFF',label:'STAFF',codes:['STAFF'],icon:'✈️'},
+ {id:'PET_AV',label:'PETC / AVIH',codes:['PETC','AVIH'],icon:'🐾'},
+ {id:'EMD',label:'EMD',codes:['EMD'],icon:'•'},
+ {id:'ETK',label:'ETKT',codes:['ETKT'],icon:'■'},
+ {id:'INAD',label:'INAD',codes:['INAD'],icon:'🚓'},
+ {id:'DEPA',label:'DEPA',codes:['DEPA'],icon:'🚓'},
+ {id:'DEPU',label:'DEPU',codes:['DEPU'],icon:'🚓'},
+ {id:'SVAN_ESAN',label:'SVAN / ESAN',codes:['SVAN','ESAN'],icon:'•'},
+ {id:'CBAG',label:'CBAG',codes:['CBAG'],icon:'🎒'},
+ {id:'EXST_CBBG',label:'EXST / CBBG',codes:['EXST','CBBG'],icon:'🎻'},
+ {id:'MEAL',label:'MEAL',codes:[],icon:'🍽️',special:'meal'}
+];
+
+const GENERIC_COMPANY_AIRLINE_CODES=[
+ '3O','4H','A9','AH','AI','AT','DE','EI','FB','IZ','J2','JU','LO','MS','OZ','RJ','S4','SB','SK','TS','VF','WB'
+];
+
+GENERIC_COMPANY_AIRLINE_CODES.forEach(code=>{
+ COMPANY_PARTICULARITY_DEFS[code]=GENERIC_COMPANY_PARTICULARITY_DEFS;
+});
+
 function companyParticularityDefs(airline){
  return COMPANY_PARTICULARITY_DEFS[String(airline||'').toUpperCase()]||[];
 }
@@ -14692,6 +14735,21 @@ const COMPANY_CONFIG_DEFAULT={
  }
 };
 
+// Base par défaut pour les compagnies génériques du fichier CONFIGURATION_COMPAGNIES.xlsx :
+// tout visible (identique au comportement sans config), prêt à recevoir les vraies valeurs
+// une fois le fichier rempli et renvoyé par l'utilisateur.
+GENERIC_COMPANY_AIRLINE_CODES.forEach(code=>{
+ COMPANY_CONFIG_DEFAULT[code]={
+   airline:code,
+   rules:[{id:`${code.toLowerCase()}_all`,pattern:`${code}*`,classes:['Y']}],
+   modules:{
+     header:true,config:true,booked:true,upgrade:true,web:true,available:true,standby:true,
+     meals:true,particularities:true,inbound:true,outbound:true,notes:true
+   },
+   particularities:defaultParticularityVisibility(code)
+ };
+});
+
 function deepCloneCompanyConfig(o){
  return JSON.parse(JSON.stringify(o));
 }
@@ -14701,7 +14759,7 @@ function loadCompanyConfig(){
    const raw=JSON.parse(localStorage.getItem(COMPANY_CONFIG_KEY)||'null');
    const cfg=deepCloneCompanyConfig(COMPANY_CONFIG_DEFAULT);
    if(raw&&typeof raw==='object'){
-     ['TK','SQ','BJ','TW'].forEach(a=>{
+     Object.keys(COMPANY_CONFIG_DEFAULT).forEach(a=>{
        if(raw[a]){
          if(Array.isArray(raw[a].rules)&&raw[a].rules.length)cfg[a].rules=raw[a].rules;
          if(raw[a].modules)cfg[a].modules={...cfg[a].modules,...raw[a].modules};
@@ -14867,15 +14925,21 @@ function applyCompanyConfigToKnownFlights(airline){
 }
 
 function openCompanyConfig(){
- showModal('CONFIG COMPAGNIE','TK · SQ',`
+ const priority=['TK','SQ','BJ','TW'];
+ const codes=Object.keys(COMPANY_CONFIG).sort((a,b)=>{
+   const pa=priority.indexOf(a),pb=priority.indexOf(b);
+   if(pa!==-1||pb!==-1)return (pa===-1?999:pa)-(pb===-1?999:pb);
+   return a.localeCompare(b);
+ });
+ showModal('CONFIG COMPAGNIE',`${codes.length} COMPAGNIES CONFIGURÉES`,`
    <div class="company-config-cards">
-     ${['TK','SQ'].map(a=>{
+     ${codes.map(a=>{
        const cfg=COMPANY_CONFIG[a];
        const rules=(cfg.rules||[]).map(r=>`${r.pattern} → ${r.classes.join(' / ')}`).join(' · ');
        return `<button class="company-config-card ${a.toLowerCase()}" onclick="openAirlineConfig('${a}')">
          <div class="company-config-logo">${airlineLogo(a,'large')}</div>
          <div class="company-config-info">
-           <b>${a==='TK'?'TURKISH AIRLINES':'SINGAPORE AIRLINES'}</b>
+           <b>${airlineDisplayName(a)}</b>
            <span>${cfg.rules.length} RÈGLE${cfg.rules.length>1?'S':''} DE CLASSES</span>
            <small>${rules}</small>
          </div>
@@ -14906,7 +14970,12 @@ function moduleLabel(key){
 function airlineDisplayName(airline){
  const names={
    TK:'TURKISH AIRLINES',SQ:'SINGAPORE AIRLINES',BJ:'NOUVELAIR',TW:'TWAY AIR',
-   LO:'LOT POLISH AIRLINES',FB:'BULGARIA AIR',J2:'AZERBAIJAN AIRLINES'
+   LO:'LOT POLISH AIRLINES',FB:'BULGARIA AIR',J2:'AZERBAIJAN AIRLINES',
+   '3O':'AIR ARABIA MAROC',A9:'GEORGIAN AIRWAYS',AH:'AIR ALGÉRIE',AI:'AIR INDIA',
+   AT:'ROYAL AIR MAROC',DE:'CONDOR',EI:'AER LINGUS',IZ:'ARKIA ISRAELI AIRLINES',
+   JU:'AIR SERBIA',MS:'EGYPTAIR',OZ:'ASIANA AIRLINES',RJ:'ROYAL JORDANIAN',
+   S4:'AZORES AIRLINES',SB:'AIRCALIN',SK:'SAS SCANDINAVIAN AIRLINES',
+   TS:'AIR TRANSAT',VF:'AJET',WB:'RWANDAIR'
  };
  const a=String(airline||'').toUpperCase();
  return names[a]||`${a} · AIRLINE`;
@@ -23229,6 +23298,7 @@ try{
     v5023ApplyImportedToExistingModel(x);
     const keys=['INF','CHLD','WCH','INAD','DEPA','DEPU','FQTV','STAFF','EMD','ETK','CBAG','MEAL','UMNR','MAAS'];
     return keys.filter(k=>{
+      if(typeof companyParticularityVisible==='function' && !companyParticularityVisible(x,k))return false;
       const n=v5023Num(x?.common?.[k]);
       const list=Array.isArray(x?.common_lists?.[k])?x.common_lists[k]:[];
       return n>0 || list.length>0;
