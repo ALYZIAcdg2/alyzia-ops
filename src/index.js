@@ -5574,7 +5574,19 @@ function lot3MergeFlightData(current,row,card){
         const p=lot3NormalizePassengerForUi(p0,card);
         const masterIdx=lot3FindPassengerIndex(base.passengers||[],p,base.airline);
         const master=masterIdx>=0?(base.passengers||[])[masterIdx]:null;
-        const merged=master?lot3MergePassengerInfo(master,p):p;
+        /*
+         * L'entrée de LISTE (p) doit rester la base du merge, pas le MASTER :
+         * lot3MergePassengerInfo(a,b) ne réécrit jamais un champ déjà renseigné
+         * dans a (ex. cardKey/listName), donc fusionner (master,p) faisait
+         * hériter cardKey="MASTER" sur CHAQUE entrée de carte dérivée (FQTV,
+         * CBAG, MEAL...). lot3SanitizeFlightGeneric vide ensuite ssr/specific/
+         * note de TOUT enregistrement dont cardKey==="MASTER" (comportement
+         * voulu pour la fiche MASTER elle-même), ce qui effaçait ces mêmes
+         * champs sur les entrées de liste à chaque nouveau cycle de fusion.
+         * Le MASTER ne sert donc plus qu'à compléter les champs manquants
+         * (ETKT, code groupe...), jamais à écraser l'identité de la carte.
+         */
+        const merged=master?lot3MergePassengerInfo(p,master):p;
         const key=[merged.name,merged.seat,merged.class,merged.specific,merged.note].map(x=>String(x||"").toUpperCase()).join("|");
         if(!seen.has(key)){old.push(merged);seen.add(key);}
       }
@@ -5693,7 +5705,9 @@ function lot3MergeFlightData(current,row,card){
         const meta=byFlight.get(flight)||{};
         const masterIdx=lot3FindPassengerIndex(base.passengers||[],p,base.airline);
         const master=masterIdx>=0?(base.passengers||[])[masterIdx]:null;
-        const pax=master?lot3MergePassengerInfo(master,p):p;
+        // Voir commentaire équivalent plus haut : p (la ligne OUTBOUND/INBOUND)
+        // doit rester la base du merge, le MASTER ne fait que compléter.
+        const pax=master?lot3MergePassengerInfo(p,master):p;
         const airport=String(conn.airport||"").trim().toUpperCase();
         const metaFrom=String(meta.from||"").trim().toUpperCase();
         const metaTo=String(meta.to||"").trim().toUpperCase();
@@ -5731,17 +5745,20 @@ function lot3MergeFlightData(current,row,card){
   }
 
   // V50.28: after every generic card, refresh all list snapshots from the consolidated master.
+  // Chaque entrée (p) reste la base du merge : le MASTER ne fait que compléter
+  // les champs manquants (ETKT, code groupe...), jamais écraser cardKey/
+  // listName/ssr/note de la carte d'origine (voir commentaire plus haut).
   if(!lot3IsProtectedSpecificAirline(base.airline)){
     for(const listKey of Object.keys(base.common_lists||{})){
       base.common_lists[listKey]=(base.common_lists[listKey]||[]).map(p=>{
         const idx=lot3FindPassengerIndex(base.passengers||[],p,base.airline);
-        return idx>=0?lot3MergePassengerInfo(base.passengers[idx],p):p;
+        return idx>=0?lot3MergePassengerInfo(p,base.passengers[idx]):p;
       });
     }
     for(const dir of ["inbound","outbound"]){
       base[dir]=(base[dir]||[]).map(p=>{
         const idx=lot3FindPassengerIndex(base.passengers||[],p,base.airline);
-        return idx>=0?lot3MergePassengerInfo(base.passengers[idx],p):p;
+        return idx>=0?lot3MergePassengerInfo(p,base.passengers[idx]):p;
       });
     }
   }
