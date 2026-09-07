@@ -1839,13 +1839,18 @@ async function lot5RepaintCleanLabelColorsV1(env){
  * de setGmailPipelineState() même si le statut ne "change" pas. N'affecte ni
  * les fiches de vol, ni le code des parseurs — uniquement les étiquettes.
  */
-async function lot5ForceRelabelAllV1(env,limit=1500){
+async function lot5ForceRelabelAllV1(env,limit=40){
+  // Chaque mail relabellisé = 1 vrai appel réseau à l'API Gmail (modify).
+  // Un lot par défaut trop gros (1500) dépasse la limite de sous-requêtes
+  // par requête du Worker et fait planter l'appel entier sans rien renvoyer
+  // ("ça plante" côté utilisateur, aucune réponse visible). Défaut prudent,
+  // cliquable plusieurs fois de suite pour vider tout le backlog.
   await ensureGmailPipelineTables(env);
   const rows=(await env.OPS_DB.prepare(`
     SELECT gmail_message_id,status FROM gmail_messages
     WHERE status<>'IGNORED_NON_OPERATIONAL' AND status<>''
     ORDER BY updated_at DESC LIMIT ?
-  `).bind(Math.max(1,Math.min(3000,Number(limit||1500)))).all()).results||[];
+  `).bind(Math.max(1,Math.min(200,Number(limit||40)))).all()).results||[];
   let relabeled=0,skipped=0,errors=0;
   for(const r of rows){
     const messageId=String(r.gmail_message_id||'');
@@ -8881,7 +8886,7 @@ async function handleLot5(request,env,url){
       // statut actuel de chaque mail, ce qui force le retrait de toute
       // étiquette périmée.
       const body=request.method==='POST'?await request.json().catch(()=>({})):null;
-      return json(await lot5ForceRelabelAllV1(env,Number(body?.limit||url.searchParams.get('limit')||1500)));
+      return json(await lot5ForceRelabelAllV1(env,Number(body?.limit||url.searchParams.get('limit')||40)));
     }
     if(url.pathname==='/api/autopilot/repair-identities'&&request.method==='POST'){
       const body=await request.json().catch(()=>({}));
