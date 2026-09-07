@@ -5762,13 +5762,22 @@ function lot3MergeFlightData(current,row,card){
   // Chaque entrée (p) reste la base du merge : le MASTER ne fait que compléter
   // les champs manquants (ETKT, code groupe...), jamais écraser cardKey/
   // listName/ssr/note de la carte d'origine (voir commentaire plus haut).
-  if(!lot3IsProtectedSpecificAirline(base.airline)){
-    for(const listKey of Object.keys(base.common_lists||{})){
-      base.common_lists[listKey]=(base.common_lists[listKey]||[]).map(p=>{
-        const idx=lot3FindPassengerIndex(base.passengers||[],p,base.airline);
-        return idx>=0?lot3MergePassengerInfo(p,base.passengers[idx]):p;
-      });
-    }
+  //
+  // Limité à la carte QUI VIENT D'ÊTRE TRAITÉE (existingKey) plutôt qu'à
+  // TOUTES les cartes déjà accumulées : chaque liste est déjà enrichie
+  // correctement au moment de sa construction (bloc "existingKey" ci-dessus),
+  // donc reparcourir l'intégralité de common_lists à CHAQUE carte traitée
+  // (potentiellement 700+ entrées cumulées × un scan O(passagers) chacune,
+  // répété à chaque document d'un vol volumineux comme VF12) pouvait dépasser
+  // le budget CPU du Worker et laisser certaines cartes dérivées (CBAG en
+  // particulier, 177 passagers) jamais persistées en base.
+  if(!lot3IsProtectedSpecificAirline(base.airline) && existingKey && Array.isArray(base.common_lists[existingKey])){
+    base.common_lists[existingKey]=base.common_lists[existingKey].map(p=>{
+      const idx=lot3FindPassengerIndex(base.passengers||[],p,base.airline);
+      return idx>=0?lot3MergePassengerInfo(p,base.passengers[idx]):p;
+    });
+  }
+  if(!lot3IsProtectedSpecificAirline(base.airline) && (card.cardKey==="INBOUND"||card.cardKey==="OUTBOUND")){
     for(const dir of ["inbound","outbound"]){
       base[dir]=(base[dir]||[]).map(p=>{
         const idx=lot3FindPassengerIndex(base.passengers||[],p,base.airline);
