@@ -6,7 +6,7 @@
   <meta http-equiv="Expires" content="0">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ALYZIA OPS - V50.31 · BUILD139 · CHECK-DEPLOY-1</title>
+<title>ALYZIA OPS - V50.32 · BUILD140 · MASTER MERGE FIX</title>
 <style>
 :root{
  --bg:#f7f9fc; --card:#fff; --line:#dfe6ef; --ink:#101b2e; --muted:#627086;
@@ -24300,7 +24300,9 @@ try{
     p=cleanOne(p);
     const saved=typeof getPassengerNote==='function'?getPassengerNote(p):(p.userNote||'');
     const ssr=ssrText(p)||'—';
-    const spec=cleanSpecific(p)||'—';
+    // Le numéro FQTV vit dans p.fqtv.number (donnée structurée), jamais dans
+    // specific/note : sans ça, la spécificité restait vide pour la carte FQTV.
+    const spec=(p.fqtv&&p.fqtv.number)?p.fqtv.number:(cleanSpecific(p)||'—');
     const connections=typeof passengerConnectionsHtml==='function'?passengerConnectionsHtml(p):'';
     const title=U(p.title||p.gender||p.passengerType)||'—';
 
@@ -24313,6 +24315,7 @@ try{
         <div><small>GENRE / TITRE</small><b>${H(title)}</b></div>
         <div><small>ETKT</small><b>${H(p.etkt||'—')}</b></div>
         <div><small>EMD</small><b>${H(p.emd||'—')}</b></div>
+        <div><small>CODE GROUPE</small><b>${H(p.groupCode||'—')}</b></div>
         <div><small>SSR</small><b>${H(ssr)}</b></div>
         <div class="profile-specificity"><small>SPÉCIFICITÉ</small><b>${H(spec)}</b></div>
       </div>
@@ -24516,6 +24519,17 @@ try{
       ...Object.keys(groups).filter(k=>!preferred.includes(k)&&groups[k]?.length).sort()
     ];
 
+    /*
+     * Compagnies génériques sans texte de palier réel (VF...) : fqtvCategory()
+     * retombe systématiquement sur l'unique bucket générique "FQTV", ce qui
+     * n'apporte rien comme étape de catégorisation. Dans ce cas on saute
+     * directement à la liste des passagers avec leur numéro FQTV.
+     */
+    if(order.length<=1){
+      window.openV5024FqtvPassengerList(order[0]||'FQTV');
+      return;
+    }
+
     showModal(`FQTV · ${src.length}`,x.flight,`
       <div class="meal-category-list">
         ${order.length?order.map(cat=>`
@@ -24529,18 +24543,22 @@ try{
     `);
   };
 
-  window.openV5024FqtvPassengerList=function(cat){
+  window.openV5024FqtvPassengerList=function(cat,sort='name',dir='asc'){
     const x=fx();
     if(!isGeneric(x)){
       return oldV5024List?oldV5024List.apply(this,arguments):null;
     }
-    const list=canonicalList(window.__b137FqtvGroups?.[cat]||[]);
-    PAX_MODAL_SOURCE=list.slice();
-    PAX_MODAL_ITEMS=list.slice();
-    showModal(`FQTV · ${cat}`,x.flight,
-      typeof paxRows==='function'
-        ? paxRows(list,list.length)
-        : '<div class="prepa-empty">AUCUN PASSAGER</div>'
+    const source=canonicalList(window.__b137FqtvGroups?.[cat]||[]);
+    const match=typeof sortPaxItems==='function'?sortPaxItems(source,sort,dir):source;
+    PAX_MODAL_SOURCE=source.slice();
+    PAX_MODAL_ITEMS=match.slice();
+    const next=s=>sort===s?(dir==='asc'?'desc':'asc'):'asc';
+    showModal(`FQTV · ${source.length}`,x.flight,`<div class="sortbar compact-sortbar">
+      <button class="${sort==='name'?'active':''}" onclick="openV5024FqtvPassengerList(${JSON.stringify(cat)},'name','${next('name')}')">NOM${typeof sortArrow==='function'?sortArrow(sort==='name',dir):''}</button>
+      <button class="${sort==='class'?'active':''}" onclick="openV5024FqtvPassengerList(${JSON.stringify(cat)},'class','${next('class')}')">CLASSE${typeof sortArrow==='function'?sortArrow(sort==='class',dir):''}</button>
+      <button class="${sort==='seat'?'active':''}" onclick="openV5024FqtvPassengerList(${JSON.stringify(cat)},'seat','${next('seat')}')">SIÈGE${typeof sortArrow==='function'?sortArrow(sort==='seat',dir):''}</button></div>
+      <div class="fqtv-table-wrap"><div class="fqtv-table-head"><span>NOM / PRÉNOM</span><span>SIÈGE</span><span>CLASSE</span><span>FQTV</span><span>DOCUMENT</span></div>
+      <div class="fqtv-table-body">${match.map((p,i)=>`<button class="fqtv-table-row" onclick="openPaxFromModal(${i})"><strong>${passengerDisplayName(p)}</strong><span>${p.seat||'—'}</span><span>${p.class||'—'}</span><span>${p.fqtv?.number||'—'}</span><span>${typeof passengerDocMeta==='function'?(passengerDocMeta(p)||'—'):'—'}</span></button>`).join('')||'<div class="prepa-empty">AUCUN PASSAGER</div>'}</div></div>`
     );
   };
 })();
