@@ -4163,12 +4163,18 @@ function lot2VfClassifyToken(raw,route){
   // (contrairement à un nom de famille pur-lettres qui peut aussi faire 6 caractères).
   if(/^[0-9][A-Z0-9]{5}$/.test(u))return {type:"pnr",value:u};
   if(/^\d{1,2}[A-Z]$/.test(u))return {type:"seat",value:u};
+  // Numéro FQTV (FFID) : 2 lettres + 9 chiffres ("TK463971137"), propre à la
+  // liste FQTV. Distinct d'un billet (chiffres purs) ou d'un code groupe
+  // (1-3 chiffres seulement) : aucun risque de collision avec ces formes.
+  if(/^[A-Z]{2}\d{9}$/.test(u))return {type:"ffid",value:u};
   // "YES"/"NO" (colonne "**Has Cbag" de Check-In List Boarded) ressemblent à un
   // code classe (Y+2 caractères) mais n'en sont pas : à exclure explicitement.
   if(u==="YES"||u==="NO")return {type:"skip"};
   if(/^Y[A-Z0-9]{1,2}$/.test(u))return {type:"class",value:u};
   if(/^[A-Z]{2}$/.test(u))return {type:"skip"}; // statut vol / code 2 lettres bruit
-  if(/^[A-Z]{1,2}\d{1,3}$/.test(u))return {type:"skip"}; // code groupe (GC)
+  // Code groupe (GC, ex. "A1","D32") : plusieurs passagers d'un même PNR
+  // partagent ce code. Capturé pour permettre la recherche par groupe.
+  if(/^[A-Z]{1,2}\d{1,3}$/.test(u))return {type:"groupcode",value:u};
   if(/^(?:TK|CX|OP|1[A-Z])?\s*TICKET$/i.test(t))return {type:"skip"};
   if(/^[A-Z][A-Z .'-]*$/.test(t) && t.length>=2)return {type:"name",value:t.replace(/\s+/g," ").trim()};
   return {type:"skip"};
@@ -4179,7 +4185,7 @@ function lot2VfScanRecords(text){
   const lines=String(text||"").replace(/\r/g,"\n").split(/\n/);
   const records=[];
   let cur=null;
-  const fresh=(surname)=>({surname,name:undefined,pnr:"",ticket:"",seat:"",cls:"",ssr:[]});
+  const fresh=(surname)=>({surname,name:undefined,pnr:"",ticket:"",seat:"",cls:"",ssr:[],ffid:"",groupCode:""});
   for(const raw of lines){
     const tok=lot2VfClassifyToken(raw,route);
     if(tok.type==="name"){
@@ -4193,6 +4199,8 @@ function lot2VfScanRecords(text){
       else if(tok.type==="seat")cur.seat=tok.value;
       else if(tok.type==="class")cur.cls=tok.value;
       else if(tok.type==="ssr")cur.ssr.push({code:tok.code,text:tok.text});
+      else if(tok.type==="ffid")cur.ffid=tok.value;
+      else if(tok.type==="groupcode")cur.groupCode=tok.value;
     }
   }
   if(cur && cur.surname!==undefined && cur.name!==undefined)records.push(cur);
@@ -4201,6 +4209,11 @@ function lot2VfScanRecords(text){
 
 function lot2VfBuildItem(rec,kind,seq){
   const cKey=VF_LIST_CARD_KEYS[kind]||"OTHER";
+  // La classe cabine affichée/comptée reste la lettre seule ("Y"), comme pour
+  // le pipeline Altea générique (lot2PassengerClassFromCode) : le code
+  // tarifaire brut ("YL","Y2"...) est conservé à part dans "acceptance",
+  // jamais dans class/cabinClass.
+  const cabinClass=lot2PassengerClassFromCode(rec.cls);
   const item={
     id:`VF-${cKey}-${seq}-${rec.surname}-${rec.name}`,
     seq,
@@ -4208,11 +4221,11 @@ function lot2VfBuildItem(rec,kind,seq){
     title:"",
     gender:"",
     passengerType:kind==="CHLD"?"CHLD":"ADT",
-    class:rec.cls,
-    cabinClass:rec.cls,
+    class:cabinClass,
+    cabinClass:cabinClass,
     origin:"",
     destination:"",
-    acceptance:"",
+    acceptance:rec.cls,
     seat:rec.seat,
     specific:"",
     note:"",
@@ -4222,11 +4235,17 @@ function lot2VfBuildItem(rec,kind,seq){
     ssr:[],
     pnr:rec.pnr,
     etkt:rec.ticket,
-    documentNumber:rec.ticket
+    documentNumber:rec.ticket,
+    groupCode:rec.groupCode||""
   };
   if(kind==="SSR"){
     item.ssr=rec.ssr.map(s=>s.code);
     item.note=rec.ssr.map(s=>`${s.code}: ${s.text}`).join(" · ");
+  }
+  if(kind==="FQTV" && rec.ffid){
+    // lot3NormalizePassengerForUi construit déjà x.fqtv.number depuis x.ffid
+    // pour cardKey FQTV : pas besoin de dupliquer dans etkt/documentNumber.
+    item.ffid=rec.ffid;
   }
   return item;
 }
