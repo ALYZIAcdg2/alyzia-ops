@@ -4077,7 +4077,8 @@ const VF_LIST_LABELS = {
   FQTV:"VF FQTV LIST",
   INFANT:"VF PASSENGER WITH INFANT LIST",
   OUTBOUND_DETAILS:"VF OUTBOUND PASSENGER DETAILS LIST",
-  INBOUND_DETAILS:"VF INBOUND PASSENGER DETAILS LIST"
+  INBOUND_DETAILS:"VF INBOUND PASSENGER DETAILS LIST",
+  CHLD:"VF CHILD LIST"
 };
 
 const VF_LIST_CARD_KEYS = {
@@ -4089,7 +4090,8 @@ const VF_LIST_CARD_KEYS = {
   FQTV:"FQTV",
   INFANT:"INFANT",
   OUTBOUND_DETAILS:"OUTBOUND",
-  INBOUND_DETAILS:"INBOUND"
+  INBOUND_DETAILS:"INBOUND",
+  CHLD:"CHLD"
 };
 
 /*
@@ -4126,6 +4128,7 @@ function lot2VfListKindFromText(text){
   if(/^PASSENGER\s+WITH\s+INFANT$/.test(title))return "INFANT";
   if(/^OUTBOUND\s+PASSENGER\s+DETAILS\s+LIST$/.test(title))return "OUTBOUND_DETAILS";
   if(/^INBOUND\s+PASSENGER\s+DETAILS\s+LIST$/.test(title))return "INBOUND_DETAILS";
+  if(/^CHILD\s+LIST$/.test(title))return "CHLD";
   return "";
 }
 
@@ -4153,6 +4156,9 @@ function lot2VfClassifyToken(raw,route){
   if(ssrM)return {type:"ssr",code:ssrM[1].toUpperCase(),text:ssrM[2].trim()};
   if(/^\d{1,2}$/.test(u))return {type:"skip"}; // numéro de ligne ("No")
   if(/^\d{10,13}$/.test(u))return {type:"ticket",value:u};
+  // Child List porte le numéro de coupon accolé au billet (".../1", ".../3") :
+  // on garde uniquement le numéro de billet, le coupon n'est pas exploité ici.
+  if(/^\d{10,13}\/\d{1,2}$/.test(u))return {type:"ticket",value:u.split("/")[0]};
   // PNR à 6 caractères, toujours préfixé d'un chiffre dans ce système
   // (contrairement à un nom de famille pur-lettres qui peut aussi faire 6 caractères).
   if(/^[0-9][A-Z0-9]{5}$/.test(u))return {type:"pnr",value:u};
@@ -4201,7 +4207,7 @@ function lot2VfBuildItem(rec,kind,seq){
     name:`${rec.surname}/${rec.name}`,
     title:"",
     gender:"",
-    passengerType:"ADT",
+    passengerType:kind==="CHLD"?"CHLD":"ADT",
     class:rec.cls,
     cabinClass:rec.cls,
     origin:"",
