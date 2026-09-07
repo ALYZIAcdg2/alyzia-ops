@@ -8941,8 +8941,12 @@ async function handleLot5(request,env,url){
     if(url.pathname==='/api/autopilot/reconcile-labels'&&(request.method==='POST'||request.method==='GET')){
       // GET accepté (comme requeue-airline/reset-flight-lists) pour un lien cliquable
       // depuis un téléphone, sans devoir passer par le cron (toutes les 5 min).
+      // Défaut réduit à 40 (comme force-relabel) : chaque mail réparé/transitionné
+      // peut déclencher un vrai appel réseau à l'API Gmail, et un lot de 1500
+      // dépasse la limite de sous-requêtes/temps CPU du Worker (Erreur 1102),
+      // faisant échouer l'appel entier sans rien renvoyer.
       const body=request.method==='POST'?await request.json().catch(()=>({})):null;
-      const result=await lot5ReconcileGmailStatesV53(env,Number(body?.limit||url.searchParams.get('limit')||1500));
+      const result=await lot5ReconcileGmailStatesV53(env,Math.max(1,Math.min(200,Number(body?.limit||url.searchParams.get('limit')||40))));
       const synced=await lot5SyncPrepaInboxRecent(env);
       return json({ok:result.ok,result,prepaSynced:synced});
     }
