@@ -15912,9 +15912,24 @@ function openBjFqtvList(tier,sort='name',dir='asc',replace=false){
  PAX_MODAL_ITEMS=match;PAX_MODAL_SOURCE=source.slice();const next=z=>sort===z?(dir==='asc'?'desc':'asc'):'asc';
  showModal(`FQTV · ${tier}`,x.flight,`<div class="sortbar compact-sortbar"><button class="${sort==='name'?'active':''}" onclick="openBjFqtvList('${tier}','name','${next('name')}',true)">NOM${sortArrow(sort==='name',dir)}</button><button class="${sort==='seat'?'active':''}" onclick="openBjFqtvList('${tier}','seat','${next('seat')}',true)">SIÈGE${sortArrow(sort==='seat',dir)}</button></div><div class="fqtv-table-wrap"><div class="fqtv-table-head"><span>NOM / PRÉNOM</span><span>SIÈGE</span><span>CLASSE</span><span>FQTV</span><span>DOCUMENT</span></div><div class="fqtv-table-body">${match.map((p,i)=>`<button class="fqtv-table-row ${tier.toLowerCase()}" onclick="openPaxFromModal(${i})"><strong>${passengerDisplayName(p)}</strong><span>${p.seat||'—'}</span><span>${p.class||'—'}</span><span>${p.fqtv?.tier||tier} · ${p.fqtv?.ffid||p.fqtv?.number||'—'}${Number.isFinite(Number(p.fqtv?.points))?` · ${p.fqtv.points} PTS`:''}</span><span>${passengerDocMeta(p)||'—'}</span></button>`).join('')||'<div class="prepa-empty">AUCUN PASSAGER</div>'}</div></div>`,replace);
 }
+function openFqtvFlatList(sort='name',dir='asc'){
+ // Compagnies GENERIC (VF...) : pas de texte de palier type "GOLD"/"ELITE PLUS" façon
+ // TK dans fqtv.status, donc fqtvCategoryForPassenger renvoie toujours AUTRES et la vue
+ // catégorisée ci-dessous les fait tous disparaître. Liste plate à la place.
+ const x=f(),source=Array.isArray(x.common_lists?.FQTV)?x.common_lists.FQTV:[],match=sortPaxItems(source,sort,dir);
+ PAX_MODAL_ITEMS=match;PAX_MODAL_SOURCE=source.slice();
+ const next=s=>sort===s?(dir==='asc'?'desc':'asc'):'asc';
+ showModal(`FQTV · ${source.length}`,x.flight,`<div class="sortbar compact-sortbar">
+ <button class="${sort==='name'?'active':''}" onclick="openFqtvFlatList('name','${next('name')}')">NOM${sortArrow(sort==='name',dir)}</button>
+ <button class="${sort==='class'?'active':''}" onclick="openFqtvFlatList('class','${next('class')}')">CLASSE${sortArrow(sort==='class',dir)}</button>
+ <button class="${sort==='seat'?'active':''}" onclick="openFqtvFlatList('seat','${next('seat')}')">SIÈGE${sortArrow(sort==='seat',dir)}</button></div>
+ <div class="fqtv-table-wrap"><div class="fqtv-table-head"><span>NOM / PRÉNOM</span><span>SIÈGE</span><span>CLASSE</span><span>FQTV</span><span>DOCUMENT</span></div>
+ <div class="fqtv-table-body">${match.map((p,i)=>`<button class="fqtv-table-row" onclick="openPaxFromModal(${i})"><strong>${passengerDisplayName(p)}</strong><span>${p.seat||'—'}</span><span>${p.class||'—'}</span><span>${p.fqtv?.number||'—'}</span><span>${passengerDocMeta(p)||'—'}</span></button>`).join('')||'<div class="prepa-empty">AUCUN PASSAGER</div>'}</div></div>`);
+}
 function openFqtvCategories(){
  const x=f(),raw=Array.isArray(x.common_lists?.FQTV)?x.common_lists.FQTV:[],arr=x.airline==='SQ'?cleanSqFqtvList(raw):raw;
  if(x.airline==='BJ'){openBjFqtvCategories();return;}
+ if(x.airline!=='SQ'&&x.airline!=='TK'){openFqtvFlatList();return;}
  if(x.airline==='SQ'){
    const order=['SOLITAIRE','PPS','KFEG','KFES'],groups={};
    arr.forEach(p=>{const cat=sqFqtvDisplayGroup(p);if(order.includes(cat))(groups[cat]=groups[cat]||[]).push(p)});
