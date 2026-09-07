@@ -4095,12 +4095,12 @@ const VF_LIST_CARD_KEYS = {
 };
 
 /*
- * Codes SSR "repas" repérés dans la vraie liste SSR VF (confirmés un par un,
- * pas de convention IATA fiable ici : BNDL/CPDR/DSML/EBML ne se ressemblent
- * pas et ne finissent pas tous en "ML"). Liste à étendre au fur et à mesure
- * que d'autres codes repas sont identifiés dans de vrais documents.
+ * Codes SSR "repas" repérés dans la vraie liste SSR VF (confirmés un par un
+ * contre un vrai PDF SSR List : "BDML : BDML-BUNDLE S" = sandwich, sans texte
+ * CATERING contrairement à CPDR/DSML/EBML qui portent tous "CATERING").
+ * Liste à étendre au fur et à mesure que d'autres codes repas sont identifiés.
  */
-const VF_MEAL_SSR_CODES=new Set(["BNDL","CPDR","DSML","EBML"]);
+const VF_MEAL_SSR_CODES=new Set(["BDML","CPDR","DSML","EBML"]);
 
 const VF_HEADER_WORDS = new Set([
   "NO","SURNAME","NAME","GC","PNR","STATUS","OWNER","TICKET","FLIGHT",
@@ -5710,7 +5710,9 @@ function lot3MergeFlightData(current,row,card){
           flight,
           from,
           to,
-          time:String(meta.time||"").trim(),
+          // À défaut de résumé (OUTBOUND/INBOUND_SUMMARY vide, cas VF), l'heure
+          // vient directement de la ligne passager elle-même (conn.std).
+          time:String(meta.time||conn.std||"").trim(),
           conx:String(meta.conx||""),
           class:pax.class||pax.cabinClass||"",
           sourceList:card.listName,
@@ -5759,7 +5761,25 @@ function lot3MergeFlightData(current,row,card){
    * l'ancien "imports" local (sans CBAG) capturé en début de fonction.
    */
   if(card.cardKey==="SSR" && Array.isArray(card.passengerItems)){
-    const cbagItems=card.passengerItems.filter(p=>Array.isArray(p.ssr)&&p.ssr.includes("CBAG"));
+    /*
+     * Un passager SSR VF peut porter plusieurs codes à la fois (ex. CBAG +
+     * BDML + DSML sur une même ligne). Sans filtrage, la carte CBAG affichait
+     * aussi les codes repas du même passager et inversement : on ne garde ici
+     * que le(s) code(s)/texte(s) pertinents pour la carte dérivée en cours.
+     */
+    const keepOnlyCodes=(items,codes)=>items.map(p=>({
+      ...p,
+      ssr:(Array.isArray(p.ssr)?p.ssr:[]).filter(c=>codes.has(c)),
+      note:String(p.note||"").split(" · ").filter(seg=>{
+        const m=seg.match(/^([A-Z0-9]+)\s*:/);
+        return m && codes.has(m[1]);
+      }).join(" · ")
+    }));
+    const CBAG_CODES=new Set(["CBAG"]);
+    const cbagItems=keepOnlyCodes(
+      card.passengerItems.filter(p=>Array.isArray(p.ssr)&&p.ssr.includes("CBAG")),
+      CBAG_CODES
+    );
     if(cbagItems.length){
       base=lot3MergeFlightData(base,row,{
         ...card,
@@ -5771,8 +5791,11 @@ function lot3MergeFlightData(current,row,card){
         connectionRows:[]
       });
     }
-    // Repas (BNDL/CPDR/DSML/EBML...) : même principe que CBAG ci-dessus.
-    const mealItems=card.passengerItems.filter(p=>Array.isArray(p.ssr)&&p.ssr.some(s=>VF_MEAL_SSR_CODES.has(s)));
+    // Repas (BDML/CPDR/DSML/EBML...) : même principe que CBAG ci-dessus.
+    const mealItems=keepOnlyCodes(
+      card.passengerItems.filter(p=>Array.isArray(p.ssr)&&p.ssr.some(s=>VF_MEAL_SSR_CODES.has(s))),
+      VF_MEAL_SSR_CODES
+    );
     if(mealItems.length){
       base=lot3MergeFlightData(base,row,{
         ...card,
