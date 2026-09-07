@@ -2697,7 +2697,12 @@ async function storeGmailMessage(env,messageId){
     const probed=await cleanProbeAttachmentIdentitySQV3(env,messageId,subject,bodyText,parts,attachmentCache);
     if(probed?.airline==='SQ')flightBase=probed;
   }
-  if(flightBase.airline==='SQ' && flightBase.flightDate){
+  if((flightBase.airline==='SQ' || IPORT_AIRLINES.has(flightBase.airline)) && flightBase.flightDate){
+    // IPORT (IZ/TB) donne une date sans année ("06SEP") comme SQ : sans cette
+    // canonicalisation, import_job_results.flight_date reste "06SEP" alors que
+    // flights.identity utilise la date ISO complète — la jointure utilisée par
+    // lot5InjectAvailable() pour retrouver la fiche vol ne matche jamais, et le
+    // résultat reste WAITING_FLIGHT indéfiniment même quand la fiche existe déjà.
     flightBase.flightDate=lot5CanonicalFlightDate(flightBase.flightDate,receivedAt)||flightBase.flightDate;
   }
 
