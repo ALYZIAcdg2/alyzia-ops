@@ -5346,18 +5346,51 @@ function lot3MergeFlightData(current,row,card){
     ? {...imports.cards}
     : {};
 
+  /*
+   * Nettoyage de la bouillie historique : avant ce correctif, "sources"
+   * s'accumulait sans limite sur TOUTES les cartes à chaque réinjection
+   * (une copie complète de passengerItems par cycle), et "passengers" dupliquait
+   * "passengerItems" partout. Sur un vol déjà volumineux (VF12), ça peut suffire
+   * à elle seule à dépasser la limite de taille D1 même pour l'écriture qui
+   * corrige UNE carte. On nettoie donc toutes les cartes existantes ici, pas
+   * seulement celle en cours de traitement, pour que la toute première écriture
+   * réussie après déploiement dégonfle déjà l'ensemble de la fiche.
+   */
+  for(const k of Object.keys(cards)){
+    if(!cards[k] || typeof cards[k]!=="object")continue;
+    if(cards[k].passengers!==undefined){cards[k]={...cards[k]};delete cards[k].passengers;}
+    if(k!=="INBOUND_SUMMARY" && k!=="OUTBOUND_SUMMARY" && cards[k].sources!==undefined){
+      cards[k]={...cards[k]};delete cards[k].sources;
+    }
+  }
+
   const key=String(card.cardKey||"OTHER").toUpperCase();
   const previous=cards[key] && typeof cards[key]==="object" && !Array.isArray(cards[key]) ? cards[key] : null;
 
+  /*
+   * "sources" n'est relu QUE pour INBOUND_SUMMARY/OUTBOUND_SUMMARY (agrégation
+   * des connectionRows de plusieurs documents). Pour toute autre carte, cette
+   * liste n'est jamais relue nulle part : la conserver ne fait qu'accumuler
+   * indéfiniment une copie complète de passengerItems à CHAQUE reparse/réinjection
+   * du même document (requeue, cron répété...), ce qui a fait dépasser la limite
+   * de taille d'une ligne D1 (SQLITE_TOOBIG) sur un vol VF déjà volumineux.
+   * On ne garde donc "sources" que là où il sert, et on déduplique par job_id
+   * pour qu'un même document réinjecté plusieurs fois ne soit compté qu'une fois.
+   */
+  const needsSources=key==="INBOUND_SUMMARY"||key==="OUTBOUND_SUMMARY";
+  const dedupeSources=(list,incoming)=>{
+    const jobId=String(incoming?.source?.jobId||"");
+    const kept=jobId?list.filter(s=>String(s?.source?.jobId||"")!==jobId):list.slice();
+    kept.push(incoming);
+    return kept;
+  };
+
   // Protection corrections manuelles : si une carte porte manualLocked=true, on archive seulement la source.
   if(previous && previous.manualLocked===true){
-    const sources=Array.isArray(previous.sources)?previous.sources.slice():[];
-    sources.push(card);
-    cards[key]={...previous,sources,serverUpdatedAt:new Date().toISOString()};
+    cards[key]={...previous,serverUpdatedAt:new Date().toISOString()};
+    if(needsSources)cards[key].sources=dedupeSources(Array.isArray(previous.sources)?previous.sources:[],card);
+    else delete cards[key].sources;
   }else{
-    const sources=previous && Array.isArray(previous.sources)?previous.sources.slice():[];
-    sources.push(card);
-
     // Si plusieurs sources d'une même carte existent, on garde le plus haut compteur en affichage
     // et toutes les sources restent consultables.
     const prevCount=Number(previous?.passengerCount||0);
@@ -5367,9 +5400,10 @@ function lot3MergeFlightData(current,row,card){
     cards[key]={
       ...(display||card),
       passengerCount:Math.max(prevCount,nextCount),
-      sources,
       serverUpdatedAt:new Date().toISOString()
     };
+    if(needsSources)cards[key].sources=dedupeSources(Array.isArray(previous?.sources)?previous.sources:[],card);
+    else delete cards[key].sources;
   }
 
   imports.cards=cards;
