@@ -4302,9 +4302,13 @@ function lot2VfExtractPassengerItems(text,kind){
 }
 
 function lot2VfClassCounts(items){
+  // base.booked (widget "Booked / Classes") attend une classe cabine ("Y"/"C"/"F"),
+  // pas le code tarifaire brut ("Y2","YL","YR"...) porté par chaque passager VF.
+  // Sans ce regroupement, aucun code tarifaire n'égale jamais "Y" et le total
+  // Booked reste à 0 malgré une injection réussie.
   const out={};
   for(const p of items||[]){
-    const c=String(p.class||p.cabinClass||"").toUpperCase();
+    const c=lot2PassengerClassFromCode(p.class||p.cabinClass||"");
     if(!c)continue;
     out[c]=(out[c]||0)+1;
   }
