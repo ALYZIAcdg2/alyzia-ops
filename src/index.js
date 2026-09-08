@@ -6956,6 +6956,42 @@ async function lot5SpecificGenericPreviewV1(env,messageId,airlineHint=''){
   return {ok:true,messageId,airline,documents:docs};
 }
 
+// Survol en lecture seule : scanne plusieurs mails d'une compagnie verrouillée
+// et regroupe par type de liste détecté (listName), pour construire le futur
+// mapping GENERIC (comme OZ/WB) sans avoir à cliquer message par message.
+// Plafonné : lot2ExtractPdfTextFromBytes est coûteux en CPU sur beaucoup de PDF.
+async function lot5SpecificListSurveyV1(env,airline,limit=30){
+  const a=String(airline||'').trim().toUpperCase();
+  if(!a)return {ok:false,error:'AIRLINE REQUISE'};
+  const n=Math.max(1,Math.min(60,Number(limit||30)));
+  const rows=(await env.OPS_DB.prepare(`
+    SELECT gmail_message_id FROM gmail_messages
+    WHERE UPPER(airline)=? AND status<>'IGNORED_NON_OPERATIONAL'
+    ORDER BY updated_at DESC LIMIT ?
+  `).bind(a,n).all()).results||[];
+  const byList={};
+  const errors=[];
+  let checked=0,documentsSeen=0;
+  for(const row of rows){
+    const messageId=String(row.gmail_message_id||'');
+    try{
+      const r=await lot5SpecificGenericPreviewV1(env,messageId,a);
+      checked++;
+      if(!r.ok)continue;
+      for(const doc of r.documents||[]){
+        documentsSeen++;
+        if(!doc.readable)continue;
+        const key=String(doc.listName||'(SANS EN-TÊTE)');
+        if(!byList[key]){
+          byList[key]={listName:key,cardKey:doc.cardKey,mappingScope:doc.mappingScope,occurrences:0,sampleMessageId:messageId,samplePassengerCount:doc.passengerCountDetected,sampleClassCounts:doc.classCounts};
+        }
+        byList[key].occurrences++;
+      }
+    }catch(e){errors.push({messageId,error:String(e?.message||e)})}
+  }
+  return {ok:true,airline:a,messagesChecked:checked,documentsSeen,distinctListNames:Object.keys(byList).length,lists:Object.values(byList).sort((x,y)=>y.occurrences-x.occurrences),errors};
+}
+
 async function lot5AuditBacklogV534(env,limit=100,airline='',status=''){
   const a=String(airline||'').trim().toUpperCase();
   const s=String(status||'').trim().toUpperCase();
@@ -9102,6 +9138,11 @@ async function handleLot5(request,env,url){
       const messageId=String(url.searchParams.get('messageId')||'').trim();
       if(!messageId)return json({ok:false,error:'messageId REQUIS'});
       return json(await lot5SpecificGenericPreviewV1(env,messageId,url.searchParams.get('airline')||''));
+    }
+    if(url.pathname==='/api/autopilot/specific-list-survey'&&request.method==='GET'){
+      const airline=String(url.searchParams.get('airline')||'').trim();
+      if(!airline)return json({ok:false,error:'airline REQUISE'});
+      return json(await lot5SpecificListSurveyV1(env,airline,Number(url.searchParams.get('limit')||30)));
     }
     if(url.pathname==='/api/gmail-clean/sq-identity-audit'&&request.method==='GET'){
       return json(await gmailCleanSqIdentityAuditV37(env,url));
