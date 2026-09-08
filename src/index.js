@@ -6906,6 +6906,45 @@ async function lot5AuditMessageV534(env,messageId){
   };
 }
 
+// Diagnostic en lecture seule : rejoue le moteur GENERIC (déjà utilisé par
+// MS/OZ/WB/...) sur un document déjà stocké d'une compagnie verrouillée
+// (SQ/TK/BJ/TW), sans jamais écrire ni changer le statut réel du mail.
+// Objectif : vérifier si le format est compatible avant toute migration.
+async function lot5SpecificGenericPreviewV1(env,messageId,airlineHint=''){
+  const gm=await env.OPS_DB.prepare(`SELECT airline FROM gmail_messages WHERE gmail_message_id=? LIMIT 1`).bind(messageId).first();
+  const airline=String(airlineHint||gm?.airline||'').trim().toUpperCase();
+  if(!airline)return {ok:false,error:'MESSAGE INTROUVABLE OU COMPAGNIE INCONNUE'};
+  const versions=(await env.OPS_DB.prepare(`
+    SELECT version_id,filename_original,filename_normalized,mime_type,r2_key
+    FROM import_file_versions WHERE gmail_message_id=? ORDER BY created_at ASC
+  `).bind(messageId).all()).results||[];
+  if(!versions.length)return {ok:false,error:'AUCUN DOCUMENT POUR CE MESSAGE'};
+  const docs=[];
+  for(const v of versions){
+    const filename=v.filename_original||v.filename_normalized||'file';
+    try{
+      if(!env.OPS_FILES){docs.push({filename,error:'BINDING R2 OPS_FILES ABSENT'});continue}
+      const object=await env.OPS_FILES.get(v.r2_key);
+      if(!object){docs.push({filename,error:'FICHIER R2 INTROUVABLE'});continue}
+      const mime=v.mime_type||'application/octet-stream';
+      const extracted=await lot2ExtractTextFromR2Object(object,filename,mime);
+      if(!extracted?.readable){docs.push({filename,readable:false});continue}
+      const listName=lot2DetectListName(extracted.text,filename);
+      const mapping=lot2LookupListMapping(airline,listName);
+      const items=lot2ExtractPassengerItemsFromGenericList(extracted.text,listName,mapping.cardKey);
+      const count=lot2ExtractPassengerCount(extracted.text,listName,mapping.cardKey);
+      const classCounts=lot2ExtractClassCountsForDocument(extracted.text,listName,mapping.cardKey);
+      docs.push({
+        filename,readable:true,listName,cardKey:mapping.cardKey,mappingScope:mapping.mappingScope,
+        passengerCountDetected:count,itemsExtracted:items.length,classCounts,
+        sampleItems:items.slice(0,3),
+        textPreview:String(extracted.text||'').slice(0,3000)
+      });
+    }catch(e){docs.push({filename,error:String(e?.message||e)})}
+  }
+  return {ok:true,messageId,airline,documents:docs};
+}
+
 async function lot5AuditBacklogV534(env,limit=100,airline='',status=''){
   const a=String(airline||'').trim().toUpperCase();
   const s=String(status||'').trim().toUpperCase();
@@ -9047,6 +9086,11 @@ async function handleLot5(request,env,url){
     if(url.pathname==='/api/gmail-clean/sha-audit'&&request.method==='POST'){
       const body=await request.json().catch(()=>({}));
       return json(await gmailCleanShaAuditV33(env,body?.messageIds||[]));
+    }
+    if(url.pathname==='/api/autopilot/specific-generic-preview'&&request.method==='GET'){
+      const messageId=String(url.searchParams.get('messageId')||'').trim();
+      if(!messageId)return json({ok:false,error:'messageId REQUIS'});
+      return json(await lot5SpecificGenericPreviewV1(env,messageId,url.searchParams.get('airline')||''));
     }
     if(url.pathname==='/api/gmail-clean/sq-identity-audit'&&request.method==='GET'){
       return json(await gmailCleanSqIdentityAuditV37(env,url));
