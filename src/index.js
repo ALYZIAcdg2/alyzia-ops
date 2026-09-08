@@ -4669,17 +4669,22 @@ function lot2TwExtractPassengerItems(text){
     const gt=tail.match(/^([MF])\s+(MSTR|MISS|MRS|MR|MS)\s+(\S+)\s+/);
     let rest=tail,gender="",title="",ptype="";
     if(gt){gender=gt[1];title=gt[2];ptype=gt[3];rest=tail.slice(gt[0].length)}
-    // Repère fixe du format : <CABINE> <SOUS-CLASSE> HK[ CK]  CDG ICN[ AÉROPORT][ TWxxxx]  <jambe>/<jambes> <PNR> <SIÈGE?>
-    const core=rest.match(/\b(C|Y)\s+([A-Z]{1,2})\s+HK(\s+CK)?\s+CDG\s+ICN(?:\s+([A-Z]{3}))?(?:\s+(TW\d{2,4}))?\s+(\d\/\d)\s+([A-Z0-9]{6})\s*([0-9]{2}[A-Z])?/);
+    // Repère fixe du format : <CABINE> <SOUS-CLASSE> HK[ CK/BD...]  CDG ICN[ AÉROPORT][ TWxxxx]  <jambe>/<jambes> <PNR>[ SIÈGE]
+    // "NULL" est une valeur littérale de champ vide dans une variante réelle
+    // du format (vue sur un vrai mail TW402/31AOÛT après activation) : tous
+    // les champs optionnels doivent aussi accepter ce jeton, sans quoi le
+    // repère ne matche plus jamais et TOUS les passagers du document sont
+    // silencieusement ignorés (extraction à 0 malgré un document valide).
+    const core=rest.match(/\b(C|Y)\s+([A-Z]{1,2})\s+HK(?:\s+(?:CK|BD|NULL))*\s+CDG\s+ICN(?:\s+(?:([A-Z]{3})|NULL))?(?:\s+(?:(TW\d{2,4})|NULL))?\s+(\d\/\d)\s+([A-Z0-9]{6})(?:\s+NULL)?(?:\s+([0-9]{2}[A-Z]))?/);
     if(!core)continue; // repère absent : ligne non fiable, ignorée plutôt que de créer un passager corrompu
     const ssrBlock=rest.slice(0,core.index).trim();
     items.push({
       id:`TW-${i+1}-${name}`,seq:i+1,name,title,gender,passengerType:ptype||"ADULT",
       class:core[1],cabinClass:core[1],bookingClass:core[2],
-      origin:"CDG",destination:core[4]||"ICN",
-      seat:core[8]||"",pnr:core[7],legRatio:core[6],connectingFlight:core[5]||"",
+      origin:"CDG",destination:core[3]||"ICN",
+      seat:core[7]||"",pnr:core[6],legRatio:core[5],connectingFlight:core[4]||"",
       specific:"",note:"",listName:"TW CONTENT",cardKey:"MASTER",source:"TW_CONTENT",
-      ssr:ssrBlock?ssrBlock.split(/\s+/):[]
+      ssr:ssrBlock?ssrBlock.split(/\s+/).filter(x=>x&&x!=="NULL"):[]
     });
   }
   return items;
