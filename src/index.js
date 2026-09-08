@@ -5144,7 +5144,12 @@ async function lot2ProcessOneJob(env,job){
     // "LIST OF:" Altea non plus. VF n'est plus SPECIFIC_LOCKED (voir plus haut) :
     // parserMode vaut déjà GENERIC ici, mais son format reste entièrement différent
     // d'Altea et se détecte/s'extrait via son propre pipeline dédié.
-    const vfKind=(parserMode==="GENERIC" && airline==="VF" && extracted.readable)
+    // BJ partage EXACTEMENT ce même pipeline PD4ML (vérifié sur de vraies pièces
+    // jointes réelles : "ALL Reservetion List"/"FQTV List"/"Check-In List
+    // Boarded" identiques, y compris l'orthographe "Reservetion") — déjà
+    // suggéré par r223DetectBjVfIdentityFromPdfText qui traite les deux
+    // compagnies ensemble depuis le début.
+    const vfKind=(parserMode==="GENERIC" && (airline==="VF"||airline==="BJ") && extracted.readable)
       ? lot2VfListKindFromText(extracted.text)
       : "";
     // Source TW (corps "CONTENT") : voir lot2TwContentDetect. TW est encore
@@ -5485,7 +5490,13 @@ function lot3PaxKey(p){
 
 
 function lot3IsProtectedSpecificAirline(airline){
-  return ["SQ","TK","TW","BJ"].includes(String(airline||"").trim().toUpperCase());
+  // BJ retirée : elle utilise le même pipeline PD4ML que VF (déjà hors de
+  // cette liste). Vérifié sur de vraies pièces jointes BJ : la liste
+  // secondaire CHECK-IN LIST BOARDED extrait un nom erroné sur ce format
+  // (colonnes différentes de VF) — le filet de sécurité provisoire/nettoyage
+  // du flux non protégé (voir lot3UpsertPassengers) est nécessaire pour
+  // qu'une ligne mal extraite ne devienne pas un faux passager permanent.
+  return ["SQ","TK","TW"].includes(String(airline||"").trim().toUpperCase());
 }
 
 function lot3PaxNameKey(p){
@@ -7159,7 +7170,7 @@ async function lot5SpecificGenericPreviewV1(env,messageId,airlineHint=''){
       const twKind=TW_CONTENT_AIRLINES.has(airline)?lot2TwContentDetect(extracted.text):"";
       const tkKind=(!twKind && TK_ALLPAX_AIRLINES.has(airline))?lot2TkContentDetect(extracted.text):"";
       const iportKind=(!twKind && !tkKind && IPORT_AIRLINES.has(airline))?lot2IportListKindFromBody(extracted.text):"";
-      const vfKind=(!twKind && !tkKind && !iportKind && airline==="VF")?lot2VfListKindFromText(extracted.text):"";
+      const vfKind=(!twKind && !tkKind && !iportKind && (airline==="VF"||airline==="BJ"))?lot2VfListKindFromText(extracted.text):"";
       let listName,cardKey,mappingScope,items,count,classCounts;
       if(twKind){
         listName="TW CONTENT";cardKey="MASTER";mappingScope="TW_CONTENT";
