@@ -4257,7 +4257,8 @@ const VF_LIST_LABELS = {
   INFANT:"VF PASSENGER WITH INFANT LIST",
   OUTBOUND_DETAILS:"VF OUTBOUND PASSENGER DETAILS LIST",
   INBOUND_DETAILS:"VF INBOUND PASSENGER DETAILS LIST",
-  CHLD:"VF CHILD LIST"
+  CHLD:"VF CHILD LIST",
+  STAFF:"VF PASS2 STAFF LIST"
 };
 
 const VF_LIST_CARD_KEYS = {
@@ -4275,7 +4276,11 @@ const VF_LIST_CARD_KEYS = {
   INFANT:"INF",
   OUTBOUND_DETAILS:"OUTBOUND",
   INBOUND_DETAILS:"INBOUND",
-  CHLD:"CHLD"
+  CHLD:"CHLD",
+  // cardKey "STAFF" : déjà reconnu par la carte agrégée générique de
+  // lot3MergeFlightData (map WCH/CHLD/INF/EMD/ETK/FQTV/STAFF/...), aucune
+  // extension nécessaire là-bas.
+  STAFF:"STAFF"
 };
 
 /*
@@ -4297,7 +4302,13 @@ const VF_HEADER_WORDS = new Set([
   "G","INFANT","INFANT SURNAME","INFANT NAME","INFANT DOB","C.S",
   // Colonnes à ignorer explicitement dans SSR List (demande utilisateur) :
   // Payment Status/CC/C.S ne sont pas des informations passager exploitables.
-  "PAYMENT STATUS","CABIN","CLASS","CPN","CPN STATUS"
+  "PAYMENT STATUS","CABIN","CLASS","CPN","CPN STATUS",
+  // En-têtes de colonnes imprimés TOUT EN MAJUSCULES dans le PDF réel (contrairement
+  // à la plupart des en-têtes VF/BJ en casse mixte, "Nom"/"Card Type"...), donc pas
+  // filtrés par la casse et pris à tort pour un nom de passager sans cette entrée
+  // explicite : "TKNE"/"C STS" (PASS2 PRINT réel), "B. STS" (Check-In List Boarded
+  // réel — cause du nom erroné "B. STS/<premier passager>" déjà observé).
+  "TKNE","C STS","B. STS"
 ]);
 
 function lot2VfListKindFromText(text){
@@ -4313,6 +4324,10 @@ function lot2VfListKindFromText(text){
   if(/^OUTBOUND\s+PASSENGER\s+DETAILS\s+LIST$/.test(title))return "OUTBOUND_DETAILS";
   if(/^INBOUND\s+PASSENGER\s+DETAILS\s+LIST$/.test(title))return "INBOUND_DETAILS";
   if(/^CHILD\s+LIST$/.test(title))return "CHLD";
+  // "PASS2 PRINT" (BJ) : liste du personnel/voyageurs à tarif réduit (ID/staff).
+  // Même structure Nom/Prénom que les autres listes VF/BJ (voir lot2VfScanRecords) :
+  // aucun scanner dédié nécessaire, seule la reconnaissance du titre manquait.
+  if(/^PASS2\s+PRINT$/.test(title))return "STAFF";
   return "";
 }
 
@@ -4350,7 +4365,12 @@ function lot2VfClassifyToken(raw,route){
   // Numéro FQTV (FFID) : 2 lettres + 9 chiffres ("TK463971137"), propre à la
   // liste FQTV. Distinct d'un billet (chiffres purs) ou d'un code groupe
   // (1-3 chiffres seulement) : aucun risque de collision avec ces formes.
-  if(/^[A-Z]{2}\d{9}$/.test(u))return {type:"ffid",value:u};
+  // Sur un vrai FQTV List BJ, ce champ porte parfois le niveau de carte accolé
+  // par un point ("BJ194362534.WHITE") : capturé à part (voir lot2VfScanRecords,
+  // qui l'utilise aussi pour ignorer le "WHITE" isolé qui suit sur sa propre
+  // ligne — sinon pris à tort pour un second passager et cassant tout l'alignement).
+  const ffidM=u.match(/^([A-Z]{2}\d{9})(?:\.([A-Z]+))?$/);
+  if(ffidM)return {type:"ffid",value:ffidM[1],tier:ffidM[2]||""};
   // "YES"/"NO" (colonne "**Has Cbag" de Check-In List Boarded) ressemblent à un
   // code classe (Y+2 caractères) mais n'en sont pas : à exclure explicitement.
   if(u==="YES"||u==="NO")return {type:"skip"};
@@ -4369,10 +4389,16 @@ function lot2VfScanRecords(text){
   const lines=String(text||"").replace(/\r/g,"\n").split(/\n/);
   const records=[];
   let cur=null;
-  const fresh=(surname)=>({surname,name:undefined,pnr:"",ticket:"",seat:"",cls:"",ssr:[],ffid:"",groupCode:""});
+  const fresh=(surname)=>({surname,name:undefined,pnr:"",ticket:"",seat:"",cls:"",ssr:[],ffid:"",cardTier:"",groupCode:""});
   for(const raw of lines){
     const tok=lot2VfClassifyToken(raw,route);
     if(tok.type==="name"){
+      // Sur un vrai FQTV List BJ, le niveau de carte ("WHITE") apparaît une
+      // deuxième fois, seul sur sa propre ligne, juste après le jeton FFID
+      // ("BJ194362534.WHITE") qui le porte déjà : sans ce garde-fou, il est
+      // pris pour un second passager et décale tous les enregistrements
+      // suivants (19 "passagers" extraits au lieu des 13 réels).
+      if(cur && cur.cardTier && tok.value.toUpperCase()===cur.cardTier)continue;
       if(!cur)cur=fresh(tok.value);
       else if(cur.surname===undefined)cur.surname=tok.value;
       else if(cur.name===undefined)cur.name=tok.value;
@@ -4383,7 +4409,7 @@ function lot2VfScanRecords(text){
       else if(tok.type==="seat")cur.seat=tok.value;
       else if(tok.type==="class")cur.cls=tok.value;
       else if(tok.type==="ssr")cur.ssr.push({code:tok.code,text:tok.text});
-      else if(tok.type==="ffid")cur.ffid=tok.value;
+      else if(tok.type==="ffid"){cur.ffid=tok.value; if(tok.tier)cur.cardTier=tok.tier;}
       else if(tok.type==="groupcode")cur.groupCode=tok.value;
     }
   }
@@ -4430,6 +4456,9 @@ function lot2VfBuildItem(rec,kind,seq){
     // lot3NormalizePassengerForUi construit déjà x.fqtv.number depuis x.ffid
     // pour cardKey FQTV : pas besoin de dupliquer dans etkt/documentNumber.
     item.ffid=rec.ffid;
+    // Niveau de carte réel ("WHITE"...) plutôt que le repli générique "FQA"
+    // de lot2FqtvCategories (p.category||p.specific||"FQA").
+    if(rec.cardTier)item.category=rec.cardTier;
   }
   return item;
 }
@@ -5196,7 +5225,12 @@ async function lot2ProcessOneJob(env,job){
     const listMapping=iportKind
       ? {cardKey:IPORT_LIST_CARD_KEYS[iportKind]||"OTHER",mappingScope:"IPORT",matchedListName:listName}
       : (vfKind
-        ? {cardKey:VF_LIST_CARD_KEYS[vfKind]||"OTHER",mappingScope:"VF",matchedListName:listName}
+        // BJ (UI carte "WEB", voir BJ_PREPA_CARDS côté navigateur) compte le
+        // Check-In List Boarded comme les passagers enregistrés en ligne :
+        // cardKey "WEB" alimente base.web (déjà géré génériquement par
+        // lot3MergeFlightData), plutôt que "BOARDED" qui n'est mappée nulle
+        // part. VF n'est pas concerné : son cardKey CHECKIN reste inchangé.
+        ? {cardKey:(airline==="BJ"&&vfKind==="CHECKIN")?"WEB":(VF_LIST_CARD_KEYS[vfKind]||"OTHER"),mappingScope:"VF",matchedListName:listName}
         : (twKind
           ? {cardKey:"MASTER",mappingScope:"TW_CONTENT",matchedListName:listName}
         : (tkKind
@@ -7190,7 +7224,9 @@ async function lot5SpecificGenericPreviewV1(env,messageId,airlineHint=''){
         items=lot2IportExtractPassengerItems(extracted.text,iportKind);
         count=items.length;classCounts=lot2IportClassCounts(items);
       }else if(vfKind){
-        listName=VF_LIST_LABELS[vfKind]||vfKind;cardKey=VF_LIST_CARD_KEYS[vfKind]||"OTHER";mappingScope="VF";
+        listName=VF_LIST_LABELS[vfKind]||vfKind;
+        cardKey=(airline==="BJ"&&vfKind==="CHECKIN")?"WEB":(VF_LIST_CARD_KEYS[vfKind]||"OTHER");
+        mappingScope="VF";
         items=lot2VfExtractPassengerItems(extracted.text,vfKind);
         count=items.length;classCounts=lot2VfClassCounts(items);
       }else{
