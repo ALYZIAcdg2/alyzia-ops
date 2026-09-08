@@ -6914,11 +6914,22 @@ async function lot5SpecificGenericPreviewV1(env,messageId,airlineHint=''){
   const gm=await env.OPS_DB.prepare(`SELECT airline FROM gmail_messages WHERE gmail_message_id=? LIMIT 1`).bind(messageId).first();
   const airline=String(airlineHint||gm?.airline||'').trim().toUpperCase();
   if(!airline)return {ok:false,error:'MESSAGE INTROUVABLE OU COMPAGNIE INCONNUE'};
-  const versions=(await env.OPS_DB.prepare(`
+  let versions=(await env.OPS_DB.prepare(`
     SELECT version_id,filename_original,filename_normalized,mime_type,r2_key
     FROM import_file_versions WHERE gmail_message_id=? ORDER BY created_at ASC
   `).bind(messageId).all()).results||[];
-  if(!versions.length)return {ok:false,error:'AUCUN DOCUMENT POUR CE MESSAGE'};
+  // Les mails identiques (ex. 5 renvois du même PDF) ne gardent le lien direct
+  // que sur le premier ; les suivants ne référencent le fichier réel que via
+  // gmail_message_documents (dédoublonnage par SHA).
+  if(!versions.length){
+    versions=(await env.OPS_DB.prepare(`
+      SELECT v.version_id,v.filename_original,v.filename_normalized,v.mime_type,v.r2_key
+      FROM gmail_message_documents d
+      JOIN import_file_versions v ON v.version_id=d.version_id
+      WHERE d.gmail_message_id=? ORDER BY d.created_at ASC
+    `).bind(messageId).all()).results||[];
+  }
+  if(!versions.length)return {ok:false,error:'AUCUN DOCUMENT POUR CE MESSAGE (ni direct ni via gmail_message_documents)'};
   const docs=[];
   for(const v of versions){
     const filename=v.filename_original||v.filename_normalized||'file';
