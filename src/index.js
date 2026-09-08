@@ -1846,10 +1846,16 @@ async function lot5ForceRelabelAllV1(env,limit=40){
   // ("ça plante" côté utilisateur, aucune réponse visible). Défaut prudent,
   // cliquable plusieurs fois de suite pour vider tout le backlog.
   await ensureGmailPipelineTables(env);
+  // ASC (le plus ancien d'abord), jamais DESC : setGmailPipelineState met à
+  // jour updated_at à chaque appel, donc un tri DESC ferait toujours
+  // retomber les mêmes lignes tout juste corrigées en tête de liste au
+  // clic suivant — boucle infinie sur le même lot, le reste du backlog
+  // n'est jamais atteint (même correctif déjà appliqué à
+  // lot5ReconcileGmailStatesV53, voir plus bas).
   const rows=(await env.OPS_DB.prepare(`
     SELECT gmail_message_id,status FROM gmail_messages
     WHERE status<>'IGNORED_NON_OPERATIONAL' AND status<>''
-    ORDER BY updated_at DESC LIMIT ?
+    ORDER BY updated_at ASC LIMIT ?
   `).bind(Math.max(1,Math.min(200,Number(limit||40)))).all()).results||[];
   let relabeled=0,skipped=0,errors=0,goneDeleted=0;
   const sampleErrors=[];
@@ -2908,10 +2914,14 @@ async function lot5ReclassifyIgnoredV1(env,{airlineHint='',subjectLike='',limit=
   if(subjectLike){wh.push("subject LIKE ?");binds.push(`%${subjectLike}%`)}
   if(airlineHint){wh.push("UPPER(airline)=?");binds.push(String(airlineHint).toUpperCase())}
   binds.push(Math.max(1,Math.min(50,Number(limit||20))));
+  // ASC : storeGmailMessage() met à jour updated_at même quand le mail reste
+  // IGNORED_NON_OPERATIONAL (reclassification sans effet) — un tri DESC ferait
+  // retomber les mêmes mails toujours ignorés en tête à chaque appel (chaque
+  // cycle CRON désormais), sans jamais atteindre le reste du lot.
   const rows=(await env.OPS_DB.prepare(`
     SELECT gmail_message_id FROM gmail_messages
     WHERE ${wh.join(" AND ")}
-    ORDER BY updated_at DESC LIMIT ?
+    ORDER BY updated_at ASC LIMIT ?
   `).bind(...binds).all()).results||[];
   let reclassified=0,stillIgnored=0; const errors=[]; const results=[];
   for(const row of rows){
