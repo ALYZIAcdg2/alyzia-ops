@@ -4699,6 +4699,90 @@ function lot2TwClassCounts(items){
   return out;
 }
 
+// ========================================================
+// TK (Turkish Airlines) — corps de mail texte, plusieurs sections dans le
+// MÊME document (CHECK IN INFORMATION, TOY'S R US, REBATE PAX, ONCARRIAGE
+// PAX, EMD/E-TKT/FQTV FULL LIST, ALL PAX, ...), chaque section terminée par
+// "END NAMES". Format vérifié sur 3 vrais mails réels (fichiers .eml
+// fournis par l'utilisateur, décodés proprement — base64 et
+// quoted-printable) : "ALL PAX" est le manifeste complet ligne par ligne
+// (nom tronqué + destination/classe/siège/eticket, puis une ligne détail
+// "SURNAME-GIVEN-TYPE-TITLE"). Sur le mail complet non tronqué (TK1830/
+// 28AUG) : 160/160 passagers extraits, comptage cabine C20/Y140 EXACT par
+// rapport à l'en-tête "0 F 20 C 140Y". Les autres sections ne sont
+// volontairement pas parsées ici (redondantes avec ALL PAX, comme les CC-x
+// de SQ) : seule ALL PAX construit la fiche, le reste tombe en repli
+// générique sans dégât (voir lot3UpsertPassengers/lot5InjectAvailable qui
+// ignorent déjà cardKey OTHER).
+const TK_ALLPAX_AIRLINES=new Set(["TK"]);
+function lot2TkAllPaxHeaderMatch(text){
+  return String(text||"").match(/\b[A-Z]{2}\d{2,4}\s+\d{1,2}[A-Z]{3}\s+\w{3}\s+ALL PAX\s+(\d+)\s+F\s+(\d+)\s+C\s+(\d+)\s*Y/);
+}
+function lot2TkContentDetect(text){
+  const m=lot2TkAllPaxHeaderMatch(text);
+  if(!m)return "";
+  const total=Number(m[1]||0)+Number(m[2]||0)+Number(m[3]||0);
+  return total>0?"ALL_PAX":"";
+}
+function lot2TkExtractPassengerItems(text){
+  const flat=String(text||"");
+  const m=lot2TkAllPaxHeaderMatch(flat);
+  if(!m)return [];
+  const after=flat.slice(m.index+m[0].length);
+  const endIdx=after.indexOf("END NAMES");
+  const section=endIdx>=0?after.slice(0,endIdx):after;
+  const lines=section.replace(/\r/g,"").split("\n");
+  const records=[];
+  let current=null;
+  for(const line of lines){
+    const numMatch=line.match(/^\s*(\d{1,3})\.(.*)$/);
+    if(numMatch){
+      if(current)records.push(current);
+      current={seq:Number(numMatch[1]),lines:[numMatch[2]]};
+    }else if(current && line.trim()){
+      current.lines.push(line);
+    }
+  }
+  if(current)records.push(current);
+
+  const items=[];
+  for(const r of records){
+    const l1=r.lines[0]||"";
+    // Le champ nom tronqué colle parfois l'initiale avec "!" sans espace
+    // (ex. "AGBADAMU!J") au lieu de "ADAMS    J" : peu importe, le vrai nom
+    // vient de la ligne 2 détail. On cherche juste IST (toujours présent
+    // pour ces vols CDG-IST) pour repartir sur la classe et le reste.
+    const m1=l1.match(/\bIST\s+([FCY])\s*(.*)$/);
+    let cls="",rest1="";
+    if(m1){cls=m1[1];rest1=m1[2]}
+    const etktMatch=rest1.match(/(\d{10,14}[A-Z]\d)/);
+    const etkt=etktMatch?etktMatch[1]:"";
+    const seatMatch=rest1.match(/(\d{2,3}[A-Z]?(?:-[A-Z])?)\s+[FM]?\s*\d\s+\d{10,14}[A-Z]\d/);
+    const seat=seatMatch?seatMatch[1]:"";
+    const l2=(r.lines[1]||"").trim();
+    const m2=l2.match(/^([A-Z][A-Z' ]*?)\s*-\s*([A-Z][A-Z' ]*?)\s*-\s*(\w*)\s*-\s*(\w*)\s*$/);
+    if(!m2)continue; // ligne détail absente/illisible : ignorée plutôt que de créer un passager sans nom fiable
+    const surname=m2[1].trim(),given=m2[2].trim(),ptype=m2[3].trim(),title=m2[4].trim();
+    items.push({
+      id:`TK-${r.seq}-${surname}/${given}`,seq:r.seq,name:`${surname}/${given}`,
+      title,gender:"",passengerType:ptype==="CHD"?"CHD":(ptype||"ADT"),
+      class:cls,cabinClass:cls,seat,etkt,
+      origin:"CDG",destination:"IST",
+      specific:"",note:"",listName:"TK ALL PAX",cardKey:"MASTER",source:"TK_ALLPAX",ssr:[]
+    });
+  }
+  return items;
+}
+function lot2TkClassCounts(items){
+  const out={};
+  for(const p of items||[]){
+    const c=String(p.cabinClass||p.class||"").toUpperCase();
+    if(!c)continue;
+    out[c]=(out[c]||0)+1;
+  }
+  return out;
+}
+
 function lot2ExtractPassengerItemsFromGenericList(text,listName,cardKey){
   /*
    * V50.23 — extraction nominative générique propre.
@@ -5066,7 +5150,13 @@ async function lot2ProcessOneJob(env,job){
     const twKind=(parserMode==="GENERIC" && TW_CONTENT_AIRLINES.has(airline) && extracted.readable)
       ? lot2TwContentDetect(extracted.text)
       : "";
-    const specialKind=iportKind||vfKind||twKind;
+    // Source TK (multi-sections "ALL PAX"/... END NAMES) : voir
+    // lot2TkContentDetect. Même remarque que TW : inactif tant que TK reste
+    // dans LOT2_SPECIFIC_AIRLINES.
+    const tkKind=(parserMode==="GENERIC" && TK_ALLPAX_AIRLINES.has(airline) && extracted.readable)
+      ? lot2TkContentDetect(extracted.text)
+      : "";
+    const specialKind=iportKind||vfKind||twKind||tkKind;
 
     if(parserMode==="GENERIC" && extracted.readable && !specialKind){
       const detectedDate=lot2DetectFlightDateFromReportLine(extracted.text,airline,job.flight_number||version.flight_number||"",effectiveFlightDate);
@@ -5080,7 +5170,7 @@ async function lot2ProcessOneJob(env,job){
     }
 
     const operationalInfo=(!specialKind && extracted.readable)?lot2ParseOperationalInfo(extracted.text,airline,job.flight_number||version.flight_number||"",effectiveFlightDate):null;
-    const listName=iportKind?(IPORT_LIST_LABELS[iportKind]||iportKind):(vfKind?(VF_LIST_LABELS[vfKind]||vfKind):(twKind?"TW CONTENT":lot2DetectListName(extracted.text,filename)));
+    const listName=iportKind?(IPORT_LIST_LABELS[iportKind]||iportKind):(vfKind?(VF_LIST_LABELS[vfKind]||vfKind):(twKind?"TW CONTENT":(tkKind?"TK ALL PAX":lot2DetectListName(extracted.text,filename))));
     // Un rapport générique complet (ex. "GENERIC REPORT") porte à la fois l'en-tête
     // opérationnel ET la liste nominative des passagers. Le classer en OPERATIONAL_INFO
     // effacerait les passagers (V50.16 ligne 4073) et empêcherait toute création de fiche
@@ -5095,13 +5185,15 @@ async function lot2ProcessOneJob(env,job){
         ? {cardKey:VF_LIST_CARD_KEYS[vfKind]||"OTHER",mappingScope:"VF",matchedListName:listName}
         : (twKind
           ? {cardKey:"MASTER",mappingScope:"TW_CONTENT",matchedListName:listName}
+        : (tkKind
+          ? {cardKey:"MASTER",mappingScope:"TK_ALLPAX",matchedListName:listName}
         : (genericManifestItems.length && parserMode==="GENERIC"
           ? {cardKey:"MASTER",mappingScope:"GENERIC_REPORT",matchedListName:"GENERIC REPORT"}
           : (operationalInfo && !listName && parserMode==="GENERIC"
             ? {cardKey:"OPERATIONAL_INFO",mappingScope:"OPERATIONAL_INFO",matchedListName:"JFE SCREEN COPY"}
             : (parserMode==="SPECIFIC_LOCKED"
               ? {cardKey:"SPECIFIC",mappingScope:"SPECIFIC_LOCKED",matchedListName:""}
-              : lot2LookupListMapping(airline,listName))))));
+              : lot2LookupListMapping(airline,listName)))))));
     const cardKey=listMapping.cardKey;
     const documentType=cardKey==="OPERATIONAL_INFO"?"OPERATIONAL_INFO":lot2DocumentTypeFromCard(cardKey,filename,mime);
     const passengerItems=iportKind
@@ -5110,9 +5202,11 @@ async function lot2ProcessOneJob(env,job){
         ? lot2VfExtractPassengerItems(extracted.text,vfKind)
         : (twKind
           ? lot2TwExtractPassengerItems(extracted.text)
-          : ((cardKey==="OPERATIONAL_INFO"||!extracted.readable||cardKey==="INBOUND_SUMMARY"||cardKey==="OUTBOUND_SUMMARY")?[]:lot2ExtractPassengerItemsFromGenericList(extracted.text,listName,cardKey))));
+          : (tkKind
+            ? lot2TkExtractPassengerItems(extracted.text)
+            : ((cardKey==="OPERATIONAL_INFO"||!extracted.readable||cardKey==="INBOUND_SUMMARY"||cardKey==="OUTBOUND_SUMMARY")?[]:lot2ExtractPassengerItemsFromGenericList(extracted.text,listName,cardKey)))));
     const passengerCount=specialKind?passengerItems.length:(cardKey==="OPERATIONAL_INFO"?0:(extracted.readable?lot2ExtractPassengerCount(extracted.text,listName,cardKey):0));
-    const classCounts=iportKind?lot2IportClassCounts(passengerItems):(vfKind?lot2VfClassCounts(passengerItems):(twKind?lot2TwClassCounts(passengerItems):(cardKey==="OPERATIONAL_INFO"?{}:(extracted.readable?lot2ExtractClassCountsForDocument(extracted.text,listName,cardKey):{}))));
+    const classCounts=iportKind?lot2IportClassCounts(passengerItems):(vfKind?lot2VfClassCounts(passengerItems):(twKind?lot2TwClassCounts(passengerItems):(tkKind?lot2TkClassCounts(passengerItems):(cardKey==="OPERATIONAL_INFO"?{}:(extracted.readable?lot2ExtractClassCountsForDocument(extracted.text,listName,cardKey):{})))));
     const connectionRows=(specialKind||cardKey==="OPERATIONAL_INFO"||!extracted.readable)?[]:lot2ExtractConnectionRows(extracted.text,listName,cardKey);
     const fqtvCategories=cardKey==="FQTV"?lot2FqtvCategories(passengerItems):{};
 
@@ -7059,13 +7153,18 @@ async function lot5SpecificGenericPreviewV1(env,messageId,airlineHint=''){
       // exactement ce que le pipeline ferait vraiment une fois la compagnie
       // sortie du verrouillage.
       const twKind=TW_CONTENT_AIRLINES.has(airline)?lot2TwContentDetect(extracted.text):"";
-      const iportKind=(!twKind && IPORT_AIRLINES.has(airline))?lot2IportListKindFromBody(extracted.text):"";
-      const vfKind=(!twKind && !iportKind && airline==="VF")?lot2VfListKindFromText(extracted.text):"";
+      const tkKind=(!twKind && TK_ALLPAX_AIRLINES.has(airline))?lot2TkContentDetect(extracted.text):"";
+      const iportKind=(!twKind && !tkKind && IPORT_AIRLINES.has(airline))?lot2IportListKindFromBody(extracted.text):"";
+      const vfKind=(!twKind && !tkKind && !iportKind && airline==="VF")?lot2VfListKindFromText(extracted.text):"";
       let listName,cardKey,mappingScope,items,count,classCounts;
       if(twKind){
         listName="TW CONTENT";cardKey="MASTER";mappingScope="TW_CONTENT";
         items=lot2TwExtractPassengerItems(extracted.text);
         count=items.length;classCounts=lot2TwClassCounts(items);
+      }else if(tkKind){
+        listName="TK ALL PAX";cardKey="MASTER";mappingScope="TK_ALLPAX";
+        items=lot2TkExtractPassengerItems(extracted.text);
+        count=items.length;classCounts=lot2TkClassCounts(items);
       }else if(iportKind){
         listName=IPORT_LIST_LABELS[iportKind]||iportKind;cardKey=IPORT_LIST_CARD_KEYS[iportKind]||"OTHER";mappingScope="IPORT";
         items=lot2IportExtractPassengerItems(extracted.text,iportKind);
