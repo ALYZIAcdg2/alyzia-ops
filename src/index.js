@@ -7038,6 +7038,23 @@ async function lot5SpecificMergePreviewV1(env,messageId,airlineHint=''){
   return {ok:true,messageId,airline,steps,finalPassengerCount:Array.isArray(base.passengers)?base.passengers.length:0,common:base.common||{},booked:base.booked||{},samplePassengers:(base.passengers||[]).slice(0,3)};
 }
 
+// Résumé léger d'une fiche vol réelle (jamais le dump complet des passagers,
+// qui contient des données personnelles) : juste de quoi vérifier après coup
+// qu'une migration (ex. sortie du verrouillage) a bien peuplé la fiche.
+async function lot5FlightSummaryV1(env,identity){
+  const flight=await getFlightByIdentity(env,identity);
+  if(!flight)return {ok:false,error:'VOL INTROUVABLE',identity};
+  const passengers=Array.isArray(flight.passengers)?flight.passengers:[];
+  const cards=flight.imports?.cards&&typeof flight.imports.cards==='object'?flight.imports.cards:{};
+  const cardsSummary={};
+  for(const [k,v] of Object.entries(cards))cardsSummary[k]={passengerCount:Number(v?.passengerCount||0),listName:v?.label||v?.listName||'',updatedAt:v?.serverUpdatedAt||''};
+  return {
+    ok:true,identity,airline:flight.airline,flight:flight.flight,date:flight.date,
+    passengerCount:passengers.length,common:flight.common||{},booked:flight.booked||{},
+    cards:cardsSummary,samplePassengers:passengers.slice(0,3).map(p=>({name:p?.name,seat:p?.seat,class:p?.class}))
+  };
+}
+
 // Survol en lecture seule : scanne plusieurs mails d'une compagnie verrouillée
 // et regroupe par type de liste détecté (listName), pour construire le futur
 // mapping GENERIC (comme OZ/WB) sans avoir à cliquer message par message.
@@ -9225,6 +9242,11 @@ async function handleLot5(request,env,url){
       const messageId=String(url.searchParams.get('messageId')||'').trim();
       if(!messageId)return json({ok:false,error:'messageId REQUIS'});
       return json(await lot5SpecificMergePreviewV1(env,messageId,url.searchParams.get('airline')||''));
+    }
+    if(url.pathname==='/api/autopilot/flight-summary'&&request.method==='GET'){
+      const identity=String(url.searchParams.get('identity')||'').trim();
+      if(!identity)return json({ok:false,error:'identity REQUISE (format AAAA-MM-JJ|CIE|N°VOL)'});
+      return json(await lot5FlightSummaryV1(env,identity));
     }
     if(url.pathname==='/api/autopilot/specific-list-survey'&&request.method==='GET'){
       const airline=String(url.searchParams.get('airline')||'').trim();
