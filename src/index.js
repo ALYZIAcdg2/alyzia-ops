@@ -3623,6 +3623,27 @@ const LOT2_GENERIC_AIRLINE_LIST_MAPPINGS = {
     ["BS-SA","STAFF"],
     ["INBOUND CUSTOMER SUMMARY","INBOUND_SUMMARY"],
     ["ONCARRIAGE CUSTOMER SUMMARY","OUTBOUND_SUMMARY"]
+  ],
+  // SQ : construit à partir d'un vrai relevé (specific-list-survey) sur 30 mails
+  // réels avant toute sortie de LOT2_SPECIFIC_AIRLINES. "PDF-VBCPLIST" seule
+  // (sans suffixe classe) est le manifeste complet du vol (ex. observé : 211 pax
+  // F1/C40/S22/Y148). Les variantes "PDF-VBCPLIST, CC-x" et "CC-x" seules sont
+  // des sous-ensembles déjà couverts par ce manifeste : laissées en OTHER, elles
+  // se rattachent sans dégât aux passagers déjà posés par MASTER (voir
+  // lot3UpsertPassengers, correspondance par nom/ETKT, jamais de doublon).
+  SQ: [
+    ["PDF-VBCPLIST","MASTER"],
+    ["PDF-STFFIRM","STAFF"],
+    ["PDF-OSPLMAAS","MAAS"],
+    ["PDF-PSPLWCHR","WCH"],
+    ["PDF-DINLIST","MEAL"],
+    ["PDF-CINFT","INF"],
+    ["FQT-KFES","FQTV"],
+    ["FQT-KFEG","FQTV"],
+    ["PDF-IPPS, FQT-QPPS","FQTV"],
+    ["PDF-IPPS, FQT-TPPS","FQTV"],
+    ["PDF-AFQTA, FQT-KFEG","FQTV"],
+    ["PDF-AFQTA, FQT-KFES","FQTV"]
   ]
 };
 
@@ -6956,6 +6977,64 @@ async function lot5SpecificGenericPreviewV1(env,messageId,airlineHint=''){
   return {ok:true,messageId,airline,documents:docs};
 }
 
+// Diagnostic en lecture seule : simule la fusion lot3MergeFlightData de TOUS
+// les documents d'un même mail (souvent plusieurs listes pour un même vol)
+// comme le ferait le pipeline GENERIC réel, sans jamais écrire en base.
+// Objectif : vérifier qu'une liste secondaire (ex. CC-Y filtrée) ne duplique
+// ni n'écrase les passagers déjà posés par la liste MASTER (PDF-VBCPLIST).
+async function lot5SpecificMergePreviewV1(env,messageId,airlineHint=''){
+  const gm=await env.OPS_DB.prepare(`SELECT airline FROM gmail_messages WHERE gmail_message_id=? LIMIT 1`).bind(messageId).first();
+  const airline=String(airlineHint||gm?.airline||'').trim().toUpperCase();
+  if(!airline)return {ok:false,error:'MESSAGE INTROUVABLE OU COMPAGNIE INCONNUE'};
+  let versions=(await env.OPS_DB.prepare(`
+    SELECT version_id,filename_original,filename_normalized,mime_type,r2_key
+    FROM import_file_versions WHERE gmail_message_id=? ORDER BY created_at ASC
+  `).bind(messageId).all()).results||[];
+  if(!versions.length){
+    versions=(await env.OPS_DB.prepare(`
+      SELECT v.version_id,v.filename_original,v.filename_normalized,v.mime_type,v.r2_key
+      FROM gmail_message_documents d
+      JOIN import_file_versions v ON v.version_id=d.version_id
+      WHERE d.gmail_message_id=? ORDER BY d.created_at ASC
+    `).bind(messageId).all()).results||[];
+  }
+  if(!versions.length)return {ok:false,error:'AUCUN DOCUMENT POUR CE MESSAGE'};
+
+  const parsed=[];
+  for(const v of versions){
+    const filename=v.filename_original||v.filename_normalized||'file';
+    try{
+      if(!env.OPS_FILES)continue;
+      const object=await env.OPS_FILES.get(v.r2_key);
+      if(!object)continue;
+      const mime=v.mime_type||'application/octet-stream';
+      const extracted=await lot2ExtractTextFromR2Object(object,filename,mime);
+      if(!extracted?.readable)continue;
+      const listName=lot2DetectListName(extracted.text,filename);
+      const mapping=lot2LookupListMapping(airline,listName);
+      const items=lot2ExtractPassengerItemsFromGenericList(extracted.text,listName,mapping.cardKey);
+      const count=lot2ExtractPassengerCount(extracted.text,listName,mapping.cardKey);
+      const classCounts=lot2ExtractClassCountsForDocument(extracted.text,listName,mapping.cardKey);
+      parsed.push({filename,listName,cardKey:mapping.cardKey,items,passengerCount:count,classCounts});
+    }catch(e){/* document ignoré pour ce test, non bloquant */}
+  }
+
+  const row={airline,flight_number:'',flight_date:''};
+  let base={};
+  const steps=[];
+  // MASTER en premier, pour reproduire l'ordre le plus favorable (la liste
+  // complète pose les passagers avant que les cartes secondaires ne les complètent).
+  const ordered=[...parsed].sort((a,b)=>(a.cardKey==='MASTER'?-1:0)-(b.cardKey==='MASTER'?-1:0));
+  for(const doc of ordered){
+    base=lot3MergeFlightData(base,row,{
+      cardKey:doc.cardKey,label:doc.listName,passengerItems:doc.items,passengers:doc.items,
+      passengerCount:doc.passengerCount,listName:doc.listName,connectionRows:[],classCounts:doc.classCounts
+    });
+    steps.push({listName:doc.listName,cardKey:doc.cardKey,itemsExtracted:doc.items.length,passengersAfter:Array.isArray(base.passengers)?base.passengers.length:0});
+  }
+  return {ok:true,messageId,airline,steps,finalPassengerCount:Array.isArray(base.passengers)?base.passengers.length:0,common:base.common||{},booked:base.booked||{},samplePassengers:(base.passengers||[]).slice(0,3)};
+}
+
 // Survol en lecture seule : scanne plusieurs mails d'une compagnie verrouillée
 // et regroupe par type de liste détecté (listName), pour construire le futur
 // mapping GENERIC (comme OZ/WB) sans avoir à cliquer message par message.
@@ -9138,6 +9217,11 @@ async function handleLot5(request,env,url){
       const messageId=String(url.searchParams.get('messageId')||'').trim();
       if(!messageId)return json({ok:false,error:'messageId REQUIS'});
       return json(await lot5SpecificGenericPreviewV1(env,messageId,url.searchParams.get('airline')||''));
+    }
+    if(url.pathname==='/api/autopilot/specific-merge-preview'&&request.method==='GET'){
+      const messageId=String(url.searchParams.get('messageId')||'').trim();
+      if(!messageId)return json({ok:false,error:'messageId REQUIS'});
+      return json(await lot5SpecificMergePreviewV1(env,messageId,url.searchParams.get('airline')||''));
     }
     if(url.pathname==='/api/autopilot/specific-list-survey'&&request.method==='GET'){
       const airline=String(url.searchParams.get('airline')||'').trim();
