@@ -6906,15 +6906,21 @@ async function lot5AuditMessageV534(env,messageId){
   };
 }
 
-async function lot5AuditBacklogV534(env,limit=100,airline=''){
+async function lot5AuditBacklogV534(env,limit=100,airline='',status=''){
   const a=String(airline||'').trim().toUpperCase();
+  const s=String(status||'').trim().toUpperCase();
   // Sans filtre compagnie, les mails vides retraités à chaque cycle (updated_at
   // toujours rafraîchi) monopolisent le tri "plus récent d'abord" et masquent
   // les autres compagnies. Le filtre permet de cibler une compagnie précise
   // sans augmenter limit (donc sans risquer l'erreur Cloudflare 1102).
-  const wh=a?`status<>'IGNORED_NON_OPERATIONAL' AND UPPER(airline)=?`:`status<>'IGNORED_NON_OPERATIONAL'`;
-  const binds=a?[a,Math.max(1,Math.min(500,Number(limit||100)))]:[Math.max(1,Math.min(500,Number(limit||100)))];
-  const rows=(await env.OPS_DB.prepare(`SELECT gmail_message_id FROM gmail_messages WHERE ${wh} ORDER BY updated_at DESC LIMIT ?`).bind(...binds).all()).results||[];
+  // Le filtre status permet de cibler par ex. REVIEW pour diagnostiquer un
+  // backlog précis sans devoir parcourir tous les statuts au hasard.
+  const wh=["status<>'IGNORED_NON_OPERATIONAL'"];
+  const binds=[];
+  if(a){wh.push('UPPER(airline)=?');binds.push(a)}
+  if(s){wh.push('UPPER(status)=?');binds.push(s)}
+  binds.push(Math.max(1,Math.min(500,Number(limit||100))));
+  const rows=(await env.OPS_DB.prepare(`SELECT gmail_message_id FROM gmail_messages WHERE ${wh.join(' AND ')} ORDER BY updated_at DESC LIMIT ?`).bind(...binds).all()).results||[];
   const summary={checked:0,received:0,imported:0,injected:0,validated:0,review:0,error:0,driveComplete:0,drivePending:0,flightMissing:0};
   const items=[];
   for(const r of rows){
@@ -9047,7 +9053,7 @@ async function handleLot5(request,env,url){
     if(url.pathname==='/api/autopilot/audit'&&request.method==='GET'){
       const messageId=String(url.searchParams.get('messageId')||'').trim();
       if(messageId)return json(await lot5AuditMessageV534(env,messageId));
-      return json(await lot5AuditBacklogV534(env,Number(url.searchParams.get('limit')||100),url.searchParams.get('airline')||''));
+      return json(await lot5AuditBacklogV534(env,Number(url.searchParams.get('limit')||100),url.searchParams.get('airline')||'',url.searchParams.get('status')||''));
     }
     if(url.pathname==='/api/autopilot/unmapped-lists'&&request.method==='GET'){
       return json(await lot5UnmappedGenericListsReport(env,{
