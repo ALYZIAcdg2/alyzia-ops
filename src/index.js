@@ -7431,7 +7431,15 @@ async function lot5Status(env){
       (SELECT COUNT(*) FROM gmail_messages WHERE status='REVIEW') AS gmailReview,
       (SELECT COUNT(*) FROM gmail_messages WHERE status='DUPLICATE') AS gmailDuplicate
   `).first();
-  return {ok:true,version:LOT5_VERSION,config:{...cfg,driveRootFolderId:cfg.driveRootFolderId==='root'?'root':'CUSTOM'},lastRun:last?{...last,details:safeJsonParse(last.details_json,{})}:null,counters:counters||{},googleDrive:await googleDriveStatus(env)};
+  // Le compteur REVIEW seul ne dit pas si le blocage vient des compagnies
+  // verrouillées (SQ/TK/BJ/TW, traitement navigateur uniquement, normal)
+  // ou d'un vrai souci sur une compagnie GENERIC (anormal, à corriger).
+  const reviewByAirline=(await env.OPS_DB.prepare(`
+    SELECT UPPER(airline) AS airline, COUNT(*) AS n
+    FROM gmail_messages WHERE status='REVIEW'
+    GROUP BY UPPER(airline) ORDER BY n DESC LIMIT 20
+  `).all().catch(()=>({results:[]}))).results||[];
+  return {ok:true,version:LOT5_VERSION,config:{...cfg,driveRootFolderId:cfg.driveRootFolderId==='root'?'root':'CUSTOM'},lastRun:last?{...last,details:safeJsonParse(last.details_json,{})}:null,counters:{...(counters||{}),reviewByAirline},googleDrive:await googleDriveStatus(env)};
 }
 
 
