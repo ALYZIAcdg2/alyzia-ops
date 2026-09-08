@@ -4630,6 +4630,67 @@ function lot2VfClassCounts(items){
   return out;
 }
 
+// ========================================================
+// TW (t'way) — corps de mail "CONTENT" : un flux dense continu,
+// une réservation par passager (nom dupliqué, codes SSR sur plusieurs
+// lignes, classe/sous-classe/statut/route/PNR/siège), jamais un tableau
+// "LIST OF:" Altea. Format vérifié sur un vrai relevé TW402/06SEP réel
+// (153/153 passagers extraits sans reste, comptage cabines C16/Y137
+// cohérent). TK utilise vraisemblablement le même format ("V3.5 R3 :
+// tk_prepa_plain_text.txt / tw_prepa_plain_text.txt") mais n'a pas
+// encore été vérifié sur de vraies données : seule TW est activée ici.
+const TW_CONTENT_AIRLINES=new Set(["TW"]);
+function lot2TwNameAnchorRe(){
+  return /(\d{1,4})\s+([A-Z][A-Z\s'\-]*?\s*\/\s*[A-Z][A-Z\s'\-]*?)\s\2(?=\s)/g;
+}
+function lot2TwContentDetect(text){
+  const flat=String(text||"").replace(/\s+/g," ").trim();
+  if(!/\bCONTENT\b/.test(flat))return "";
+  const re=lot2TwNameAnchorRe();
+  let count=0;
+  while(re.exec(flat)){count++; if(count>=3)break;}
+  return count>=3?"CONTENT":"";
+}
+function lot2TwExtractPassengerItems(text){
+  const flat=String(text||"").replace(/\s+/g," ").trim();
+  const re=lot2TwNameAnchorRe();
+  const anchors=[];
+  let m;
+  while((m=re.exec(flat)))anchors.push({index:m.index,end:m.index+m[0].length,name:m[2].trim()});
+  const items=[];
+  for(let i=0;i<anchors.length;i++){
+    const start=anchors[i].end;
+    const end=i+1<anchors.length?anchors[i+1].index:flat.length;
+    const tail=flat.slice(start,end).trim();
+    const name=anchors[i].name;
+    const gt=tail.match(/^([MF])\s+(MSTR|MISS|MRS|MR|MS)\s+(\S+)\s+/);
+    let rest=tail,gender="",title="",ptype="";
+    if(gt){gender=gt[1];title=gt[2];ptype=gt[3];rest=tail.slice(gt[0].length)}
+    // Repère fixe du format : <CABINE> <SOUS-CLASSE> HK[ CK]  CDG ICN[ AÉROPORT][ TWxxxx]  <jambe>/<jambes> <PNR> <SIÈGE?>
+    const core=rest.match(/\b(C|Y)\s+([A-Z]{1,2})\s+HK(\s+CK)?\s+CDG\s+ICN(?:\s+([A-Z]{3}))?(?:\s+(TW\d{2,4}))?\s+(\d\/\d)\s+([A-Z0-9]{6})\s*([0-9]{2}[A-Z])?/);
+    if(!core)continue; // repère absent : ligne non fiable, ignorée plutôt que de créer un passager corrompu
+    const ssrBlock=rest.slice(0,core.index).trim();
+    items.push({
+      id:`TW-${i+1}-${name}`,seq:i+1,name,title,gender,passengerType:ptype||"ADULT",
+      class:core[1],cabinClass:core[1],bookingClass:core[2],
+      origin:"CDG",destination:core[4]||"ICN",
+      seat:core[8]||"",pnr:core[7],legRatio:core[6],connectingFlight:core[5]||"",
+      specific:"",note:"",listName:"TW CONTENT",cardKey:"MASTER",source:"TW_CONTENT",
+      ssr:ssrBlock?ssrBlock.split(/\s+/):[]
+    });
+  }
+  return items;
+}
+function lot2TwClassCounts(items){
+  const out={};
+  for(const p of items||[]){
+    const c=String(p.cabinClass||p.class||"").toUpperCase();
+    if(!c)continue;
+    out[c]=(out[c]||0)+1;
+  }
+  return out;
+}
+
 function lot2ExtractPassengerItemsFromGenericList(text,listName,cardKey){
   /*
    * V50.23 — extraction nominative générique propre.
@@ -4990,7 +5051,14 @@ async function lot2ProcessOneJob(env,job){
     const vfKind=(parserMode==="GENERIC" && airline==="VF" && extracted.readable)
       ? lot2VfListKindFromText(extracted.text)
       : "";
-    const specialKind=iportKind||vfKind;
+    // Source TW (corps "CONTENT") : voir lot2TwContentDetect. TW est encore
+    // dans LOT2_SPECIFIC_AIRLINES tant que ce n'est pas activé (comme VF/IZ
+    // avant elles) ; ce détecteur ne sert donc à rien tant que parserMode
+    // reste SPECIFIC_LOCKED pour TW, il est prêt pour l'activation.
+    const twKind=(parserMode==="GENERIC" && TW_CONTENT_AIRLINES.has(airline) && extracted.readable)
+      ? lot2TwContentDetect(extracted.text)
+      : "";
+    const specialKind=iportKind||vfKind||twKind;
 
     if(parserMode==="GENERIC" && extracted.readable && !specialKind){
       const detectedDate=lot2DetectFlightDateFromReportLine(extracted.text,airline,job.flight_number||version.flight_number||"",effectiveFlightDate);
@@ -5004,7 +5072,7 @@ async function lot2ProcessOneJob(env,job){
     }
 
     const operationalInfo=(!specialKind && extracted.readable)?lot2ParseOperationalInfo(extracted.text,airline,job.flight_number||version.flight_number||"",effectiveFlightDate):null;
-    const listName=iportKind?(IPORT_LIST_LABELS[iportKind]||iportKind):(vfKind?(VF_LIST_LABELS[vfKind]||vfKind):lot2DetectListName(extracted.text,filename));
+    const listName=iportKind?(IPORT_LIST_LABELS[iportKind]||iportKind):(vfKind?(VF_LIST_LABELS[vfKind]||vfKind):(twKind?"TW CONTENT":lot2DetectListName(extracted.text,filename)));
     // Un rapport générique complet (ex. "GENERIC REPORT") porte à la fois l'en-tête
     // opérationnel ET la liste nominative des passagers. Le classer en OPERATIONAL_INFO
     // effacerait les passagers (V50.16 ligne 4073) et empêcherait toute création de fiche
@@ -5017,22 +5085,26 @@ async function lot2ProcessOneJob(env,job){
       ? {cardKey:IPORT_LIST_CARD_KEYS[iportKind]||"OTHER",mappingScope:"IPORT",matchedListName:listName}
       : (vfKind
         ? {cardKey:VF_LIST_CARD_KEYS[vfKind]||"OTHER",mappingScope:"VF",matchedListName:listName}
+        : (twKind
+          ? {cardKey:"MASTER",mappingScope:"TW_CONTENT",matchedListName:listName}
         : (genericManifestItems.length && parserMode==="GENERIC"
           ? {cardKey:"MASTER",mappingScope:"GENERIC_REPORT",matchedListName:"GENERIC REPORT"}
           : (operationalInfo && !listName && parserMode==="GENERIC"
             ? {cardKey:"OPERATIONAL_INFO",mappingScope:"OPERATIONAL_INFO",matchedListName:"JFE SCREEN COPY"}
             : (parserMode==="SPECIFIC_LOCKED"
               ? {cardKey:"SPECIFIC",mappingScope:"SPECIFIC_LOCKED",matchedListName:""}
-              : lot2LookupListMapping(airline,listName)))));
+              : lot2LookupListMapping(airline,listName))))));
     const cardKey=listMapping.cardKey;
     const documentType=cardKey==="OPERATIONAL_INFO"?"OPERATIONAL_INFO":lot2DocumentTypeFromCard(cardKey,filename,mime);
     const passengerItems=iportKind
       ? lot2IportExtractPassengerItems(extracted.text,iportKind)
       : (vfKind
         ? lot2VfExtractPassengerItems(extracted.text,vfKind)
-        : ((cardKey==="OPERATIONAL_INFO"||!extracted.readable||cardKey==="INBOUND_SUMMARY"||cardKey==="OUTBOUND_SUMMARY")?[]:lot2ExtractPassengerItemsFromGenericList(extracted.text,listName,cardKey)));
+        : (twKind
+          ? lot2TwExtractPassengerItems(extracted.text)
+          : ((cardKey==="OPERATIONAL_INFO"||!extracted.readable||cardKey==="INBOUND_SUMMARY"||cardKey==="OUTBOUND_SUMMARY")?[]:lot2ExtractPassengerItemsFromGenericList(extracted.text,listName,cardKey))));
     const passengerCount=specialKind?passengerItems.length:(cardKey==="OPERATIONAL_INFO"?0:(extracted.readable?lot2ExtractPassengerCount(extracted.text,listName,cardKey):0));
-    const classCounts=iportKind?lot2IportClassCounts(passengerItems):(vfKind?lot2VfClassCounts(passengerItems):(cardKey==="OPERATIONAL_INFO"?{}:(extracted.readable?lot2ExtractClassCountsForDocument(extracted.text,listName,cardKey):{})));
+    const classCounts=iportKind?lot2IportClassCounts(passengerItems):(vfKind?lot2VfClassCounts(passengerItems):(twKind?lot2TwClassCounts(passengerItems):(cardKey==="OPERATIONAL_INFO"?{}:(extracted.readable?lot2ExtractClassCountsForDocument(extracted.text,listName,cardKey):{}))));
     const connectionRows=(specialKind||cardKey==="OPERATIONAL_INFO"||!extracted.readable)?[]:lot2ExtractConnectionRows(extracted.text,listName,cardKey);
     const fqtvCategories=cardKey==="FQTV"?lot2FqtvCategories(passengerItems):{};
 
@@ -6974,13 +7046,36 @@ async function lot5SpecificGenericPreviewV1(env,messageId,airlineHint=''){
       const mime=v.mime_type||'application/octet-stream';
       const extracted=await lot2ExtractTextFromR2Object(object,filename,mime);
       if(!extracted?.readable){docs.push({filename,readable:false});continue}
-      const listName=lot2DetectListName(extracted.text,filename);
-      const mapping=lot2LookupListMapping(airline,listName);
-      const items=lot2ExtractPassengerItemsFromGenericList(extracted.text,listName,mapping.cardKey);
-      const count=lot2ExtractPassengerCount(extracted.text,listName,mapping.cardKey);
-      const classCounts=lot2ExtractClassCountsForDocument(extracted.text,listName,mapping.cardKey);
+      // Reproduit la chaîne de détection réelle de lot2ProcessOneJob (iPort/VF/TW
+      // avant repli sur le moteur GENERIC Altea), pour que ce diagnostic teste
+      // exactement ce que le pipeline ferait vraiment une fois la compagnie
+      // sortie du verrouillage.
+      const twKind=TW_CONTENT_AIRLINES.has(airline)?lot2TwContentDetect(extracted.text):"";
+      const iportKind=(!twKind && IPORT_AIRLINES.has(airline))?lot2IportListKindFromBody(extracted.text):"";
+      const vfKind=(!twKind && !iportKind && airline==="VF")?lot2VfListKindFromText(extracted.text):"";
+      let listName,cardKey,mappingScope,items,count,classCounts;
+      if(twKind){
+        listName="TW CONTENT";cardKey="MASTER";mappingScope="TW_CONTENT";
+        items=lot2TwExtractPassengerItems(extracted.text);
+        count=items.length;classCounts=lot2TwClassCounts(items);
+      }else if(iportKind){
+        listName=IPORT_LIST_LABELS[iportKind]||iportKind;cardKey=IPORT_LIST_CARD_KEYS[iportKind]||"OTHER";mappingScope="IPORT";
+        items=lot2IportExtractPassengerItems(extracted.text,iportKind);
+        count=items.length;classCounts=lot2IportClassCounts(items);
+      }else if(vfKind){
+        listName=VF_LIST_LABELS[vfKind]||vfKind;cardKey=VF_LIST_CARD_KEYS[vfKind]||"OTHER";mappingScope="VF";
+        items=lot2VfExtractPassengerItems(extracted.text,vfKind);
+        count=items.length;classCounts=lot2VfClassCounts(items);
+      }else{
+        listName=lot2DetectListName(extracted.text,filename);
+        const mapping=lot2LookupListMapping(airline,listName);
+        cardKey=mapping.cardKey;mappingScope=mapping.mappingScope;
+        items=lot2ExtractPassengerItemsFromGenericList(extracted.text,listName,cardKey);
+        count=lot2ExtractPassengerCount(extracted.text,listName,cardKey);
+        classCounts=lot2ExtractClassCountsForDocument(extracted.text,listName,cardKey);
+      }
       docs.push({
-        filename,readable:true,listName,cardKey:mapping.cardKey,mappingScope:mapping.mappingScope,
+        filename,readable:true,listName,cardKey,mappingScope,
         passengerCountDetected:count,itemsExtracted:items.length,classCounts,
         sampleItems:items.slice(0,3),
         textPreview:String(extracted.text||'').slice(0,3000)
