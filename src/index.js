@@ -7585,7 +7585,12 @@ async function lot5AutoPilotRun(env,{triggerType='MANUAL',gmailQuery='',gmailMax
     // Lot borné : 1500 appels Gmail séquentiels maintenaient le Worker en
     // RUNNING pendant plus de 10 minutes. La rotation ci-dessus couvre tout
     // le backlog au fil des cycles de 5 minutes sans bloquer les injections.
-    const labels=await lot5ReconcileGmailStatesV53(env,100);
+    // Réduit de 100 à 40 après la migration SQ : le même reconcile (Gmail
+    // modify + vérif couverture Drive par mail) a produit une Erreur 1102 à
+    // 40 sur l'endpoint manuel une fois combiné à lot5SyncPrepaInboxRecent
+    // juste en dessous — un cycle CRON qui plante ainsi reste RUNNING jusqu'à
+    // la récupération à 10 min, bloquant tout le pipeline entre-temps.
+    const labels=await lot5ReconcileGmailStatesV53(env,40);
     details.gmailStates=labels;
 
     details.prepaSynced=await lot5SyncPrepaInboxRecent(env);
