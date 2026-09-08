@@ -381,7 +381,7 @@ function normalizePrepaPayload(body) {
 
 function defaultImportModeForAirline(airline){
   const code=String(airline||"").trim().toUpperCase();
-  return ["TK","TW","BJ"].includes(code) ? "SPECIFIC" : "GENERIC";
+  return ["TK","BJ"].includes(code) ? "SPECIFIC" : "GENERIC";
 }
 
 async function ensureAirlineProfile(env,airline){
@@ -3112,7 +3112,10 @@ async function importPipelineStatus(env){
 // SQ sortie du groupe verrouillé (V50.31) : mapping GENERIC vérifié sur de
 // vraies pièces jointes réelles (specific-list-survey/specific-merge-preview),
 // manifeste MASTER et fusion des listes secondaires validés sans doublon.
-const LOT2_SPECIFIC_AIRLINES = new Set(["TK","BJ","TW"]);
+// TW sortie du groupe verrouillé (V50.32) : format "CONTENT" détecté et
+// vérifié (lot2TwContentDetect/lot2TwExtractPassengerItems) sur 2 vrais
+// mails réels (153 et 182 passagers, comptages cabines cohérents).
+const LOT2_SPECIFIC_AIRLINES = new Set(["TK","BJ"]);
 
 async function ensureImportProcessorTables(env){
   await ensureGmailPipelineTables(env);
@@ -6441,7 +6444,7 @@ const LOT5_VERSION="V50.30_R3_13_SQ_CONTROLLED_BRIDGE";
 // (voir LOT2_SPECIFIC_AIRLINES) : elle est injectée par ce Worker comme les
 // compagnies GENERIC, plus jamais en attente d'une confirmation BUILD143 qui
 // n'arrive jamais pour ce format.
-const LOT5_PROTECTED_AIRLINES=new Set(["TK","BJ","TW"]);
+const LOT5_PROTECTED_AIRLINES=new Set(["TK","BJ"]);
 
 async function ensureLot5Tables(env){
   await ensureLot3Tables(env);
@@ -6724,7 +6727,7 @@ async function lot5DriveCoverageForMessageV533(env,messageId){
 // passagers ; si oui, le mail est considéré VALIDÉ au lieu de rester en
 // attente d'une confirmation qui n'arrivera peut-être jamais pour CE mail
 // précis (un autre mail identique a pu déjà tout construire).
-const LOT5_LOCKED_AIRLINES_V53=new Set(['TK','BJ','TW']);
+const LOT5_LOCKED_AIRLINES_V53=new Set(['TK','BJ']);
 async function lot5SpecificFlightAlreadyBuilt(env,airline,flightNumber,flightDate){
   if(!airline||!flightNumber||!flightDate)return false;
   try{
@@ -7312,7 +7315,7 @@ async function lot5InjectAvailable(env,cfg){
   const op=(await env.OPS_DB.prepare(`
     SELECT * FROM import_job_results
     WHERE parser_mode='GENERIC'
-      AND UPPER(airline) NOT IN ('TK','TW','BJ')
+      AND UPPER(airline) NOT IN ('TK','BJ')
       AND card_key='OPERATIONAL_INFO'
       AND status IN ('OPERATIONAL_INFO_READY','WAITING_FLIGHT')
     ORDER BY updated_at DESC
@@ -7331,7 +7334,7 @@ async function lot5InjectAvailable(env,cfg){
     LEFT JOIN flights f
       ON f.identity=(r.flight_date || '|' || UPPER(r.airline) || '|' || UPPER(r.flight_number))
     WHERE r.parser_mode='GENERIC'
-      AND UPPER(r.airline) NOT IN ('TK','TW','BJ')
+      AND UPPER(r.airline) NOT IN ('TK','BJ')
       AND r.card_key IS NOT NULL AND r.card_key<>''
       AND r.card_key NOT IN ('NO_LIST','OPERATIONAL_INFO','OTHER')
       AND r.status IN ('GENERIC_CARD_READY','GENERIC_MASTER_READY','WAITING_FLIGHT')
@@ -7356,7 +7359,7 @@ async function lot5RequeueNewGenericMappings(env,limit=500){
     SELECT r.job_id,r.airline,r.list_name,r.card_key,r.status
     FROM import_job_results r
     WHERE r.parser_mode='GENERIC'
-      AND UPPER(r.airline) NOT IN ('TK','TW','BJ')
+      AND UPPER(r.airline) NOT IN ('TK','BJ')
       AND r.card_key='OTHER'
       AND r.status IN ('GENERIC_CARD_OTHER','WAITING_FLIGHT','INJECTED')
     ORDER BY r.updated_at DESC
