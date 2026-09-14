@@ -3552,6 +3552,11 @@ const LOT2_GENERIC_DEFAULT_LIST_MAPPINGS = [
   // "PDF-ACCWEB" (enregistrement web) vu identique chez 3O/AH/EI/RJ/SB —
   // contenu vérifié sur 3O (44 passagers, "CHL-WEB", sièges attribués).
   ["PDF-ACCWEB","WEB"],
+  // "CHL-WEB" est aussi utilisée directement comme LIST OF chez SK/MS/FB/AI
+  // (pas seulement comme SSR à l'intérieur de PDF-ACCWEB) — contenu vérifié
+  // sur un vrai relevé SK réel (39/45 passagers, une ligne "CHL-WEB" par
+  // passager, aucun autre code).
+  ["CHL-WEB","WEB"],
   ["EMD","EMD"],
   ["MEAL","MEAL"],
   ["SPML","MEAL"],
@@ -3562,6 +3567,8 @@ const LOT2_GENERIC_DEFAULT_LIST_MAPPINGS = [
   ["HNML","MEAL"],
   ["KSML","MEAL"],
   ["MOML","MEAL"],
+  // "LGML-GU" (low gluten) — contenu vérifié sur un vrai relevé SK réel.
+  ["LGML","MEAL"],
   ["INAD","INAD"],
   ["DEPA","DEPA"],
   ["DEPU","DEPU"],
@@ -3679,7 +3686,14 @@ function lot2NormalizeListKey(v){
     .trim();
 }
 
-function lot2LookupListMapping(airline,listName){
+// "MEAL" lui-même est exclu : mot anglais courant, recherché comme sous-chaîne
+// dans tout le corps du document (voir plus bas), il donnerait de faux positifs.
+const LOT2_KNOWN_MEAL_CODES=LOT2_GENERIC_DEFAULT_LIST_MAPPINGS
+  .filter(([,cardKey])=>cardKey==="MEAL")
+  .map(([name])=>lot2NormalizeListKey(name))
+  .filter(name=>/^[A-Z]{2}ML$/.test(name));
+
+function lot2LookupListMapping(airline,listName,text){
   const raw=lot2NormalizeListKey(listName);
   if(!raw)return {cardKey:"NO_LIST", mappingScope:"NONE", matchedListName:""};
 
@@ -3701,6 +3715,48 @@ function lot2LookupListMapping(airline,listName){
   // Groupes de codes repas : si le nom explicite LIST OF est un code meal connu.
   if(/^[A-Z]{2}ML$/.test(raw)){
     return {cardKey:"MEAL", mappingScope:"DEFAULT_PATTERN", matchedListName:"MEAL_CODE"};
+  }
+
+  // Rapports Altea auto-numérotés ("LIST OF: PDF-06, WCH ...", vus chez SK) :
+  // le préfixe "PDF-<n>" est un simple numéro de séquence sans signification
+  // (jamais le même d'un vol à l'autre), mais le suffixe après la virgule
+  // s'auto-désigne déjà avec un code connu — même principe que "PDF-ACC, ETKT"
+  // déjà mappé en dur pour 3O, généralisé ici pour ne pas avoir à lister
+  // chaque numéro rencontré au fur et à mesure.
+  const suffixM=String(listName||"").match(/^PDF-?\d{1,4}\s*,\s*(.+)$/i);
+  if(suffixM){
+    const suffixMapping=lot2LookupListMapping(airline,suffixM[1],text);
+    if(suffixMapping.cardKey && suffixMapping.cardKey!=="OTHER" && suffixMapping.cardKey!=="NO_LIST"){
+      return {cardKey:suffixMapping.cardKey, mappingScope:"PDF_SUFFIX_PATTERN", matchedListName:listName};
+    }
+  }
+
+  /*
+   * Même famille de rapports Altea auto-numérotés, mais SANS suffixe explicite
+   * ("LIST OF: PDF-02 C1 M23 TOTAL 24"). Vérifié sur de vrais relevés SK réels :
+   * le numéro seul ne dit rien (le MÊME "PDF-06" désigne tantôt un manifeste,
+   * tantôt une sous-liste fauteuil roulant selon le vol) — impossible de mapper
+   * par nom. Seul le contenu réel du document est fiable : d'abord les codes
+   * SSR caractéristiques (fauteuil roulant/personnel/repas), puis, en dernier
+   * recours, le nombre de passagers (les manifestes complets réellement
+   * observés font 24 à 50 passagers, contre 1 à 14 pour toutes les sous-listes
+   * réelles rencontrées — seuil choisi avec une marge large des deux côtés).
+   */
+  if(text && /^PDF\s?\d{1,4}$/.test(raw)){
+    const body=lot2Upper(text);
+    if(/\bWCH[RSC]\b|\bWCMP\b|\bWCBD\b|\bWCLB\b/.test(body)){
+      return {cardKey:"WCH", mappingScope:"PDF_CONTENT_PATTERN", matchedListName:listName};
+    }
+    if(/\bSTF-/.test(body)){
+      return {cardKey:"STAFF", mappingScope:"PDF_CONTENT_PATTERN", matchedListName:listName};
+    }
+    if(LOT2_KNOWN_MEAL_CODES.some(code=>body.includes(code))){
+      return {cardKey:"MEAL", mappingScope:"PDF_CONTENT_PATTERN", matchedListName:listName};
+    }
+    const paxLines=(body.match(/^\s*\d{1,3}\.[A-Z]/gm)||[]).length;
+    if(paxLines>=15){
+      return {cardKey:"MASTER", mappingScope:"PDF_CONTENT_PATTERN", matchedListName:listName};
+    }
   }
 
   return {cardKey:"OTHER", mappingScope:"UNMAPPED", matchedListName:""};
@@ -5241,7 +5297,7 @@ async function lot2ProcessOneJob(env,job){
             ? {cardKey:"OPERATIONAL_INFO",mappingScope:"OPERATIONAL_INFO",matchedListName:"JFE SCREEN COPY"}
             : (parserMode==="SPECIFIC_LOCKED"
               ? {cardKey:"SPECIFIC",mappingScope:"SPECIFIC_LOCKED",matchedListName:""}
-              : lot2LookupListMapping(airline,listName)))))));
+              : lot2LookupListMapping(airline,listName,extracted.text)))))));
     const cardKey=listMapping.cardKey;
     const documentType=cardKey==="OPERATIONAL_INFO"?"OPERATIONAL_INFO":lot2DocumentTypeFromCard(cardKey,filename,mime);
     const passengerItems=iportKind
@@ -7231,7 +7287,7 @@ async function lot5SpecificGenericPreviewV1(env,messageId,airlineHint=''){
         count=items.length;classCounts=lot2VfClassCounts(items);
       }else{
         listName=lot2DetectListName(extracted.text,filename);
-        const mapping=lot2LookupListMapping(airline,listName);
+        const mapping=lot2LookupListMapping(airline,listName,extracted.text);
         cardKey=mapping.cardKey;mappingScope=mapping.mappingScope;
         items=lot2ExtractPassengerItemsFromGenericList(extracted.text,listName,cardKey);
         count=lot2ExtractPassengerCount(extracted.text,listName,cardKey);
@@ -7282,7 +7338,7 @@ async function lot5SpecificMergePreviewV1(env,messageId,airlineHint=''){
       const extracted=await lot2ExtractTextFromR2Object(object,filename,mime);
       if(!extracted?.readable)continue;
       const listName=lot2DetectListName(extracted.text,filename);
-      const mapping=lot2LookupListMapping(airline,listName);
+      const mapping=lot2LookupListMapping(airline,listName,extracted.text);
       const items=lot2ExtractPassengerItemsFromGenericList(extracted.text,listName,mapping.cardKey);
       const count=lot2ExtractPassengerCount(extracted.text,listName,mapping.cardKey);
       const classCounts=lot2ExtractClassCountsForDocument(extracted.text,listName,mapping.cardKey);
