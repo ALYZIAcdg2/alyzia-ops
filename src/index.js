@@ -7671,6 +7671,44 @@ async function lot5UnmappedGenericListsReport(env,{airline='',limit=200}={}){
   };
 }
 
+// Complète lot5UnmappedGenericListsReport (qui ne donne que le nom de liste
+// et un sampleJobId) : ici on renvoie le vrai texte extrait (aperçu déjà
+// stocké à l'analyse) de quelques documents réels, pour mapper listName→cardKey
+// sans jamais deviner. airline+listName ciblent un couple précis du rapport
+// ci-dessus ("" pour listName = les documents NO_LIST de cette compagnie).
+async function lot5UnmappedListPreviewV1(env,airline,listName,limit=3){
+  const a=String(airline||'').trim().toUpperCase();
+  if(!a)return {ok:false,error:'COMPAGNIE MANQUANTE'};
+  const ln=String(listName||'');
+  const wh=[
+    "parser_mode='GENERIC'",
+    "UPPER(airline)=?",
+    ln?"card_key='OTHER'":"card_key='NO_LIST'",
+    ln?"list_name=?":"(list_name IS NULL OR list_name='')"
+  ];
+  const binds=[a];
+  if(ln)binds.push(ln);
+  binds.push(Math.max(1,Math.min(10,Number(limit||3))));
+  const rows=(await env.OPS_DB.prepare(`
+    SELECT job_id,flight_number,flight_date,passenger_count,extracted_text_preview,updated_at
+    FROM import_job_results
+    WHERE ${wh.join(" AND ")}
+    ORDER BY updated_at DESC
+    LIMIT ?
+  `).bind(...binds).all()).results||[];
+  return {
+    ok:true,airline:a,listName:ln,checked:rows.length,
+    items:rows.map(r=>({
+      jobId:String(r.job_id||''),
+      flightNumber:String(r.flight_number||''),
+      flightDate:String(r.flight_date||''),
+      passengerCount:Number(r.passenger_count||0),
+      updatedAt:String(r.updated_at||''),
+      textPreview:String(r.extracted_text_preview||'')
+    }))
+  };
+}
+
 /* =========================================================
  * LOT 5.2 — FULL MAILBOX CONTINUOUS GMAIL SWEEP
  * ---------------------------------------------------------
@@ -9544,6 +9582,14 @@ async function handleLot5(request,env,url){
         airline:url.searchParams.get('airline')||'',
         limit:Number(url.searchParams.get('limit')||200)
       }));
+    }
+    if(url.pathname==='/api/autopilot/unmapped-list-preview'&&request.method==='GET'){
+      return json(await lot5UnmappedListPreviewV1(
+        env,
+        url.searchParams.get('airline')||'',
+        url.searchParams.get('listName')||'',
+        Number(url.searchParams.get('limit')||3)
+      ));
     }
     if(url.pathname==='/api/autopilot/requeue-airline'&&(request.method==='POST'||request.method==='GET')){
       // GET accepté (en plus de POST) pour permettre un simple lien cliquable
