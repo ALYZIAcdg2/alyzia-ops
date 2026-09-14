@@ -3783,8 +3783,10 @@ function lot2ExtractClassCounts(text){
 
   const h=header[0];
   for(const m of h.matchAll(/\b([FJCWSYM])\s*(\d{1,4})\b/g)){
-    const rawClass=m[1];
-    const k=rawClass==="M"?"Y":rawClass==="J"?"C":rawClass;
+    // Chaque compagnie garde sa propre lettre (SK utilise "M" pour l'Éco,
+    // jamais "Y" : convertir en Y masquait un vrai manifeste sous une lettre
+    // qu'aucune fiche vol SK n'affiche jamais). Plus de conversion M→Y/J→C.
+    const k=m[1];
     const n=Number(m[2]||0);
     if(Number.isFinite(n))out[k]=(out[k]||0)+n;
   }
@@ -4022,8 +4024,9 @@ function lot2CleanClock(v){
 function lot2PassengerClassFromCode(v){
   const s=String(v||"").toUpperCase().trim();
   if(!s)return "";
-  const rawClass=s[0]||"";
-  return rawClass==="M"?"Y":rawClass==="J"?"C":rawClass;
+  // Chaque compagnie garde sa propre lettre de classe (ex. SK utilise "M"
+  // pour l'Économie, jamais "Y") : plus de conversion M→Y/J→C.
+  return s[0]||"";
 }
 
 function lot2CleanPassengerName(v){

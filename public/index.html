@@ -7942,7 +7942,7 @@ function orderedClasses(x=f()){
    if(c==='F')return 10;            // First
    if(c==='J'||c==='C')return 20;   // Business
    if(c==='S'||c==='W')return 30;   // Premium Economy
-   if(c==='Y')return 999;           // Economy TOUJOURS EN DERNIER
+   if(c==='Y'||c==='M')return 999;  // Economy TOUJOURS EN DERNIER (M chez SK...)
    return 100;                      // autres classes entre Premium et Economy
  };
  return [...keys].sort((a,b)=>{
