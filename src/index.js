@@ -9687,14 +9687,29 @@ async function handleLot5(request,env,url){
       const row=await env.OPS_DB.prepare(`SELECT data_json FROM flights WHERE identity=? LIMIT 1`).bind(identity).first();
       if(!row)return json({ok:false,error:'VOL INTROUVABLE',identity},404);
       const x=JSON.parse(row.data_json||'{}');
-      const before={common:{...(x.common||{})},commonListsKeys:Object.keys(x.common_lists||{})};
+      const before={
+        common:{...(x.common||{})},
+        commonListsKeys:Object.keys(x.common_lists||{}),
+        booked:{...(x.booked||{})},
+        web:{...(x.web||{})}
+      };
       x.common={};
       x.common_lists={};
       if(x.imports&&typeof x.imports==='object')x.imports.cards={};
       x.inbound=[];
       x.outbound=[];
+      /*
+       * base.booked/base.web sont écrits par écrasement de clé (voir
+       * lot3MergeFlightData, "if(card.cardKey==='MASTER'/'WEB')") : une
+       * ancienne lettre de classe qui n'existe plus dans le classCounts
+       * actuel (ex. "Y" avant le passage aux lettres natives par compagnie)
+       * n'est jamais retirée automatiquement. Vidés ici pour repartir propre
+       * au prochain requeue, comme common/common_lists/imports.cards déjà.
+       */
+      x.booked={};
+      x.web={};
       await upsertFlight(env,x);
-      return json({ok:true,identity,before,message:'Cartes dérivées vidées — recliquer sur requeue-airline pour les reconstruire avec le code à jour.'});
+      return json({ok:true,identity,before,message:'Cartes dérivées vidées (dont booked/web) — recliquer sur requeue-airline pour les reconstruire avec le code à jour.'});
     }
     if(url.pathname==='/api/autopilot/stop'&&request.method==='POST'){
       const active=await env.OPS_DB.prepare(`SELECT run_id FROM lot5_autopilot_runs WHERE status='RUNNING' ORDER BY started_at DESC LIMIT 1`).first();
