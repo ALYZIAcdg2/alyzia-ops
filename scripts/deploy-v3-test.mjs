@@ -90,4 +90,12 @@ wrangler(['deploy', '-c', configPath]);
 // A distinct, stable secret allows repeatable test deploys without printing an admin token.
 const admin = createHmac('sha256', token).update(`alyzia-v3-test:${account}`).digest('hex');
 wrangler(['secret', 'put', 'V3_ADMIN_TOKEN', '-c', configPath], admin + '\n');
-process.stdout.write('Isolated V3 Worker deployed; admin token installed. Production bindings were not used.\n');
+const workerUrl = 'https://alyzia-ops-v3-test.alyzia-cdg2.workers.dev';
+const response = await fetch(`${workerUrl}/api/v3/status`, { signal: AbortSignal.timeout(10000) });
+if (!response.ok) throw new Error(`V3 test status returned HTTP ${response.status}.`);
+const status = await response.json();
+if (status.ok !== true || status.version !== 'V3' || status.shadowEnabled !== false ||
+    status.cutoverAirlines?.length !== 0) {
+  throw new Error('V3 test status is unhealthy or cutover is unexpectedly enabled.');
+}
+process.stdout.write(`V3 test status healthy at ${workerUrl}; ${status.sources} sources. Production bindings were not used.\n`);
