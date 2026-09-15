@@ -1,9 +1,8 @@
 name: Deploy isolated ALYZIA OPS V3 test
 
 on:
-  push:
-    branches:
-      - feature/import-v3-staging
+  pull_request:
+    types: [synchronize]
 
 permissions:
   contents: read
@@ -14,6 +13,7 @@ concurrency:
 
 jobs:
   deploy-test:
+    if: github.head_ref == 'feature/import-v3-staging' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
