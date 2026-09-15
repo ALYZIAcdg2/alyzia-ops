@@ -3464,7 +3464,26 @@ async function lot2ExtractTextFromR2Object(object,filename,mime){
     return await lot2ExtractPdfTextFromBytes(bytes);
   }
 
-  if(m.startsWith("text/") || ["txt","csv","html","htm","eml","json","xml"].includes(ext)){
+  if(ext==="eml" || m==="message/rfc822"){
+    /*
+     * V50.31 — un .eml est un message MIME brut (en-têtes de transport +
+     * corps, parfois multipart/base64/quoted-printable), pas du texte brut.
+     * Avant ce correctif, le fichier entier (en-têtes SMTP "Received:"/
+     * "ARC-Seal:"/... inclus) était renvoyé tel quel comme "texte extrait" :
+     * aucune ligne "LIST OF:" ne pouvait jamais y être trouvée (cardKey
+     * NO_LIST systématique), quel que soit le contenu réel du mail —
+     * repéré sur de vrais mails AT/RJ/SB/WB/AH stockés en base. Réutilise
+     * le même décodeur MIME récursif déjà utilisé et vérifié pour SQ
+     * (cleanParseEmlRecursiveV3 : multipart, base64, quoted-printable).
+     */
+    const raw=lot2DecodeUtf8(bytes);
+    const parsed=cleanParseEmlRecursiveV3(raw);
+    const body=lot2CleanText((parsed.textBodies||[]).join("\n\n"));
+    if(body)return {text:body,readable:true,reason:"EML_BODY_EXTRACTED"};
+    return {text:"",readable:false,reason:"EML_BODY_NOT_EXTRACTED"};
+  }
+
+  if(m.startsWith("text/") || ["txt","csv","html","htm","json","xml"].includes(ext)){
     return {text:lot2CleanText(lot2DecodeUtf8(bytes)),readable:true,reason:"TEXT_EXTRACTED"};
   }
 
@@ -3583,6 +3602,12 @@ const LOT2_GENERIC_DEFAULT_LIST_MAPPINGS = [
   ["MAAS","MAAS"],
   // Personnel compagnie (standby/bookable) — vu identique chez EI, LO, RJ.
   ["STF","STAFF"],
+  // "BS-SA" vu identique chez AH (déjà en dur) ET MS (contenu vérifié : 4
+  // passagers, chacun avec le code "BS-SA" sur sa ligne) — généralisé ici.
+  ["BS-SA","STAFF"],
+  // "PDF-FQTV" vu identique chez AI (contenu vérifié : 16 passagers avec
+  // numéros de fidélité et mentions ACCRUAL/REDEMPTION).
+  ["PDF-FQTV","FQTV"],
   ["INC","INBOUND"],
   ["INCARRIAGE","INBOUND"],
   ["ONC","OUTBOUND"],
@@ -3693,7 +3718,7 @@ const LOT2_KNOWN_MEAL_CODES=LOT2_GENERIC_DEFAULT_LIST_MAPPINGS
   .map(([name])=>lot2NormalizeListKey(name))
   .filter(name=>/^[A-Z]{2}ML$/.test(name));
 
-function lot2LookupListMapping(airline,listName,text){
+function lot2LookupListMapping(airline,listName,text,allowMasterByCount=true){
   const raw=lot2NormalizeListKey(listName);
   if(!raw)return {cardKey:"NO_LIST", mappingScope:"NONE", matchedListName:""};
 
@@ -3717,45 +3742,65 @@ function lot2LookupListMapping(airline,listName,text){
     return {cardKey:"MEAL", mappingScope:"DEFAULT_PATTERN", matchedListName:"MEAL_CODE"};
   }
 
-  // Rapports Altea auto-numérotés ("LIST OF: PDF-06, WCH ...", vus chez SK) :
-  // le préfixe "PDF-<n>" est un simple numéro de séquence sans signification
-  // (jamais le même d'un vol à l'autre), mais le suffixe après la virgule
-  // s'auto-désigne déjà avec un code connu — même principe que "PDF-ACC, ETKT"
-  // déjà mappé en dur pour 3O, généralisé ici pour ne pas avoir à lister
-  // chaque numéro rencontré au fur et à mesure.
-  const suffixM=String(listName||"").match(/^PDF-?\d{1,4}\s*,\s*(.+)$/i);
+  // Noms composés "<préfixe>, <suffixe>" (ex. "PDF-06, WCH" chez SK,
+  // "X-TRT, MEAL" chez WB) : le préfixe varie d'une compagnie à l'autre (ou
+  // d'un vol à l'autre, quand c'est un simple numéro de séquence sans
+  // signification), mais le suffixe s'auto-désigne déjà avec un code connu —
+  // même principe que "PDF-ACC, ETKT" déjà mappé en dur pour 3O, généralisé
+  // ici pour ne pas avoir à lister chaque combinaison rencontrée au fur et à
+  // mesure. Le préfixe lui-même n'est jamais interprété.
+  const suffixM=String(listName||"").match(/^(.+?),\s*(.+)$/);
   if(suffixM){
-    const suffixMapping=lot2LookupListMapping(airline,suffixM[1],text);
+    // allowMasterByCount=false : un suffixe résolu isolément ("CC-Y" seul,
+    // extrait de "PDF-VBCPLIST, CC-Y") ne doit jamais hériter du repli
+    // "beaucoup de passagers ⇒ MASTER" plus bas — sinon le garde-fou contre
+    // les sous-listes qualifiées par une virgule (voir plus bas) ne sert à
+    // rien, car ce nom-ci ("CC-Y") ne contient lui-même pas de virgule.
+    const suffixMapping=lot2LookupListMapping(airline,suffixM[2],text,false);
     if(suffixMapping.cardKey && suffixMapping.cardKey!=="OTHER" && suffixMapping.cardKey!=="NO_LIST"){
-      return {cardKey:suffixMapping.cardKey, mappingScope:"PDF_SUFFIX_PATTERN", matchedListName:listName};
+      return {cardKey:suffixMapping.cardKey, mappingScope:"SUFFIX_PATTERN", matchedListName:listName};
     }
   }
 
   /*
-   * Même famille de rapports Altea auto-numérotés, mais SANS suffixe explicite
-   * ("LIST OF: PDF-02 C1 M23 TOTAL 24"). Vérifié sur de vrais relevés SK réels :
-   * le numéro seul ne dit rien (le MÊME "PDF-06" désigne tantôt un manifeste,
-   * tantôt une sous-liste fauteuil roulant selon le vol) — impossible de mapper
-   * par nom. Seul le contenu réel du document est fiable : d'abord les codes
-   * SSR caractéristiques (fauteuil roulant/personnel/repas), puis, en dernier
-   * recours, le nombre de passagers (les manifestes complets réellement
-   * observés font 24 à 50 passagers, contre 1 à 14 pour toutes les sous-listes
-   * réelles rencontrées — seuil choisi avec une marge large des deux côtés).
+   * Dernier recours, universel : reconnaissance par CONTENU réel plutôt que
+   * par nom de liste. Necessaire car chaque compagnie sur "Generic Report"/
+   * "altea_report.pdf" nomme ses listes différemment ("PDF-<n>" chez SK,
+   * "CAS-AC" chez AH...), parfois avec un simple numéro de séquence qui ne
+   * veut rien dire et change de sens d'un vol à l'autre (vérifié sur SK : le
+   * même "PDF-06" désigne tantôt un manifeste, tantôt une sous-liste fauteuil
+   * roulant) — aucune table de correspondance par nom ne peut suivre ça à
+   * l'échelle de toutes les compagnies. On regarde donc d'abord les codes SSR
+   * caractéristiques (universels, indépendants du nom de liste et de la
+   * compagnie), puis, en dernier recours seulement, le nombre de passagers.
    */
-  if(text && /^PDF\s?\d{1,4}$/.test(raw)){
+  if(text){
     const body=lot2Upper(text);
     if(/\bWCH[RSC]\b|\bWCMP\b|\bWCBD\b|\bWCLB\b/.test(body)){
-      return {cardKey:"WCH", mappingScope:"PDF_CONTENT_PATTERN", matchedListName:listName};
+      return {cardKey:"WCH", mappingScope:"CONTENT_PATTERN", matchedListName:listName};
     }
     if(/\bSTF-/.test(body)){
-      return {cardKey:"STAFF", mappingScope:"PDF_CONTENT_PATTERN", matchedListName:listName};
+      return {cardKey:"STAFF", mappingScope:"CONTENT_PATTERN", matchedListName:listName};
     }
     if(LOT2_KNOWN_MEAL_CODES.some(code=>body.includes(code))){
-      return {cardKey:"MEAL", mappingScope:"PDF_CONTENT_PATTERN", matchedListName:listName};
+      return {cardKey:"MEAL", mappingScope:"CONTENT_PATTERN", matchedListName:listName};
     }
-    const paxLines=(body.match(/^\s*\d{1,3}\.[A-Z]/gm)||[]).length;
-    if(paxLines>=15){
-      return {cardKey:"MASTER", mappingScope:"PDF_CONTENT_PATTERN", matchedListName:listName};
+    /*
+     * Un nom qualifié par une virgule ("X, Y") désigne presque toujours un
+     * SOUS-ENSEMBLE d'une liste de base déjà couverte ailleurs (ex. SQ
+     * "PDF-VBCPLIST, CC-x" = filtre par classe cabine du même manifeste déjà
+     * posé par "PDF-VBCPLIST" seul — volontairement laissé en OTHER). Jamais
+     * promu MASTER par le seul comptage dans ce cas, même avec beaucoup de
+     * passagers, pour ne jamais écraser le vrai manifeste complet par un
+     * sous-total. Seuil (>=15) choisi avec une marge large des deux côtés :
+     * les manifestes complets réellement observés font 24 à 59 passagers,
+     * contre 1 à 14 pour toutes les sous-listes réelles rencontrées.
+     */
+    if(!suffixM && allowMasterByCount){
+      const paxLines=(body.match(/^\s*\d{1,3}\.[A-Z]/gm)||[]).length;
+      if(paxLines>=15){
+        return {cardKey:"MASTER", mappingScope:"CONTENT_PATTERN", matchedListName:listName};
+      }
     }
   }
 
