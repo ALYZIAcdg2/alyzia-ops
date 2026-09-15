@@ -8,6 +8,8 @@ import { ensureSchema } from "./db/schema.js";
 import { gmailOAuthStart, gmailOAuthCallback } from "./ingestion/gmail-oauth.js";
 import { gmailSyncNow, gmailStatus } from "./ingestion/gmail-sync.js";
 import { lot2ProcessNext, lot2Requeue, lot2Results, lot2PipelineSummary } from "./pipeline/process-job.js";
+import { lot3InjectNext, lot3FlightCards } from "./injection/inject.js";
+import { getFlightsResponse, getFlightByIdentity } from "./db/flights.js";
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -113,6 +115,37 @@ export default {
       } catch (e) {
         return json({ ok: false, error: String(e?.message || e) }, 500);
       }
+    }
+
+    // Déclenchement manuel de l'injection vers la fiche de vol (construit
+    // base.booked/base.web/base.common par classe depuis les résultats déjà
+    // classifiés) — même logique que les étapes précédentes : pas
+    // d'automatisation tant que v2 n'est pas validé sur des données réelles.
+    if (url.pathname === "/api/import-pipeline/inject-next" && request.method === "POST") {
+      const body = await request.json().catch(() => ({}));
+      try {
+        return json(await lot3InjectNext(env, body));
+      } catch (e) {
+        return json({ ok: false, error: String(e?.message || e) }, 500);
+      }
+    }
+
+    if (url.pathname === "/api/import-pipeline/flight-cards" && request.method === "GET") {
+      try {
+        return json(await lot3FlightCards(env, url));
+      } catch (e) {
+        return json({ ok: false, error: String(e?.message || e) }, 500);
+      }
+    }
+
+    if (url.pathname === "/api/flights" && request.method === "GET") {
+      const identity = String(url.searchParams.get("identity") || "").trim();
+      if (identity) {
+        const flight = await getFlightByIdentity(env, identity);
+        if (!flight) return json({ ok: false, error: "VOL INTROUVABLE" }, 404);
+        return json({ ok: true, flight });
+      }
+      return await getFlightsResponse(env);
     }
 
     if (env.ASSETS) {
