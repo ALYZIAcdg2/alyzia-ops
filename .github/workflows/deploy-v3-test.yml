@@ -1,0 +1,32 @@
+name: Deploy isolated ALYZIA OPS V3 test
+
+on:
+  pull_request:
+    types: [synchronize]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: alyzia-ops-v3-test
+  cancel-in-progress: false
+
+jobs:
+  deploy-test:
+    if: github.head_ref == 'feature/import-v3-staging' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Verify V3
+        run: npm test && npm run check
+      - name: Deploy isolated Worker and resources
+        run: node scripts/deploy-v3-test.mjs
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_V3_TEST_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

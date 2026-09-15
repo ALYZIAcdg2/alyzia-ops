@@ -1,4 +1,6 @@
-// ALYZIA OPS V50.30 R22.6 — BJ/VF SHA DEDUPE + CANONICAL RELINK · based on R22.5/R3.13
+// ALYZIA OPS — existing V2 production pipeline; V3 staging lives in src/v3.
+import {processV3,compareV3} from './v3/pipeline.js';
+import {ensureV3,storeRaw,digest} from './v3/store.js';
 // Read-only bridge plan for one SQ flight/date. SQ/TK/BJ/VF/TW parsers unchanged.
 // V50.28 RULE: INC/INCARRIAGE = INBOUND PAX; INBOUND SUMMARY = FLIGHT METADATA; route inbound terminates at main origin (CDG).
 // V50.27 RULE: INCARRIAGE/INC = INBOUND PASSENGERS; INBOUND CUSTOMER SUMMARY = INBOUND FLIGHTS.
@@ -11438,12 +11440,185 @@ async function handleSariaBridge(request,env,url){
   });
 }
 
+export function v3Adapters(env){
+  return {
+    extractPdf:lot2ExtractPdfTextFromBytes,
+    parseEml:cleanParseEmlRecursiveV3,
+    getFlight:key=>getFlightByIdentity(env,key),
+    interpret:(text,identity,type,title)=>{
+      const airline=identity.airline, flight=identity.flightNumber, date=identity.serviceDateInternal;
+      const special=(airline==='BJ'||airline==='VF')?lot2VfListKindFromText(text):'';
+      const tk=airline==='TK'?lot2TkContentDetect(text):'';
+      const tw=airline==='TW'?lot2TwContentDetect(text):'';
+      const listName=title||lot2DetectListName(text,'');
+      const specific=special||tk||tw;
+      const items=special?lot2VfExtractPassengerItems(text,special):
+        (tk?lot2TkExtractPassengerItems(text):(tw?lot2TwExtractPassengerItems(text):
+          (type==='OPERATIONAL_INFO'?[]:lot2ExtractPassengerItemsFromGenericList(text,listName,type))));
+      const operationalInfo=lot2ParseOperationalInfo(text,airline,flight,date);
+      const connectionRows=/^(INBOUND|OUTBOUND)$/.test(type)?lot2ExtractConnectionRows(text,listName,type):[];
+      const classCounts=special?lot2VfClassCounts(items):(tk?lot2TkClassCounts(items):
+        (tw?lot2TwClassCounts(items):lot2ExtractClassCountsForDocument(text,listName,type)));
+      const passengerCount=specific?items.length:(type==='OPERATIONAL_INFO'?0:
+        lot2ExtractPassengerCount(text,listName,type));
+      return {listName,cardKey:type,passengerItems:items,passengerCount,
+        classCounts,connectionRows,operationalInfo,interpreter:special?'BJ_VF':(tk?'TK':(tw?'TW':(airline==='SQ'?'SQ':'GENERIC')))};
+    }
+  };
+}
+
+async function handleV3(request,env,url){
+  const path=url.pathname;
+  const authorized=Boolean(env.V3_ADMIN_TOKEN) &&
+    request.headers.get('Authorization')===`Bearer ${env.V3_ADMIN_TOKEN}`;
+  if(path==='/api/v3/status' && request.method==='GET'){
+    await ensureV3(env.OPS_DB);
+    const sources=(await env.OPS_DB.prepare('SELECT COUNT(*) AS n FROM v3_raw_sources').first()).n;
+    const ready=(await env.OPS_DB.prepare("SELECT COUNT(*) AS n FROM v3_decisions WHERE status='READY'").first()).n;
+    return json({ok:true,version:'V3',sources,ready,
+      shadowEnabled:String(env.V3_SHADOW_ENABLED||'')==='1',
+      cutoverAirlines:String(env.V3_CUTOVER_AIRLINES||'').split(',').filter(Boolean)});
+  }
+  if(!authorized)return json({ok:false,error:'V3_ADMIN_REQUIRED'},403);
+  if(path==='/api/v3/shadow' && request.method==='POST'){
+    if(String(env.V3_SHADOW_ENABLED||'')!=='1')return json({ok:false,error:'V3_SHADOW_DISABLED'},403);
+    return json({ok:true,...await v3ShadowExisting(env,Number((await request.json()).limit||2))});
+  }
+  if(path==='/api/v3/sources' && request.method==='POST'){
+    const body=await request.json();
+    const filename=String(body.filename||'').slice(0,200);
+    if(!/\.(?:pdf|eml|txt|html?|zip)$/i.test(filename))return json({ok:false,error:'UNSUPPORTED_FORMAT'},400);
+    const encoded=String(body.contentBase64||'');
+    if(encoded.length>35*1024*1024)return json({ok:false,error:'SOURCE_TOO_LARGE'},413);
+    const bytes=b64urlToBytes(encoded);
+    const saved=await storeRaw(env,{bytes,filename,mimeType:String(body.mimeType||'application/octet-stream'),
+      sourceKind:String(body.sourceKind||'MANUAL'),sourceRef:String(body.sourceRef||filename)});
+    return json({ok:true,...saved});
+  }
+  if(path==='/api/v3/process' && request.method==='POST'){
+    const body=await request.json();
+    const result=await processV3(env,String(body.id||''),v3Adapters(env),body.hints||{});
+    return json({ok:result.status!=='ERROR',...result},result.status==='ERROR'?422:200);
+  }
+  if(path==='/api/v3/import-existing' && request.method==='POST'){
+    const body=await request.json();
+    const row=await env.OPS_DB.prepare('SELECT * FROM import_file_versions WHERE version_id=?')
+      .bind(String(body.versionId||'')).first();
+    if(!row)return json({ok:false,error:'VERSION_NOT_FOUND'},404);
+    const object=await env.OPS_FILES.get(row.r2_key);
+    if(!object)return json({ok:false,error:'R2_OBJECT_NOT_FOUND'},404);
+    const saved=await storeRaw(env,{bytes:new Uint8Array(await object.arrayBuffer()),filename:row.filename_original||'file.txt',
+      mimeType:row.mime_type||'application/octet-stream',sourceKind:'V2_VERSION',sourceRef:row.version_id});
+    const flight=await env.OPS_DB.prepare('SELECT airline,flight_number,flight_date FROM import_files WHERE file_id=?')
+      .bind(row.file_id).first();
+    const existing=flight?await getFlightByIdentity(env,`${flight.flight_date}|${flight.airline}|${flight.flight_number}`):null;
+    const hints={flight:flight?.flight_number,date:flight?.flight_date,
+      route:existing?.dep&&existing?.dest?`${existing.dep}-${existing.dest}`:'',
+      receivedAt:row.received_at};
+    return json({ok:true,...saved,result:await processV3(env,saved.id,v3Adapters(env),hints)});
+  }
+  if(path==='/api/v3/compare' && request.method==='GET'){
+    const airline=String(url.searchParams.get('airline')||'').toUpperCase();
+    const flight=String(url.searchParams.get('flight')||'').toUpperCase();
+    const date=String(url.searchParams.get('date')||'');
+    if(!/^[A-Z0-9]{2}$/.test(airline)||!flight.startsWith(airline)||
+      !/^20\d{2}-\d{2}-\d{2}$/.test(date))return json({ok:false,error:'INVALID_FLIGHT'},400);
+    return json({ok:true,...await compareV3(env,`${date}|${airline}|${flight}`,v3Adapters(env))});
+  }
+  if(path==='/api/v3/apply' && request.method==='POST'){
+    const body=await request.json();
+    const batch=await env.OPS_DB.prepare('SELECT * FROM v3_flight_batches WHERE batch_id=?')
+      .bind(String(body.batchId||'')).first();
+    if(!batch)return json({ok:false,error:'BATCH_NOT_FOUND'},404);
+    if(batch.status!=='READY')return json({ok:false,error:'BATCH_NOT_READY'},409);
+    const [date,airline,flight]=batch.flight_identity.split('|');
+    const allowed=new Set(String(env.V3_CUTOVER_AIRLINES||'').toUpperCase().split(',').map(x=>x.trim()));
+    if(!allowed.has(airline))return json({ok:false,error:'AIRLINE_CUTOVER_DISABLED'},403);
+    const validation=safeJsonParse(batch.validation_json,{});
+    if(validation.status!=='VALID'||validation.blocking?.length||validation.warnings?.length)
+      return json({ok:false,error:'VALIDATION_NOT_COMPLETE'},409);
+    const sourceIds=safeJsonParse(batch.source_ids_json,[]);
+    if(!sourceIds.length)return json({ok:false,error:'EMPTY_BATCH'},409);
+    for(const id of sourceIds){
+      const decision=await env.OPS_DB.prepare('SELECT status FROM v3_decisions WHERE source_id=?').bind(id).first();
+      if(decision?.status!=='READY')return json({ok:false,error:'SOURCE_NO_LONGER_READY'},409);
+    }
+    const raw=await env.OPS_DB.prepare('SELECT data_json FROM flights WHERE identity=?').bind(batch.flight_identity).first();
+    const comparison=safeJsonParse(batch.comparison_json,{});
+    const currentHash=raw?await digest(new TextEncoder().encode(raw.data_json)):null;
+    if(currentHash!==comparison.baselineHash)return json({ok:false,error:'FLIGHT_CHANGED_RECOMPARE'},409);
+    const consolidated=safeJsonParse(batch.consolidated_json,{});
+    let next=raw?safeJsonParse(raw.data_json,{}):null;
+    for(const item of consolidated.cards||[]){
+      const row={job_id:item.sourceId,version_id:item.sourceId,file_id:item.sourceId,
+        airline,flight_number:flight,flight_date:date,card_key:item.cardKey,
+        list_name:item.listName,document_type:item.type,passenger_count:item.passengerCount,
+        class_counts_json:JSON.stringify(item.classCounts||{}),result_json:JSON.stringify({
+          passengerItems:item.passengerItems||[],connectionRows:item.connectionRows||[],
+          operationalInfo:item.operationalInfo||null}),parser_mode:'V3',status:'VALIDATED'};
+      if(!next){
+        const info=item.operationalInfo||{};
+        if(!info.date||!info.dep||!info.dest||!info.std)
+          return json({ok:false,error:'REAL_FLIGHT_REQUIRED'},409);
+        next=lot3MergeOperationalInfo(null,row);
+        next.date=date;next.airline=airline;next.flight=flight;
+      }
+      if(item.type==='OPERATIONAL_INFO')next=lot3MergeOperationalInfo(next,row);
+      else next=lot3MergeFlightData(next,row,lot3BuildImportCard(row));
+    }
+    if(!next || !validFlight(next) || flightIdentity(next)!==batch.flight_identity)
+      return json({ok:false,error:'FINAL_FLIGHT_INVALID'},409);
+    // Flight JSON is written once. The old job/injection tables are untouched.
+    const write=raw?await env.OPS_DB.prepare(`UPDATE flights SET std=?,data_json=?,updated_at=CURRENT_TIMESTAMP WHERE identity=? AND data_json=?`)
+      .bind(String(next.std||''),JSON.stringify(next),batch.flight_identity,raw.data_json).run()
+      :await env.OPS_DB.prepare(`INSERT OR IGNORE INTO flights(identity,flight_date,airline,flight_number,std,data_json,updated_at) VALUES(?,?,?,?,?,?,CURRENT_TIMESTAMP)`)
+        .bind(batch.flight_identity,date,airline,flight,String(next.std||''),JSON.stringify(next)).run();
+    if(!write.meta?.changes)return json({ok:false,error:'FLIGHT_CHANGED_RECOMPARE'},409);
+    await env.OPS_DB.prepare(`UPDATE v3_flight_batches SET status='APPLIED',applied_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE batch_id=?`)
+      .bind(batch.batch_id).run();
+    return json({ok:true,status:'APPLIED',flightIdentity:batch.flight_identity,batchId:batch.batch_id});
+  }
+  return null;
+}
+
+async function v3ShadowExisting(env,limit=2){
+  await ensureV3(env.OPS_DB);
+  const {results=[]}=await env.OPS_DB.prepare(`
+    SELECT v.version_id,v.r2_key,v.filename_original,v.mime_type,v.file_id,v.received_at,
+      f.airline,f.flight_number,f.flight_date
+    FROM import_file_versions v JOIN import_files f ON f.file_id=v.file_id
+    WHERE v.r2_key IS NOT NULL AND v.r2_key<>''
+      AND NOT EXISTS (SELECT 1 FROM v3_source_links l WHERE l.source_kind='V2_VERSION' AND l.source_ref=v.version_id)
+    ORDER BY v.created_at DESC LIMIT ?
+  `).bind(Math.max(1,Math.min(10,limit))).all();
+  const processed=[];
+  for(const row of results){
+    try{
+      const object=await env.OPS_FILES.get(row.r2_key);
+      if(!object)throw new Error('R2_OBJECT_NOT_FOUND');
+      const existing=await getFlightByIdentity(env,`${row.flight_date}|${row.airline}|${row.flight_number}`);
+      const hints={flight:row.flight_number,date:row.flight_date,receivedAt:row.received_at,
+        route:existing?.dep&&existing?.dest?`${existing.dep}-${existing.dest}`:''};
+      const saved=await storeRaw(env,{bytes:new Uint8Array(await object.arrayBuffer()),
+        filename:row.filename_original||'source.txt',mimeType:row.mime_type||'application/octet-stream',
+        sourceKind:'V2_VERSION',sourceRef:row.version_id});
+      processed.push(await processV3(env,saved.id,v3Adapters(env),hints));
+    }catch(error){processed.push({versionId:row.version_id,status:'ERROR',error:String(error.message||error)})}
+  }
+  return {found:results.length,processed};
+}
+
 export default {
   async fetch(request,env){
     const url=new URL(request.url);
 
     try{
       if(request.method==="OPTIONS")return json({ok:true});
+
+      if(url.pathname.startsWith('/api/v3/')){
+        const result=await handleV3(request,env,url);
+        if(result)return result;
+      }
 
       if(url.pathname.startsWith("/api/flights")){
         const result=await handleFlights(request,env,url);
@@ -11510,6 +11685,10 @@ export default {
     ctx.waitUntil((async()=>{
       const result=await lot5AutoPilotRun(env,{triggerType:"CRON"});
       if(!result?.ok)console.error("ALYZIA LOT5 AUTO PILOT",result?.error||result);
+      if(String(env.V3_SHADOW_ENABLED||'')==='1'){
+        const mirror=await v3ShadowExisting(env,2);
+        if(mirror.processed.some(x=>x.status==='ERROR'))console.error('V3 SHADOW REVIEW',mirror.processed);
+      }
     })());
   }
 };

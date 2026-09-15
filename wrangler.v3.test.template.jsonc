@@ -1,0 +1,19 @@
+{
+  "name": "alyzia-ops-v3-test",
+  "main": "./src/index.js",
+  "compatibility_date": "2026-08-06",
+  "assets": {"directory": "./public", "binding": "ASSETS"},
+  "vars": {
+    "V3_SHADOW_ENABLED": "0",
+    "V3_CUTOVER_AIRLINES": ""
+  },
+  "d1_databases": [{
+    "binding": "OPS_DB",
+    "database_name": "alyzia-ops-v3-test-db",
+    "database_id": "REPLACE_WITH_TEST_D1_UUID"
+  }],
+  "r2_buckets": [{
+    "binding": "OPS_FILES",
+    "bucket_name": "alyzia-ops-v3-test-files"
+  }]
+}

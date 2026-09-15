@@ -1,0 +1,4 @@
+node_modules/
+.wrangler/
+.v3-private-fixtures/
+.v3.test.generated.jsonc
