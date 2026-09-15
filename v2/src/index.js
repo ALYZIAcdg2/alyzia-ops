@@ -9,18 +9,11 @@ import { gmailOAuthStart, gmailOAuthCallback } from "./ingestion/gmail-oauth.js"
 import { gmailSyncNow, gmailStatus } from "./ingestion/gmail-sync.js";
 import { lot2ProcessNext, lot2Requeue, lot2Results, lot2PipelineSummary } from "./pipeline/process-job.js";
 import { lot3InjectNext, lot3FlightCards } from "./injection/inject.js";
-import { getFlightsResponse, getFlightByIdentity } from "./db/flights.js";
 import { runPipelineOnce } from "./pipeline/run-once.js";
-
-function json(data, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      "Content-Type": "application/json; charset=UTF-8",
-      "Cache-Control": "no-store",
-    },
-  });
-}
+import { json } from "./lib/http.js";
+import { handleAirlineProfiles } from "./routes/airline-profiles.js";
+import { handleFlights } from "./routes/flights.js";
+import { handleFlightNotes } from "./routes/flight-notes.js";
 
 async function handleHealth(env) {
   const checks = {};
@@ -139,14 +132,19 @@ export default {
       }
     }
 
-    if (url.pathname === "/api/flights" && request.method === "GET") {
-      const identity = String(url.searchParams.get("identity") || "").trim();
-      if (identity) {
-        const flight = await getFlightByIdentity(env, identity);
-        if (!flight) return json({ ok: false, error: "VOL INTROUVABLE" }, 404);
-        return json({ ok: true, flight });
-      }
-      return await getFlightsResponse(env);
+    if (url.pathname === "/api/flights" || url.pathname === "/api/flights/sync") {
+      const response = await handleFlights(request, env, url);
+      if (response) return response;
+    }
+
+    if (url.pathname.startsWith("/api/airline-profiles")) {
+      const response = await handleAirlineProfiles(request, env, url);
+      if (response) return response;
+    }
+
+    if (url.pathname.startsWith("/api/flight-notes") || url.pathname.startsWith("/api/flight-attachments")) {
+      const response = await handleFlightNotes(request, env, url);
+      if (response) return response;
     }
 
     // Enchaîne les trois étapes manuelles ci-dessus en un seul appel
