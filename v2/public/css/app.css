@@ -1,0 +1,271 @@
+/* ALYZIA OPS v2 — tableau de bord par vol.
+   Palette pensée pour un usage opérationnel (salle ops / tablette au
+   pied de l'avion) : contraste élevé, lecture rapide, chiffres alignés. */
+
+:root {
+  --bg: #f5f7fa;
+  --surface: #ffffff;
+  --surface-alt: #eef2f7;
+  --border: #d7dee8;
+  --text: #142033;
+  --text-dim: #5b6b82;
+  --accent: #1462c9;
+  --accent-soft: #e5eefc;
+  --alert-bg: #fdf1de;
+  --alert-border: #edc27f;
+  --alert-text: #8a5a09;
+  --ok: #17864f;
+  --danger: #b3271f;
+  --radius: 10px;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0c1420;
+    --surface: #131f30;
+    --surface-alt: #182740;
+    --border: #24374f;
+    --text: #eaf1fa;
+    --text-dim: #8fa3bd;
+    --accent: #4c9eff;
+    --accent-soft: #1b2c46;
+    --alert-bg: #2c2410;
+    --alert-border: #6b530f;
+    --alert-text: #f0c766;
+    --ok: #3ecb8a;
+    --danger: #ff6a61;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0c1420;
+  --surface: #131f30;
+  --surface-alt: #182740;
+  --border: #24374f;
+  --text: #eaf1fa;
+  --text-dim: #8fa3bd;
+  --accent: #4c9eff;
+  --accent-soft: #1b2c46;
+  --alert-bg: #2c2410;
+  --alert-border: #6b530f;
+  --alert-text: #f0c766;
+  --ok: #3ecb8a;
+  --danger: #ff6a61;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+#app {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 20px 16px 48px;
+}
+
+.app-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 4px 0 16px;
+}
+
+.loading-note,
+.empty-note,
+.error-note {
+  color: var(--text-dim);
+  padding: 24px;
+  text-align: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.error-note { color: var(--danger); }
+
+.back-link {
+  display: inline-block;
+  color: var(--accent);
+  text-decoration: none;
+  margin-bottom: 14px;
+  font-weight: 600;
+}
+.back-link:hover { text-decoration: underline; }
+
+/* ---- Liste des vols ---- */
+
+table.flight-list {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+table.flight-list th,
+table.flight-list td {
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+table.flight-list thead th {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  background: var(--surface-alt);
+}
+tr.flight-row { cursor: pointer; }
+tr.flight-row:hover,
+tr.flight-row:focus-visible { background: var(--accent-soft); outline: none; }
+tr.flight-row:last-child td { border-bottom: none; }
+
+/* ---- Carte de vol ---- */
+
+.flight-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.flight-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px 20px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 14px;
+}
+.flight-title { display: flex; align-items: baseline; gap: 10px; }
+.flight-airline {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-dim);
+  letter-spacing: 0.04em;
+}
+.flight-number {
+  font-size: 1.6rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.flight-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.flight-route { font-weight: 600; color: var(--text); }
+
+.flight-section h2 {
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+  margin: 0 0 10px;
+}
+
+table.class-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+table.class-table th,
+table.class-table td {
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+table.class-table thead th {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+}
+table.class-table td.num,
+table.class-table th.num,
+table.flight-list td.num { text-align: right; }
+table.class-table tfoot th,
+table.class-table tfoot td {
+  border-bottom: none;
+  border-top: 2px solid var(--border);
+  font-weight: 700;
+}
+
+.tile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 10px;
+}
+.tile {
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.tile-alert {
+  background: var(--alert-bg);
+  border-color: var(--alert-border);
+}
+.tile-count {
+  font-size: 1.4rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.tile-alert .tile-count { color: var(--alert-text); }
+.tile-label {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
+.tile-alert .tile-label { color: var(--alert-text); }
+
+.connections ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.connections li {
+  display: flex;
+  gap: 12px;
+  font-variant-numeric: tabular-nums;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+}
+.conn-flight { font-weight: 700; min-width: 60px; }
+.conn-airport { color: var(--text-dim); min-width: 40px; }
+.conn-count { margin-left: auto; color: var(--text-dim); }
+
+.flight-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+.status {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--surface-alt);
+  font-weight: 600;
+}
+.status-injected { color: var(--ok); }
+
+@media (max-width: 480px) {
+  table.flight-list thead { display: none; }
+  table.flight-list tr.flight-row { display: grid; grid-template-columns: 1fr auto; }
+}
