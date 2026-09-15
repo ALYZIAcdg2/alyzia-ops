@@ -2,11 +2,19 @@ import { createHmac } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 
-const account = process.env.CLOUDFLARE_ACCOUNT_ID;
+let account = process.env.CLOUDFLARE_ACCOUNT_ID;
 const token = process.env.CLOUDFLARE_API_TOKEN;
-if (!/^[a-f0-9]{32}$/i.test(account || '') || !token) {
-  throw new Error('Cloudflare account ID and API token are required.');
+if (!token) throw new Error('Cloudflare API token is required.');
+if (!account) {
+  const whoami = spawnSync('npx', ['wrangler', 'whoami', '--json'], {
+    encoding: 'utf8', env: process.env,
+  });
+  if (whoami.status !== 0) throw new Error('Could not identify the Cloudflare account from the token.');
+  const accounts = JSON.parse(whoami.stdout).accounts;
+  if (accounts?.length !== 1) throw new Error('Token must identify exactly one account, or set CLOUDFLARE_ACCOUNT_ID.');
+  account = accounts[0].id;
 }
+if (!/^[a-f0-9]{32}$/i.test(account || '')) throw new Error('Invalid Cloudflare account ID.');
 
 const prefix = `https://api.cloudflare.com/client/v4/accounts/${account}`;
 async function api(method, path, body, allow404 = false) {
