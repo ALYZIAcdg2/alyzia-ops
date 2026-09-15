@@ -10,6 +10,7 @@ import { gmailSyncNow, gmailStatus } from "./ingestion/gmail-sync.js";
 import { lot2ProcessNext, lot2Requeue, lot2Results, lot2PipelineSummary } from "./pipeline/process-job.js";
 import { lot3InjectNext, lot3FlightCards } from "./injection/inject.js";
 import { getFlightsResponse, getFlightByIdentity } from "./db/flights.js";
+import { runPipelineOnce } from "./pipeline/run-once.js";
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -146,6 +147,17 @@ export default {
         return json({ ok: true, flight });
       }
       return await getFlightsResponse(env);
+    }
+
+    // Enchaîne les trois étapes manuelles ci-dessus en un seul appel
+    // (pratique pour valider le pipeline complet), sans automatisation.
+    if (url.pathname === "/api/import-pipeline/run-once" && request.method === "POST") {
+      const body = await request.json().catch(() => ({}));
+      try {
+        return json(await runPipelineOnce(env, body));
+      } catch (e) {
+        return json({ ok: false, error: String(e?.message || e) }, 500);
+      }
     }
 
     if (env.ASSETS) {
