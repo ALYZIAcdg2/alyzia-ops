@@ -11440,7 +11440,7 @@ async function handleSariaBridge(request,env,url){
   });
 }
 
-function v3Adapters(env){
+export function v3Adapters(env){
   return {
     extractPdf:lot2ExtractPdfTextFromBytes,
     parseEml:cleanParseEmlRecursiveV3,

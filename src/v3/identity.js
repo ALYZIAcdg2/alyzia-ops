@@ -30,9 +30,13 @@ export function resolveIdentity(document, hints = {}) {
   const hintedAirline=String(hints.flight||'').toUpperCase().slice(0,2);
   const airlines=new Set(['TK','SQ','TW','BJ','VF','3O','WB','OZ','EI','LO','MS','RJ','SK','AT','AI','AH','IZ','TB','FB','S4','A9','DE','J2',hintedAirline]);
   const mentions = [...header.matchAll(FLIGHT)].filter(m => airlines.has(m[1]) &&
-    /^[0-9]/.test(m[2])).map(m => ({flight:`${m[1]}${m[2]}`,index:m.index}));
+    /^[0-9]/.test(m[2]) && (m[1]!=='J2'||hintedAirline==='J2'))
+    .map(m => ({flight:`${m[1]}${m[2]}`,index:m.index}));
   const flights = mentions.map(m=>m.flight);
-  const routes = [...header.matchAll(ROUTE)].map(m => `${m[1]}-${m[2]}`);
+  // Passenger names can be AAA-BBB. Route evidence must come from the report
+  // heading before the named LIST OF rows, not the passenger body.
+  const routeHeader=header.split(/\bLIST\s+OF\s*:/i)[0].slice(0,2000);
+  const routes = [...routeHeader.matchAll(ROUTE)].map(m => `${m[1]}-${m[2]}`);
   const dates = [...header.matchAll(DATE)].map(m => ({raw:m[1],index:m.index,
     iso:canonicalDate(m[1],hints.receivedAt?.slice(0,10))})).filter(d => d.iso);
   const flight = [...new Set(flights)];
@@ -59,7 +63,7 @@ export function resolveIdentity(document, hints = {}) {
   const resolvedRoute = route[0] || hintedRoute;
   if (!resolvedFlight || !resolvedDate || !resolvedRoute) issues.push('IDENTITY_INCOMPLETE');
   return {airline:resolvedFlight.slice(0,2),flightNumber:resolvedFlight,
-    serviceDateRaw:nearestDate?.raw || dates[0]?.raw || String(hints.date || ''),serviceDateInternal:resolvedDate,
+    serviceDateRaw:(nearestDate?.raw || dates[0]?.raw || String(hints.date || '')).trim(),serviceDateInternal:resolvedDate,
     route:resolvedRoute,origin:resolvedRoute.slice(0,3),destination:resolvedRoute.slice(-3),
     key:`${resolvedDate}|${resolvedFlight.slice(0,2)}|${resolvedFlight}`,
     evidence:{flights:flight,routes:route,dates},issues};

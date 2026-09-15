@@ -38,6 +38,22 @@ test('a connection flight and report timestamp do not replace the operating flig
   assert.deepEqual(identity.issues,[]);
 });
 
+test('a passenger surname with a hyphen is not a flight route',()=>{
+  const identity=resolveIdentity(doc('SQ337 19AUG2026\nLIST OF: INF J1 S0 Y3 TOTAL 4\n1.LEE-MEI INF'),
+    {flight:'SQ337',date:'2026-08-19',route:'CDG-SIN'});
+  assert.equal(identity.route,'CDG-SIN');
+  assert.deepEqual(identity.issues,[]);
+  assert.deepEqual(classifyDocument(doc('LIST OF: INF J1 S0 Y3 TOTAL 4')).types,['INF']);
+});
+
+test('SQ cabin count J25 is not flight J2 5',()=>{
+  const id=resolveIdentity(doc('Generic Report\nLIST OF: PDF-VBCPLIST, CC-J J25 S0 Y0\nSQ337 19AUG CDG-SIN'),
+    {flight:'SQ337',date:'2026-08-19',route:'CDG-SIN',receivedAt:'2026-08-16'});
+  assert.equal(id.flightNumber,'SQ337');
+  assert.ok(!id.issues.includes('FLIGHT_CONFLICT'));
+  assert.deepEqual(classifyDocument(doc('LIST OF: PDF-OSPLMAAS J0 S0 Y3')).types,['SSR']);
+});
+
 test('FQA and combined ONC/INC classify by explicit title',()=>{
   assert.deepEqual(classifyDocument(doc('LIST OF: FQA\nSQ335')).types,['FQTV']);
   assert.deepEqual(classifyDocument(doc('LIST OF: ONC + INC\nSQ335')).types,['INBOUND','OUTBOUND']);

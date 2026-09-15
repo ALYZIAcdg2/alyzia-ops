@@ -50,8 +50,10 @@ export async function compareV3(env,flightIdentity,adapters){
     classification:parse(row.classification_json,{}),interpreter:parse(row.interpreter_json,{cards:[]})}))
   const batch=consolidateFlight(decisions);
   if(unresolved.length)batch.issues.push('UNRESOLVED_DOCUMENTS');
-  const validation=validateFlight(batch);
   const existing=await adapters.getFlight(flightIdentity);
+  if(!existing && !batch.cards.some(card=>card.type==='MASTER'))
+    batch.issues.push('MASTER_REQUIRED_FOR_NEW_FLIGHT');
+  const validation=validateFlight(batch);
   const comparison={v2Exists:!!existing,v2Passengers:(existing?.passengers||existing?.pax||[]).length,
     v3Passengers:batch.passengers.length,v3Cards:batch.cards.length,
     baselineHash:existing?await digest(new TextEncoder().encode(JSON.stringify((({ _serverUpdatedAt, ...data })=>data)(existing)))):null};
