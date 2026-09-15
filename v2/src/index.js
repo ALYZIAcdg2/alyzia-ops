@@ -7,6 +7,7 @@
 import { ensureSchema } from "./db/schema.js";
 import { gmailOAuthStart, gmailOAuthCallback } from "./ingestion/gmail-oauth.js";
 import { gmailSyncNow, gmailStatus } from "./ingestion/gmail-sync.js";
+import { lot2ProcessNext, lot2Requeue, lot2Results, lot2PipelineSummary } from "./pipeline/process-job.js";
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -72,6 +73,43 @@ export default {
       const body = await request.json().catch(() => ({}));
       try {
         return json(await gmailSyncNow(env, body));
+      } catch (e) {
+        return json({ ok: false, error: String(e?.message || e) }, 500);
+      }
+    }
+
+    // Déclenchement manuel du traitement des documents en attente
+    // (extraction → classification → parseur compagnie), même logique que
+    // /api/gmail/sync : pas d'automatisation tant que v2 n'est pas validé.
+    if (url.pathname === "/api/import-pipeline/process-next" && request.method === "POST") {
+      const body = await request.json().catch(() => ({}));
+      try {
+        return json(await lot2ProcessNext(env, body));
+      } catch (e) {
+        return json({ ok: false, error: String(e?.message || e) }, 500);
+      }
+    }
+
+    if (url.pathname === "/api/import-pipeline/requeue" && request.method === "POST") {
+      const body = await request.json().catch(() => ({}));
+      try {
+        return json(await lot2Requeue(env, body));
+      } catch (e) {
+        return json({ ok: false, error: String(e?.message || e) }, 500);
+      }
+    }
+
+    if (url.pathname === "/api/import-pipeline/results" && request.method === "GET") {
+      try {
+        return json(await lot2Results(env, url));
+      } catch (e) {
+        return json({ ok: false, error: String(e?.message || e) }, 500);
+      }
+    }
+
+    if (url.pathname === "/api/import-pipeline/summary" && request.method === "GET") {
+      try {
+        return json(await lot2PipelineSummary(env));
       } catch (e) {
         return json({ ok: false, error: String(e?.message || e) }, 500);
       }
