@@ -5,6 +5,8 @@
 // la prod pendant la construction.
 
 import { ensureSchema } from "./db/schema.js";
+import { gmailOAuthStart, gmailOAuthCallback } from "./ingestion/gmail-oauth.js";
+import { gmailSyncNow, gmailStatus } from "./ingestion/gmail-sync.js";
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -49,6 +51,30 @@ export default {
 
     if (url.pathname === "/api/health") {
       return handleHealth(env);
+    }
+
+    if (url.pathname === "/api/gmail/oauth/start") {
+      return gmailOAuthStart(request, env);
+    }
+
+    if (url.pathname === "/api/gmail/oauth/callback") {
+      return gmailOAuthCallback(request, env, url);
+    }
+
+    if (url.pathname === "/api/gmail/status" && request.method === "GET") {
+      return json(await gmailStatus(env));
+    }
+
+    // Déclenchement manuel uniquement pendant la construction/validation de
+    // v2 : pas de cron tant que ce worker n'a pas été comparé aux résultats
+    // réels de la production sur les mêmes mails.
+    if (url.pathname === "/api/gmail/sync" && request.method === "POST") {
+      const body = await request.json().catch(() => ({}));
+      try {
+        return json(await gmailSyncNow(env, body));
+      } catch (e) {
+        return json({ ok: false, error: String(e?.message || e) }, 500);
+      }
     }
 
     if (env.ASSETS) {
