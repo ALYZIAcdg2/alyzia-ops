@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process';
 
 let account = process.env.CLOUDFLARE_ACCOUNT_ID;
 const token = process.env.CLOUDFLARE_API_TOKEN;
-if (!token) throw new Error('Cloudflare API token is required.');
+if (!token) throw new Error('Missing repository Actions secret CLOUDFLARE_V3_TEST_API_TOKEN.');
 if (!account) {
   const whoami = spawnSync('npx', ['wrangler', 'whoami', '--json'], {
     encoding: 'utf8', env: process.env,
