@@ -14,6 +14,8 @@ import { json } from "./lib/http.js";
 import { handleAirlineProfiles } from "./routes/airline-profiles.js";
 import { handleFlights } from "./routes/flights.js";
 import { handleFlightNotes } from "./routes/flight-notes.js";
+import { handlePrepa } from "./routes/prepa.js";
+import { handleSariaBridge } from "./routes/saria-bridge.js";
 
 async function handleHealth(env) {
   const checks = {};
@@ -144,6 +146,16 @@ export default {
 
     if (url.pathname.startsWith("/api/flight-notes") || url.pathname.startsWith("/api/flight-attachments")) {
       const response = await handleFlightNotes(request, env, url);
+      if (response) return response;
+    }
+
+    if (url.pathname.startsWith("/api/prepa")) {
+      const response = await handlePrepa(request, env, url);
+      if (response) return response;
+    }
+
+    if (url.pathname.startsWith("/api/saria/")) {
+      const response = await handleSariaBridge(request, env, url);
       if (response) return response;
     }
 
