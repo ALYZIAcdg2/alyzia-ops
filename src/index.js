@@ -9709,6 +9709,27 @@ async function lot5SqControlledBridgeR313(env,body){
   };
 }
 
+async function deleteAlyziaGmailLabels(env){
+  const labelsDeleted=[];
+  try{
+    const labels=await gmailFetch(env,'/labels');
+    const suffixes=new Set(Object.values(CLEAN_LABEL_SUFFIX));
+    for(const l of labels.labels||[]){
+      const name=String(l.name||'');
+      const oldGlobal=Object.values(GMAIL_LABELS).includes(name);
+      const p=name.split('/');
+      const cleanCompany=name.startsWith('ALYZIA/')&&p.length>=3&&suffixes.has(p[p.length-1]);
+      if(!oldGlobal&&!cleanCompany)continue;
+      await gmailFetch(env,`/labels/${encodeURIComponent(l.id)}`,{method:'DELETE'}).catch(()=>{});
+      labelsDeleted.push(name);
+    }
+    GMAIL_LABEL_ID_CACHE=null;
+    return {ok:true,labelsDeleted};
+  }catch(e){
+    return {ok:false,error:String(e?.message||e),labelsDeleted};
+  }
+}
+
 async function handleLot5(request,env,url){
   if(!url.pathname.startsWith('/api/autopilot') && !url.pathname.startsWith('/api/gmail-clean'))return null;
   try{
@@ -9960,28 +9981,25 @@ async function handleLot5(request,env,url){
       }
       await env.OPS_DB.prepare(`DELETE FROM gmail_sync_state`).run().catch(()=>{});
 
-      // Supprime les libellés Gmail ALYZIA (objet label lui-même, pas juste
-      // leur retrait message par message) — recréés à la demande par
-      // ensureGmailLabel au fil de la resynchronisation.
-      const labelsDeleted=[];
-      try{
-        const labels=await gmailFetch(env,'/labels');
-        const suffixes=new Set(Object.values(CLEAN_LABEL_SUFFIX));
-        for(const l of labels.labels||[]){
-          const name=String(l.name||'');
-          const oldGlobal=Object.values(GMAIL_LABELS).includes(name);
-          const p=name.split('/');
-          const cleanCompany=name.startsWith('ALYZIA/')&&p.length>=3&&suffixes.has(p[p.length-1]);
-          if(!oldGlobal&&!cleanCompany)continue;
-          await gmailFetch(env,`/labels/${encodeURIComponent(l.id)}`,{method:'DELETE'}).catch(()=>{});
-          labelsDeleted.push(name);
-        }
-        GMAIL_LABEL_ID_CACHE=null;
-      }catch(e){
-        return json({ok:true,warning:`Tables vidées mais suppression des libellés Gmail échouée : ${String(e?.message||e)}`,deletedRows:counts,labelsDeleted});
+      const labelResult=await deleteAlyziaGmailLabels(env);
+      if(!labelResult.ok){
+        return json({ok:true,warning:`Tables vidées mais suppression des libellés Gmail échouée : ${labelResult.error}`,deletedRows:counts,labelsDeleted:labelResult.labelsDeleted});
       }
 
-      return json({ok:true,deletedRows:counts,labelsDeleted,message:'Base entièrement vidée. Relancer /api/gmail/sync-now par lots pour resynchroniser depuis Gmail.'});
+      return json({ok:true,deletedRows:counts,labelsDeleted:labelResult.labelsDeleted,message:'Base entièrement vidée. Relancer /api/gmail/sync-now par lots pour resynchroniser depuis Gmail.'});
+    }
+    if(url.pathname==='/api/autopilot/delete-labels'&&request.method==='POST'){
+      /*
+       * Supprime uniquement les libellés Gmail ALYZIA (sans toucher aux
+       * tables D1), pour repartir avec des libellés propres même quand la
+       * base n'a pas besoin d'être revidée — ex. après un full-reset dont la
+       * suppression des libellés avait échoué (panne OAuth). Recréés à la
+       * demande par ensureGmailLabel au fil de la resynchronisation, donc
+       * sans danger pour un cycle de sync déjà en cours.
+       */
+      const labelResult=await deleteAlyziaGmailLabels(env);
+      if(!labelResult.ok)return json({ok:false,error:labelResult.error,labelsDeleted:labelResult.labelsDeleted},500);
+      return json({ok:true,labelsDeleted:labelResult.labelsDeleted});
     }
     if(url.pathname==='/api/autopilot/limit-airline-dates'&&request.method==='POST'){
       /*
