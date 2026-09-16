@@ -1,21 +1,11 @@
 name: Rapport ponctuel — listes GENERIC non reconnues par compagnie
 
-# Interroge l'endpoint public existant /api/autopilot/unmapped-lists sur le
-# worker de production et affiche le résultat dans le journal du job.
-# Se déclenche automatiquement au push de ce fichier (le proxy réseau de la
-# session sandboxée ne peut pas atteindre *.workers.dev directement).
-#
-# Contient aussi (sur demande explicite, après déploiement des correctifs
-# Groupes A/B/D) un appel à /api/autopilot/requeue-all : remet en QUEUED les
-# jobs import déjà stockés pour TOUTES les compagnies génériques, pour qu'ils
-# soient reclassés avec le code corrigé, sans toucher aux fiches de vol déjà
-# construites. Contrôlé par REQUEUE_ALL ci-dessous.
-#
-# Le cron de production (*/5 min) ne traite qu'un petit lot de jobs QUEUED à
-# chaque passage (voir lot2ProcessNext) — bien trop lent pour vider 1295 jobs
-# d'un coup. DRAIN_QUEUE appelle directement /api/import-pipeline/process-next
-# en boucle (lot de 50) jusqu'à ce que la file soit vide, pour vérifier tout
-# de suite plutôt que d'attendre des heures de cron.
+# Diagnostic en lecture seule : interroge /api/gmail/status pour connaître la
+# taille réelle de la base avant de planifier une remise à zéro complète
+# (suppression des vols + resynchronisation intégrale depuis Gmail, demandée
+# explicitement par l'utilisateur). Se déclenche automatiquement au push de
+# ce fichier (le proxy réseau de la session sandboxée ne peut pas atteindre
+# *.workers.dev directement).
 
 on:
   push:
@@ -28,155 +18,23 @@ on:
 permissions:
   contents: read
 
-env:
-  REQUEUE_ALL: "false"
-  DRAIN_QUEUE: "false"
-
 jobs:
   report:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 5
     steps:
-      - name: Requeue toutes les compagnies génériques (relance le traitement avec le code corrigé)
-        if: env.REQUEUE_ALL == 'true'
+      - name: État Gmail/pipeline (taille de la base avant remise à zéro)
         run: |
-          curl -sS -f -X POST "https://alyzia-ops.alyzia-cdg2.workers.dev/api/autopilot/requeue-all" | tee requeue-all.json
+          curl -sS -f "https://alyzia-ops.alyzia-cdg2.workers.dev/api/gmail/status" | tee gmail-status.json
           echo
-
-      - name: Vide la file QUEUED tout de suite (au lieu d'attendre le cron)
-        if: env.DRAIN_QUEUE == 'true'
-        run: |
-          total=0
-          for i in $(seq 1 60); do
-            out=$(curl -sS -f -X POST "https://alyzia-ops.alyzia-cdg2.workers.dev/api/import-pipeline/process-next" \
-              -H "Content-Type: application/json" -d '{"limit":50}')
-            found=$(node -e "console.log(JSON.parse(process.argv[1]).found || 0)" "$out")
-            total=$((total + found))
-            echo "passage $i : $found job(s) traité(s) (cumul $total)"
-            if [ "$found" -eq 0 ]; then
-              echo "file vide, arrêt."
-              break
-            fi
-          done
-          echo "TOTAL TRAITÉ : $total"
-
-      - name: Injecte les résultats classifiés dans les fiches de vol (LOT3, vols témoins uniquement)
-        if: env.DRAIN_QUEUE == 'true'
-        run: |
-          for airline in JU AI TU AH AT; do
-            out=$(curl -sS -f -X POST "https://alyzia-ops.alyzia-cdg2.workers.dev/api/import-pipeline/inject-next" \
-              -H "Content-Type: application/json" -d "{\"limit\":50,\"airline\":\"$airline\"}")
-            echo "$airline : $out"
-          done
-
-      - name: Interroge /api/autopilot/unmapped-lists
-        run: |
-          curl -sS -f "https://alyzia-ops.alyzia-cdg2.workers.dev/api/autopilot/unmapped-lists?limit=1000" \
-            | tee unmapped-lists.json
-          echo
-          echo "--- Résumé par compagnie ---"
-          node -e '
-            const data = require("./unmapped-lists.json");
-            const byAirline = {};
-            for (const item of data.items || []) {
-              (byAirline[item.airline] ||= []).push(item);
-            }
-            for (const airline of Object.keys(byAirline).sort()) {
-              console.log(`\n${airline}:`);
-              for (const it of byAirline[airline]) {
-                console.log(`  - "${it.listName}" (${it.cardKey}) — vu ${it.count} fois, dernière fois ${it.lastSeen}`);
-              }
-            }
-          '
-
-      - name: Extrait le contenu réel des .eml NO_LIST, par compagnie
-        run: |
-          for airline in AH AI AT JU MS RJ SB TU VF WB; do
-            echo
-            echo "================================================================"
-            echo "=== $airline ==="
-            echo "================================================================"
-            preview_limit=3
-            if [ "$airline" = "JU" ]; then preview_limit=10; fi
-            curl -sS -f "https://alyzia-ops.alyzia-cdg2.workers.dev/api/autopilot/unmapped-list-preview?airline=$airline&listName=&limit=$preview_limit" \
-              | node -e '
-                  let raw = "";
-                  process.stdin.on("data", d => raw += d);
-                  process.stdin.on("end", () => {
-                    const data = JSON.parse(raw);
-                    for (const it of data.items || []) {
-                      console.log(`\n--- job ${it.jobId} | vol ${it.flightNumber} ${it.flightDate} | ${it.passengerCount} pax | maj ${it.updatedAt} ---`);
-                      console.log(it.textPreview || "(aucun aperçu stocké)");
-                    }
-                    if (!data.items || !data.items.length) console.log("(aucun échantillon trouvé)");
-                  });
-                '
-          done
-
-      - name: Réinitialise common/common_lists des vols SQ affectés (WCH/MEAL corrompus)
-        run: |
-          for identity in "SQ|SQ337|2026-09-16" "SQ|SQ335|2026-09-16" "SQ|SQ335|2026-09-15" "SQ|SQ335|2026-09-14" "SQ|SQ335|2026-09-11"; do
-            IFS='|' read -r airline flight date <<< "$identity"
-            echo "reset $airline $flight $date :"
-            curl -sS -f -X POST "https://alyzia-ops.alyzia-cdg2.workers.dev/api/autopilot/reset-flight-lists?airline=$airline&flightNumber=$flight&flightDate=$date"
-            echo
-          done
-
-      - name: Requeue tous les jobs SQ (relance avec le code corrigé)
-        run: |
-          curl -sS -f -X POST "https://alyzia-ops.alyzia-cdg2.workers.dev/api/autopilot/requeue-airline?airline=SQ"
-          echo
-
-      - name: Vide la file QUEUED (SQ)
-        run: |
-          total=0
-          for i in $(seq 1 60); do
-            out=$(curl -sS -f -X POST "https://alyzia-ops.alyzia-cdg2.workers.dev/api/import-pipeline/process-next" \
-              -H "Content-Type: application/json" -d '{"limit":50}')
-            found=$(node -e "console.log(JSON.parse(process.argv[1]).found || 0)" "$out")
-            total=$((total + found))
-            echo "passage $i : $found job(s) traité(s) (cumul $total)"
-            if [ "$found" -eq 0 ]; then
-              echo "file vide, arrêt."
-              break
-            fi
-          done
-          echo "TOTAL TRAITÉ : $total"
-
-      - name: Réinjecte les résultats SQ dans les fiches de vol (LOT3)
-        run: |
-          total=0
-          for i in $(seq 1 30); do
-            out=$(curl -sS -f -X POST "https://alyzia-ops.alyzia-cdg2.workers.dev/api/import-pipeline/inject-next" \
-              -H "Content-Type: application/json" -d '{"limit":50,"airline":"SQ"}')
-            found=$(node -e "console.log(JSON.parse(process.argv[1]).found || 0)" "$out")
-            total=$((total + found))
-            echo "passage $i : $found résultat(s) injecté(s) (cumul $total)"
-            if [ "$found" -lt 50 ]; then break; fi
-          done
-          echo "TOTAL INJECTÉ : $total"
-
-      - name: Vérifie l'état final des vols SQ335 / SQ337
-        run: |
-          for identity in "2026-09-16|SQ|SQ337" "2026-09-16|SQ|SQ335" "2026-09-15|SQ|SQ335" "2026-09-14|SQ|SQ335" "2026-09-11|SQ|SQ335"; do
-            echo
-            echo "================================================================"
-            echo "=== $identity ==="
-            echo "================================================================"
-            curl -sS -f "https://alyzia-ops.alyzia-cdg2.workers.dev/api/flights?identity=$(python3 -c "import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1]))" "$identity")" \
-              | node -e '
-                  let raw = "";
-                  process.stdin.on("data", d => raw += d);
-                  process.stdin.on("end", () => {
-                    const data = JSON.parse(raw);
-                    if (!data.ok) { console.log("ERREUR:", data.error); return; }
-                    const f = data.flight;
-                    console.log("common:", JSON.stringify(f.common || {}));
-                    for (const [k, v] of Object.entries(f.common_lists || {})) {
-                      if (Array.isArray(v) && v.length) {
-                        console.log(`  ${k}: ${v.length} passager(s) —`, v.slice(0,10).map(p => p.name).join(", "));
-                      }
-                    }
-                  });
-                '
-          done
+          echo "--- flights count ---"
+          curl -sS -f "https://alyzia-ops.alyzia-cdg2.workers.dev/api/flights" \
+            | node -e '
+                let raw = "";
+                process.stdin.on("data", d => raw += d);
+                process.stdin.on("end", () => {
+                  const data = JSON.parse(raw);
+                  const flights = data.flights || data || [];
+                  console.log("nombre de fiches vol:", Array.isArray(flights) ? flights.length : "?");
+                });
+              '
