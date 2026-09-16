@@ -60,6 +60,15 @@ jobs:
           done
           echo "TOTAL TRAITÉ : $total"
 
+      - name: Injecte les résultats classifiés dans les fiches de vol (LOT3, vols témoins uniquement)
+        if: env.DRAIN_QUEUE == 'true'
+        run: |
+          for airline in JU AI TU AH AT; do
+            out=$(curl -sS -f -X POST "https://alyzia-ops.alyzia-cdg2.workers.dev/api/import-pipeline/inject-next" \
+              -H "Content-Type: application/json" -d "{\"limit\":50,\"airline\":\"$airline\"}")
+            echo "$airline : $out"
+          done
+
       - name: Interroge /api/autopilot/unmapped-lists
         run: |
           curl -sS -f "https://alyzia-ops.alyzia-cdg2.workers.dev/api/autopilot/unmapped-lists?limit=1000" \
