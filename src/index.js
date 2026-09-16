@@ -3780,7 +3780,14 @@ function lot2LookupListMapping(airline,listName,text,allowMasterByCount=true){
     // "beaucoup de passagers ⇒ MASTER" plus bas — sinon le garde-fou contre
     // les sous-listes qualifiées par une virgule (voir plus bas) ne sert à
     // rien, car ce nom-ci ("CC-Y") ne contient lui-même pas de virgule.
-    const suffixMapping=lot2LookupListMapping(airline,suffixM[2],text,false);
+    // Texte volontairement omis ici (pas de 3e argument) : le suffixe doit
+    // s'auto-désigner par son PROPRE nom (table exacte), jamais en refaisant
+    // tourner le repli par contenu sur l'intégralité du document du préfixe —
+    // sinon un seul passager WCHR/STF-/repas isolé dans un manifeste complet
+    // de 150+ passagers (ex. SQ "PDF-VBCPLIST, CC-Y") faisait passer TOUTE la
+    // liste en WCH/STAFF/MEAL au lieu de rester OTHER (bug constaté sur
+    // SQ337 16SEP : 156 passagers comptés comme WCH).
+    const suffixMapping=lot2LookupListMapping(airline,suffixM[2],"",false);
     if(suffixMapping.cardKey && suffixMapping.cardKey!=="OTHER" && suffixMapping.cardKey!=="NO_LIST"){
       return {cardKey:suffixMapping.cardKey, mappingScope:"SUFFIX_PATTERN", matchedListName:listName};
     }
@@ -3798,7 +3805,20 @@ function lot2LookupListMapping(airline,listName,text,allowMasterByCount=true){
    * caractéristiques (universels, indépendants du nom de liste et de la
    * compagnie), puis, en dernier recours seulement, le nombre de passagers.
    */
-  if(text){
+  /*
+   * Un nom qualifié par une virgule ("X, Y") désigne presque toujours un
+   * SOUS-ENSEMBLE d'une liste de base déjà couverte ailleurs (ex. SQ
+   * "PDF-VBCPLIST, CC-x" = filtre par classe cabine du même manifeste déjà
+   * posé par "PDF-VBCPLIST" seul — volontairement laissé en OTHER). Un tel
+   * sous-ensemble reste un manifeste complet de sa classe cabine (jusqu'à
+   * ~150 passagers pour SQ337 CC-Y) : il contient presque toujours au moins
+   * UN passager avec un vrai SSR WCHR/STF-/repas isolé parmi les remarques —
+   * ça ne fait pas de la LISTE ENTIÈRE une liste fauteuil roulant/staff/repas.
+   * Le repli par contenu ci-dessous (WCH/STAFF/MEAL) ne s'applique donc
+   * jamais à ces sous-ensembles nommés par virgule, exactement comme le
+   * repli par comptage juste en dessous (déjà gardé par !suffixM).
+   */
+  if(text && !suffixM){
     const body=lot2Upper(text);
     if(/\bWCH[RSC]\b|\bWCMP\b|\bWCBD\b|\bWCLB\b/.test(body)){
       return {cardKey:"WCH", mappingScope:"CONTENT_PATTERN", matchedListName:listName};
@@ -3810,17 +3830,13 @@ function lot2LookupListMapping(airline,listName,text,allowMasterByCount=true){
       return {cardKey:"MEAL", mappingScope:"CONTENT_PATTERN", matchedListName:listName};
     }
     /*
-     * Un nom qualifié par une virgule ("X, Y") désigne presque toujours un
-     * SOUS-ENSEMBLE d'une liste de base déjà couverte ailleurs (ex. SQ
-     * "PDF-VBCPLIST, CC-x" = filtre par classe cabine du même manifeste déjà
-     * posé par "PDF-VBCPLIST" seul — volontairement laissé en OTHER). Jamais
-     * promu MASTER par le seul comptage dans ce cas, même avec beaucoup de
-     * passagers, pour ne jamais écraser le vrai manifeste complet par un
+     * Jamais promu MASTER par le seul comptage non plus, même avec beaucoup
+     * de passagers, pour ne jamais écraser le vrai manifeste complet par un
      * sous-total. Seuil (>=15) choisi avec une marge large des deux côtés :
      * les manifestes complets réellement observés font 24 à 59 passagers,
      * contre 1 à 14 pour toutes les sous-listes réelles rencontrées.
      */
-    if(!suffixM && allowMasterByCount){
+    if(allowMasterByCount){
       const paxLines=(body.match(/^\s*\d{1,3}\.[A-Z]/gm)||[]).length;
       if(paxLines>=15){
         return {cardKey:"MASTER", mappingScope:"CONTENT_PATTERN", matchedListName:listName};
