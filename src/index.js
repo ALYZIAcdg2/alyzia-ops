@@ -5590,7 +5590,14 @@ async function lot2ProcessNext(env,body){
     FROM import_jobs
     WHERE status='QUEUED'
       AND (run_after IS NULL OR run_after='' OR run_after<=CURRENT_TIMESTAMP)
-    ORDER BY priority ASC, created_at DESC
+    -- flight_date DESC avant created_at DESC : created_at reflète l'instant
+    -- d'écriture en base, pas la date du vol. Lors d'une resynchronisation en
+    -- masse, les vols anciens sont écrits APRÈS les récents (pagination Gmail
+    -- du plus récent au plus ancien) : trier sur created_at seul aurait donc
+    -- fait passer les vols anciens AVANT les vols récents dès que le volume
+    -- dépasse la capacité d'un seul lot. Demande explicite : traiter du plus
+    -- récent au plus ancien.
+    ORDER BY priority ASC, flight_date DESC, created_at DESC
     LIMIT ?
   `).bind(limit).all();
 
@@ -6783,7 +6790,7 @@ async function lot3InjectNext(env,body){
     SELECT *
     FROM import_job_results
     WHERE ${wh.join(" AND ")}
-    ORDER BY updated_at DESC
+    ORDER BY flight_date DESC, updated_at DESC
     LIMIT ?
   `).bind(...binds).all();
 
@@ -7735,12 +7742,16 @@ async function lot5InjectAvailable(env,cfg){
   let injected=0,waiting=0,errors=[];
 
   // 1) OPERATIONAL_INFO crée le vol réel lorsqu'il n'existe pas encore.
+  // flight_date DESC avant updated_at DESC : lors d'une resynchronisation en
+  // masse, les vols anciens sont écrits APRÈS les récents (pagination Gmail
+  // du plus récent au plus ancien), donc trier sur updated_at seul inverserait
+  // l'ordre voulu. Demande explicite : traiter du plus récent au plus ancien.
   const op=(await env.OPS_DB.prepare(`
     SELECT * FROM import_job_results
     WHERE parser_mode='GENERIC'
       AND card_key='OPERATIONAL_INFO'
       AND status IN ('OPERATIONAL_INFO_READY','WAITING_FLIGHT')
-    ORDER BY updated_at DESC
+    ORDER BY flight_date DESC, updated_at DESC
     LIMIT ?
   `).bind(cfg.injectBatch).all()).results||[];
   for(const row of op){
@@ -7761,8 +7772,11 @@ async function lot5InjectAvailable(env,cfg){
       AND r.status IN ('GENERIC_CARD_READY','GENERIC_MASTER_READY','WAITING_FLIGHT')
     -- Une carte dont la fiche existe doit toujours passer avant un ancien
     -- WAITING_FLIGHT sans fiche. Sinon les mêmes lignes bloquent le backlog.
+    -- flight_date DESC avant r.updated_at DESC : même raison que ci-dessus,
+    -- traiter du plus récent au plus ancien plutôt que dans l'ordre d'écriture.
     ORDER BY CASE WHEN f.identity IS NOT NULL THEN 0 ELSE 1 END,
              CASE WHEN r.status='WAITING_FLIGHT' THEN 1 ELSE 0 END,
+             r.flight_date DESC,
              r.updated_at DESC
     LIMIT ?
   `).bind(cfg.injectBatch).all()).results||[];
