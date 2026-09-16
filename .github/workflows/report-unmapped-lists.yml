@@ -1,10 +1,12 @@
-name: Test de connexion Gmail après mise à jour du secret OAuth
+name: Reprise de la resynchronisation Gmail (après réparation OAuth)
 
-# Vérifie que /api/gmail/sync-now fonctionne à nouveau après la régénération
-# du GOOGLE_CLIENT_SECRET (l'ancien avait été désactivé côté Google, d'où
-# l'erreur "The provided client secret is invalid." pendant la remise à
-# zéro). Appel volontairement petit (maxMessages=3) : juste un test, pas
-# encore la resynchronisation complète.
+# La base a déjà été vidée (full-reset exécuté). La resynchronisation avait
+# été bloquée par un secret OAuth Google invalide, désormais réparé (nouveau
+# secret + reconnexion Gmail). Ce workflow reprend la pagination Gmail là où
+# le cron automatique l'a laissée (pageToken lu dynamiquement depuis
+# /api/gmail/status), applique la limite SQ à 3 dates après chaque page, puis
+# vide les files de classification et d'injection. Traitement du plus récent
+# au plus ancien (ordre déjà corrigé côté serveur).
 
 on:
   push:
@@ -18,19 +20,85 @@ permissions:
   contents: read
 
 jobs:
-  test_gmail:
+  resume_resync:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 45
     env:
       BASE: https://alyzia-ops.alyzia-cdg2.workers.dev
     steps:
-      - name: Petit appel de test sync-now (maxMessages=3)
+      - name: État AVANT reprise
         run: |
-          echo "== POST /api/gmail/sync-now (test, maxMessages=3) =="
-          curl -sS "$BASE/api/gmail/sync-now" \
-            -X POST -H "Content-Type: application/json" \
-            -d '{"query":"in:anywhere","maxMessages":3}'
-          echo
-          echo "== /api/gmail/status =="
           curl -sS "$BASE/api/gmail/status"
           echo
+
+      - name: Resynchronisation Gmail paginée (reprise) + limitation SQ
+        run: |
+          set -u
+          STATUS=$(curl -sS "$BASE/api/gmail/status")
+          TOKEN=$(echo "$STATUS" | node -e 'let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>{try{const j=JSON.parse(d);process.stdout.write(String(j?.syncState?.backfill_page_token||""))}catch(e){}})')
+          echo "Reprise avec pageToken=[$TOKEN]"
+
+          ITER=0
+          MAX_ITER=80
+          while [ "$ITER" -lt "$MAX_ITER" ]; do
+            ITER=$((ITER+1))
+            echo "---- sync-now itération $ITER (pageToken=[${TOKEN:0:12}...]) ----"
+            BODY=$(node -e "console.log(JSON.stringify({query:'in:anywhere',maxMessages:120,pageToken:process.argv[1]||''}))" "$TOKEN")
+            RESP=$(curl -sS -f -X POST "$BASE/api/gmail/sync-now" -H "Content-Type: application/json" -d "$BODY") || { echo "ÉCHEC sync-now, on retente dans 5s"; sleep 5; continue; }
+            echo "$RESP" | node -e 'let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>{try{const j=JSON.parse(d);console.log(JSON.stringify({processed:j?.sync?.processed,attempted:j?.sync?.attempted,skippedKnown:j?.sync?.skippedKnown,failed:j?.sync?.failed,jobsProcessed:j?.jobsProcessed,injected:j?.inject?.injected,nextPageToken:!!j?.sync?.nextPageToken}))})'
+            NEXT=$(echo "$RESP" | node -e 'let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>{try{const j=JSON.parse(d);process.stdout.write(String(j?.sync?.nextPageToken||""))}catch(e){}})')
+
+            curl -sS -f -X POST "$BASE/api/autopilot/limit-airline-dates" \
+              -H "Content-Type: application/json" \
+              -d '{"airline":"SQ","keepDates":3}' | node -e 'let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>{try{const j=JSON.parse(d);console.log("SQ limit-airline-dates:",JSON.stringify({keptDates:j.keptDates,deferred:j.deferred}))}catch(e){}})'
+
+            if [ -z "$NEXT" ]; then
+              echo "== Fin de la boîte Gmail atteinte (plus de nextPageToken) =="
+              break
+            fi
+            TOKEN="$NEXT"
+          done
+          echo "Itérations de resync effectuées : $ITER"
+
+      - name: Vidage de la file de classification LOT2 (process-next en boucle)
+        run: |
+          set -u
+          ITER=0
+          MAX_ITER=200
+          while [ "$ITER" -lt "$MAX_ITER" ]; do
+            ITER=$((ITER+1))
+            RESP=$(curl -sS -f -X POST "$BASE/api/import-pipeline/process-next" -H "Content-Type: application/json" -d '{"limit":50}') || { echo "ÉCHEC process-next, retente"; sleep 3; continue; }
+            FOUND=$(echo "$RESP" | node -e 'let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>{try{const j=JSON.parse(d);process.stdout.write(String(j?.found||0))}catch(e){process.stdout.write("0")}})')
+            echo "process-next itération $ITER : found=$FOUND"
+            if [ "$FOUND" = "0" ]; then echo "== File LOT2 vidée =="; break; fi
+          done
+
+      - name: Injection LOT3 en boucle (/api/autopilot/run)
+        run: |
+          set -u
+          ITER=0
+          MAX_ITER=25
+          while [ "$ITER" -lt "$MAX_ITER" ]; do
+            ITER=$((ITER+1))
+            RESP=$(curl -sS -f -X POST "$BASE/api/autopilot/run" -H "Content-Type: application/json" -d '{"maxMessages":1}') || { echo "ÉCHEC autopilot/run, retente dans 5s"; sleep 5; continue; }
+            echo "$RESP" | node -e 'let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>{try{const j=JSON.parse(d);console.log(JSON.stringify({alreadyRunning:!!j.alreadyRunning,jobsProcessed:j.jobsProcessed,resultsInjected:j.resultsInjected}))}catch(e){console.log("parse_error")}})'
+            STABLE=$(echo "$RESP" | node -e 'let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>{try{const j=JSON.parse(d);process.stdout.write((!j.alreadyRunning&&Number(j.jobsProcessed||0)===0&&Number(j.resultsInjected||0)===0)?"1":"0")}catch(e){process.stdout.write("0")}})')
+            if [ "$STABLE" = "1" ]; then echo "== Plus rien à classer/injecter =="; break; fi
+            [ "$ITER" -eq "$MAX_ITER" ] || sleep 2
+          done
+
+      - name: Sécurité finale — replafonne SQ à 3 dates
+        run: |
+          curl -sS -f -X POST "$BASE/api/autopilot/limit-airline-dates" \
+            -H "Content-Type: application/json" \
+            -d '{"airline":"SQ","keepDates":3}'
+          echo
+
+      - name: État APRÈS
+        run: |
+          echo "== /api/prepa/summary =="
+          curl -sS -f "$BASE/api/prepa/summary" | node -e 'let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>{const j=JSON.parse(d);console.log(JSON.stringify({documents:j.documents,flightCount:j.flightCount,unidentified:j.unidentified,counters:j.counters},null,2))})'
+          echo "== /api/flights (nombre) =="
+          curl -sS -f "$BASE/api/flights" | node -e 'let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>{const j=JSON.parse(d);console.log((j.flights||j||[]).length)})'
+          echo "== /api/gmail/status =="
+          curl -sS -f "$BASE/api/gmail/status"
