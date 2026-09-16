@@ -1,11 +1,9 @@
 name: Rapport ponctuel — listes GENERIC non reconnues par compagnie
 
-# Diagnostic en lecture seule : interroge /api/gmail/status pour connaître la
-# taille réelle de la base avant de planifier une remise à zéro complète
-# (suppression des vols + resynchronisation intégrale depuis Gmail, demandée
-# explicitement par l'utilisateur). Se déclenche automatiquement au push de
-# ce fichier (le proxy réseau de la session sandboxée ne peut pas atteindre
-# *.workers.dev directement).
+# Diagnostic en lecture seule : liste tous les aéroports (dep/dest) réellement
+# utilisés en production, pour construire une table de fuseaux horaires
+# complète et correcte (actuellement seulement 11 aéroports codés en dur avec
+# un décalage FIXE, sans tenir compte de l'heure d'été/hiver).
 
 on:
   push:
@@ -23,11 +21,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: État Gmail/pipeline (taille de la base avant remise à zéro)
+      - name: Liste tous les aéroports dep/dest réellement utilisés
         run: |
-          curl -sS -f "https://alyzia-ops.alyzia-cdg2.workers.dev/api/gmail/status" | tee gmail-status.json
-          echo
-          echo "--- flights count ---"
           curl -sS -f "https://alyzia-ops.alyzia-cdg2.workers.dev/api/flights" \
             | node -e '
                 let raw = "";
@@ -35,6 +30,17 @@ jobs:
                 process.stdin.on("end", () => {
                   const data = JSON.parse(raw);
                   const flights = data.flights || data || [];
-                  console.log("nombre de fiches vol:", Array.isArray(flights) ? flights.length : "?");
+                  const byAirport = {};
+                  for (const x of flights) {
+                    for (const code of [x.dep, x.dest]) {
+                      if (!code) continue;
+                      byAirport[code] = (byAirport[code] || 0) + 1;
+                    }
+                  }
+                  const sorted = Object.entries(byAirport).sort((a, b) => b[1] - a[1]);
+                  console.log(`nombre daéroports distincts: ${sorted.length}\n`);
+                  for (const [code, count] of sorted) {
+                    console.log(`${code} : ${count} vol(s)`);
+                  }
                 });
               '
