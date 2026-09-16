@@ -24,7 +24,7 @@ permissions:
   contents: read
 
 env:
-  REQUEUE_ALL: "true"
+  REQUEUE_ALL: "false"
 
 jobs:
   report:
@@ -77,6 +77,31 @@ jobs:
                       console.log(it.textPreview || "(aucun aperçu stocké)");
                     }
                     if (!data.items || !data.items.length) console.log("(aucun échantillon trouvé)");
+                  });
+                '
+          done
+
+      - name: Inspecte l'état réel des fiches de vol témoins (common/common_lists)
+        run: |
+          for identity in "2026-09-06|JU|JU241" "2026-09-03|AI|AI142" "2026-09-08|TU|TU723" "2026-08-30|AH|AH1013" "2026-08-29|AT|AT789"; do
+            echo
+            echo "================================================================"
+            echo "=== $identity ==="
+            echo "================================================================"
+            curl -sS -f "https://alyzia-ops.alyzia-cdg2.workers.dev/api/flights?identity=$(python3 -c "import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1]))" "$identity")" \
+              | node -e '
+                  let raw = "";
+                  process.stdin.on("data", d => raw += d);
+                  process.stdin.on("end", () => {
+                    const data = JSON.parse(raw);
+                    if (!data.ok) { console.log("ERREUR:", data.error); return; }
+                    const f = data.flight;
+                    console.log("common:", JSON.stringify(f.common || {}));
+                    for (const [k, v] of Object.entries(f.common_lists || {})) {
+                      if (Array.isArray(v) && v.length) {
+                        console.log(`  ${k}: ${v.length} passager(s) —`, v.map(p => p.name).join(", "));
+                      }
+                    }
                   });
                 '
           done
