@@ -17993,9 +17993,16 @@ function protectCloudListAgainstLocal(cloudList,localList){
 }
 
 function remapSelectedAfterCloud(identity){
- if(!identity)return;
+ // Retourne true si le vol affiché a bien été retrouvé dans le nouveau
+ // FLIGHTS (identité stable date|compagnie|vol). Sinon, "selected" reste
+ // un index périmé qui — une fois FLIGHTS remplacé — pointe soit vers un
+ // AUTRE vol (mauvaises données affichées en silence), soit hors bornes
+ // (FLIGHTS[selected] devient undefined). Voir l'appelant : dans les deux
+ // cas, ne jamais rendre sur cette base.
+ if(!identity)return true;
  const idx=FLIGHTS.findIndex(x=>flightImportIdentity(x)===identity);
- if(idx>=0)selected=idx;
+ if(idx>=0){selected=idx;return true;}
+ return false;
 }
 
 function modalIsOpen(){
@@ -18054,12 +18061,26 @@ async function silentCloudRefresh({forceRender=false}={}){
 
    if(changed){
      FLIGHTS.splice(0,FLIGHTS.length,...filtered);
-     remapSelectedAfterCloud(selectedIdentity);
+     const stillSelected=remapSelectedAfterCloud(selectedIdentity);
      cacheCloudFlightsLocally(filtered);
+
+     /*
+      * Bug corrigé : si le vol actuellement affiché en détail n'est pas
+      * retrouvé dans CE cycle de rafraîchissement (identité absente du lot
+      * reçu — accroc réseau, réordonnancement, ou fenêtre d'écriture côté
+      * serveur), "selected" reste un index périmé. Comme FLIGHTS vient
+      * d'être remplacé, cet index pointe soit vers un autre vol, soit hors
+      * bornes — et renderCurrentViewPreserved() basculait alors vers la
+      * liste (renderHome()) sans que l'utilisateur n'ait rien demandé.
+      * On saute simplement ce cycle de rendu pour la fiche en cours : elle
+      * reste affichée telle quelle, et se remettra à jour au prochain
+      * passage si le vol reste absent.
+      */
+     const skipDetailBounce=currentView==='detail' && selectedIdentity && !stillSelected;
 
      // Ne jamais fermer un formulaire/modal en cours de saisie.
      // La mémoire est déjà à jour ; le rendu se rafraîchit dès fermeture du modal.
-     if(!modalIsOpen() || forceRender)renderCurrentViewPreserved();
+     if(!skipDetailBounce && (!modalIsOpen() || forceRender))renderCurrentViewPreserved();
    }else if(forceRender && !modalIsOpen()){
      renderCurrentViewPreserved();
    }
