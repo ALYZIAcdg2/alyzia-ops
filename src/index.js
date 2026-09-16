@@ -2963,7 +2963,12 @@ async function lot5ReclassifyIgnoredV1(env,{airlineHint='',subjectLike='',limit=
 async function gmailSyncNow(env,body){
   await ensureGmailPipelineTables(env);
   const query=String(body?.query||"in:anywhere").trim();
-  const maxMessages=Math.max(1,Math.min(100,Number(body?.maxMessages||25)));
+  // Plafond relevé de 100 à 200 (demande explicite) : reste très en dessous
+  // de la limite Gmail elle-même (500), tout en gardant une marge de
+  // sécurité sur le temps d'exécution d'un seul appel — chaque message non
+  // déjà connu déclenche un fetch Gmail + parsing MIME + stockage R2 dans le
+  // même appel, contrairement à process-next (base de données seule).
+  const maxMessages=Math.max(1,Math.min(200,Number(body?.maxMessages||25)));
   const pageToken=String(body?.pageToken||"").trim();
   const params=new URLSearchParams({q:query,maxResults:String(maxMessages)});
   if(pageToken)params.set("pageToken",pageToken);
@@ -9909,6 +9914,60 @@ async function handleLot5(request,env,url){
       x.web={};
       await upsertFlight(env,x);
       return json({ok:true,identity,before,message:'Cartes dérivées vidées (dont booked/web) — recliquer sur requeue-airline pour les reconstruire avec le code à jour.'});
+    }
+    if(url.pathname==='/api/autopilot/full-reset'&&request.method==='POST'){
+      /*
+       * Remise à zéro complète, demandée explicitement par l'utilisateur
+       * (session du 16/09) : supprime TOUTES les fiches vol déjà construites
+       * ainsi que tout l'état de synchronisation/traitement Gmail (messages,
+       * fichiers, versions, jobs, résultats), pour repartir d'une base vide
+       * et resynchroniser entièrement depuis Gmail avec le code corrigé.
+       * Supprime aussi les libellés Gmail ALYZIA (ancien schéma global +
+       * schéma par compagnie), pour qu'ils soient recréés proprement au fil
+       * de la resynchronisation plutôt que de porter un état obsolète.
+       *
+       * Geste irréversible et à fort impact (efface des données consultées
+       * en direct par les équipes au sol) : protégé par un jeton de
+       * confirmation explicite, jamais déclenchable par erreur via un simple
+       * GET ou un appel automatisé.
+       */
+      const body=await request.json().catch(()=>({}));
+      if(String(body?.confirm||'')!=='YES_WIPE_EVERYTHING'){
+        return json({ok:false,error:'CONFIRMATION MANQUANTE — poser {"confirm":"YES_WIPE_EVERYTHING"} dans le corps de la requête pour exécuter cette remise à zéro irréversible.'},400);
+      }
+      await ensureGmailPipelineTables(env);
+      await ensureImportProcessorTables(env);
+
+      const counts={};
+      for(const table of ['flights','gmail_messages','gmail_message_documents','import_files','import_file_versions','import_jobs','import_job_results','import_changes','flight_import_cards','flight_import_injections']){
+        const row=await env.OPS_DB.prepare(`SELECT COUNT(*) AS n FROM ${table}`).first().catch(()=>null);
+        counts[table]=Number(row?.n||0);
+        await env.OPS_DB.prepare(`DELETE FROM ${table}`).run();
+      }
+      await env.OPS_DB.prepare(`DELETE FROM gmail_sync_state`).run().catch(()=>{});
+
+      // Supprime les libellés Gmail ALYZIA (objet label lui-même, pas juste
+      // leur retrait message par message) — recréés à la demande par
+      // ensureGmailLabel au fil de la resynchronisation.
+      const labelsDeleted=[];
+      try{
+        const labels=await gmailFetch(env,'/labels');
+        const suffixes=new Set(Object.values(CLEAN_LABEL_SUFFIX));
+        for(const l of labels.labels||[]){
+          const name=String(l.name||'');
+          const oldGlobal=Object.values(GMAIL_LABELS).includes(name);
+          const p=name.split('/');
+          const cleanCompany=name.startsWith('ALYZIA/')&&p.length>=3&&suffixes.has(p[p.length-1]);
+          if(!oldGlobal&&!cleanCompany)continue;
+          await gmailFetch(env,`/labels/${encodeURIComponent(l.id)}`,{method:'DELETE'}).catch(()=>{});
+          labelsDeleted.push(name);
+        }
+        GMAIL_LABEL_ID_CACHE=null;
+      }catch(e){
+        return json({ok:true,warning:`Tables vidées mais suppression des libellés Gmail échouée : ${String(e?.message||e)}`,deletedRows:counts,labelsDeleted});
+      }
+
+      return json({ok:true,deletedRows:counts,labelsDeleted,message:'Base entièrement vidée. Relancer /api/gmail/sync-now par lots pour resynchroniser depuis Gmail.'});
     }
     if(url.pathname==='/api/autopilot/stop'&&request.method==='POST'){
       const active=await env.OPS_DB.prepare(`SELECT run_id FROM lot5_autopilot_runs WHERE status='RUNNING' ORDER BY started_at DESC LIMIT 1`).first();
