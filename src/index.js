@@ -2188,7 +2188,20 @@ function cleanParseEmlRecursiveV3(rawText,depth=0){
 
   if(mime.startsWith('multipart/') && boundary){
     const marker=`--${boundary}`;
-    const pieces=entity.body.split(marker).slice(1);
+    let pieces=entity.body.split(marker).slice(1);
+    if(!pieces.length){
+      // Repli tolérant : certains expéditeurs (constaté sur de vrais mails
+      // Amadeus pour AI/TU) déclarent dans l'en-tête une frontière MIME qui
+      // ne correspond pas, tiret pour tiret, aux lignes de séparation
+      // réellement utilisées dans le corps (un tiret de moins que prévu).
+      // Sans ce repli, ces mails ne donnent jamais aucun texte ni pièce
+      // jointe extraite, même quand un PDF est bien présent.
+      const core=boundary.replace(/^-+/,'');
+      if(core){
+        const fuzzyMarker=entity.body.match(new RegExp('-+'+core.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')));
+        if(fuzzyMarker)pieces=entity.body.split(fuzzyMarker[0]).slice(1);
+      }
+    }
     const textBodies=[],attachments=[];
     for(let p of pieces){
       p=p.replace(/^\r?\n/,'').replace(/\r?\n--\s*$/,'').trim();
