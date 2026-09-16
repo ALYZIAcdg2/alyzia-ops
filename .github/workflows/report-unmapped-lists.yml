@@ -8,9 +8,14 @@ name: Rapport ponctuel — listes GENERIC non reconnues par compagnie
 # Contient aussi (sur demande explicite, après déploiement des correctifs
 # Groupes A/B/D) un appel à /api/autopilot/requeue-all : remet en QUEUED les
 # jobs import déjà stockés pour TOUTES les compagnies génériques, pour qu'ils
-# soient reclassés au prochain passage du cron avec le code corrigé, sans
-# toucher aux fiches de vol déjà construites. Contrôlé par REQUEUE_ALL
-# ci-dessous — repasser à "false" une fois la vérification terminée.
+# soient reclassés avec le code corrigé, sans toucher aux fiches de vol déjà
+# construites. Contrôlé par REQUEUE_ALL ci-dessous.
+#
+# Le cron de production (*/5 min) ne traite qu'un petit lot de jobs QUEUED à
+# chaque passage (voir lot2ProcessNext) — bien trop lent pour vider 1295 jobs
+# d'un coup. DRAIN_QUEUE appelle directement /api/import-pipeline/process-next
+# en boucle (lot de 50) jusqu'à ce que la file soit vide, pour vérifier tout
+# de suite plutôt que d'attendre des heures de cron.
 
 on:
   push:
@@ -25,17 +30,35 @@ permissions:
 
 env:
   REQUEUE_ALL: "false"
+  DRAIN_QUEUE: "true"
 
 jobs:
   report:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 15
     steps:
       - name: Requeue toutes les compagnies génériques (relance le traitement avec le code corrigé)
         if: env.REQUEUE_ALL == 'true'
         run: |
           curl -sS -f -X POST "https://alyzia-ops.alyzia-cdg2.workers.dev/api/autopilot/requeue-all" | tee requeue-all.json
           echo
+
+      - name: Vide la file QUEUED tout de suite (au lieu d'attendre le cron)
+        if: env.DRAIN_QUEUE == 'true'
+        run: |
+          total=0
+          for i in $(seq 1 60); do
+            out=$(curl -sS -f -X POST "https://alyzia-ops.alyzia-cdg2.workers.dev/api/import-pipeline/process-next" \
+              -H "Content-Type: application/json" -d '{"limit":50}')
+            found=$(node -e "console.log(JSON.parse(process.argv[1]).found || 0)" "$out")
+            total=$((total + found))
+            echo "passage $i : $found job(s) traité(s) (cumul $total)"
+            if [ "$found" -eq 0 ]; then
+              echo "file vide, arrêt."
+              break
+            fi
+          done
+          echo "TOTAL TRAITÉ : $total"
 
       - name: Interroge /api/autopilot/unmapped-lists
         run: |
