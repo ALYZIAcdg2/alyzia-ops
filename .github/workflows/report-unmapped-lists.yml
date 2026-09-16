@@ -1,21 +1,9 @@
 name: Rapport ponctuel — listes GENERIC non reconnues par compagnie
 
-# Interroge l'endpoint public existant /api/autopilot/unmapped-lists sur le
-# worker de production et affiche le résultat dans le journal du job.
-# Se déclenche automatiquement au push de ce fichier (le proxy réseau de la
-# session sandboxée ne peut pas atteindre *.workers.dev directement).
-#
-# Contient aussi (sur demande explicite, après déploiement des correctifs
-# Groupes A/B/D) un appel à /api/autopilot/requeue-all : remet en QUEUED les
-# jobs import déjà stockés pour TOUTES les compagnies génériques, pour qu'ils
-# soient reclassés avec le code corrigé, sans toucher aux fiches de vol déjà
-# construites. Contrôlé par REQUEUE_ALL ci-dessous.
-#
-# Le cron de production (*/5 min) ne traite qu'un petit lot de jobs QUEUED à
-# chaque passage (voir lot2ProcessNext) — bien trop lent pour vider 1295 jobs
-# d'un coup. DRAIN_QUEUE appelle directement /api/import-pipeline/process-next
-# en boucle (lot de 50) jusqu'à ce que la file soit vide, pour vérifier tout
-# de suite plutôt que d'attendre des heures de cron.
+# Diagnostic en lecture seule : liste tous les aéroports (dep/dest) réellement
+# utilisés en production, pour construire une table de fuseaux horaires
+# complète et correcte (actuellement seulement 11 aéroports codés en dur avec
+# un décalage FIXE, sans tenir compte de l'heure d'été/hiver).
 
 on:
   push:
@@ -28,160 +16,31 @@ on:
 permissions:
   contents: read
 
-env:
-  REQUEUE_ALL: "false"
-  DRAIN_QUEUE: "false"
-
 jobs:
   report:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 5
     steps:
-      - name: Requeue toutes les compagnies génériques (relance le traitement avec le code corrigé)
-        if: env.REQUEUE_ALL == 'true'
+      - name: Liste tous les aéroports dep/dest réellement utilisés
         run: |
-          curl -sS -f -X POST "https://alyzia-ops.alyzia-cdg2.workers.dev/api/autopilot/requeue-all" | tee requeue-all.json
-          echo
-
-      - name: Vide la file QUEUED tout de suite (au lieu d'attendre le cron)
-        if: env.DRAIN_QUEUE == 'true'
-        run: |
-          total=0
-          for i in $(seq 1 60); do
-            out=$(curl -sS -f -X POST "https://alyzia-ops.alyzia-cdg2.workers.dev/api/import-pipeline/process-next" \
-              -H "Content-Type: application/json" -d '{"limit":50}')
-            found=$(node -e "console.log(JSON.parse(process.argv[1]).found || 0)" "$out")
-            total=$((total + found))
-            echo "passage $i : $found job(s) traité(s) (cumul $total)"
-            if [ "$found" -eq 0 ]; then
-              echo "file vide, arrêt."
-              break
-            fi
-          done
-          echo "TOTAL TRAITÉ : $total"
-
-      - name: Injecte les résultats classifiés dans les fiches de vol (LOT3, vols témoins uniquement)
-        if: env.DRAIN_QUEUE == 'true'
-        run: |
-          for airline in JU AI TU AH AT; do
-            out=$(curl -sS -f -X POST "https://alyzia-ops.alyzia-cdg2.workers.dev/api/import-pipeline/inject-next" \
-              -H "Content-Type: application/json" -d "{\"limit\":50,\"airline\":\"$airline\"}")
-            echo "$airline : $out"
-          done
-
-      - name: Interroge /api/autopilot/unmapped-lists
-        run: |
-          curl -sS -f "https://alyzia-ops.alyzia-cdg2.workers.dev/api/autopilot/unmapped-lists?limit=1000" \
-            | tee unmapped-lists.json
-          echo
-          echo "--- Résumé par compagnie ---"
-          node -e '
-            const data = require("./unmapped-lists.json");
-            const byAirline = {};
-            for (const item of data.items || []) {
-              (byAirline[item.airline] ||= []).push(item);
-            }
-            for (const airline of Object.keys(byAirline).sort()) {
-              console.log(`\n${airline}:`);
-              for (const it of byAirline[airline]) {
-                console.log(`  - "${it.listName}" (${it.cardKey}) — vu ${it.count} fois, dernière fois ${it.lastSeen}`);
-              }
-            }
-          '
-
-      - name: Extrait le contenu réel des .eml NO_LIST, par compagnie
-        run: |
-          for airline in AH AI AT JU MS RJ SB TU VF WB; do
-            echo
-            echo "================================================================"
-            echo "=== $airline ==="
-            echo "================================================================"
-            preview_limit=3
-            if [ "$airline" = "JU" ]; then preview_limit=10; fi
-            curl -sS -f "https://alyzia-ops.alyzia-cdg2.workers.dev/api/autopilot/unmapped-list-preview?airline=$airline&listName=&limit=$preview_limit" \
-              | node -e '
-                  let raw = "";
-                  process.stdin.on("data", d => raw += d);
-                  process.stdin.on("end", () => {
-                    const data = JSON.parse(raw);
-                    for (const it of data.items || []) {
-                      console.log(`\n--- job ${it.jobId} | vol ${it.flightNumber} ${it.flightDate} | ${it.passengerCount} pax | maj ${it.updatedAt} ---`);
-                      console.log(it.textPreview || "(aucun aperçu stocké)");
-                    }
-                    if (!data.items || !data.items.length) console.log("(aucun échantillon trouvé)");
-                  });
-                '
-          done
-
-      - name: Inspecte la fiche SQ337 du 16/09 en détail
-        run: |
-          for identity in "2026-09-16|SQ|SQ337"; do
-            echo
-            echo "================================================================"
-            echo "=== $identity ==="
-            echo "================================================================"
-            curl -sS -f "https://alyzia-ops.alyzia-cdg2.workers.dev/api/flights?identity=$(python3 -c "import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1]))" "$identity")" \
-              | tee sq337.json | node -e '
-                  let raw = "";
-                  process.stdin.on("data", d => raw += d);
-                  process.stdin.on("end", () => {
-                    const data = JSON.parse(raw);
-                    if (!data.ok) { console.log("ERREUR:", data.error); return; }
-                    const f = data.flight;
-                    console.log("airline/flight/date:", f.airline, f.flight, f.date);
-                    console.log("config:", JSON.stringify(f.config || {}));
-                    console.log("booked:", JSON.stringify(f.booked || {}));
-                    console.log("web:", JSON.stringify(f.web || {}));
-                    console.log("common:", JSON.stringify(f.common || {}));
-                    console.log("passengers count:", (f.passengers || []).length);
-                    console.log("imports.status:", f.imports && f.imports.status, "| lastInjectionAt:", f.imports && f.imports.lastInjectionAt);
-                    const cards = (f.imports && f.imports.cards) || {};
-                    for (const [k, v] of Object.entries(cards)) {
-                      console.log(`  carte ${k}: passengerCount=${v.passengerCount} listName=${JSON.stringify(v.listName)} source=${v.source} updatedAt=${v.serverUpdatedAt}`);
-                    }
-                    for (const [k, v] of Object.entries(f.common_lists || {})) {
-                      if (Array.isArray(v) && v.length) {
-                        console.log(`  ${k}: ${v.length} passager(s) —`, v.slice(0,15).map(p => p.name).join(", "));
-                      }
-                    }
-                  });
-                '
-          done
-
-      - name: Liste tous les jobs/documents SQ337 du 16/09
-        run: |
-          curl -sS -f "https://alyzia-ops.alyzia-cdg2.workers.dev/api/import-pipeline/results?airline=SQ&flight=SQ337&date=2026-09-16&limit=50" \
+          curl -sS -f "https://alyzia-ops.alyzia-cdg2.workers.dev/api/flights" \
             | node -e '
                 let raw = "";
                 process.stdin.on("data", d => raw += d);
                 process.stdin.on("end", () => {
                   const data = JSON.parse(raw);
-                  console.log(JSON.stringify(data, null, 2).slice(0, 8000));
+                  const flights = data.flights || data || [];
+                  const byAirport = {};
+                  for (const x of flights) {
+                    for (const code of [x.dep, x.dest]) {
+                      if (!code) continue;
+                      byAirport[code] = (byAirport[code] || 0) + 1;
+                    }
+                  }
+                  const sorted = Object.entries(byAirport).sort((a, b) => b[1] - a[1]);
+                  console.log(`nombre daéroports distincts: ${sorted.length}\n`);
+                  for (const [code, count] of sorted) {
+                    console.log(`${code} : ${count} vol(s)`);
+                  }
                 });
-              ' || echo "(endpoint indisponible ou paramètres différents)"
-
-      - name: Recherche large — même bug (nom de liste avec virgule classé WCH/STAFF/MEAL) sur TOUTES les compagnies
-        run: |
-          echo '[]' > all_results.json
-          for airline in SQ SK SB A9 TK TS AH LO MS WB RJ 3O S4 EI FB 4H AT J2 BJ VF JU OZ DE IZ AI TW TU NO; do
-            curl -sS -f "https://alyzia-ops.alyzia-cdg2.workers.dev/api/import-pipeline/results?airline=$airline&limit=200" \
-              -o "res_$airline.json" || echo '{"results":[]}' > "res_$airline.json"
-          done
-          node -e '
-            const fs = require("fs");
-            const airlines = "SQ SK SB A9 TK TS AH LO MS WB RJ 3O S4 EI FB 4H AT J2 BJ VF JU OZ DE IZ AI TW TU NO".split(" ");
-            const suspects = [];
-            for (const a of airlines) {
-              let data;
-              try { data = JSON.parse(fs.readFileSync(`res_${a}.json`, "utf8")); } catch (e) { continue; }
-              for (const r of data.results || []) {
-                if (["WCH", "STAFF", "MEAL"].includes(r.card_key) && String(r.list_name || "").includes(",") && Number(r.passenger_count) >= 15) {
-                  suspects.push(r);
-                }
-              }
-            }
-            console.log(`Suspects trouvés (liste avec virgule, cardKey WCH/STAFF/MEAL, >=15 passagers) : ${suspects.length}\n`);
-            for (const r of suspects) {
-              console.log(`${r.airline} ${r.flight_number} ${r.flight_date} | carte ${r.card_key} | "${r.list_name}" | ${r.passenger_count} pax | maj ${r.updated_at}`);
-            }
-          '
+              '

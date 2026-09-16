@@ -58,6 +58,13 @@ button{cursor:pointer}
 .class-mini{font-size:12px;line-height:1.65}
 .class-mini div{display:flex;justify-content:space-between;gap:8px}
 .blue{color:var(--blue)} .green{color:var(--green)} .purple{color:var(--purple)} .orange{color:var(--orange)} .cyan{color:var(--cyan)} .pink{color:var(--pink)}
+.terminal-filter-bar{display:flex;gap:6px;margin-top:8px}
+.terminal-filter-btn{min-height:26px;padding:3px 12px;border-radius:999px;font-size:11px;font-weight:950;letter-spacing:.03em;border:2px solid transparent;background:#e7edf5;color:#5b6b80;opacity:.55}
+.terminal-filter-btn.t1{background:var(--blue);color:#fff}
+.terminal-filter-btn.t2{background:var(--green);color:#fff}
+.terminal-filter-btn.t3{background:var(--pink);color:#fff}
+.terminal-filter-btn.tall{background:#fff;color:#33475b;border-color:#cfd9e6}
+.terminal-filter-btn.active{opacity:1;border-color:#173a5d;box-shadow:0 0 0 2px rgba(23,58,93,.15)}
 .gauge{height:9px;background:#e8edf3;border-radius:999px;overflow:hidden}
 .gauge span{display:block;height:100%;background:linear-gradient(90deg,#15b936 0%,#7ccc31 30%,#f5cd26 56%,#f58024 76%,#ef2335 100%);border-radius:999px}
 .kpi-gauge{display:flex;align-items:center;gap:8px;margin-top:12px}
@@ -7571,9 +7578,97 @@ FLIGHTS.forEach((x)=>{
 
 
 const AIRCRAFT=["A220-100", "A220-300", "A300-600", "A310-300", "A318-100", "A319-100", "A319NEO", "A320-200", "A320NEO", "A321-200", "A321LR", "A321NEO", "A321XLR", "A330-200", "A330-300", "A330-800NEO", "A330-900NEO", "A340-300", "A340-500", "A340-600", "A350-1000", "A350-900", "A350-900ULR", "A380-800", "ATR 42-500", "ATR 42-600", "ATR 72-500", "ATR 72-600", "B717-200", "B727-200", "B737 MAX 10", "B737 MAX 7", "B737 MAX 8", "B737 MAX 9", "B737-300", "B737-400", "B737-500", "B737-700", "B737-800", "B737-900ER", "B747-400", "B747-8", "B757-200", "B757-300", "B767-300ER", "B767-400ER", "B777-200ER", "B777-200LR", "B777-300ER", "B777-8", "B777-9", "B787-10", "B787-8", "B787-9", "C919", "CRJ1000", "CRJ200", "CRJ700", "CRJ900", "DASH 8-100", "DASH 8-200", "DASH 8-300", "DASH 8-400", "E170", "E175", "E190", "E190-E2", "E195", "E195-E2", "ERJ135", "ERJ145", "FOKKER 100", "FOKKER 70", "MD-11", "MD-80", "MD-90", "SAAB 2000", "SAAB 340", "SSJ100"];
-const TZ={"CDG": 2, "DEL": 5.5, "GRU": -3, "KUL": 8, "CAI": 3, "SIN": 8, "IST": 3, "DJE": 1, "HND": 9, "ICN": 9, "AMM": 3};
-const CITY={"CDG": "PARIS", "DEL": "DELHI", "GRU": "SAO PAULO", "KUL": "KUALA LUMPUR", "CAI": "CAIRO", "SIN": "SINGAPORE", "IST": "ISTANBUL", "DJE": "DJERBA", "HND": "TOKYO", "ICN": "SEOUL", "AMM": "AMMAN"};
+/*
+ * Bug corrigé : l'ancienne table TZ ne couvrait que 11 aéroports avec un
+ * décalage FIXE en heures (ex. "CDG":2), toujours faux la moitié de l'année
+ * pour tout aéroport observant l'heure d'été/hiver, et système de repli
+ * (??2) pour les 77+ autres aéroports réellement utilisés en production
+ * (constaté via /api/flights : 89 aéroports distincts, seulement 11 connus).
+ * Remplacée par une vraie zone IANA par aéroport (fuseau réel, pas un
+ * décalage figé) : AIRPORT_TZ_OFFSET_HOURS() calcule le décalage ACTUEL par
+ * rapport à UTC à la date donnée via Intl.DateTimeFormat, qui applique
+ * automatiquement les règles d'heure d'été/hiver de la vraie zone.
+ */
+const AIRPORT_TZ={
+ CDG:"Europe/Paris", ORY:"Europe/Paris", NCE:"Europe/Paris", LIL:"Europe/Paris", LRT:"Europe/Paris",
+ PUF:"Europe/Paris", CHR:"Europe/Paris", LIG:"Europe/Paris", SYS:"Europe/Paris", QIE:"Europe/Paris",
+ ALG:"Africa/Algiers", ORN:"Africa/Algiers", CZL:"Africa/Algiers", AAE:"Africa/Algiers",
+ TLM:"Africa/Algiers", CFK:"Africa/Algiers", QSF:"Africa/Algiers", BLJ:"Africa/Algiers",
+ BSK:"Africa/Algiers", ELU:"Africa/Algiers",
+ IST:"Europe/Istanbul", SAW:"Europe/Istanbul", ESB:"Europe/Istanbul", AYT:"Europe/Istanbul",
+ DUB:"Europe/Dublin", SNN:"Europe/Dublin", NOC:"Europe/Dublin",
+ TLV:"Asia/Jerusalem", LCA:"Asia/Nicosia",
+ TUN:"Africa/Tunis", DJE:"Africa/Tunis", MIR:"Africa/Tunis", TTU:"Africa/Tunis",
+ CPH:"Europe/Copenhagen", ARN:"Europe/Stockholm", SVG:"Europe/Oslo", OSL:"Europe/Oslo",
+ LYR:"Europe/Oslo", FRA:"Europe/Berlin", LEJ:"Europe/Berlin", BER:"Europe/Berlin",
+ WAW:"Europe/Warsaw", KTW:"Europe/Warsaw", PRG:"Europe/Prague", SOF:"Europe/Sofia",
+ BEG:"Europe/Belgrade", ZAD:"Europe/Zagreb", TIA:"Europe/Tirane", ATH:"Europe/Athens",
+ CMN:"Africa/Casablanca", RBA:"Africa/Casablanca", RAK:"Africa/Casablanca", OUD:"Africa/Casablanca",
+ KEF:"Atlantic/Reykjavik", PDL:"Atlantic/Azores",
+ CAI:"Africa/Cairo", LXR:"Africa/Cairo",
+ SIN:"Asia/Singapore", KUL:"Asia/Kuala_Lumpur", BKK:"Asia/Bangkok",
+ YUL:"America/Toronto", YYZ:"America/Toronto", YQB:"America/Toronto",
+ DEL:"Asia/Kolkata", ICN:"Asia/Seoul", HND:"Asia/Tokyo",
+ ABJ:"Africa/Abidjan", KGL:"Africa/Kigali", AMM:"Asia/Amman", KWI:"Asia/Kuwait",
+ BOG:"America/Bogota", GRU:"America/Sao_Paulo", MIA:"America/New_York", JFK:"America/New_York",
+ GYD:"Asia/Baku", TBS:"Asia/Tbilisi", SEZ:"Indian/Mahe",
+ CKG:"Asia/Shanghai", SZX:"Asia/Shanghai", XIY:"Asia/Shanghai",
+ BRU:"Europe/Brussels", MST:"Europe/Amsterdam", LBA:"Europe/London", LGW:"Europe/London",
+ BQH:"Europe/London", OPO:"Europe/Lisbon", BCN:"Europe/Madrid", IBZ:"Europe/Madrid",
+ ACE:"Atlantic/Canary", FUE:"Atlantic/Canary", MXP:"Europe/Rome", VRN:"Europe/Rome",
+ PMO:"Europe/Rome", SUF:"Europe/Rome", BLQ:"Europe/Rome",
+ GOH:"America/Nuuk", SFJ:"America/Nuuk"
+};
+const CITY={
+ CDG:"PARIS",ORY:"PARIS",NCE:"NICE",LIL:"LILLE",LRT:"LORIENT",PUF:"PAU",CHR:"CHÂTEAUROUX",
+ LIG:"LIMOGES",SYS:"SAINT-YAN",QIE:"QUIMPER",
+ ALG:"ALGER",ORN:"ORAN",CZL:"CONSTANTINE",AAE:"ANNABA",TLM:"TLEMCEN",CFK:"CHLEF",
+ QSF:"AIN OUSSERA",BLJ:"BATNA",BSK:"BISKRA",ELU:"GUELMA",
+ IST:"ISTANBUL",SAW:"ISTANBUL SABIHA",ESB:"ANKARA",AYT:"ANTALYA",
+ DUB:"DUBLIN",SNN:"SHANNON",NOC:"KNOCK",
+ TLV:"TEL AVIV",LCA:"LARNACA",
+ TUN:"TUNIS",DJE:"DJERBA",MIR:"MONASTIR",TTU:"TATAOUINE",
+ CPH:"COPENHAGUE",ARN:"STOCKHOLM",SVG:"STAVANGER",OSL:"OSLO",LYR:"LONGYEARBYEN",
+ FRA:"FRANCFORT",LEJ:"LEIPZIG",BER:"BERLIN",
+ WAW:"VARSOVIE",KTW:"KATOWICE",PRG:"PRAGUE",SOF:"SOFIA",
+ BEG:"BELGRADE",ZAD:"ZADAR",TIA:"TIRANA",ATH:"ATHÈNES",
+ CMN:"CASABLANCA",RBA:"RABAT",RAK:"MARRAKECH",OUD:"OUJDA",
+ KEF:"REYKJAVIK",PDL:"PONTA DELGADA",
+ CAI:"LE CAIRE",LXR:"LOUXOR",
+ SIN:"SINGAPOUR",KUL:"KUALA LUMPUR",BKK:"BANGKOK",
+ YUL:"MONTRÉAL",YYZ:"TORONTO",YQB:"QUÉBEC",
+ DEL:"DELHI",ICN:"SÉOUL",HND:"TOKYO",
+ ABJ:"ABIDJAN",KGL:"KIGALI",AMM:"AMMAN",KWI:"KOWEÏT",
+ BOG:"BOGOTA",GRU:"SÃO PAULO",MIA:"MIAMI",JFK:"NEW YORK",
+ GYD:"BAKOU",TBS:"TBILISSI",SEZ:"MAHÉ",
+ CKG:"CHONGQING",SZX:"SHENZHEN",XIY:"XI'AN",
+ BRU:"BRUXELLES",MST:"MAASTRICHT",LBA:"LEEDS",LGW:"LONDRES",BQH:"LONDRES BIGGIN HILL",
+ OPO:"PORTO",BCN:"BARCELONE",IBZ:"IBIZA",
+ ACE:"LANZAROTE",FUE:"FUERTEVENTURA",MXP:"MILAN",VRN:"VÉRONE",PMO:"PALERME",SUF:"LAMEZIA TERME",BLQ:"BOLOGNE",
+ GOH:"NUUK",SFJ:"KANGERLUSSUAQ"
+};
+const AIRPORT_TZ_OFFSET_CACHE={};
+function airportTzOffsetHours(iata,date=new Date()){
+ const zone=AIRPORT_TZ[String(iata||'').toUpperCase()]||'Europe/Paris';
+ const cacheKey=zone+'|'+Math.floor(date.getTime()/900000); // recalculé au plus toutes les 15 min
+ if(AIRPORT_TZ_OFFSET_CACHE[cacheKey]!==undefined)return AIRPORT_TZ_OFFSET_CACHE[cacheKey];
+ let hours;
+ try{
+   const parts=Object.fromEntries(new Intl.DateTimeFormat('en-US',{timeZone:zone,hourCycle:'h23',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'}).formatToParts(date).map(p=>[p.type,p.value]));
+   const asIfUtc=Date.UTC(+parts.year,+parts.month-1,+parts.day,+parts.hour,+parts.minute,+parts.second);
+   hours=(asIfUtc-date.getTime())/3600000;
+ }catch(e){hours=2;}
+ AIRPORT_TZ_OFFSET_CACHE[cacheKey]=hours;
+ return hours;
+}
+// TZ conservé en compatibilité : accès par clé calcule maintenant le décalage
+// réel (heure d'été/hiver incluse) au lieu d'un nombre figé en dur.
+const TZ=new Proxy({},{get:(_,iata)=>airportTzOffsetHours(String(iata))});
 let selected=0, editKey='', editClass='', currentList=[], currentView='home';
+// Squelette des filtres terminal (T1/T2/T3/ALL) dans la fiche de vol : affichage
+// uniquement pour l'instant, les vols par terminal ne sont pas encore fournis.
+let TERMINAL_FILTER='ALL';
+function setTerminalFilter(t){TERMINAL_FILTER=['T1','T2','T3','ALL'].includes(t)?t:'ALL';render()}
 let modalStack=[];
 let HOME_DATE=localStorage.getItem('alyzia_ops_home_date')||localISO(new Date());
 let PREPA_DATE=localStorage.getItem('alyzia_ops_prepa_date')||localISO(new Date());
@@ -8218,7 +8313,22 @@ function renderHome(){
    <div class="home-head"><span>DÉPART</span><span>VOL</span><span>ROUTE</span><span>APPAREIL</span><span>GATE</span><span>CONFIG / BOOKING</span><span>AVAILABLE</span><span></span></div>
    <div class="flight-home-list">
     ${rows.map(x=>{
-      const cap=sum(x.config),booked=sum(x.booked);
+      /*
+       * Bug corrigé : cap/booked venaient de sum(x.config)/sum(x.booked),
+       * qui additionnent TOUTES les clés présentes dans chaque objet
+       * séparément — si x.config et x.booked ne portent pas exactement le
+       * même jeu de classes (ex. une ancienne clé de classe restée dans
+       * l'un des deux après un changement de configuration), le total
+       * "config" et le total "booking" ne portent plus sur les mêmes
+       * classes et deviennent incohérents entre eux (et avec la fiche
+       * détail, qui filtre déjà sur companyClassesForFlight — voir render()
+       * plus haut). On applique ici le même filtrage par classes réelles
+       * de la compagnie, pour que liste et fiche détail soient toujours
+       * d'accord.
+       */
+      const classes=companyClassesForFlight(x);
+      const cap=classes.reduce((s,k)=>s+Number(x.config?.[k]||0),0);
+      const booked=classes.reduce((s,k)=>s+Number(x.booked?.[k]||0),0);
       const nok=(x.inopSeats||[]).filter(r=>r.status==='NOK').length;
       const avail=cap-booked-nok,pct=cap?Math.round(booked/cap*100):0;
       return `<div class="flight-home-row" data-flight-search="${flightListSearchText(x).replace(/"/g,'&quot;')}" onclick="selected=${x._index};f().activeDate='${HOME_DATE}';render()">
@@ -8231,8 +8341,8 @@ function renderHome(){
         <div class="home-mini">${x.aircraft}</div>
         <div class="home-mini">${x.gate}</div>
         <div class="home-config-booking">
-          <div><small>CONFIG</small><b>${orderedClasses(x).map(k=>`${k}${Number(x.config?.[k]||0)}`).join(' · ')||'—'}</b></div>
-          <div><small>BOOKING</small><b>${orderedClasses(x).map(k=>`${k}${Number(x.booked?.[k]||0)}`).join(' · ')||'—'}</b></div>
+          <div><small>CONFIG</small><b>${classes.map(k=>`${k}${Number(x.config?.[k]||0)}`).join(' · ')||'—'}</b></div>
+          <div><small>BOOKING</small><b>${classes.map(k=>`${k}${Number(x.booked?.[k]||0)}`).join(' · ')||'—'}</b></div>
           <div class="home-load"><div class="gauge"><span style="width:${Math.min(100,pct)}%"></span></div><b>${pct}%</b></div>
         </div>
         <div class="home-mini home-avail ${avail<0?'neg':''}">${avail}${nok?` · ${nok} INOP`:''}</div>
@@ -15160,6 +15270,12 @@ function render(){
     ${adbLiveStrip(x)}
     ${enrichmentHeaderButton(x)}
     <div class="detail-prepa-actions"><button class="detail-prepa-btn ${getPrepaInfo(x,currentFlightDate())?.state?.ok?'done':'nok'}" onclick="openDetailPrepa()"><span class="sheet">▤</span><span>PREPA</span></button><button class="print-icon-btn" title="Imprimer la prépa" onclick="printCurrentFlightPrepa()">🖨</button><button class="clear-flight-btn" title="Vider la fiche du vol" onclick="openClearCurrentFlight()">⌫</button><button class="v5011-flight-info-action" title="Informations du vol" onclick="openFlightInfo()">ⓘ INFOS VOL ${passengerNotesForCurrentFlight().length?`<span class="note-bell active">🔔</span>`:""}</button></div>
+    <div class="terminal-filter-bar" title="Filtre par terminal (à venir : répartition des vols par terminal)">
+      <button type="button" class="terminal-filter-btn t1 ${TERMINAL_FILTER==='T1'?'active':''}" onclick="setTerminalFilter('T1')">T1</button>
+      <button type="button" class="terminal-filter-btn t2 ${TERMINAL_FILTER==='T2'?'active':''}" onclick="setTerminalFilter('T2')">T2</button>
+      <button type="button" class="terminal-filter-btn t3 ${TERMINAL_FILTER==='T3'?'active':''}" onclick="setTerminalFilter('T3')">T3</button>
+      <button type="button" class="terminal-filter-btn tall ${TERMINAL_FILTER==='ALL'?'active':''}" onclick="setTerminalFilter('ALL')">ALL</button>
+    </div>
    </div>
    <div class="headcell">
     <div class="head-label">STD <button class="edit-link" onclick="openEdit('time')">✎</button></div>
@@ -17993,9 +18109,16 @@ function protectCloudListAgainstLocal(cloudList,localList){
 }
 
 function remapSelectedAfterCloud(identity){
- if(!identity)return;
+ // Retourne true si le vol affiché a bien été retrouvé dans le nouveau
+ // FLIGHTS (identité stable date|compagnie|vol). Sinon, "selected" reste
+ // un index périmé qui — une fois FLIGHTS remplacé — pointe soit vers un
+ // AUTRE vol (mauvaises données affichées en silence), soit hors bornes
+ // (FLIGHTS[selected] devient undefined). Voir l'appelant : dans les deux
+ // cas, ne jamais rendre sur cette base.
+ if(!identity)return true;
  const idx=FLIGHTS.findIndex(x=>flightImportIdentity(x)===identity);
- if(idx>=0)selected=idx;
+ if(idx>=0){selected=idx;return true;}
+ return false;
 }
 
 function modalIsOpen(){
@@ -18054,12 +18177,26 @@ async function silentCloudRefresh({forceRender=false}={}){
 
    if(changed){
      FLIGHTS.splice(0,FLIGHTS.length,...filtered);
-     remapSelectedAfterCloud(selectedIdentity);
+     const stillSelected=remapSelectedAfterCloud(selectedIdentity);
      cacheCloudFlightsLocally(filtered);
+
+     /*
+      * Bug corrigé : si le vol actuellement affiché en détail n'est pas
+      * retrouvé dans CE cycle de rafraîchissement (identité absente du lot
+      * reçu — accroc réseau, réordonnancement, ou fenêtre d'écriture côté
+      * serveur), "selected" reste un index périmé. Comme FLIGHTS vient
+      * d'être remplacé, cet index pointe soit vers un autre vol, soit hors
+      * bornes — et renderCurrentViewPreserved() basculait alors vers la
+      * liste (renderHome()) sans que l'utilisateur n'ait rien demandé.
+      * On saute simplement ce cycle de rendu pour la fiche en cours : elle
+      * reste affichée telle quelle, et se remettra à jour au prochain
+      * passage si le vol reste absent.
+      */
+     const skipDetailBounce=currentView==='detail' && selectedIdentity && !stillSelected;
 
      // Ne jamais fermer un formulaire/modal en cours de saisie.
      // La mémoire est déjà à jour ; le rendu se rafraîchit dès fermeture du modal.
-     if(!modalIsOpen() || forceRender)renderCurrentViewPreserved();
+     if(!skipDetailBounce && (!modalIsOpen() || forceRender))renderCurrentViewPreserved();
    }else if(forceRender && !modalIsOpen()){
      renderCurrentViewPreserved();
    }
@@ -18144,6 +18281,19 @@ function startRealtimeSync(){
  OPS_REALTIME_LAST_CONFIG_HASH=stableCompanyConfigHash();
  scheduleRealtimeSync();
  scheduleSelectedFlightSync();
+ startListRefreshWatchdog();
+}
+
+// Garde-fou : la liste des vols se rafraîchit déjà en continu (1.5s à 4s) via
+// silentCloudRefresh, mais si ce flux venait à se figer silencieusement
+// (onglet mis en veille prolongée par le navigateur, boucle interrompue),
+// on force un rafraîchissement complet au moins toutes les 2 minutes.
+const OPS_LIST_WATCHDOG_INTERVAL=120000;
+function startListRefreshWatchdog(){
+ setInterval(()=>{
+   if(document.hidden)return;
+   if(Date.now()-OPS_REALTIME_LAST_PULL>=OPS_LIST_WATCHDOG_INTERVAL)wakeRealtimeSync();
+ },OPS_LIST_WATCHDOG_INTERVAL);
 }
 
 function wakeRealtimeSync(){
@@ -20432,7 +20582,23 @@ async function v5008ChooseAircraft(enc){
  markManualFields(x,'aircraft','Type A/C sélectionné');
  await persistFlightAction('TYPE A/C',true);
  closeModal(); render();
- setTimeout(()=>openSariaCabinChooser(),40);
+ /*
+  * Bug corrigé : changer le type A/C ne mettait jamais x.config à jour tout
+  * seul — il fallait systématiquement rouvrir le sélecteur de version
+  * cabine SARIA et choisir explicitement, même quand une seule version
+  * existe pour ce type d'appareil chez cette compagnie. Résultat perçu :
+  * "je change le type A/C, la configuration ne s'ajuste pas" (elle
+  * n'avait tout simplement pas encore été choisie). Quand une seule
+  * version cabine SARIA correspond, on l'applique tout de suite au lieu
+  * de forcer un second clic ; s'il y en a plusieurs, le sélecteur reste
+  * affiché pour laisser le choix (ambiguïté réelle, pas devinable).
+  */
+ const configs=sariaConfigsFor(x.airline,x.aircraft);
+ if(configs.length===1){
+   selectSariaCabin(encodeURIComponent(sariaConfigKey(configs[0])));
+ }else{
+   setTimeout(()=>openSariaCabinChooser(),40);
+ }
 }
 
 /* ---------- Compact tools modal, IMPORTS GMAIL near the top ---------- */
@@ -23580,16 +23746,8 @@ try{
     return x;
   }
 
-  // Timezone live clocks.
-  try{
-    if(typeof TZ==='object'){
-      TZ.ALG=1;
-      TZ.ORN=1;
-      TZ.CZL=1;
-      TZ.AAE=1;
-    }
-    if(typeof CITY==='object')CITY.ALG='ALGER';
-  }catch(e){}
+  // Rustine ALG/ORN/CZL/AAE devenue inutile : ces aéroports (et 80+ autres)
+  // sont maintenant dans AIRPORT_TZ/CITY avec un vrai fuseau IANA — voir plus haut.
 
   /* V50.29 FIX : ce bloc V50.25 (v5025ApplyImports) re-enveloppait render() et
      openBooked() EN PLUS du pipeline V50.26/27 (applyImports, plus bas dans le
@@ -24731,7 +24889,7 @@ try{
 .import139-live{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:6px 9px;background:#ecfdf3;color:#087749;font-size:9px;font-weight:950;white-space:nowrap}
 .import139-live:before{content:"";width:7px;height:7px;border-radius:50%;background:#16a34a}
 .import139-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:14px}
-.import139-stat{border:1px solid #e4edf7;background:#f8fbff;border-radius:12px;padding:10px}.import139-stat b{display:block;font-size:17px;color:#0f2741}
+.import139-stat{border:1px solid #e4edf7;background:#f8fbff;border-radius:12px;padding:10px;font:inherit;text-align:left;width:100%;display:block}.import139-stat:hover{border-color:#82b7f5;background:#f1f7ff}.import139-stat b{display:block;font-size:17px;color:#0f2741}
 .import139-stat span{display:block;margin-top:2px;font-size:8px;font-weight:950;color:#718096;letter-spacing:.05em}
 .import139-format{margin-top:10px;padding:8px 10px;border-radius:10px;background:#f6f8fb;color:#53657a;font-size:9px;font-weight:850}
 .import139-primary{width:100%;margin-top:12px;min-height:42px;border:0;border-radius:12px;background:#0b73e0;color:#fff;font-weight:950;cursor:pointer}
@@ -25371,12 +25529,19 @@ function import143StateMeta(st){
 function import143SummaryHtml(j){
  const c=j?.counters||{};
  return `<div class="imports-summary" style="grid-template-columns:repeat(5,minmax(0,1fr))">
-  <div class="imports-summary-card"><b>${Number(c.received||0)}</b><span>REÇUS</span></div>
-  <div class="imports-summary-card"><b>${Number(c.imported||0)}</b><span>IMPORTÉS</span></div>
-  <div class="imports-summary-card"><b>${Number(c.injected||0)}</b><span>INJECTÉS</span></div>
-  <div class="imports-summary-card"><b>${Number(c.validated||0)}</b><span>VALIDÉS</span></div>
-  <div class="imports-summary-card"><b>${Number(c.errors||0)+Number(c.review||0)+Number(j?.unidentified||0)}</b><span>ERREURS / À REVOIR</span></div>
+  <button class="imports-summary-card v5009-summary-btn" onclick="import143OpenStateList(['RECEIVED'],'REÇUS')"><b>${Number(c.received||0)}</b><span>REÇUS</span></button>
+  <button class="imports-summary-card v5009-summary-btn" onclick="import143OpenStateList(['IMPORTED'],'IMPORTÉS')"><b>${Number(c.imported||0)}</b><span>IMPORTÉS</span></button>
+  <button class="imports-summary-card v5009-summary-btn" onclick="import143OpenStateList(['INJECTED'],'INJECTÉS')"><b>${Number(c.injected||0)}</b><span>INJECTÉS</span></button>
+  <button class="imports-summary-card v5009-summary-btn" onclick="import143OpenStateList(['VALIDATED'],'VALIDÉS')"><b>${Number(c.validated||0)}</b><span>VALIDÉS</span></button>
+  <button class="imports-summary-card v5009-summary-btn" onclick="import143OpenStateList(['ERROR_IMPORT','ERROR_INJECT','ERROR','REVIEW','UNIDENTIFIED'],'ERREURS / À REVOIR')"><b>${Number(c.errors||0)+Number(c.review||0)+Number(j?.unidentified||0)}</b><span>ERREURS / À REVOIR</span></button>
  </div>`;
+}
+function import143OpenStateList(states,title){
+ const flights=import143Summary?.flights||[];
+ const wanted=states?new Set(states.map(s=>String(s||'').toUpperCase())):null;
+ const rows=wanted?flights.filter(f=>wanted.has(String(f.status||'').toUpperCase())):flights;
+ showModal(title||'VOLS',`${rows.length} VOL${rows.length>1?'S':''}`,
+ `<div class="imports-flight-list">${rows.map(r=>{const st=import143StateMeta(r.status);return `<button class="imports-flight-row" style="width:100%;text-align:left;cursor:pointer" onclick="openImportsCompany('${escapeHtml(r.airline)}')"><div class="imports-flight-id"><b>${airlineLogo(r.airline)} ${escapeHtml(r.flightNumber)}</b><span>${impDate(r.flightDate)}</span></div><div class="imports-flight-meta">${Number(r.documents||0)} FICHIER${Number(r.documents||0)>1?'S':''}</div><div class="imports-flight-meta">${Number(r.messages||0)} MAIL${Number(r.messages||0)>1?'S':''}</div><div class="imports-flight-status ${st.cls}">${st.label}</div><div>OUVRIR →</div></button>`}).join('')||'<div class="import-status">AUCUN VOL.</div>'}</div>`);
 }
 function import143CompanyCards(j){
   const preferred=['SQ','TK','BJ','TW','VF'];
@@ -25429,7 +25594,12 @@ window.openTools=async function(){
     const j=await import143FetchSummary(false), c=j?.counters||{};
     showModal('OUTILS','ALYZIA OPS',`<div class="tools-grid">
       <div class="import139-card"><div class="import139-head"><div class="import139-title"><div class="import139-icon">⇩</div><div><h3>IMPORT GMAIL</h3><p>AUTO PILOT · COLLECTE, ANALYSE ET INJECTION AUTOMATIQUE</p></div></div><span class="import139-live">${Number(c.errors||0)+Number(c.review||0)?'À CONTRÔLER':'ACTIF'}</span></div>
-      <div class="import139-stats"><div class="import139-stat"><b>${Number(j.documents||0)}</b><span>DOCUMENTS</span></div><div class="import139-stat"><b>${Number(j.flightCount||0)}</b><span>VOLS DÉTECTÉS</span></div><div class="import139-stat"><b>${Number(c.injected||0)+Number(c.validated||0)}</b><span>VOLS INJECTÉS</span></div><div class="import139-stat"><b>${Number(c.errors||0)+Number(c.review||0)+Number(j.unidentified||0)}</b><span>À CONTRÔLER</span></div></div>
+      <div class="import139-stats">
+        <button class="import139-stat" onclick="openImportsDashboard()"><b>${Number(j.documents||0)}</b><span>DOCUMENTS</span></button>
+        <button class="import139-stat" onclick="import143OpenStateList(null,'VOLS DÉTECTÉS')"><b>${Number(j.flightCount||0)}</b><span>VOLS DÉTECTÉS</span></button>
+        <button class="import139-stat" onclick="import143OpenStateList(['INJECTED','VALIDATED'],'VOLS TRAITÉS')"><b>${Number(c.injected||0)+Number(c.validated||0)}</b><span>VOLS TRAITÉS</span></button>
+        <button class="import139-stat" onclick="import143OpenStateList(['ERROR_IMPORT','ERROR_INJECT','ERROR','REVIEW','UNIDENTIFIED'],'À CONTRÔLER')"><b>${Number(c.errors||0)+Number(c.review||0)+Number(j.unidentified||0)}</b><span>À CONTRÔLER</span></button>
+      </div>
       <div class="import139-format">CORPS MAIL · JFE SCREEN COPY · PDF · TXT · EML</div><button class="import139-primary" onclick="openImportsDashboard()">OUVRIR LE CENTRE IMPORT GMAIL</button></div>
       <button class="tool-card" onclick="openFlightImport()"><span class="tool-icon">⇩</span><b>IMPORTER VOLS</b><span>EXCEL XLS / XLSX</span></button>
       <button class="tool-card" onclick="openCreateFlight()"><span class="tool-icon">＋</span><b>CRÉER VOL</b><span>AJOUT MANUEL</span></button>
