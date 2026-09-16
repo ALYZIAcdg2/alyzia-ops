@@ -159,3 +159,29 @@ jobs:
                   console.log(JSON.stringify(data, null, 2).slice(0, 8000));
                 });
               ' || echo "(endpoint indisponible ou paramètres différents)"
+
+      - name: Recherche large — même bug (nom de liste avec virgule classé WCH/STAFF/MEAL) sur TOUTES les compagnies
+        run: |
+          echo '[]' > all_results.json
+          for airline in SQ SK SB A9 TK TS AH LO MS WB RJ 3O S4 EI FB 4H AT J2 BJ VF JU OZ DE IZ AI TW TU NO; do
+            curl -sS -f "https://alyzia-ops.alyzia-cdg2.workers.dev/api/import-pipeline/results?airline=$airline&limit=200" \
+              -o "res_$airline.json" || echo '{"results":[]}' > "res_$airline.json"
+          done
+          node -e '
+            const fs = require("fs");
+            const airlines = "SQ SK SB A9 TK TS AH LO MS WB RJ 3O S4 EI FB 4H AT J2 BJ VF JU OZ DE IZ AI TW TU NO".split(" ");
+            const suspects = [];
+            for (const a of airlines) {
+              let data;
+              try { data = JSON.parse(fs.readFileSync(`res_${a}.json`, "utf8")); } catch (e) { continue; }
+              for (const r of data.results || []) {
+                if (["WCH", "STAFF", "MEAL"].includes(r.card_key) && String(r.list_name || "").includes(",") && Number(r.passenger_count) >= 15) {
+                  suspects.push(r);
+                }
+              }
+            }
+            console.log(`Suspects trouvés (liste avec virgule, cardKey WCH/STAFF/MEAL, >=15 passagers) : ${suspects.length}\n`);
+            for (const r of suspects) {
+              console.log(`${r.airline} ${r.flight_number} ${r.flight_date} | carte ${r.card_key} | "${r.list_name}" | ${r.passenger_count} pax | maj ${r.updated_at}`);
+            }
+          '
