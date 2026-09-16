@@ -24859,7 +24859,7 @@ try{
 .import139-live{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:6px 9px;background:#ecfdf3;color:#087749;font-size:9px;font-weight:950;white-space:nowrap}
 .import139-live:before{content:"";width:7px;height:7px;border-radius:50%;background:#16a34a}
 .import139-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:14px}
-.import139-stat{border:1px solid #e4edf7;background:#f8fbff;border-radius:12px;padding:10px}.import139-stat b{display:block;font-size:17px;color:#0f2741}
+.import139-stat{border:1px solid #e4edf7;background:#f8fbff;border-radius:12px;padding:10px;font:inherit;text-align:left;width:100%;display:block}.import139-stat:hover{border-color:#82b7f5;background:#f1f7ff}.import139-stat b{display:block;font-size:17px;color:#0f2741}
 .import139-stat span{display:block;margin-top:2px;font-size:8px;font-weight:950;color:#718096;letter-spacing:.05em}
 .import139-format{margin-top:10px;padding:8px 10px;border-radius:10px;background:#f6f8fb;color:#53657a;font-size:9px;font-weight:850}
 .import139-primary{width:100%;margin-top:12px;min-height:42px;border:0;border-radius:12px;background:#0b73e0;color:#fff;font-weight:950;cursor:pointer}
@@ -25499,12 +25499,19 @@ function import143StateMeta(st){
 function import143SummaryHtml(j){
  const c=j?.counters||{};
  return `<div class="imports-summary" style="grid-template-columns:repeat(5,minmax(0,1fr))">
-  <div class="imports-summary-card"><b>${Number(c.received||0)}</b><span>REÇUS</span></div>
-  <div class="imports-summary-card"><b>${Number(c.imported||0)}</b><span>IMPORTÉS</span></div>
-  <div class="imports-summary-card"><b>${Number(c.injected||0)}</b><span>INJECTÉS</span></div>
-  <div class="imports-summary-card"><b>${Number(c.validated||0)}</b><span>VALIDÉS</span></div>
-  <div class="imports-summary-card"><b>${Number(c.errors||0)+Number(c.review||0)+Number(j?.unidentified||0)}</b><span>ERREURS / À REVOIR</span></div>
+  <button class="imports-summary-card v5009-summary-btn" onclick="import143OpenStateList(['RECEIVED'],'REÇUS')"><b>${Number(c.received||0)}</b><span>REÇUS</span></button>
+  <button class="imports-summary-card v5009-summary-btn" onclick="import143OpenStateList(['IMPORTED'],'IMPORTÉS')"><b>${Number(c.imported||0)}</b><span>IMPORTÉS</span></button>
+  <button class="imports-summary-card v5009-summary-btn" onclick="import143OpenStateList(['INJECTED'],'INJECTÉS')"><b>${Number(c.injected||0)}</b><span>INJECTÉS</span></button>
+  <button class="imports-summary-card v5009-summary-btn" onclick="import143OpenStateList(['VALIDATED'],'VALIDÉS')"><b>${Number(c.validated||0)}</b><span>VALIDÉS</span></button>
+  <button class="imports-summary-card v5009-summary-btn" onclick="import143OpenStateList(['ERROR_IMPORT','ERROR_INJECT','ERROR','REVIEW','UNIDENTIFIED'],'ERREURS / À REVOIR')"><b>${Number(c.errors||0)+Number(c.review||0)+Number(j?.unidentified||0)}</b><span>ERREURS / À REVOIR</span></button>
  </div>`;
+}
+function import143OpenStateList(states,title){
+ const flights=import143Summary?.flights||[];
+ const wanted=states?new Set(states.map(s=>String(s||'').toUpperCase())):null;
+ const rows=wanted?flights.filter(f=>wanted.has(String(f.status||'').toUpperCase())):flights;
+ showModal(title||'VOLS',`${rows.length} VOL${rows.length>1?'S':''}`,
+ `<div class="imports-flight-list">${rows.map(r=>{const st=import143StateMeta(r.status);return `<button class="imports-flight-row" style="width:100%;text-align:left;cursor:pointer" onclick="openImportsCompany('${escapeHtml(r.airline)}')"><div class="imports-flight-id"><b>${airlineLogo(r.airline)} ${escapeHtml(r.flightNumber)}</b><span>${impDate(r.flightDate)}</span></div><div class="imports-flight-meta">${Number(r.documents||0)} FICHIER${Number(r.documents||0)>1?'S':''}</div><div class="imports-flight-meta">${Number(r.messages||0)} MAIL${Number(r.messages||0)>1?'S':''}</div><div class="imports-flight-status ${st.cls}">${st.label}</div><div>OUVRIR →</div></button>`}).join('')||'<div class="import-status">AUCUN VOL.</div>'}</div>`);
 }
 function import143CompanyCards(j){
   const preferred=['SQ','TK','BJ','TW','VF'];
@@ -25557,7 +25564,12 @@ window.openTools=async function(){
     const j=await import143FetchSummary(false), c=j?.counters||{};
     showModal('OUTILS','ALYZIA OPS',`<div class="tools-grid">
       <div class="import139-card"><div class="import139-head"><div class="import139-title"><div class="import139-icon">⇩</div><div><h3>IMPORT GMAIL</h3><p>AUTO PILOT · COLLECTE, ANALYSE ET INJECTION AUTOMATIQUE</p></div></div><span class="import139-live">${Number(c.errors||0)+Number(c.review||0)?'À CONTRÔLER':'ACTIF'}</span></div>
-      <div class="import139-stats"><div class="import139-stat"><b>${Number(j.documents||0)}</b><span>DOCUMENTS</span></div><div class="import139-stat"><b>${Number(j.flightCount||0)}</b><span>VOLS DÉTECTÉS</span></div><div class="import139-stat"><b>${Number(c.injected||0)+Number(c.validated||0)}</b><span>VOLS INJECTÉS</span></div><div class="import139-stat"><b>${Number(c.errors||0)+Number(c.review||0)+Number(j.unidentified||0)}</b><span>À CONTRÔLER</span></div></div>
+      <div class="import139-stats">
+        <button class="import139-stat" onclick="openImportsDashboard()"><b>${Number(j.documents||0)}</b><span>DOCUMENTS</span></button>
+        <button class="import139-stat" onclick="import143OpenStateList(null,'VOLS DÉTECTÉS')"><b>${Number(j.flightCount||0)}</b><span>VOLS DÉTECTÉS</span></button>
+        <button class="import139-stat" onclick="import143OpenStateList(['INJECTED','VALIDATED'],'VOLS TRAITÉS')"><b>${Number(c.injected||0)+Number(c.validated||0)}</b><span>VOLS TRAITÉS</span></button>
+        <button class="import139-stat" onclick="import143OpenStateList(['ERROR_IMPORT','ERROR_INJECT','ERROR','REVIEW','UNIDENTIFIED'],'À CONTRÔLER')"><b>${Number(c.errors||0)+Number(c.review||0)+Number(j.unidentified||0)}</b><span>À CONTRÔLER</span></button>
+      </div>
       <div class="import139-format">CORPS MAIL · JFE SCREEN COPY · PDF · TXT · EML</div><button class="import139-primary" onclick="openImportsDashboard()">OUVRIR LE CENTRE IMPORT GMAIL</button></div>
       <button class="tool-card" onclick="openFlightImport()"><span class="tool-icon">⇩</span><b>IMPORTER VOLS</b><span>EXCEL XLS / XLSX</span></button>
       <button class="tool-card" onclick="openCreateFlight()"><span class="tool-icon">＋</span><b>CRÉER VOL</b><span>AJOUT MANUEL</span></button>
