@@ -10001,6 +10001,20 @@ async function handleLot5(request,env,url){
       if(!labelResult.ok)return json({ok:false,error:labelResult.error,labelsDeleted:labelResult.labelsDeleted},500);
       return json({ok:true,labelsDeleted:labelResult.labelsDeleted});
     }
+    if(url.pathname==='/api/autopilot/clear-drive'&&request.method==='POST'){
+      /*
+       * Vide l'archive Google Drive : déplace le dossier racine PRÉPA
+       * entier vers la corbeille Google (récupérable ~30 jours, donc pas
+       * une perte immédiate et irréversible comme un DELETE définitif).
+       * Google Drive corbeille récursivement tout le contenu d'un dossier
+       * mis à la corbeille — pas besoin d'énumérer chaque sous-dossier/fichier.
+       * Demande explicite de l'utilisateur, dans la continuité de la remise
+       * à zéro complète (base + libellés Gmail + Drive).
+       */
+      const rootId=await lot5ResolvePrepaRootFolder(env).catch(e=>{throw new Error(`Résolution du dossier PRÉPA échouée : ${String(e?.message||e)}`)});
+      const result=await trashDriveFoldersDirect(env,[rootId]);
+      return json({ok:result.ok,rootFolderId:rootId,...result});
+    }
     if(url.pathname==='/api/autopilot/limit-airline-dates'&&request.method==='POST'){
       /*
        * Limite volontairement le traitement d'une compagnie aux N dates de
