@@ -1,0 +1,69 @@
+name: Rapport ponctuel — listes GENERIC non reconnues par compagnie
+
+# Diagnostic en lecture seule : interroge l'endpoint public existant
+# /api/autopilot/unmapped-lists sur le worker de production et affiche le
+# résultat dans le journal du job. Aucune écriture, aucun déploiement —
+# seulement un GET sur une route déjà exposée par l'application.
+# Se déclenche automatiquement au push de ce fichier (le proxy réseau de la
+# session sandboxée ne peut pas atteindre *.workers.dev directement).
+# Relance ponctuelle pour re-vérifier les échantillons JU (Groupe B).
+
+on:
+  push:
+    branches:
+      - claude/fiches-vides-v31pqy
+    paths:
+      - ".github/workflows/report-unmapped-lists.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Interroge /api/autopilot/unmapped-lists
+        run: |
+          curl -sS -f "https://alyzia-ops.alyzia-cdg2.workers.dev/api/autopilot/unmapped-lists?limit=1000" \
+            | tee unmapped-lists.json
+          echo
+          echo "--- Résumé par compagnie ---"
+          node -e '
+            const data = require("./unmapped-lists.json");
+            const byAirline = {};
+            for (const item of data.items || []) {
+              (byAirline[item.airline] ||= []).push(item);
+            }
+            for (const airline of Object.keys(byAirline).sort()) {
+              console.log(`\n${airline}:`);
+              for (const it of byAirline[airline]) {
+                console.log(`  - "${it.listName}" (${it.cardKey}) — vu ${it.count} fois, dernière fois ${it.lastSeen}`);
+              }
+            }
+          '
+
+      - name: Extrait le contenu réel des .eml NO_LIST, par compagnie
+        run: |
+          for airline in AH AI AT JU MS RJ SB TU VF WB; do
+            echo
+            echo "================================================================"
+            echo "=== $airline ==="
+            echo "================================================================"
+            preview_limit=3
+            if [ "$airline" = "JU" ]; then preview_limit=10; fi
+            curl -sS -f "https://alyzia-ops.alyzia-cdg2.workers.dev/api/autopilot/unmapped-list-preview?airline=$airline&listName=&limit=$preview_limit" \
+              | node -e '
+                  let raw = "";
+                  process.stdin.on("data", d => raw += d);
+                  process.stdin.on("end", () => {
+                    const data = JSON.parse(raw);
+                    for (const it of data.items || []) {
+                      console.log(`\n--- job ${it.jobId} | vol ${it.flightNumber} ${it.flightDate} | ${it.passengerCount} pax | maj ${it.updatedAt} ---`);
+                      console.log(it.textPreview || "(aucun aperçu stocké)");
+                    }
+                    if (!data.items || !data.items.length) console.log("(aucun échantillon trouvé)");
+                  });
+                '
+          done
