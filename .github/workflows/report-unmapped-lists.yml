@@ -1,12 +1,16 @@
 name: Rapport ponctuel — listes GENERIC non reconnues par compagnie
 
-# Diagnostic en lecture seule : interroge l'endpoint public existant
-# /api/autopilot/unmapped-lists sur le worker de production et affiche le
-# résultat dans le journal du job. Aucune écriture, aucun déploiement —
-# seulement un GET sur une route déjà exposée par l'application.
+# Interroge l'endpoint public existant /api/autopilot/unmapped-lists sur le
+# worker de production et affiche le résultat dans le journal du job.
 # Se déclenche automatiquement au push de ce fichier (le proxy réseau de la
 # session sandboxée ne peut pas atteindre *.workers.dev directement).
-# Relance ponctuelle pour re-vérifier les échantillons JU (Groupe B).
+#
+# Contient aussi (sur demande explicite, après déploiement des correctifs
+# Groupes A/B/D) un appel à /api/autopilot/requeue-all : remet en QUEUED les
+# jobs import déjà stockés pour TOUTES les compagnies génériques, pour qu'ils
+# soient reclassés au prochain passage du cron avec le code corrigé, sans
+# toucher aux fiches de vol déjà construites. Contrôlé par REQUEUE_ALL
+# ci-dessous — repasser à "false" une fois la vérification terminée.
 
 on:
   push:
@@ -19,11 +23,20 @@ on:
 permissions:
   contents: read
 
+env:
+  REQUEUE_ALL: "true"
+
 jobs:
   report:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - name: Requeue toutes les compagnies génériques (relance le traitement avec le code corrigé)
+        if: env.REQUEUE_ALL == 'true'
+        run: |
+          curl -sS -f -X POST "https://alyzia-ops.alyzia-cdg2.workers.dev/api/autopilot/requeue-all" | tee requeue-all.json
+          echo
+
       - name: Interroge /api/autopilot/unmapped-lists
         run: |
           curl -sS -f "https://alyzia-ops.alyzia-cdg2.workers.dev/api/autopilot/unmapped-lists?limit=1000" \
