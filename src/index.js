@@ -9969,6 +9969,37 @@ async function handleLot5(request,env,url){
 
       return json({ok:true,deletedRows:counts,labelsDeleted,message:'Base entièrement vidée. Relancer /api/gmail/sync-now par lots pour resynchroniser depuis Gmail.'});
     }
+    if(url.pathname==='/api/autopilot/limit-airline-dates'&&request.method==='POST'){
+      /*
+       * Limite volontairement le traitement d'une compagnie aux N dates de
+       * vol les plus récentes après une resynchronisation complète (ex. SQ
+       * après remise à zéro, demande explicite : traiter seulement les 3
+       * dates les plus récentes pour l'instant, pas tout l'historique d'un
+       * coup). Ne touche jamais aux jobs déjà traités (status≠QUEUED) : ne
+       * fait que repousser en DEFERRED les jobs QUEUED hors des N dates les
+       * plus récentes, pour qu'ils soient ignorés par process-next tant
+       * qu'ils restent DEFERRED. Réversible à tout moment avec l'endpoint
+       * existant requeue-airline (repasse tout en QUEUED, sans distinction
+       * de date).
+       */
+      const body=await request.json().catch(()=>({}));
+      const airline=String(body?.airline||'').trim().toUpperCase();
+      const keepDates=Math.max(1,Math.min(30,Number(body?.keepDates||3)));
+      if(!airline)return json({ok:false,error:'COMPAGNIE MANQUANTE'},400);
+      const dateRows=(await env.OPS_DB.prepare(`
+        SELECT DISTINCT flight_date FROM import_jobs
+        WHERE UPPER(airline)=? AND flight_date IS NOT NULL AND flight_date<>''
+        ORDER BY flight_date DESC LIMIT ?
+      `).bind(airline,keepDates).all()).results||[];
+      const keptDates=dateRows.map(r=>String(r.flight_date||'')).filter(Boolean);
+      if(!keptDates.length)return json({ok:true,airline,keptDates:[],deferred:0,message:'AUCUNE DATE TROUVÉE POUR CETTE COMPAGNIE'});
+      const placeholders=keptDates.map(()=>'?').join(',');
+      const r=await env.OPS_DB.prepare(`
+        UPDATE import_jobs SET status='DEFERRED',updated_at=CURRENT_TIMESTAMP
+        WHERE UPPER(airline)=? AND status='QUEUED' AND flight_date NOT IN (${placeholders})
+      `).bind(airline,...keptDates).run();
+      return json({ok:true,airline,keptDates,deferred:r.meta?.changes||0,message:`Jobs QUEUED de ${airline} hors des ${keptDates.length} dates les plus récentes repoussés en DEFERRED. Utiliser requeue-airline pour les reprendre plus tard.`});
+    }
     if(url.pathname==='/api/autopilot/stop'&&request.method==='POST'){
       const active=await env.OPS_DB.prepare(`SELECT run_id FROM lot5_autopilot_runs WHERE status='RUNNING' ORDER BY started_at DESC LIMIT 1`).first();
       await setIntegrationJson(env,'lot5_autopilot_stop_requested',{requested:true,runId:String(active?.run_id||''),requestedAt:new Date().toISOString()});
