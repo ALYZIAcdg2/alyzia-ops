@@ -35,7 +35,7 @@ env:
 jobs:
   report:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - name: Requeue toutes les compagnies génériques (relance le traitement avec le code corrigé)
         if: env.REQUEUE_ALL == 'true'
