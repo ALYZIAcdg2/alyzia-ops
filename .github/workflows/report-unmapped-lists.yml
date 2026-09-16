@@ -1,9 +1,10 @@
-name: Diagnostic — état actuel après échec du full-reset (HTTP 500)
+name: Test de connexion Gmail après mise à jour du secret OAuth
 
-# Lecture seule. Le run précédent (remise à zéro complète) a échoué avec une
-# erreur 500 côté Worker pendant l'appel à /api/autopilot/full-reset, après
-# ~92s. Avant de retenter quoi que ce soit, on vérifie l'état réel de la base
-# (le wipe a-t-il eu lieu partiellement, totalement, ou pas du tout ?).
+# Vérifie que /api/gmail/sync-now fonctionne à nouveau après la régénération
+# du GOOGLE_CLIENT_SECRET (l'ancien avait été désactivé côté Google, d'où
+# l'erreur "The provided client secret is invalid." pendant la remise à
+# zéro). Appel volontairement petit (maxMessages=3) : juste un test, pas
+# encore la resynchronisation complète.
 
 on:
   push:
@@ -17,22 +18,19 @@ permissions:
   contents: read
 
 jobs:
-  diagnostic:
+  test_gmail:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
       BASE: https://alyzia-ops.alyzia-cdg2.workers.dev
     steps:
-      - name: État actuel (lecture seule uniquement)
+      - name: Petit appel de test sync-now (maxMessages=3)
         run: |
-          echo "== /api/prepa/summary =="
-          curl -sS "$BASE/api/prepa/summary" || true
+          echo "== POST /api/gmail/sync-now (test, maxMessages=3) =="
+          curl -sS "$BASE/api/gmail/sync-now" \
+            -X POST -H "Content-Type: application/json" \
+            -d '{"query":"in:anywhere","maxMessages":3}'
           echo
-          echo "== /api/flights (nombre) =="
-          curl -sS "$BASE/api/flights" | node -e 'let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>{try{const j=JSON.parse(d);console.log((j.flights||j||[]).length)}catch(e){console.log("PARSE ERROR:",d.slice(0,500))}})' || true
           echo "== /api/gmail/status =="
-          curl -sS "$BASE/api/gmail/status" || true
-          echo
-          echo "== /api/autopilot/status =="
-          curl -sS "$BASE/api/autopilot/status" || true
+          curl -sS "$BASE/api/gmail/status"
           echo
