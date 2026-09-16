@@ -20468,7 +20468,23 @@ async function v5008ChooseAircraft(enc){
  markManualFields(x,'aircraft','Type A/C sélectionné');
  await persistFlightAction('TYPE A/C',true);
  closeModal(); render();
- setTimeout(()=>openSariaCabinChooser(),40);
+ /*
+  * Bug corrigé : changer le type A/C ne mettait jamais x.config à jour tout
+  * seul — il fallait systématiquement rouvrir le sélecteur de version
+  * cabine SARIA et choisir explicitement, même quand une seule version
+  * existe pour ce type d'appareil chez cette compagnie. Résultat perçu :
+  * "je change le type A/C, la configuration ne s'ajuste pas" (elle
+  * n'avait tout simplement pas encore été choisie). Quand une seule
+  * version cabine SARIA correspond, on l'applique tout de suite au lieu
+  * de forcer un second clic ; s'il y en a plusieurs, le sélecteur reste
+  * affiché pour laisser le choix (ambiguïté réelle, pas devinable).
+  */
+ const configs=sariaConfigsFor(x.airline,x.aircraft);
+ if(configs.length===1){
+   selectSariaCabin(encodeURIComponent(sariaConfigKey(configs[0])));
+ }else{
+   setTimeout(()=>openSariaCabinChooser(),40);
+ }
 }
 
 /* ---------- Compact tools modal, IMPORTS GMAIL near the top ---------- */
