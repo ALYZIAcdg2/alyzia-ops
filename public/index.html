@@ -7571,8 +7571,92 @@ FLIGHTS.forEach((x)=>{
 
 
 const AIRCRAFT=["A220-100", "A220-300", "A300-600", "A310-300", "A318-100", "A319-100", "A319NEO", "A320-200", "A320NEO", "A321-200", "A321LR", "A321NEO", "A321XLR", "A330-200", "A330-300", "A330-800NEO", "A330-900NEO", "A340-300", "A340-500", "A340-600", "A350-1000", "A350-900", "A350-900ULR", "A380-800", "ATR 42-500", "ATR 42-600", "ATR 72-500", "ATR 72-600", "B717-200", "B727-200", "B737 MAX 10", "B737 MAX 7", "B737 MAX 8", "B737 MAX 9", "B737-300", "B737-400", "B737-500", "B737-700", "B737-800", "B737-900ER", "B747-400", "B747-8", "B757-200", "B757-300", "B767-300ER", "B767-400ER", "B777-200ER", "B777-200LR", "B777-300ER", "B777-8", "B777-9", "B787-10", "B787-8", "B787-9", "C919", "CRJ1000", "CRJ200", "CRJ700", "CRJ900", "DASH 8-100", "DASH 8-200", "DASH 8-300", "DASH 8-400", "E170", "E175", "E190", "E190-E2", "E195", "E195-E2", "ERJ135", "ERJ145", "FOKKER 100", "FOKKER 70", "MD-11", "MD-80", "MD-90", "SAAB 2000", "SAAB 340", "SSJ100"];
-const TZ={"CDG": 2, "DEL": 5.5, "GRU": -3, "KUL": 8, "CAI": 3, "SIN": 8, "IST": 3, "DJE": 1, "HND": 9, "ICN": 9, "AMM": 3};
-const CITY={"CDG": "PARIS", "DEL": "DELHI", "GRU": "SAO PAULO", "KUL": "KUALA LUMPUR", "CAI": "CAIRO", "SIN": "SINGAPORE", "IST": "ISTANBUL", "DJE": "DJERBA", "HND": "TOKYO", "ICN": "SEOUL", "AMM": "AMMAN"};
+/*
+ * Bug corrigé : l'ancienne table TZ ne couvrait que 11 aéroports avec un
+ * décalage FIXE en heures (ex. "CDG":2), toujours faux la moitié de l'année
+ * pour tout aéroport observant l'heure d'été/hiver, et système de repli
+ * (??2) pour les 77+ autres aéroports réellement utilisés en production
+ * (constaté via /api/flights : 89 aéroports distincts, seulement 11 connus).
+ * Remplacée par une vraie zone IANA par aéroport (fuseau réel, pas un
+ * décalage figé) : AIRPORT_TZ_OFFSET_HOURS() calcule le décalage ACTUEL par
+ * rapport à UTC à la date donnée via Intl.DateTimeFormat, qui applique
+ * automatiquement les règles d'heure d'été/hiver de la vraie zone.
+ */
+const AIRPORT_TZ={
+ CDG:"Europe/Paris", ORY:"Europe/Paris", NCE:"Europe/Paris", LIL:"Europe/Paris", LRT:"Europe/Paris",
+ PUF:"Europe/Paris", CHR:"Europe/Paris", LIG:"Europe/Paris", SYS:"Europe/Paris", QIE:"Europe/Paris",
+ ALG:"Africa/Algiers", ORN:"Africa/Algiers", CZL:"Africa/Algiers", AAE:"Africa/Algiers",
+ TLM:"Africa/Algiers", CFK:"Africa/Algiers", QSF:"Africa/Algiers", BLJ:"Africa/Algiers",
+ BSK:"Africa/Algiers", ELU:"Africa/Algiers",
+ IST:"Europe/Istanbul", SAW:"Europe/Istanbul", ESB:"Europe/Istanbul", AYT:"Europe/Istanbul",
+ DUB:"Europe/Dublin", SNN:"Europe/Dublin", NOC:"Europe/Dublin",
+ TLV:"Asia/Jerusalem", LCA:"Asia/Nicosia",
+ TUN:"Africa/Tunis", DJE:"Africa/Tunis", MIR:"Africa/Tunis", TTU:"Africa/Tunis",
+ CPH:"Europe/Copenhagen", ARN:"Europe/Stockholm", SVG:"Europe/Oslo", OSL:"Europe/Oslo",
+ LYR:"Europe/Oslo", FRA:"Europe/Berlin", LEJ:"Europe/Berlin", BER:"Europe/Berlin",
+ WAW:"Europe/Warsaw", KTW:"Europe/Warsaw", PRG:"Europe/Prague", SOF:"Europe/Sofia",
+ BEG:"Europe/Belgrade", ZAD:"Europe/Zagreb", TIA:"Europe/Tirane", ATH:"Europe/Athens",
+ CMN:"Africa/Casablanca", RBA:"Africa/Casablanca", RAK:"Africa/Casablanca", OUD:"Africa/Casablanca",
+ KEF:"Atlantic/Reykjavik", PDL:"Atlantic/Azores",
+ CAI:"Africa/Cairo", LXR:"Africa/Cairo",
+ SIN:"Asia/Singapore", KUL:"Asia/Kuala_Lumpur", BKK:"Asia/Bangkok",
+ YUL:"America/Toronto", YYZ:"America/Toronto", YQB:"America/Toronto",
+ DEL:"Asia/Kolkata", ICN:"Asia/Seoul", HND:"Asia/Tokyo",
+ ABJ:"Africa/Abidjan", KGL:"Africa/Kigali", AMM:"Asia/Amman", KWI:"Asia/Kuwait",
+ BOG:"America/Bogota", GRU:"America/Sao_Paulo", MIA:"America/New_York", JFK:"America/New_York",
+ GYD:"Asia/Baku", TBS:"Asia/Tbilisi", SEZ:"Indian/Mahe",
+ CKG:"Asia/Shanghai", SZX:"Asia/Shanghai", XIY:"Asia/Shanghai",
+ BRU:"Europe/Brussels", MST:"Europe/Amsterdam", LBA:"Europe/London", LGW:"Europe/London",
+ BQH:"Europe/London", OPO:"Europe/Lisbon", BCN:"Europe/Madrid", IBZ:"Europe/Madrid",
+ ACE:"Atlantic/Canary", FUE:"Atlantic/Canary", MXP:"Europe/Rome", VRN:"Europe/Rome",
+ PMO:"Europe/Rome", SUF:"Europe/Rome", BLQ:"Europe/Rome",
+ GOH:"America/Nuuk", SFJ:"America/Nuuk"
+};
+const CITY={
+ CDG:"PARIS",ORY:"PARIS",NCE:"NICE",LIL:"LILLE",LRT:"LORIENT",PUF:"PAU",CHR:"CHÂTEAUROUX",
+ LIG:"LIMOGES",SYS:"SAINT-YAN",QIE:"QUIMPER",
+ ALG:"ALGER",ORN:"ORAN",CZL:"CONSTANTINE",AAE:"ANNABA",TLM:"TLEMCEN",CFK:"CHLEF",
+ QSF:"AIN OUSSERA",BLJ:"BATNA",BSK:"BISKRA",ELU:"GUELMA",
+ IST:"ISTANBUL",SAW:"ISTANBUL SABIHA",ESB:"ANKARA",AYT:"ANTALYA",
+ DUB:"DUBLIN",SNN:"SHANNON",NOC:"KNOCK",
+ TLV:"TEL AVIV",LCA:"LARNACA",
+ TUN:"TUNIS",DJE:"DJERBA",MIR:"MONASTIR",TTU:"TATAOUINE",
+ CPH:"COPENHAGUE",ARN:"STOCKHOLM",SVG:"STAVANGER",OSL:"OSLO",LYR:"LONGYEARBYEN",
+ FRA:"FRANCFORT",LEJ:"LEIPZIG",BER:"BERLIN",
+ WAW:"VARSOVIE",KTW:"KATOWICE",PRG:"PRAGUE",SOF:"SOFIA",
+ BEG:"BELGRADE",ZAD:"ZADAR",TIA:"TIRANA",ATH:"ATHÈNES",
+ CMN:"CASABLANCA",RBA:"RABAT",RAK:"MARRAKECH",OUD:"OUJDA",
+ KEF:"REYKJAVIK",PDL:"PONTA DELGADA",
+ CAI:"LE CAIRE",LXR:"LOUXOR",
+ SIN:"SINGAPOUR",KUL:"KUALA LUMPUR",BKK:"BANGKOK",
+ YUL:"MONTRÉAL",YYZ:"TORONTO",YQB:"QUÉBEC",
+ DEL:"DELHI",ICN:"SÉOUL",HND:"TOKYO",
+ ABJ:"ABIDJAN",KGL:"KIGALI",AMM:"AMMAN",KWI:"KOWEÏT",
+ BOG:"BOGOTA",GRU:"SÃO PAULO",MIA:"MIAMI",JFK:"NEW YORK",
+ GYD:"BAKOU",TBS:"TBILISSI",SEZ:"MAHÉ",
+ CKG:"CHONGQING",SZX:"SHENZHEN",XIY:"XI'AN",
+ BRU:"BRUXELLES",MST:"MAASTRICHT",LBA:"LEEDS",LGW:"LONDRES",BQH:"LONDRES BIGGIN HILL",
+ OPO:"PORTO",BCN:"BARCELONE",IBZ:"IBIZA",
+ ACE:"LANZAROTE",FUE:"FUERTEVENTURA",MXP:"MILAN",VRN:"VÉRONE",PMO:"PALERME",SUF:"LAMEZIA TERME",BLQ:"BOLOGNE",
+ GOH:"NUUK",SFJ:"KANGERLUSSUAQ"
+};
+const AIRPORT_TZ_OFFSET_CACHE={};
+function airportTzOffsetHours(iata,date=new Date()){
+ const zone=AIRPORT_TZ[String(iata||'').toUpperCase()]||'Europe/Paris';
+ const cacheKey=zone+'|'+Math.floor(date.getTime()/900000); // recalculé au plus toutes les 15 min
+ if(AIRPORT_TZ_OFFSET_CACHE[cacheKey]!==undefined)return AIRPORT_TZ_OFFSET_CACHE[cacheKey];
+ let hours;
+ try{
+   const parts=Object.fromEntries(new Intl.DateTimeFormat('en-US',{timeZone:zone,hourCycle:'h23',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'}).formatToParts(date).map(p=>[p.type,p.value]));
+   const asIfUtc=Date.UTC(+parts.year,+parts.month-1,+parts.day,+parts.hour,+parts.minute,+parts.second);
+   hours=(asIfUtc-date.getTime())/3600000;
+ }catch(e){hours=2;}
+ AIRPORT_TZ_OFFSET_CACHE[cacheKey]=hours;
+ return hours;
+}
+// TZ conservé en compatibilité : accès par clé calcule maintenant le décalage
+// réel (heure d'été/hiver incluse) au lieu d'un nombre figé en dur.
+const TZ=new Proxy({},{get:(_,iata)=>airportTzOffsetHours(String(iata))});
 let selected=0, editKey='', editClass='', currentList=[], currentView='home';
 let modalStack=[];
 let HOME_DATE=localStorage.getItem('alyzia_ops_home_date')||localISO(new Date());
@@ -23632,16 +23716,8 @@ try{
     return x;
   }
 
-  // Timezone live clocks.
-  try{
-    if(typeof TZ==='object'){
-      TZ.ALG=1;
-      TZ.ORN=1;
-      TZ.CZL=1;
-      TZ.AAE=1;
-    }
-    if(typeof CITY==='object')CITY.ALG='ALGER';
-  }catch(e){}
+  // Rustine ALG/ORN/CZL/AAE devenue inutile : ces aéroports (et 80+ autres)
+  // sont maintenant dans AIRPORT_TZ/CITY avec un vrai fuseau IANA — voir plus haut.
 
   /* V50.29 FIX : ce bloc V50.25 (v5025ApplyImports) re-enveloppait render() et
      openBooked() EN PLUS du pipeline V50.26/27 (applyImports, plus bas dans le
