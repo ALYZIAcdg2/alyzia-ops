@@ -1,0 +1,24 @@
+name: Supprime les libellés Gmail ALYZIA (une fois)
+
+# Appel ponctuel de /api/autopilot/delete-labels, séparé du workflow de
+# resynchronisation (report-unmapped-lists.yml) pour ne pas le perturber
+# pendant qu'il tourne. Les libellés sont recréés à la demande par
+# ensureGmailLabel au fil de la resynchronisation en cours.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  delete_labels:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      BASE: https://alyzia-ops.alyzia-cdg2.workers.dev
+    steps:
+      - name: POST /api/autopilot/delete-labels
+        run: |
+          curl -sS -f -X POST "$BASE/api/autopilot/delete-labels" -H "Content-Type: application/json"
+          echo
