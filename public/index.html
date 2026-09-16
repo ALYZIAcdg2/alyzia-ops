@@ -8218,7 +8218,22 @@ function renderHome(){
    <div class="home-head"><span>DÉPART</span><span>VOL</span><span>ROUTE</span><span>APPAREIL</span><span>GATE</span><span>CONFIG / BOOKING</span><span>AVAILABLE</span><span></span></div>
    <div class="flight-home-list">
     ${rows.map(x=>{
-      const cap=sum(x.config),booked=sum(x.booked);
+      /*
+       * Bug corrigé : cap/booked venaient de sum(x.config)/sum(x.booked),
+       * qui additionnent TOUTES les clés présentes dans chaque objet
+       * séparément — si x.config et x.booked ne portent pas exactement le
+       * même jeu de classes (ex. une ancienne clé de classe restée dans
+       * l'un des deux après un changement de configuration), le total
+       * "config" et le total "booking" ne portent plus sur les mêmes
+       * classes et deviennent incohérents entre eux (et avec la fiche
+       * détail, qui filtre déjà sur companyClassesForFlight — voir render()
+       * plus haut). On applique ici le même filtrage par classes réelles
+       * de la compagnie, pour que liste et fiche détail soient toujours
+       * d'accord.
+       */
+      const classes=companyClassesForFlight(x);
+      const cap=classes.reduce((s,k)=>s+Number(x.config?.[k]||0),0);
+      const booked=classes.reduce((s,k)=>s+Number(x.booked?.[k]||0),0);
       const nok=(x.inopSeats||[]).filter(r=>r.status==='NOK').length;
       const avail=cap-booked-nok,pct=cap?Math.round(booked/cap*100):0;
       return `<div class="flight-home-row" data-flight-search="${flightListSearchText(x).replace(/"/g,'&quot;')}" onclick="selected=${x._index};f().activeDate='${HOME_DATE}';render()">
@@ -8231,8 +8246,8 @@ function renderHome(){
         <div class="home-mini">${x.aircraft}</div>
         <div class="home-mini">${x.gate}</div>
         <div class="home-config-booking">
-          <div><small>CONFIG</small><b>${orderedClasses(x).map(k=>`${k}${Number(x.config?.[k]||0)}`).join(' · ')||'—'}</b></div>
-          <div><small>BOOKING</small><b>${orderedClasses(x).map(k=>`${k}${Number(x.booked?.[k]||0)}`).join(' · ')||'—'}</b></div>
+          <div><small>CONFIG</small><b>${classes.map(k=>`${k}${Number(x.config?.[k]||0)}`).join(' · ')||'—'}</b></div>
+          <div><small>BOOKING</small><b>${classes.map(k=>`${k}${Number(x.booked?.[k]||0)}`).join(' · ')||'—'}</b></div>
           <div class="home-load"><div class="gauge"><span style="width:${Math.min(100,pct)}%"></span></div><b>${pct}%</b></div>
         </div>
         <div class="home-mini home-avail ${avail<0?'neg':''}">${avail}${nok?` · ${nok} INOP`:''}</div>
