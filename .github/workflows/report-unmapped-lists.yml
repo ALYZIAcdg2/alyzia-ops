@@ -6,6 +6,7 @@ name: Rapport ponctuel — listes GENERIC non reconnues par compagnie
 # seulement un GET sur une route déjà exposée par l'application.
 # Se déclenche automatiquement au push de ce fichier (le proxy réseau de la
 # session sandboxée ne peut pas atteindre *.workers.dev directement).
+# Relance ponctuelle pour re-vérifier les échantillons JU (Groupe B).
 
 on:
   push:
@@ -50,7 +51,9 @@ jobs:
             echo "================================================================"
             echo "=== $airline ==="
             echo "================================================================"
-            curl -sS -f "https://alyzia-ops.alyzia-cdg2.workers.dev/api/autopilot/unmapped-list-preview?airline=$airline&listName=&limit=3" \
+            preview_limit=3
+            if [ "$airline" = "JU" ]; then preview_limit=10; fi
+            curl -sS -f "https://alyzia-ops.alyzia-cdg2.workers.dev/api/autopilot/unmapped-list-preview?airline=$airline&listName=&limit=$preview_limit" \
               | node -e '
                   let raw = "";
                   process.stdin.on("data", d => raw += d);
