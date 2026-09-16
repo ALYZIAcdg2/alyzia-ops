@@ -18264,6 +18264,19 @@ function startRealtimeSync(){
  OPS_REALTIME_LAST_CONFIG_HASH=stableCompanyConfigHash();
  scheduleRealtimeSync();
  scheduleSelectedFlightSync();
+ startListRefreshWatchdog();
+}
+
+// Garde-fou : la liste des vols se rafraîchit déjà en continu (1.5s à 4s) via
+// silentCloudRefresh, mais si ce flux venait à se figer silencieusement
+// (onglet mis en veille prolongée par le navigateur, boucle interrompue),
+// on force un rafraîchissement complet au moins toutes les 2 minutes.
+const OPS_LIST_WATCHDOG_INTERVAL=120000;
+function startListRefreshWatchdog(){
+ setInterval(()=>{
+   if(document.hidden)return;
+   if(Date.now()-OPS_REALTIME_LAST_PULL>=OPS_LIST_WATCHDOG_INTERVAL)wakeRealtimeSync();
+ },OPS_LIST_WATCHDOG_INTERVAL);
 }
 
 function wakeRealtimeSync(){
