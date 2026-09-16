@@ -42,3 +42,25 @@ jobs:
               }
             }
           '
+
+      - name: Extrait le contenu réel des .eml NO_LIST, par compagnie
+        run: |
+          for airline in AH AI AT JU MS RJ SB TU VF WB; do
+            echo
+            echo "================================================================"
+            echo "=== $airline ==="
+            echo "================================================================"
+            curl -sS -f "https://alyzia-ops.alyzia-cdg2.workers.dev/api/autopilot/unmapped-list-preview?airline=$airline&listName=&limit=3" \
+              | node -e '
+                  let raw = "";
+                  process.stdin.on("data", d => raw += d);
+                  process.stdin.on("end", () => {
+                    const data = JSON.parse(raw);
+                    for (const it of data.items || []) {
+                      console.log(`\n--- job ${it.jobId} | vol ${it.flightNumber} ${it.flightDate} | ${it.passengerCount} pax | maj ${it.updatedAt} ---`);
+                      console.log(it.textPreview || "(aucun aperçu stocké)");
+                    }
+                    if (!data.items || !data.items.length) console.log("(aucun échantillon trouvé)");
+                  });
+                '
+          done
