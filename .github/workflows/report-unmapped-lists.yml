@@ -1,16 +1,9 @@
-name: Remise à zéro complète + resynchronisation Gmail
+name: Diagnostic — état actuel après échec du full-reset (HTTP 500)
 
-# Exécution demandée explicitement par l'utilisateur (session du 16/09) :
-# 1) vide entièrement la base (fiches vol + pipeline Gmail + libellés Gmail)
-# 2) resynchronise tout l'historique Gmail (boîte entière, "in:anywhere")
-# 3) limite SQ aux 3 dates de vol les plus récentes (autres compagnies :
-#    historique complet)
-# 4) vide la file de classification (LOT2) puis d'injection (LOT3)
-#
-# Reprenable : en mode "resume" (workflow_dispatch), saute l'étape de reset
-# et repart du pageToken Gmail déjà enregistré côté serveur
-# (gmail_sync_state.backfill_page_token), pour survivre à un timeout CI sans
-# jamais relancer un wipe.
+# Lecture seule. Le run précédent (remise à zéro complète) a échoué avec une
+# erreur 500 côté Worker pendant l'appel à /api/autopilot/full-reset, après
+# ~92s. Avant de retenter quoi que ce soit, on vérifie l'état réel de la base
+# (le wipe a-t-il eu lieu partiellement, totalement, ou pas du tout ?).
 
 on:
   push:
@@ -19,129 +12,27 @@ on:
     paths:
       - ".github/workflows/report-unmapped-lists.yml"
   workflow_dispatch:
-    inputs:
-      mode:
-        description: "full = reset complet puis resync ; resume = continue une resync interrompue sans re-wiper"
-        required: false
-        default: "full"
-        type: choice
-        options:
-          - full
-          - resume
 
 permissions:
   contents: read
 
 jobs:
-  reset_and_resync:
+  diagnostic:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 5
     env:
       BASE: https://alyzia-ops.alyzia-cdg2.workers.dev
-      MODE: ${{ github.event.inputs.mode || 'full' }}
     steps:
-      - name: État AVANT (référence)
+      - name: État actuel (lecture seule uniquement)
         run: |
-          echo "== /api/prepa/summary AVANT =="
-          curl -sS -f "$BASE/api/prepa/summary" | node -e 'let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>{const j=JSON.parse(d);console.log(JSON.stringify({documents:j.documents,flightCount:j.flightCount,unidentified:j.unidentified,counters:j.counters},null,2))})' || true
-          echo "== /api/flights AVANT (nombre) =="
-          curl -sS -f "$BASE/api/flights" | node -e 'let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>{const j=JSON.parse(d);console.log((j.flights||j||[]).length)})' || true
-
-      - name: Remise à zéro complète (mode=full uniquement)
-        if: ${{ github.event.inputs.mode != 'resume' }}
-        run: |
-          echo "== POST /api/autopilot/full-reset =="
-          curl -sS -f -X POST "$BASE/api/autopilot/full-reset" \
-            -H "Content-Type: application/json" \
-            -d '{"confirm":"YES_WIPE_EVERYTHING"}'
+          echo "== /api/prepa/summary =="
+          curl -sS "$BASE/api/prepa/summary" || true
           echo
-          echo "== Vérification post-reset (/api/prepa/summary doit être vide) =="
-          curl -sS -f "$BASE/api/prepa/summary"
+          echo "== /api/flights (nombre) =="
+          curl -sS "$BASE/api/flights" | node -e 'let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>{try{const j=JSON.parse(d);console.log((j.flights||j||[]).length)}catch(e){console.log("PARSE ERROR:",d.slice(0,500))}})' || true
+          echo "== /api/gmail/status =="
+          curl -sS "$BASE/api/gmail/status" || true
           echo
-
-      - name: Resynchronisation Gmail paginée (boîte entière) + limitation SQ
-        run: |
-          set -u
-          TOKEN=""
-          if [ "$MODE" = "resume" ]; then
-            echo "== Mode resume : lecture du pageToken enregistré =="
-            STATUS=$(curl -sS -f "$BASE/api/gmail/status")
-            echo "$STATUS"
-            TOKEN=$(echo "$STATUS" | node -e 'let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>{try{const j=JSON.parse(d);process.stdout.write(String(j?.syncState?.backfill_page_token||""))}catch(e){}})')
-            echo "Reprise avec pageToken=[$TOKEN]"
-          fi
-
-          ITER=0
-          MAX_ITER=60
-          while [ "$ITER" -lt "$MAX_ITER" ]; do
-            ITER=$((ITER+1))
-            echo "---- sync-now itération $ITER (pageToken=[${TOKEN:0:12}...]) ----"
-            BODY=$(node -e "console.log(JSON.stringify({query:'in:anywhere',maxMessages:120,pageToken:process.argv[1]||''}))" "$TOKEN")
-            RESP=$(curl -sS -f -X POST "$BASE/api/gmail/sync-now" -H "Content-Type: application/json" -d "$BODY") || { echo "ÉCHEC sync-now, on retente dans 5s"; sleep 5; continue; }
-            echo "$RESP" | node -e 'let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>{const j=JSON.parse(d);console.log(JSON.stringify({processed:j?.sync?.processed,attempted:j?.sync?.attempted,skippedKnown:j?.sync?.skippedKnown,failed:j?.sync?.failed,jobsProcessed:j?.jobsProcessed,nextPageToken:!!j?.sync?.nextPageToken}))})'
-            NEXT=$(echo "$RESP" | node -e 'let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>{try{const j=JSON.parse(d);process.stdout.write(String(j?.sync?.nextPageToken||""))}catch(e){}})')
-
-            # Repousse en DEFERRED tout job QUEUED de SQ hors des 3 dates les plus
-            # récentes, après CHAQUE page (avant que la prochaine page ne les
-            # laisse traiter par erreur).
-            curl -sS -f -X POST "$BASE/api/autopilot/limit-airline-dates" \
-              -H "Content-Type: application/json" \
-              -d '{"airline":"SQ","keepDates":3}' | node -e 'let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>{try{const j=JSON.parse(d);console.log("SQ limit-airline-dates:",JSON.stringify({keptDates:j.keptDates,deferred:j.deferred}))}catch(e){}})'
-
-            if [ -z "$NEXT" ]; then
-              echo "== Fin de la boîte Gmail atteinte (plus de nextPageToken) =="
-              break
-            fi
-            TOKEN="$NEXT"
-          done
-          echo "Itérations de resync effectuées : $ITER"
-
-      - name: Vidage de la file de classification LOT2 (process-next en boucle)
-        run: |
-          set -u
-          ITER=0
-          MAX_ITER=200
-          while [ "$ITER" -lt "$MAX_ITER" ]; do
-            ITER=$((ITER+1))
-            RESP=$(curl -sS -f -X POST "$BASE/api/import-pipeline/process-next" -H "Content-Type: application/json" -d '{"limit":50}') || { echo "ÉCHEC process-next, retente"; sleep 3; continue; }
-            FOUND=$(echo "$RESP" | node -e 'let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>{try{const j=JSON.parse(d);process.stdout.write(String(j?.found||0))}catch(e){process.stdout.write("0")}})')
-            echo "process-next itération $ITER : found=$FOUND"
-            if [ "$FOUND" = "0" ]; then echo "== File LOT2 vidée =="; break; fi
-          done
-
-      - name: Injection LOT3 en boucle (/api/autopilot/run — deux passes internes OPERATIONAL_INFO puis cartes)
-        run: |
-          # IMPORTANT : /api/import-pipeline/inject-next crée une fiche vol pour
-          # N'IMPORTE QUEL type de carte si createMissingFlights=true, y compris
-          # une simple liste WCH/MEAL — ce qui produirait des fiches incomplètes
-          # (pas de STD/STA/type A/C) puisque la base vient d'être vidée. Seul
-          # lot5InjectAvailable() (utilisé par /api/autopilot/run) applique la
-          # bonne règle : une fiche n'est créée qu'à partir d'une carte
-          # OPERATIONAL_INFO, les autres cartes ne font que s'y ajouter.
-          set -u
-          ITER=0
-          MAX_ITER=15
-          while [ "$ITER" -lt "$MAX_ITER" ]; do
-            ITER=$((ITER+1))
-            RESP=$(curl -sS -f -X POST "$BASE/api/autopilot/run" -H "Content-Type: application/json" -d '{"maxMessages":1}') || { echo "ÉCHEC autopilot/run, retente dans 5s"; sleep 5; continue; }
-            echo "$RESP" | node -e 'let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>{try{const j=JSON.parse(d);console.log(JSON.stringify({alreadyRunning:!!j.alreadyRunning,jobsProcessed:j.jobsProcessed,resultsInjected:j.resultsInjected}))}catch(e){console.log("parse_error")}})'
-            STABLE=$(echo "$RESP" | node -e 'let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>{try{const j=JSON.parse(d);process.stdout.write((!j.alreadyRunning&&Number(j.jobsProcessed||0)===0&&Number(j.resultsInjected||0)===0)?"1":"0")}catch(e){process.stdout.write("0")}})')
-            if [ "$STABLE" = "1" ]; then echo "== Plus rien à classer/injecter =="; break; fi
-            [ "$ITER" -eq "$MAX_ITER" ] || sleep 2
-          done
-
-      - name: Sécurité finale — replafonne SQ à 3 dates
-        run: |
-          curl -sS -f -X POST "$BASE/api/autopilot/limit-airline-dates" \
-            -H "Content-Type: application/json" \
-            -d '{"airline":"SQ","keepDates":3}'
+          echo "== /api/autopilot/status =="
+          curl -sS "$BASE/api/autopilot/status" || true
           echo
-
-      - name: État APRÈS (bilan final)
-        run: |
-          echo "== /api/prepa/summary APRÈS =="
-          curl -sS -f "$BASE/api/prepa/summary" | node -e 'let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>{const j=JSON.parse(d);console.log(JSON.stringify({documents:j.documents,flightCount:j.flightCount,unidentified:j.unidentified,counters:j.counters,companies:j.companies},null,2))})'
-          echo "== /api/flights APRÈS (nombre) =="
-          curl -sS -f "$BASE/api/flights" | node -e 'let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>{const j=JSON.parse(d);console.log((j.flights||j||[]).length)})'
-          echo "== /api/gmail/status APRÈS =="
-          curl -sS -f "$BASE/api/gmail/status"
