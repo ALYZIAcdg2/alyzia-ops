@@ -2398,7 +2398,16 @@ async function cleanStoreDocumentV3(env,{
   return {added:1,updated:0,duplicate:0,fileId,versionId,sha,created:true};
 }
 
-async function cleanExpandSqEmlV3(env,{messageId,outerVersionId,outerAttachmentId,outerFilename,bytes,subject,receivedAt,flightBase}){
+// Déplie récursivement un .eml imbriqué (mail transféré contenant un autre
+// mail complet en pièce jointe message/rfc822) pour extraire ce qu'il
+// contient réellement — corps texte opérationnel et pièces jointes (PDF,
+// .eml imbriqué à un niveau de plus...). Généralisé à TOUTES les
+// compagnies (pas seulement SQ, seule bénéficiaire jusqu'ici) : si le mail
+// extérieur ne dit que "Please find report attached" et que le vrai
+// rapport est dans un message transféré, ce rapport doit être traité
+// exactement comme s'il avait été joint directement — qu'il y ait eu un
+// transfert ou non ne change rien au fond du traitement.
+async function cleanExpandNestedEmlV3(env,{messageId,outerVersionId,outerAttachmentId,outerFilename,bytes,subject,receivedAt,flightBase}){
   const raw=new TextDecoder().decode(bytes);
   const parsed=cleanParseEmlRecursiveV3(raw);
   let added=0,duplicate=0,virtualText=0,nested=0;
@@ -2413,13 +2422,13 @@ async function cleanExpandSqEmlV3(env,{messageId,outerVersionId,outerAttachmentI
       flightNumber:found.flightNumber||flightBase.flightNumber,
       flightDate:found.flightDate||flightBase.flightDate
     };
-    if(flight.airline!=='SQ')continue;
     const kind=plainTextOperationalKindV53(subject,t);
     if(!kind && !/\bJFE\s+SCREEN\s+COPY\b/i.test(t))continue;
     const filename=/\bJFE\s+SCREEN\s+COPY\b/i.test(t)?`jfe_screen_copy_eml_${String(++idx).padStart(2,'0')}.txt`:`sq_eml_body_${String(++idx).padStart(2,'0')}.txt`;
+    const docType=/JFE\s+SCREEN\s+COPY/i.test(t)?'OPERATIONAL_INFO':(flight.airline==='SQ'?'SQ_TEXT':'OPERATIONAL_INFO');
     const r=await cleanStoreDocumentV3(env,{
       messageId,attachmentId:`${outerAttachmentId}:BODY:${idx}`,filename,mime:'text/plain; charset=UTF-8',
-      bytes:new TextEncoder().encode(t),receivedAt,flight,docType:/JFE\s+SCREEN\s+COPY/i.test(t)?'OPERATIONAL_INFO':'SQ_TEXT',
+      bytes:new TextEncoder().encode(t),receivedAt,flight,docType,
       sourceKind:'EML_BODY',sourceRef:cleanNormalizeLinkSourceRefV35(`${outerAttachmentId}:BODY:${idx}`),parentVersionId:outerVersionId
     });
     added+=r.added||0;duplicate+=r.duplicate||0;virtualText++;nested++;
@@ -2446,7 +2455,6 @@ async function cleanExpandSqEmlV3(env,{messageId,outerVersionId,outerAttachmentI
       flightNumber:found.flightNumber||flightBase.flightNumber,
       flightDate:found.flightDate||flightBase.flightDate
     };
-    if(flight.airline!=='SQ')continue;
     const docType=guessDocumentType(filename,mime,probe.slice(0,5000));
     const r=await cleanStoreDocumentV3(env,{
       messageId,attachmentId:`${outerAttachmentId}:ATT:${ai}`,filename,mime,bytes:childBytes,receivedAt,flight,docType,
@@ -2455,7 +2463,7 @@ async function cleanExpandSqEmlV3(env,{messageId,outerVersionId,outerAttachmentI
     added+=r.added||0;duplicate+=r.duplicate||0;nested++;
 
     if((/\.eml$/i.test(filename)||mime==='message/rfc822') && r.versionId){
-      const sub=await cleanExpandSqEmlV3(env,{
+      const sub=await cleanExpandNestedEmlV3(env,{
         messageId,outerVersionId:r.versionId,outerAttachmentId:`${outerAttachmentId}:ATT:${ai}`,
         outerFilename:filename,bytes:childBytes,subject,receivedAt,flightBase:flight
       }).catch(()=>({added:0,duplicate:0,virtualText:0,nested:0}));
@@ -2844,9 +2852,12 @@ async function storeGmailMessage(env,messageId){
       });
       added+=stored.added||0;updated+=stored.updated||0;duplicate+=stored.duplicate||0;
 
-      // R3 SQ CLEAN: .eml is both an archived source and a container.
-      if(flight.airline==='SQ' && (/\.eml$/i.test(filename)||String(mime).toLowerCase()==='message/rfc822')){
-        const expanded=await cleanExpandSqEmlV3(env,{
+      // R3 CLEAN : un .eml est à la fois une source archivée et un
+      // conteneur — vrai pour SQ comme pour n'importe quelle autre
+      // compagnie transférant un mail complet (le vrai rapport se trouve
+      // alors dans le message imbriqué, pas dans le mail extérieur).
+      if(/\.eml$/i.test(filename)||String(mime).toLowerCase()==='message/rfc822'){
+        const expanded=await cleanExpandNestedEmlV3(env,{
           messageId,outerVersionId:stored.versionId,outerAttachmentId:stableSourceRef,
           outerFilename:filename,bytes,subject,receivedAt,flightBase:flight
         });
