@@ -1,4 +1,4 @@
-name: Relevé Gmail lecture seule — SK FQTV
+name: Relevé Gmail lecture seule — vérification correctif DU
 
 on:
   workflow_dispatch:
@@ -13,7 +13,7 @@ jobs:
     env:
       BASE: https://alyzia-ops.alyzia-cdg2.workers.dev
     steps:
-      - name: Relevé SK (40 messages)
+      - name: Relevé "prepa du" (query ciblée)
         run: |
-          curl -sS -f "$BASE/api/autopilot/dry-list-survey?query=in%3Aanywhere%20SK&maxMessages=40&airline=SK"
+          curl -sS -f "$BASE/api/autopilot/dry-list-survey?query=in%3Aanywhere%20subject%3A%22prepa%20du%22&maxMessages=20"
           echo
