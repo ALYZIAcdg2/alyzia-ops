@@ -12,6 +12,10 @@
     "crons": ["*/5 * * * *"]
   },
 
+  "vars": {
+    "ALYZIA_AUTOPILOT_ENABLED": "false"
+  },
+
   "services": [
     {
       "binding": "SARIA",
