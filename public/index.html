@@ -7665,10 +7665,11 @@ function airportTzOffsetHours(iata,date=new Date()){
 // réel (heure d'été/hiver incluse) au lieu d'un nombre figé en dur.
 const TZ=new Proxy({},{get:(_,iata)=>airportTzOffsetHours(String(iata))});
 let selected=0, editKey='', editClass='', currentList=[], currentView='home';
-// Squelette des filtres terminal (T1/T2/T3/ALL) dans la fiche de vol : affichage
-// uniquement pour l'instant, les vols par terminal ne sont pas encore fournis.
+// Squelette des filtres terminal (T1/T2/T3/ALL) dans la liste des vols :
+// filtre déjà branché sur x.terminal, mais aucun vol n'a encore cette donnée
+// (à fournir par l'utilisateur).
 let TERMINAL_FILTER='ALL';
-function setTerminalFilter(t){TERMINAL_FILTER=['T1','T2','T3','ALL'].includes(t)?t:'ALL';render()}
+function setTerminalFilter(t){TERMINAL_FILTER=['T1','T2','T3','ALL'].includes(t)?t:'ALL';renderHome()}
 let modalStack=[];
 let HOME_DATE=localStorage.getItem('alyzia_ops_home_date')||localISO(new Date());
 let PREPA_DATE=localStorage.getItem('alyzia_ops_prepa_date')||localISO(new Date());
@@ -8296,6 +8297,7 @@ function renderHome(){
  updateMobileNav();
  const rows=FLIGHTS.map((x,i)=>({...x,_index:i}))
    .filter(x=>!x.date||x.date===HOME_DATE)
+   .filter(x=>TERMINAL_FILTER==='ALL'||String(x.terminal||'').toUpperCase()===TERMINAL_FILTER)
    .sort((a,b)=>(Number(isFavoriteFlight(b))-Number(isFavoriteFlight(a)))||sortByDeparture(a,b));
  const dateLabel=formatDateLong(HOME_DATE);
  document.getElementById('app').innerHTML=`
@@ -8308,6 +8310,12 @@ function renderHome(){
        <button class="day-nav-btn" onclick="changeSelectedDate(1)">J+1</button>
        <span id="homeVisibleFlightCount" class="flight-count-badge">${rows.length} VOL${rows.length>1?'S':''}</span><button class="home-print-btn" onclick="printFlightList()">🖨 IMPRIMER</button>
      </div>
+   </div>
+   <div class="terminal-filter-bar" title="Filtre par terminal (à venir : répartition des vols par terminal)">
+     <button type="button" class="terminal-filter-btn t1 ${TERMINAL_FILTER==='T1'?'active':''}" onclick="setTerminalFilter('T1')">T1</button>
+     <button type="button" class="terminal-filter-btn t2 ${TERMINAL_FILTER==='T2'?'active':''}" onclick="setTerminalFilter('T2')">T2</button>
+     <button type="button" class="terminal-filter-btn t3 ${TERMINAL_FILTER==='T3'?'active':''}" onclick="setTerminalFilter('T3')">T3</button>
+     <button type="button" class="terminal-filter-btn tall ${TERMINAL_FILTER==='ALL'?'active':''}" onclick="setTerminalFilter('ALL')">ALL</button>
    </div>
    <div class="home-flight-search"><span>⌕</span><input autocomplete="off" placeholder="RECHERCHER : SQ · SQ335 · 335..." value="${HOME_FLIGHT_QUERY}" oninput="filterFlightHomeRows(this.value)"></div>
    <div class="home-head"><span>DÉPART</span><span>VOL</span><span>ROUTE</span><span>APPAREIL</span><span>GATE</span><span>CONFIG / BOOKING</span><span>AVAILABLE</span><span></span></div>
@@ -15270,12 +15278,6 @@ function render(){
     ${adbLiveStrip(x)}
     ${enrichmentHeaderButton(x)}
     <div class="detail-prepa-actions"><button class="detail-prepa-btn ${getPrepaInfo(x,currentFlightDate())?.state?.ok?'done':'nok'}" onclick="openDetailPrepa()"><span class="sheet">▤</span><span>PREPA</span></button><button class="print-icon-btn" title="Imprimer la prépa" onclick="printCurrentFlightPrepa()">🖨</button><button class="clear-flight-btn" title="Vider la fiche du vol" onclick="openClearCurrentFlight()">⌫</button><button class="v5011-flight-info-action" title="Informations du vol" onclick="openFlightInfo()">ⓘ INFOS VOL ${passengerNotesForCurrentFlight().length?`<span class="note-bell active">🔔</span>`:""}</button></div>
-    <div class="terminal-filter-bar" title="Filtre par terminal (à venir : répartition des vols par terminal)">
-      <button type="button" class="terminal-filter-btn t1 ${TERMINAL_FILTER==='T1'?'active':''}" onclick="setTerminalFilter('T1')">T1</button>
-      <button type="button" class="terminal-filter-btn t2 ${TERMINAL_FILTER==='T2'?'active':''}" onclick="setTerminalFilter('T2')">T2</button>
-      <button type="button" class="terminal-filter-btn t3 ${TERMINAL_FILTER==='T3'?'active':''}" onclick="setTerminalFilter('T3')">T3</button>
-      <button type="button" class="terminal-filter-btn tall ${TERMINAL_FILTER==='ALL'?'active':''}" onclick="setTerminalFilter('ALL')">ALL</button>
-    </div>
    </div>
    <div class="headcell">
     <div class="head-label">STD <button class="edit-link" onclick="openEdit('time')">✎</button></div>
