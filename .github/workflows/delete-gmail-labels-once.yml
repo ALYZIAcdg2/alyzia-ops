@@ -1,4 +1,4 @@
-name: Relevé Gmail lecture seule — toutes compagnies
+name: Relevé Gmail lecture seule — SK avec aperçu texte
 
 on:
   workflow_dispatch:
@@ -9,23 +9,11 @@ permissions:
 jobs:
   survey:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 8
     env:
       BASE: https://alyzia-ops.alyzia-cdg2.workers.dev
     steps:
-      - name: Relevé toutes compagnies (80 messages)
+      - name: Relevé SK (40 messages)
         run: |
-          curl -sS -f "$BASE/api/autopilot/dry-list-survey?query=in%3Aanywhere&maxMessages=80" -o /tmp/survey.json
-          echo "== Résumé compact par compagnie =="
-          node -e '
-            const j = require("/tmp/survey.json");
-            console.log(`messagesFound=${j.messagesFound} messagesChecked=${j.messagesChecked} documentsSeen=${j.documentsSeen}`);
-            for (const c of j.companies) {
-              console.log(`\n### ${c.airline}`);
-              for (const l of c.lists) {
-                console.log(`  ${l.listName} -> ${l.cardKey} (${l.mappingScope}) x${l.occurrences} [pax:${l.samplePassengerCount}]`);
-              }
-            }
-          '
-          echo "== JSON brut =="
-          cat /tmp/survey.json
+          curl -sS -f "$BASE/api/autopilot/dry-list-survey?query=in%3Aanywhere%20SK&maxMessages=40&airline=SK"
+          echo
