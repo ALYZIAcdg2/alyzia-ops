@@ -1,4 +1,4 @@
-name: Relevé Gmail lecture seule — vérification compagnie AI
+name: Relevé Gmail lecture seule — WB701 et SB501 multi-tronçons
 
 on:
   workflow_dispatch:
@@ -13,29 +13,39 @@ jobs:
     env:
       BASE: https://alyzia-ops.alyzia-cdg2.workers.dev
     steps:
-      - name: Relevé AI (100 messages, filtré compagnie)
+      - name: Relevé WB (100 messages, filtré compagnie)
         run: |
-          curl -sS -f "$BASE/api/autopilot/dry-list-survey?query=in%3Aanywhere&maxMessages=100&airline=AI" -o /tmp/survey.json
-          echo "== Toutes les listes AI =="
+          curl -sS -f "$BASE/api/autopilot/dry-list-survey?query=in%3Aanywhere&maxMessages=100&airline=WB" -o /tmp/survey_wb.json
+          echo "== WB : toutes les listes =="
           node -e '
-            const j=JSON.parse(require("fs").readFileSync("/tmp/survey.json","utf8"));
+            const j=JSON.parse(require("fs").readFileSync("/tmp/survey_wb.json","utf8"));
             console.log(JSON.stringify({messagesFound:j.messagesFound,messagesChecked:j.messagesChecked,documentsSeen:j.documentsSeen,errors:(j.errors||[]).length}));
-            const ai=(j.companies||[]).find(c=>c.airline==="AI");
-            const lists=ai?ai.lists:[];
+            const wb=(j.companies||[]).find(c=>c.airline==="WB");
+            const lists=wb?wb.lists:[];
             for(const l of lists){
-              console.log(JSON.stringify({listName:l.listName,cardKey:l.cardKey,mappingScope:l.mappingScope,occurrences:l.occurrences,samplePassengerCount:l.samplePassengerCount}));
+              console.log(JSON.stringify({listName:l.listName,cardKey:l.cardKey,occurrences:l.occurrences,samplePassengerCount:l.samplePassengerCount}));
             }
-            console.log("== Listes OTHER / NO_LIST (à examiner en priorité) ==");
+            console.log("== WB : aperçu texte X-TRT (MASTER, cherche passager through BRU-CDG-KGL) ==");
+            const masterList=lists.find(l=>l.cardKey==="MASTER" && l.textPreview);
+            if(masterList) console.log(masterList.textPreview);
+            else console.log("(aucun textPreview MASTER WB disponible dans ce lot)");
+          '
+          echo
+      - name: Relevé SB (100 messages, filtré compagnie)
+        run: |
+          curl -sS -f "$BASE/api/autopilot/dry-list-survey?query=in%3Aanywhere&maxMessages=100&airline=SB" -o /tmp/survey_sb.json
+          echo "== SB : toutes les listes =="
+          node -e '
+            const j=JSON.parse(require("fs").readFileSync("/tmp/survey_sb.json","utf8"));
+            console.log(JSON.stringify({messagesFound:j.messagesFound,messagesChecked:j.messagesChecked,documentsSeen:j.documentsSeen,errors:(j.errors||[]).length}));
+            const sb=(j.companies||[]).find(c=>c.airline==="SB");
+            const lists=sb?sb.lists:[];
             for(const l of lists){
-              if(l.cardKey==="OTHER"||l.cardKey==="NO_LIST"){
-                console.log(JSON.stringify({listName:l.listName,occurrences:l.occurrences,samplePassengerCount:l.samplePassengerCount,textPreview:(l.textPreview||"").slice(0,400)}));
-              }
+              console.log(JSON.stringify({listName:l.listName,cardKey:l.cardKey,occurrences:l.occurrences,samplePassengerCount:l.samplePassengerCount}));
             }
-            console.log("== Aperçu FQTV (vérifie palier + programme) ==");
-            const fqtvSample=lists.find(l=>l.cardKey==="FQTV" && l.textPreview);
-            if(fqtvSample) console.log(fqtvSample.textPreview.slice(0,1200));
-            else console.log("(aucun textPreview FQTV disponible dans ce lot)");
-            console.log("== Erreurs de lecture (toutes compagnies confondues) ==");
-            for(const e of (j.errors||[])) console.log(JSON.stringify(e));
+            console.log("== SB : aperçu texte ALL CUSTOMERS (MASTER, cherche continuation CDG-BKK-NOU) ==");
+            const masterList=lists.find(l=>l.cardKey==="MASTER" && l.textPreview);
+            if(masterList) console.log(masterList.textPreview);
+            else console.log("(aucun textPreview MASTER SB disponible dans ce lot)");
           '
           echo
