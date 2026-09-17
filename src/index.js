@@ -5172,13 +5172,22 @@ function lot2ExtractPassengerItemsFromGenericList(text,listName,cardKey,airline=
       item.note=details;
     }else if(cKey==="FQTV"){
       const tokens=details.split(/\s+/).filter(Boolean);
-      // Le numéro de billet/référence (ex. AF5378418086, KL5377187980) et le
-      // numéro de siège (ex. "045H") ne doivent jamais être pris pour un
-      // palier fidélité. Un palier peut tenir sur plusieurs mots (ex.
-      // "ELITE SILVER", "ELITE GOLD") : on garde tous les mots restants
-      // plutôt que le seul premier, sous peine de tronquer le palier.
-      const tierTokens=tokens.filter(t=>!/^(ACCRUAL|[A-Z]{2}\d{6,}|0*\d{1,3}[A-Z])$/i.test(t));
-      const tier=tierTokens.join(" ")||"FQA";
+      // Le palier fidélité (ex. "ELITE SILVER", "ELITE GOLD" chez SQ) suit
+      // le numéro de siège (ex. "042G") et précède les lignes techniques
+      // (numéros de billet, "ACCRUAL,", "SERVICE", "REDEMPTION"). On saute
+      // le siège et les billets, puis on accumule les mots purement
+      // alphabétiques du palier et on s'arrête au premier jeton technique
+      // (numéro, virgule...) plutôt que de tout garder après le siège, sous
+      // peine d'avaler ces lignes techniques dans le palier.
+      const seatTok=/^0*\d{1,3}[A-Z]$/i;
+      const ticketTok=/^[A-Z]{2}\d{6,}$/i;
+      let tier="";
+      for(const t of tokens){
+        if(seatTok.test(t)||ticketTok.test(t))continue;
+        if(!/^[A-Z]+$/i.test(t))break;
+        tier+=(tier?" ":"")+t;
+      }
+      tier=tier||"FQA";
       const next1=String(lines[i+1]||"").trim();
       const next2=String(lines[i+2]||"").trim();
       const ffid=(next1.match(/\b[A-Z]{2}\d{6,}\b/i)||[])[0]||"";
