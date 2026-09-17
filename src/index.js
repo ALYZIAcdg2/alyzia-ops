@@ -6071,7 +6071,20 @@ function lot3CleanConnectionRows(rows,dir,base){
     r.to=String(r.to||"").trim().toUpperCase();
     r.time=String(r.time||"").trim();
     r.passengers=lot3DedupePassengerArray(r.passengers||[]);
-    const key=r.flight;
+    /*
+     * Une ligne INBOUND/OUTBOUND non-résumé représente UN passager (voir
+     * "V50.28 STRICT CONNECTION MODEL ... une ligne par passager, comme
+     * SQ" dans lot3MergeFlightData). Dédoublonner sur le seul numéro de
+     * vol fusionnait silencieusement tous les passagers d'une même
+     * correspondance en une seule ligne — confirmé sur un vrai vol TW où
+     * 19 passagers sur 4 vols de correspondance ne donnaient que 4
+     * lignes (7 passagers de TW207 réduits à 1 seul affiché). La clé
+     * inclut donc l'identité du passager (billet/PNR/nom + siège) en plus
+     * du vol ; une ligne sans passager identifiable retombe sur le seul
+     * numéro de vol, comme avant.
+     */
+    const paxKey=lot3PaxEtktKeys(r)[0]||lot3PaxPnrKey(r)||lot3PaxNameKey(r);
+    const key=paxKey?`${r.flight}|${paxKey}|${lot3PaxSeatKey(r)}`:r.flight;
     if(!byFlight.has(key)){
       byFlight.set(key,out.length);
       out.push(r);
