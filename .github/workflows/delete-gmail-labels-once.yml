@@ -1,4 +1,4 @@
-name: Relevé Gmail lecture seule — WB701 et SB501 multi-tronçons
+name: Relevé Gmail lecture seule — WB701 et SB501 ALL PAX (renvoyés)
 
 on:
   workflow_dispatch:
@@ -13,9 +13,9 @@ jobs:
     env:
       BASE: https://alyzia-ops.alyzia-cdg2.workers.dev
     steps:
-      - name: Relevé WB (100 messages, filtré compagnie)
+      - name: Relevé WB (10 messages les plus récents, filtré compagnie)
         run: |
-          curl -sS -f "$BASE/api/autopilot/dry-list-survey?query=in%3Aanywhere&maxMessages=100&airline=WB" -o /tmp/survey_wb.json
+          curl -sS -f "$BASE/api/autopilot/dry-list-survey?query=in%3Aanywhere&maxMessages=10&airline=WB" -o /tmp/survey_wb.json
           echo "== WB : toutes les listes =="
           node -e '
             const j=JSON.parse(require("fs").readFileSync("/tmp/survey_wb.json","utf8"));
@@ -25,17 +25,18 @@ jobs:
             for(const l of lists){
               console.log(JSON.stringify({listName:l.listName,cardKey:l.cardKey,occurrences:l.occurrences,samplePassengerCount:l.samplePassengerCount}));
             }
-            console.log("== WB : aperçu texte X-TRT (MASTER, cherche passager through BRU-CDG-KGL) ==");
-            const masterList=lists.find(l=>l.cardKey==="MASTER" && l.textPreview);
-            if(masterList) console.log(masterList.textPreview);
-            else console.log("(aucun textPreview MASTER WB disponible dans ce lot)");
-            console.log("== WB : erreurs ==");
-            for(const e of (j.errors||[])) console.log(JSON.stringify(e));
+            console.log("== WB : aperçu texte complet (toutes cartes) ==");
+            for(const l of lists){
+              if(l.textPreview){
+                console.log("--- "+l.listName+" ("+l.cardKey+") ---");
+                console.log(l.textPreview);
+              }
+            }
           '
           echo
-      - name: Relevé SB (100 messages, filtré compagnie)
+      - name: Relevé SB (10 messages les plus récents, filtré compagnie)
         run: |
-          curl -sS -f "$BASE/api/autopilot/dry-list-survey?query=in%3Aanywhere&maxMessages=100&airline=SB" -o /tmp/survey_sb.json
+          curl -sS -f "$BASE/api/autopilot/dry-list-survey?query=in%3Aanywhere&maxMessages=10&airline=SB" -o /tmp/survey_sb.json
           echo "== SB : toutes les listes =="
           node -e '
             const j=JSON.parse(require("fs").readFileSync("/tmp/survey_sb.json","utf8"));
@@ -45,11 +46,12 @@ jobs:
             for(const l of lists){
               console.log(JSON.stringify({listName:l.listName,cardKey:l.cardKey,occurrences:l.occurrences,samplePassengerCount:l.samplePassengerCount}));
             }
-            console.log("== SB : aperçu texte ALL CUSTOMERS (MASTER, cherche continuation CDG-BKK-NOU) ==");
-            const masterList=lists.find(l=>l.cardKey==="MASTER" && l.textPreview);
-            if(masterList) console.log(masterList.textPreview);
-            else console.log("(aucun textPreview MASTER SB disponible dans ce lot)");
-            console.log("== SB : erreurs (jusqu à 15) ==");
-            for(const e of (j.errors||[]).slice(0,15)) console.log(JSON.stringify(e));
+            console.log("== SB : aperçu texte complet (toutes cartes) ==");
+            for(const l of lists){
+              if(l.textPreview){
+                console.log("--- "+l.listName+" ("+l.cardKey+") ---");
+                console.log(l.textPreview);
+              }
+            }
           '
           echo
