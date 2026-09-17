@@ -5317,9 +5317,15 @@ function lot2ExtractPassengerItemsFromGenericList(text,listName,cardKey,airline=
       // peine d'avaler ces lignes techniques dans le palier.
       const seatTok=/^0*\d{1,3}[A-Z]$/i;
       const ticketTok=/^[A-Z]{2}\d{6,}$/i;
+      // "ACCRUAL"/"SERVICE"/"REDEMPTION" sont des mots purement alphabétiques
+      // (donc jamais arrêtés par le test "non-alphabétique" ci-dessous) mais
+      // ce sont des lignes techniques, jamais le palier lui-même — vu sur AI
+      // ("A ACCRUAL" au lieu de "A") sans la virgule qui les distinguait chez TW.
+      const stopWord=/^(ACCRUAL|SERVICE|REDEMPTION)$/i;
       let tier="";
       for(const t of tokens){
         if(seatTok.test(t)||ticketTok.test(t))continue;
+        if(stopWord.test(t))break;
         if(!/^[A-Z]+$/i.test(t))break;
         tier+=(tier?" ":"")+t;
       }
