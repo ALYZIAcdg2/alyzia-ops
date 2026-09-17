@@ -1628,6 +1628,21 @@ function guessDocumentType(filename,mime,textProbe){
   return String(mime||"").split("/").pop()?.toUpperCase() || "OTHER";
 }
 
+// Compagnies réellement exploitées par ALYZIA (mêmes 39 codes que la
+// répartition terminal T1/T2/T3 fournie par l'utilisateur + IZ/TB/JU déjà
+// gérées par des pipelines dédiés). Bug corrigé (17/09) : sans cette liste,
+// extractFlightTokenV53 acceptait N'IMPORTE QUEL couple de 2 caractères
+// alphanumériques suivi de chiffres comme "code compagnie + numéro de vol"
+// — un sujet français banal ("PREPA DU 18/09") faisait ainsi identifier
+// une fausse compagnie "DU" (le mot "du" + le jour "18" de la date), qui
+// n'existe pas, au lieu de laisser l'identité réelle (ex. SQ) être résolue
+// par la sonde sur pièce jointe. Les vrais passagers du document se
+// retrouvaient alors attribués à une compagnie fantôme.
+const KNOWN_AIRLINE_CODES=new Set([
+  "EI","MS","SQ","HU","FB","KU","VF","S4","FI","OZ","TW","TK","J2","AV","WB","NH",
+  "AH","MH","AT","A9","LY","SB","AI","HM","SK","LO","JU","LA","RJ",
+  "BJ","LS","3O","IZ","TS","DE","SM","TB","ENT"
+]);
 function isValidAirlineCodeV53(code){
   const c=String(code||"").toUpperCase().trim();
   return /^[A-Z0-9]{2}$/.test(c) && /[A-Z]/.test(c);
@@ -1639,6 +1654,7 @@ function extractFlightTokenV53(text){
   while((m=re.exec(src))){
     const airline=String(m[1]||"").toUpperCase();
     if(!isValidAirlineCodeV53(airline))continue;
+    if(!KNOWN_AIRLINE_CODES.has(airline))continue;
     let num=String(m[2]||"").toUpperCase();
     if(!/\d/.test(num))continue;
     // Source iPort (IZ/TB) : le même vol peut être numéroté "742" ou "0742"
