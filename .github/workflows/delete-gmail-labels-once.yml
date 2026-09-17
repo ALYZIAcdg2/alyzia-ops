@@ -1,4 +1,4 @@
-name: Remise à zéro uniquement (sans lancer la synchro)
+name: Vérification Drive + Gmail (lecture, sans relancer le traitement)
 
 on:
   workflow_dispatch:
@@ -7,41 +7,23 @@ permissions:
   contents: read
 
 jobs:
-  reset_only:
+  check:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
       BASE: https://alyzia-ops.alyzia-cdg2.workers.dev
     steps:
-      - name: 1) Arrête un éventuel AUTO PILOT en cours
+      - name: Statut Google Drive
         run: |
-          curl -sS -X POST "$BASE/api/autopilot/stop" -H "Content-Type: application/json" || true
+          curl -sS -f "$BASE/api/prepa/google-drive/status"
           echo
 
-      - name: 2) Supprime les libellés Gmail ALYZIA
+      - name: Statut Gmail
         run: |
-          curl -sS -f -X POST "$BASE/api/autopilot/delete-labels" -H "Content-Type: application/json"
-          echo
-
-      - name: 3) Vide l'archive Google Drive
-        run: |
-          curl -sS -f -X POST "$BASE/api/autopilot/clear-drive" -H "Content-Type: application/json"
-          echo
-
-      - name: 4) Remise à zéro complète de la base (avec prepa_inbox)
-        run: |
-          curl -sS -f -X POST "$BASE/api/autopilot/full-reset" \
-            -H "Content-Type: application/json" \
-            -d '{"confirm":"YES_WIPE_EVERYTHING"}'
-          echo
-
-      - name: État final (doit être entièrement vide)
-        run: |
-          echo "== /api/flights (nombre) =="
-          curl -sS -f "$BASE/api/flights" | node -e 'let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>{const j=JSON.parse(d);console.log((j.flights||j||[]).length)})'
-          echo "== /api/prepa/summary =="
-          curl -sS -f "$BASE/api/prepa/summary"
-          echo
-          echo "== /api/gmail/status =="
           curl -sS -f "$BASE/api/gmail/status"
+          echo
+
+      - name: Statut AUTO PILOT (config + dernier run)
+        run: |
+          curl -sS -f "$BASE/api/autopilot/status"
           echo
