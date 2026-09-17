@@ -1,4 +1,4 @@
-name: Relevé Gmail lecture seule — KID mixte DE/TU/SB/RJ
+name: Relevé Gmail lecture seule — INF/KID (parent-infant) WB/RJ/IZ
 
 on:
   workflow_dispatch:
@@ -13,14 +13,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        code: [DE, TU, SB, RJ]
+        code: [WB, RJ, IZ]
     env:
       BASE: https://alyzia-ops.alyzia-cdg2.workers.dev
     steps:
       - name: Relevé ${{ matrix.code }}
         run: |
-          curl -sS -f --max-time 120 "$BASE/api/autopilot/dry-list-survey?query=in%3Aanywhere&maxMessages=20&airline=${{ matrix.code }}" -o /tmp/survey.json || true
-      - name: Affiche les listes KID/CHLD/INF pour ${{ matrix.code }}
+          curl -sS -f --max-time 120 "$BASE/api/autopilot/dry-list-survey?query=in%3Aanywhere&maxMessages=30&airline=${{ matrix.code }}" -o /tmp/survey.json || true
+      - name: Affiche les listes INF/KID/PIL pour ${{ matrix.code }}
         run: |
           code="${{ matrix.code }}"
           file=/tmp/survey.json
@@ -37,10 +37,10 @@ jobs:
             for(const l of lists){
               console.log(JSON.stringify({listName:l.listName,cardKey:l.cardKey,occurrences:l.occurrences,samplePassengerCount:l.samplePassengerCount}));
             }
-            console.log("---- aperçu texte (listes KID/CHLD/CHILD/INF/INFANT/INFKID) ----");
+            console.log("---- aperçu texte (listes INF/KID/PIL) ----");
             for(const l of lists){
               const ln=String(l.listName||"").toUpperCase();
-              if(/KID|CHLD|CHILD|INF/.test(ln) && l.textPreview){
+              if(/INF|KID|PIL/.test(ln) && l.textPreview){
                 console.log("--- "+l.listName+" ("+l.cardKey+") ---");
                 console.log(l.textPreview);
               }
