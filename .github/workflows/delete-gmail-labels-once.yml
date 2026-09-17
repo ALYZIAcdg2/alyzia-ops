@@ -1,4 +1,4 @@
-name: Relevé Gmail lecture seule — vérification de toutes les compagnies
+name: Relevé Gmail lecture seule — vérification compagnie AI
 
 on:
   workflow_dispatch:
@@ -13,32 +13,27 @@ jobs:
     env:
       BASE: https://alyzia-ops.alyzia-cdg2.workers.dev
     steps:
-      - name: Relevé complet (100 messages, toutes compagnies)
+      - name: Relevé AI (100 messages, filtré compagnie)
         run: |
-          curl -sS -f "$BASE/api/autopilot/dry-list-survey?query=in%3Aanywhere&maxMessages=100" -o /tmp/survey.json
-          echo "== Résumé global =="
+          curl -sS -f "$BASE/api/autopilot/dry-list-survey?query=in%3Aanywhere&maxMessages=100&airline=AI" -o /tmp/survey.json
+          echo "== Toutes les listes AI =="
           node -e '
             const j=JSON.parse(require("fs").readFileSync("/tmp/survey.json","utf8"));
             console.log(JSON.stringify({messagesFound:j.messagesFound,messagesChecked:j.messagesChecked,documentsSeen:j.documentsSeen,errors:(j.errors||[]).length}));
-            for(const c of (j.companies||[])){
-              console.log("");
-              console.log("###### "+c.airline+" ("+c.lists.length+" listes distinctes) ######");
-              for(const l of c.lists){
-                console.log(JSON.stringify({listName:l.listName,cardKey:l.cardKey,mappingScope:l.mappingScope,occurrences:l.occurrences,samplePassengerCount:l.samplePassengerCount}));
+            const ai=(j.companies||[]).find(c=>c.airline==="AI");
+            const lists=ai?ai.lists:[];
+            for(const l of lists){
+              console.log(JSON.stringify({listName:l.listName,cardKey:l.cardKey,mappingScope:l.mappingScope,occurrences:l.occurrences,samplePassengerCount:l.samplePassengerCount}));
+            }
+            console.log("== Listes OTHER / NO_LIST (à examiner en priorité) ==");
+            for(const l of lists){
+              if(l.cardKey==="OTHER"||l.cardKey==="NO_LIST"){
+                console.log(JSON.stringify({listName:l.listName,occurrences:l.occurrences,samplePassengerCount:l.samplePassengerCount,textPreview:(l.textPreview||"").slice(0,400)}));
               }
             }
-            console.log("");
-            console.log("== TOUTES les listes OTHER (à examiner en priorité) ==");
-            for(const c of (j.companies||[])){
-              for(const l of c.lists){
-                if(l.cardKey==="OTHER"){
-                  console.log(JSON.stringify({airline:c.airline,listName:l.listName,occurrences:l.occurrences,samplePassengerCount:l.samplePassengerCount,textPreview:(l.textPreview||"").slice(0,300)}));
-                }
-              }
-            }
-            if((j.errors||[]).length){
-              console.log("== Erreurs ==");
-              for(const e of j.errors.slice(0,20)) console.log(JSON.stringify(e));
-            }
+            console.log("== Aperçu FQTV (vérifie palier + programme) ==");
+            const fqtvSample=lists.find(l=>l.cardKey==="FQTV" && l.textPreview);
+            if(fqtvSample) console.log(fqtvSample.textPreview.slice(0,1200));
+            else console.log("(aucun textPreview FQTV disponible dans ce lot)");
           '
           echo
