@@ -4542,7 +4542,11 @@ const VF_LIST_LABELS = {
 
 const VF_LIST_CARD_KEYS = {
   RESERVATION:"MASTER",
-  CHECKIN:"BOARDED",
+  // Correction (17/09, spec utilisateur explicite) : "Check-In List Boarded"
+  // -> WEB (canal d'enregistrement web), jamais "BOARDED" (cardKey non geré
+  // nulle part dans lot3MergeFlightData, la carte était donc silencieusement
+  // perdue). Vrai pour VF ET BJ, pas seulement BJ comme précédemment supposé.
+  CHECKIN:"WEB",
   ETICKET:"ETKT",
   OUTBOUND_SUMMARY:"OUTBOUND_SUMMARY",
   SSR:"SSR",
@@ -5401,7 +5405,13 @@ function lot2ExtractPassengerItemsFromGenericList(text,listName,cardKey,airline=
       item.specific="";
       item.note=details;
     }else if(cKey==="WEB"){
-      item.status="WEB";
+      // Canal d'enregistrement : "CHL-WEB" (web) par défaut, mais certaines
+      // compagnies distinguent d'autres canaux sur la même ligne passager
+      // (spec utilisateur : TU "CHL-MOB" -> MOBILE, DE "CHL-JFE"/"CHL-EDS").
+      // Repli sur WEB si aucun code de canal explicite n'est présent.
+      const chanMatch=details.match(/\bCHL-(WEB|MOB|JFE|EDS)\b/i);
+      const chan=chanMatch?chanMatch[1].toUpperCase():"";
+      item.status=chan==="MOB"?"MOBILE":(chan==="JFE"||chan==="EDS"?chan:"WEB");
       item.ssr=[];
       item.specific="";
       item.note="";
@@ -5683,12 +5693,7 @@ async function lot2ProcessOneJob(env,job){
       : (juKind
         ? {cardKey:"JU_MIXED",mappingScope:"JU",matchedListName:listName}
       : (vfKind
-        // BJ (UI carte "WEB", voir BJ_PREPA_CARDS côté navigateur) compte le
-        // Check-In List Boarded comme les passagers enregistrés en ligne :
-        // cardKey "WEB" alimente base.web (déjà géré génériquement par
-        // lot3MergeFlightData), plutôt que "BOARDED" qui n'est mappée nulle
-        // part. VF n'est pas concerné : son cardKey CHECKIN reste inchangé.
-        ? {cardKey:(airline==="BJ"&&vfKind==="CHECKIN")?"WEB":(VF_LIST_CARD_KEYS[vfKind]||"OTHER"),mappingScope:"VF",matchedListName:listName}
+        ? {cardKey:VF_LIST_CARD_KEYS[vfKind]||"OTHER",mappingScope:"VF",matchedListName:listName}
         : (twKind
           ? {cardKey:"MASTER",mappingScope:"TW_CONTENT",matchedListName:listName}
         : (tkKind
@@ -6154,7 +6159,10 @@ function lot3CleanImportedPassengerStrict(p){
     x.ssr=[];x.specific="";x.note="";
   }
   if(x.cardKey==="WEB"){
-    x.ssr=[];x.specific="";x.note="";x.status="WEB";
+    // Ne pas écraser un canal déjà distingué en amont (MOBILE/JFE/EDS,
+    // voir cKey==="WEB" dans lot2ExtractPassengerItemsFromGenericList).
+    x.ssr=[];x.specific="";x.note="";
+    if(!["WEB","MOBILE","JFE","EDS"].includes(String(x.status||"").toUpperCase()))x.status="WEB";
   }
   return x;
 }
@@ -6277,7 +6285,7 @@ function lot3NormalizePassengerForUi(p,card){
     x.ssr=[c];
   }else if(c==="EMD"||c==="ETKT"||c==="MASTER"||c==="WEB"){
     x.ssr=Array.isArray(x.ssr)?x.ssr:[];
-    if(c==="WEB")x.status="WEB";
+    if(c==="WEB" && !["WEB","MOBILE","JFE","EDS"].includes(String(x.status||"").toUpperCase()))x.status="WEB";
   }else if(c==="CONNECTIONS"){
     x.ssr=x.connection?.direction?[String(x.connection.direction).toUpperCase()]:[];
   }else{
@@ -7760,7 +7768,7 @@ async function lot5SpecificGenericPreviewV1(env,messageId,airlineHint=''){
         count=items.length;classCounts=lot2IportClassCounts(items);
       }else if(vfKind){
         listName=VF_LIST_LABELS[vfKind]||vfKind;
-        cardKey=(airline==="BJ"&&vfKind==="CHECKIN")?"WEB":(VF_LIST_CARD_KEYS[vfKind]||"OTHER");
+        cardKey=VF_LIST_CARD_KEYS[vfKind]||"OTHER";
         mappingScope="VF";
         items=lot2VfExtractPassengerItems(extracted.text,vfKind);
         count=items.length;classCounts=lot2VfClassCounts(items);
@@ -7951,7 +7959,7 @@ async function lot5DryGmailListSurveyV1(env,{query='in:anywhere',maxMessages=40,
           if(twKind){listName="TW CONTENT";cardKey="MASTER";mappingScope="TW_CONTENT";count=lot2TwExtractPassengerItems(text).length;}
           else if(tkKind){listName="TK ALL PAX";cardKey="MASTER";mappingScope="TK_ALLPAX";count=lot2TkExtractPassengerItems(text).length;}
           else if(iportKind){listName=IPORT_LIST_LABELS[iportKind]||iportKind;cardKey=IPORT_LIST_CARD_KEYS[iportKind]||"OTHER";mappingScope="IPORT";count=lot2IportExtractPassengerItems(text,iportKind).length;}
-          else if(vfKind){listName=VF_LIST_LABELS[vfKind]||vfKind;cardKey=(airline==="BJ"&&vfKind==="CHECKIN")?"WEB":(VF_LIST_CARD_KEYS[vfKind]||"OTHER");mappingScope="VF";count=lot2VfExtractPassengerItems(text,vfKind).length;}
+          else if(vfKind){listName=VF_LIST_LABELS[vfKind]||vfKind;cardKey=VF_LIST_CARD_KEYS[vfKind]||"OTHER";mappingScope="VF";count=lot2VfExtractPassengerItems(text,vfKind).length;}
           else if(juKind){listName=JU_LIST_LABELS[juKind]||juKind;cardKey="JU_MIXED";mappingScope="JU";count=lot2JuExtractPassengerItems(text).items.length;}
           else{
             listName=lot2DetectListName(text,filename);
