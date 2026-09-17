@@ -5008,6 +5008,55 @@ function lot2TwClassCounts(items){
   }
   return out;
 }
+/*
+ * TW livre tout le manifeste dans une seule carte MASTER (pas de liste WCH/
+ * CHLD/INF/OUTBOUND séparée comme chez SQ) alors que les codes SSR et le
+ * vol de correspondance existent bien par passager dans le texte source
+ * (ex. "LE / THI LAM ... WCHR RWCH", "LISITO ... INFT", "CDG ICN FUK
+ * TW207"). On dérive donc ici, à partir du MASTER déjà extrait, les
+ * sous-cartes que le reste du pipeline sait déjà injecter (voir l'appel
+ * dans lot3MergeFlightData, section MASTER/TW CONTENT).
+ * Pas de dérivation INBOUND : le format TW CONTENT ne porte aucune
+ * information de vol entrant, seulement un éventuel vol de correspondance
+ * en sortie (ex. CDG-ICN puis ICN-FUK), donc seul OUTBOUND est dérivable.
+ */
+function lot2TwDeriveSecondaryCards(items){
+  const wchRe=/^(WCHR|WCHS|WCHC|WCMP|WCBD|WCLB)$/;
+  const out=[];
+
+  // cardKey doit être réécrit sur CHAQUE item dérivé (pas seulement sur la
+  // carte englobante) : lot3CleanImportedPassengerStrict vide ssr/specific/
+  // note de tout item dont cardKey==="MASTER" (règle voulue pour le vrai
+  // MASTER), et ces items l'héritent tous de lot2TwExtractPassengerItems.
+  const wch=[];
+  for(const p of items||[]){
+    const code=(p.ssr||[]).find(s=>wchRe.test(s));
+    if(!code)continue;
+    wch.push({...p,cardKey:"WCH",category:code,specific:code});
+  }
+  if(wch.length)out.push({cardKey:"WCH",passengerItems:wch});
+
+  // MSTR/MISS = jeune passager (garçon/fille), convention déjà utilisée
+  // ailleurs dans ce pipeline pour distinguer un enfant d'un adulte.
+  const chld=(items||[]).filter(p=>p.title==="MSTR"||p.title==="MISS").map(p=>({...p,cardKey:"CHLD"}));
+  if(chld.length)out.push({cardKey:"CHLD",passengerItems:chld});
+
+  // SSR INFT ou type tarifaire "IFxx" (ex. "IF00" vu sur un vrai vol TW) :
+  // les deux formes vues dans des données réelles pour un nourrisson.
+  const inf=(items||[]).filter(p=>(p.ssr||[]).includes("INFT")||/^IF/i.test(p.passengerType||"")).map(p=>({...p,cardKey:"INF"}));
+  if(inf.length)out.push({cardKey:"INF",passengerItems:inf});
+
+  const outbound=[];
+  for(const p of items||[]){
+    if(!p.connectingFlight)continue;
+    const flight=String(p.connectingFlight).toUpperCase();
+    const airport=String(p.destination||"").toUpperCase();
+    outbound.push({...p,cardKey:"OUTBOUND",connection:{direction:"OUTBOUND",flight,airport}});
+  }
+  if(outbound.length)out.push({cardKey:"OUTBOUND",passengerItems:outbound});
+
+  return out;
+}
 
 // ========================================================
 // TK (Turkish Airlines) — corps de mail texte, plusieurs sections dans le
@@ -6588,6 +6637,30 @@ function lot3MergeFlightData(current,row,card){
         passengerItems:mealItems,
         passengers:mealItems,
         passengerCount:mealItems.length,
+        connectionRows:[]
+      });
+    }
+  }
+
+  /*
+   * TW (T'way) : voir lot2TwDeriveSecondaryCards. Le MASTER vient d'être
+   * posé juste au-dessus (base.passengers contient déjà les 187+ passagers
+   * du manifeste) ; on en dérive maintenant WCH/CHLD/INF/OUTBOUND, chacun
+   * se rattachant au bon passager déjà présent (même mécanisme que VF
+   * SSR->CBAG/MEAL ci-dessus, jamais de nouveau dossier fantôme puisque
+   * lot3UpsertPassengers ne pousse une nouvelle entrée protégée SQ/TK/TW
+   * que si le nom n'a pas déjà été vu).
+   */
+  if(card.cardKey==="MASTER" && card.listName==="TW CONTENT" && Array.isArray(card.passengerItems) && card.passengerItems.length){
+    for(const derived of lot2TwDeriveSecondaryCards(card.passengerItems)){
+      base=lot3MergeFlightData(base,row,{
+        ...card,
+        cardKey:derived.cardKey,
+        label:derived.cardKey,
+        passengerItems:derived.passengerItems,
+        passengers:derived.passengerItems,
+        passengerCount:derived.passengerItems.length,
+        classCounts:{},
         connectionRows:[]
       });
     }
