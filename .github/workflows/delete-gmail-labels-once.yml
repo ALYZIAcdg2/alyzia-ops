@@ -1,4 +1,4 @@
-name: Diagnostic état actuel (lecture seule)
+name: Vérification Drive + Gmail (lecture, sans relancer le traitement)
 
 on:
   workflow_dispatch:
@@ -7,19 +7,23 @@ permissions:
   contents: read
 
 jobs:
-  diag:
+  check:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
       BASE: https://alyzia-ops.alyzia-cdg2.workers.dev
     steps:
-      - name: État actuel
+      - name: Statut Google Drive
         run: |
-          echo "== /api/flights (nombre) =="
-          curl -sS "$BASE/api/flights" | node -e 'let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>{try{const j=JSON.parse(d);console.log((j.flights||j||[]).length)}catch(e){console.log("PARSE ERROR",d.slice(0,300))}})'
-          echo "== /api/prepa/summary =="
-          curl -sS "$BASE/api/prepa/summary"
+          curl -sS -f "$BASE/api/prepa/google-drive/status"
           echo
-          echo "== /api/gmail/status =="
-          curl -sS "$BASE/api/gmail/status"
+
+      - name: Statut Gmail
+        run: |
+          curl -sS -f "$BASE/api/gmail/status"
+          echo
+
+      - name: Statut AUTO PILOT (config + dernier run)
+        run: |
+          curl -sS -f "$BASE/api/autopilot/status"
           echo
