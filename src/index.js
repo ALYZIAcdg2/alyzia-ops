@@ -5237,6 +5237,12 @@ function lot2ExtractPassengerItemsFromGenericList(text,listName,cardKey,airline=
   const items=[];
   const cKey=String(cardKey||"").toUpperCase();
   const lName=String(listName||"").toUpperCase();
+  // Numéro du vol lui-même (ex. "SB501" dans l'en-tête "SB501 09SEP CDG
+  // STD2130..."), utilisé pour distinguer une vraie correspondance d'une
+  // simple continuation du même avion vers une escale suivante (voir
+  // cKey==="INBOUND"/"OUTBOUND"/"CONNECTIONS" plus bas).
+  const ownFlightMatch=String(text||"").match(/\b([A-Z]{1,3}\d{1,4})\s+\d{1,2}[A-Z]{3}\s+[A-Z]{3}\s+STD\d{3,4}/);
+  const ownFlightNumber=ownFlightMatch?ownFlightMatch[1].toUpperCase():"";
 
   for(let i=0;i<lines.length;i++){
     const raw=String(lines[i]||"").replace(/\s+/g," ").trim();
@@ -5344,8 +5350,23 @@ function lot2ExtractPassengerItemsFromGenericList(text,listName,cardKey,airline=
       item.ssr=["FQTV"];
       item.note=[ffid,next2 && /ACCRUAL/i.test(next2)?"ACCRUAL":""].filter(Boolean).join(" · ");
     }else if(cKey==="INBOUND" || cKey==="OUTBOUND" || cKey==="CONNECTIONS"){
-      const conn=details.match(/\b([IO])-([A-Z0-9]{2,5})\s+([A-Z]{3})\b/i);
-      if(conn){
+      // {2,5} loupait silencieusement tout vol à 4 chiffres (ex. "AF1349",
+      // 6 caractères) : confirmé sur un vrai relevé SB501/09SEP où TOUTES
+      // les correspondances INBOUND réelles ("I-AF1349 BCN" etc.) étaient
+      // ainsi perdues, indépendamment de la compagnie.
+      const conn=details.match(/\b([IO])-([A-Z0-9]{2,7})\s+([A-Z]{3})\b/i);
+      /*
+       * Un jeton "O-<CE VOL>"/"I-<CE VOL>" qui répète le numéro du vol
+       * lui-même (ex. "O-SB501 NOU" trouvé sur SB501, vu sur un vrai
+       * relevé SB501/09SEP) n'est pas une correspondance vers un autre
+       * vol : c'est la continuation du MÊME avion vers une escale
+       * suivante (ex. SB501 CDG-BKK-NOU). Le traiter comme une vraie
+       * correspondance créerait un second "SB501" fictif en sortie — une
+       * vraie correspondance porte toujours un numéro de vol différent
+       * (ex. "O-SB600 PPT", vu sur le même relevé).
+       */
+      const isSameFlightContinuation=!!(conn && ownFlightNumber && conn[2].toUpperCase()===ownFlightNumber);
+      if(conn && !isSameFlightContinuation){
         item.connection={
           direction:conn[1].toUpperCase()==="I"?"INBOUND":"OUTBOUND",
           flight:conn[2].toUpperCase(),
