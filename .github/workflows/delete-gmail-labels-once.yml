@@ -1,4 +1,4 @@
-name: Relevé Gmail lecture seule — SK avec aperçu texte
+name: Relevé Gmail lecture seule — SK FQTV
 
 on:
   workflow_dispatch:
