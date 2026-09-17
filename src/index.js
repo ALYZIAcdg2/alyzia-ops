@@ -5008,6 +5008,77 @@ function lot2TwClassCounts(items){
   }
   return out;
 }
+// Grille horaire réelle des vols TW au départ d'ICN, fournie par
+// l'utilisateur — le manifeste CONTENT ne porte que le numéro de vol et
+// l'aéroport de la correspondance, jamais son heure ni la ville. Clé =
+// numéro de vol nu (sans préfixe "TW", sans zéro de tête) pour matcher
+// aussi bien "TW33" que "TW033" comme vu dans le texte source réel.
+// L'aéroport réellement extrait du document reste toujours prioritaire
+// (voir lot2TwDeriveSecondaryCards) : cette grille ne sert qu'à enrichir
+// l'heure/la ville, jamais à réécrire la destination constatée.
+const TW_OUTBOUND_SCHEDULE={
+  7:{airport:"DAD",city:"Da Nang",std1:"07:55",std2:""},
+  11:{airport:"DAD",city:"Da Nang",std1:"19:00",std2:""},
+  13:{airport:"DAD",city:"Da Nang",std1:"21:35",std2:""},
+  33:{airport:"CXR",city:"Nha Trang",std1:"19:00",std2:""},
+  49:{airport:"CNX",city:"Chiang Mai",std1:"16:25",std2:""},
+  55:{airport:"PQC",city:"Phu Quoc",std1:"16:35",std2:""},
+  61:{airport:"HAN",city:"Hanoi",std1:"20:10",std2:""},
+  101:{airport:"BKK",city:"Bangkok",std1:"19:50",std2:"18:00"},
+  121:{airport:"CEB",city:"Cebu",std1:"08:00",std2:""},
+  125:{airport:"KLO",city:"Kalibo",std1:"08:30",std2:""},
+  131:{airport:"VTE",city:"Vientiane",std1:"19:15",std2:"20:05"},
+  149:{airport:"BKI",city:"Kota Kinabalu",std1:"18:05",std2:""},
+  153:{airport:"BKI",city:"Kota Kinabalu",std1:"18:30",std2:""},
+  155:{airport:"CGK",city:"Jakarta",std1:"",std2:""},
+  161:{airport:"SIN",city:"Singapore",std1:"15:50",std2:""},
+  171:{airport:"DAC",city:"Dhaka",std1:"19:30",std2:""},
+  201:{airport:"FUK",city:"Fukuoka",std1:"10:05",std2:""},
+  203:{airport:"FUK",city:"Fukuoka",std1:"",std2:""},
+  205:{airport:"FUK",city:"Fukuoka",std1:"15:00",std2:""},
+  207:{airport:"FUK",city:"Fukuoka",std1:"18:05",std2:""},
+  237:{airport:"NRT",city:"Tokyo",std1:"",std2:""},
+  239:{airport:"NRT",city:"Tokyo",std1:"12:25",std2:""},
+  241:{airport:"NRT",city:"Tokyo",std1:"08:35",std2:""},
+  243:{airport:"NRT",city:"Tokyo",std1:"10:20",std2:""},
+  245:{airport:"NRT",city:"Tokyo",std1:"15:00",std2:""},
+  247:{airport:"NRT",city:"Tokyo",std1:"",std2:""},
+  249:{airport:"NRT",city:"Tokyo",std1:"",std2:""},
+  263:{airport:"CTS",city:"Sapporo",std1:"10:20",std2:"10:10"},
+  279:{airport:"OKA",city:"Okinawa",std1:"07:20",std2:""},
+  281:{airport:"OKA",city:"Okinawa",std1:"11:00",std2:""},
+  285:{airport:"HSG",city:"Saga",std1:"07:55",std2:""},
+  287:{airport:"KMJ",city:"Kumamoto",std1:"07:55",std2:""},
+  301:{airport:"KIX",city:"Osaka",std1:"08:00",std2:""},
+  303:{airport:"KIX",city:"Osaka",std1:"10:50",std2:""},
+  305:{airport:"KIX",city:"Osaka",std1:"15:50",std2:""},
+  307:{airport:"KIX",city:"Osaka",std1:"",std2:""},
+  317:{airport:"KIX",city:"Osaka",std1:"",std2:""},
+  401:{airport:"CDG",city:"Paris",std1:"09:50",std2:"10:10"},
+  403:{airport:"FRA",city:"Frankfurt",std1:"09:35",std2:"09:50"},
+  405:{airport:"FCO",city:"Rome",std1:"12:35",std2:""},
+  407:{airport:"BCN",city:"Barcelona",std1:"11:05",std2:""},
+  409:{airport:"ZAG",city:"Zagreb",std1:"",std2:""},
+  421:{airport:"UBN",city:"Ulaanbaatar",std1:"11:10",std2:""},
+  431:{airport:"TAS",city:"Tashkent",std1:"17:50",std2:""},
+  437:{airport:"BSZ",city:"Bishkek",std1:"19:45",std2:"18:50"},
+  501:{airport:"SYD",city:"Sydney",std1:"22:10",std2:""},
+  513:{airport:"SPN",city:"Saipan",std1:"20:00",std2:""},
+  525:{airport:"SPN",city:"Saipan",std1:"22:10",std2:""},
+  529:{airport:"GUM",city:"Guam",std1:"",std2:""},
+  531:{airport:"YVR",city:"Vancouver",std1:"21:10",std2:""},
+  605:{airport:"TNA",city:"Jinan",std1:"",std2:""},
+  607:{airport:"TAO",city:"Qingdao",std1:"",std2:""},
+  613:{airport:"SHE",city:"Shenyang",std1:"23:05",std2:"08:05"},
+  615:{airport:"WUH",city:"Wuhan",std1:"",std2:""},
+  643:{airport:"HKG",city:"Hong Kong",std1:"08:45",std2:""},
+  669:{airport:"RMQ",city:"Taichung",std1:"14:25",std2:"13:55"},
+  671:{airport:"KHH",city:"Kaohsiung",std1:"",std2:""},
+  9617:{airport:"LYI",city:"Linyi",std1:"",std2:""},
+  9623:{airport:"YCU",city:"Yuncheng",std1:"",std2:""},
+  9635:{airport:"HLD",city:"Hailar",std1:"",std2:""}
+};
+
 /*
  * TW livre tout le manifeste dans une seule carte MASTER (pas de liste WCH/
  * CHLD/INF/OUTBOUND séparée comme chez SQ) alors que les codes SSR et le
@@ -5051,7 +5122,14 @@ function lot2TwDeriveSecondaryCards(items){
     if(!p.connectingFlight)continue;
     const flight=String(p.connectingFlight).toUpperCase();
     const airport=String(p.destination||"").toUpperCase();
-    outbound.push({...p,cardKey:"OUTBOUND",connection:{direction:"OUTBOUND",flight,airport}});
+    const flightNum=Number((flight.match(/(\d+)/)||[])[1]||NaN);
+    const sched=TW_OUTBOUND_SCHEDULE[flightNum];
+    const conn={direction:"OUTBOUND",flight,airport};
+    if(sched){
+      if(sched.std1)conn.std=sched.std1;
+      if(sched.city)conn.city=sched.city;
+    }
+    outbound.push({...p,cardKey:"OUTBOUND",connection:conn});
   }
   if(outbound.length)out.push({cardKey:"OUTBOUND",passengerItems:outbound});
 
