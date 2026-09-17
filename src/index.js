@@ -3758,7 +3758,13 @@ const LOT2_GENERIC_AIRLINE_LIST_MAPPINGS = {
     ["WCH","WCH"],
     ["BS-SA","STAFF"],
     ["INBOUND CUSTOMER SUMMARY","INBOUND_SUMMARY"],
-    ["ONCARRIAGE CUSTOMER SUMMARY","OUTBOUND_SUMMARY"]
+    ["ONCARRIAGE CUSTOMER SUMMARY","OUTBOUND_SUMMARY"],
+    // Priorité 5 (spec utilisateur) : "CAS-AC" seul est ignoré, mais le
+    // compound "PDF-ACCWEB, CAS-AC" reste WEB (repli PREFIX_PATTERN
+    // ci-dessus le couvrirait déjà ; entrée exacte gardée en plus pour ne
+    // dépendre d'aucune logique de repli sur ce cas précis).
+    ["PDF-ACCWEB, CAS-AC","WEB"],
+    ["CAS-AC","OTHER"]
   ],
   // SQ : construit à partir d'un vrai relevé (specific-list-survey) sur 30 mails
   // réels avant toute sortie de LOT2_SPECIFIC_AIRLINES. "PDF-VBCPLIST" seule
@@ -3877,6 +3883,21 @@ function lot2LookupListMapping(airline,listName,text,allowMasterByCount=true){
     const suffixMapping=lot2LookupListMapping(airline,suffixM[2],"",false);
     if(suffixMapping.cardKey && suffixMapping.cardKey!=="OTHER" && suffixMapping.cardKey!=="NO_LIST"){
       return {cardKey:suffixMapping.cardKey, mappingScope:"SUFFIX_PATTERN", matchedListName:listName};
+    }
+    /*
+     * Matcher composé avant matcher simple (priorité 5, spec utilisateur —
+     * AH "PDF-ACCWEB, CAS-AC" et formats combinés ONC* INC) : un suffixe non
+     * informatif pris isolément (OTHER/NO_LIST, ex. "CAS-AC" seul -> IGNORE)
+     * ne doit pas masquer un PRÉFIXE déjà reconnu comme une liste à part
+     * entière (ex. "PDF-ACCWEB" -> WEB). Exclusion volontaire de MASTER :
+     * ne jamais rouvrir le bug SQ CC-x/PDF-VBCPLIST (un sous-ensemble filtré
+     * par classe cabine, qualifié par une virgule, ne doit jamais hériter du
+     * MASTER de son préfixe — sinon second manifeste concurrent, déjà corrigé
+     * cette session).
+     */
+    const prefixMapping=lot2LookupListMapping(airline,suffixM[1],"",false);
+    if(prefixMapping.cardKey && prefixMapping.cardKey!=="OTHER" && prefixMapping.cardKey!=="NO_LIST" && prefixMapping.cardKey!=="MASTER"){
+      return {cardKey:prefixMapping.cardKey, mappingScope:"PREFIX_PATTERN", matchedListName:listName};
     }
   }
 
