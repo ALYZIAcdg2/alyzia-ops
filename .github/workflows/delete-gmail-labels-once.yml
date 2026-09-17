@@ -1,4 +1,4 @@
-name: Relevé Gmail lecture seule — vérification correctifs SQ (CC-x/FQT/FQTV)
+name: Relevé Gmail lecture seule — vérification de toutes les compagnies
 
 on:
   workflow_dispatch:
@@ -9,39 +9,36 @@ permissions:
 jobs:
   survey:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 15
     env:
       BASE: https://alyzia-ops.alyzia-cdg2.workers.dev
     steps:
-      - name: Relevé SQ (80 messages, filtré compagnie)
+      - name: Relevé complet (100 messages, toutes compagnies)
         run: |
-          curl -sS -f "$BASE/api/autopilot/dry-list-survey?query=in%3Aanywhere&maxMessages=80&airline=SQ" -o /tmp/survey.json
-          echo "== Listes CC-x / GRP / PDF-GOCLIST (doivent être OTHER, plus jamais MASTER) =="
+          curl -sS -f "$BASE/api/autopilot/dry-list-survey?query=in%3Aanywhere&maxMessages=100" -o /tmp/survey.json
+          echo "== Résumé global =="
           node -e '
             const j=JSON.parse(require("fs").readFileSync("/tmp/survey.json","utf8"));
-            const sq=(j.companies||[]).find(c=>c.airline==="SQ");
-            const lists=sq?sq.lists:[];
-            const watch=["CC-F","CC-J","CC-S","CC-Y","GRP","PDF-GOCLIST","PDF-VBCPLIST"];
-            for(const l of lists){
-              if(watch.some(w=>String(l.listName||"").toUpperCase().includes(w))){
-                console.log(JSON.stringify({listName:l.listName,cardKey:l.cardKey,occurrences:l.occurrences,samplePassengerCount:l.samplePassengerCount}));
-              }
-            }
-            console.log("== Listes FQT-xxx / FQTV (doivent être FQTV, plus jamais OTHER) ==");
-            for(const l of lists){
-              if(l.cardKey==="FQTV" || /FQT/i.test(String(l.listName||""))){
+            console.log(JSON.stringify({messagesFound:j.messagesFound,messagesChecked:j.messagesChecked,documentsSeen:j.documentsSeen,errors:(j.errors||[]).length}));
+            for(const c of (j.companies||[])){
+              console.log("");
+              console.log("###### "+c.airline+" ("+c.lists.length+" listes distinctes) ######");
+              for(const l of c.lists){
                 console.log(JSON.stringify({listName:l.listName,cardKey:l.cardKey,mappingScope:l.mappingScope,occurrences:l.occurrences,samplePassengerCount:l.samplePassengerCount}));
               }
             }
-            console.log("== Listes OTHER restantes (pour repérer un éventuel bug encore non couvert) ==");
-            for(const l of lists){
-              if(l.cardKey==="OTHER"){
-                console.log(JSON.stringify({listName:l.listName,occurrences:l.occurrences,samplePassengerCount:l.samplePassengerCount}));
+            console.log("");
+            console.log("== TOUTES les listes OTHER (à examiner en priorité) ==");
+            for(const c of (j.companies||[])){
+              for(const l of c.lists){
+                if(l.cardKey==="OTHER"){
+                  console.log(JSON.stringify({airline:c.airline,listName:l.listName,occurrences:l.occurrences,samplePassengerCount:l.samplePassengerCount,textPreview:(l.textPreview||"").slice(0,300)}));
+                }
               }
             }
-            console.log("== Aperçu texte d une liste FQTV (vérifie palier complet + programme) ==");
-            const fqtvSample=lists.find(l=>l.cardKey==="FQTV" && l.textPreview);
-            if(fqtvSample) console.log(fqtvSample.textPreview.slice(0,1200));
-            else console.log("(aucun textPreview FQTV disponible dans ce lot)");
+            if((j.errors||[]).length){
+              console.log("== Erreurs ==");
+              for(const e of j.errors.slice(0,20)) console.log(JSON.stringify(e));
+            }
           '
           echo
