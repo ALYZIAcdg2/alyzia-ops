@@ -29,6 +29,8 @@ jobs:
             const masterList=lists.find(l=>l.cardKey==="MASTER" && l.textPreview);
             if(masterList) console.log(masterList.textPreview);
             else console.log("(aucun textPreview MASTER WB disponible dans ce lot)");
+            console.log("== WB : erreurs ==");
+            for(const e of (j.errors||[])) console.log(JSON.stringify(e));
           '
           echo
       - name: Relevé SB (100 messages, filtré compagnie)
@@ -47,5 +49,7 @@ jobs:
             const masterList=lists.find(l=>l.cardKey==="MASTER" && l.textPreview);
             if(masterList) console.log(masterList.textPreview);
             else console.log("(aucun textPreview MASTER SB disponible dans ce lot)");
+            console.log("== SB : erreurs (jusqu à 15) ==");
+            for(const e of (j.errors||[]).slice(0,15)) console.log(JSON.stringify(e));
           '
           echo
