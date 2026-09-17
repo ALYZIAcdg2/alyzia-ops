@@ -1,4 +1,4 @@
-name: Relevé Gmail lecture seule — vérification correctif DU
+name: Relevé Gmail lecture seule — vérification correctifs SQ (CC-x/FQT/FQTV)
 
 on:
   workflow_dispatch:
@@ -13,7 +13,35 @@ jobs:
     env:
       BASE: https://alyzia-ops.alyzia-cdg2.workers.dev
     steps:
-      - name: Relevé "prepa du" (query ciblée)
+      - name: Relevé SQ (80 messages, filtré compagnie)
         run: |
-          curl -sS -f "$BASE/api/autopilot/dry-list-survey?query=in%3Aanywhere%20subject%3A%22prepa%20du%22&maxMessages=20"
+          curl -sS -f "$BASE/api/autopilot/dry-list-survey?query=in%3Aanywhere&maxMessages=80&airline=SQ" -o /tmp/survey.json
+          echo "== Listes CC-x / GRP / PDF-GOCLIST (doivent être OTHER, plus jamais MASTER) =="
+          node -e '
+            const j=JSON.parse(require("fs").readFileSync("/tmp/survey.json","utf8"));
+            const sq=(j.companies||[]).find(c=>c.airline==="SQ");
+            const lists=sq?sq.lists:[];
+            const watch=["CC-F","CC-J","CC-S","CC-Y","GRP","PDF-GOCLIST","PDF-VBCPLIST"];
+            for(const l of lists){
+              if(watch.some(w=>String(l.listName||"").toUpperCase().includes(w))){
+                console.log(JSON.stringify({listName:l.listName,cardKey:l.cardKey,occurrences:l.occurrences,samplePassengerCount:l.samplePassengerCount}));
+              }
+            }
+            console.log("== Listes FQT-xxx / FQTV (doivent être FQTV, plus jamais OTHER) ==");
+            for(const l of lists){
+              if(l.cardKey==="FQTV" || /FQT/i.test(String(l.listName||""))){
+                console.log(JSON.stringify({listName:l.listName,cardKey:l.cardKey,mappingScope:l.mappingScope,occurrences:l.occurrences,samplePassengerCount:l.samplePassengerCount}));
+              }
+            }
+            console.log("== Listes OTHER restantes (pour repérer un éventuel bug encore non couvert) ==");
+            for(const l of lists){
+              if(l.cardKey==="OTHER"){
+                console.log(JSON.stringify({listName:l.listName,occurrences:l.occurrences,samplePassengerCount:l.samplePassengerCount}));
+              }
+            }
+            console.log("== Aperçu texte d une liste FQTV (vérifie palier complet + programme) ==");
+            const fqtvSample=lists.find(l=>l.cardKey==="FQTV" && l.textPreview);
+            if(fqtvSample) console.log(fqtvSample.textPreview.slice(0,1200));
+            else console.log("(aucun textPreview FQTV disponible dans ce lot)");
+          '
           echo
