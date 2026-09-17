@@ -3607,7 +3607,14 @@ const LOT2_GENERIC_DEFAULT_LIST_MAPPINGS = [
   ["INFANT","INF"],
   ["CHLD","CHLD"],
   ["CHILD","CHLD"],
-  ["KID","CHLD"],
+  // "KID" nue peut être un document pur CHLD ou un mélange enfants+bébés
+  // (C et I sur les mêmes lignes) selon la compagnie — vu mixte chez DE/TU/
+  // SB/RJ (comptes rendus utilisateur, même structure que PDF-INFKID
+  // ci-dessous, déjà vérifiée sur RJ). Router vers INFKID plutôt que CHLD
+  // ne change rien pour un document 100% CHLD (INFKID retombe sur le même
+  // résultat, voir cKey==="INFKID" dans lot2ExtractPassengerItemsFromGenericList)
+  // et corrige la perte des lignes I dans les documents mixtes.
+  ["KID","INFKID"],
   // Enfants + bébés combinés dans un seul document — vu identique chez RJ et
   // S4. Chacun garde sa propre carte (INF/CHLD), voir lot3MergeFlightData.
   ["PDF-INFKID","INFKID"],
