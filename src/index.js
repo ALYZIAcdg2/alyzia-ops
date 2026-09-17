@@ -3682,6 +3682,22 @@ const LOT2_GENERIC_AIRLINE_LIST_MAPPINGS = {
   LO: [
     ["PDF-ACC","WEB"]
   ],
+  // SK (spec utilisateur, priorité 4) : FQA et FQTV nus ne sont pas des
+  // données fidélité exploitables chez SK, contrairement au comportement
+  // DEFAULT (FQA/FQTV -> FQTV) valable ailleurs. cardKey OTHER : le document
+  // reste vu (dédoublonnage passager par nom/ticket) mais ne crée pas de
+  // fausse carte FQTV, même principe que les sous-ensembles CC-x de SQ.
+  SK: [
+    ["FQA","OTHER"],
+    ["FQTV","OTHER"]
+  ],
+  // AI (spec utilisateur, priorité 4) : seule la liste "FQA" nue est ignorée
+  // (ambiguïté "A S"/"A G" non résolue, mise de côté par l'utilisateur) —
+  // "PDF-FQTV" reste FQTV, déjà vérifié sur données réelles AI (16 passagers,
+  // numéros de fidélité + ACCRUAL/REDEMPTION).
+  AI: [
+    ["FQA","OTHER"]
+  ],
   MS: [
     // "CAS-SB" (Casual Standby) : équivalent MS de STF-SB, sans code
     // distinctif propre dans la liste elle-même.
