@@ -3745,7 +3745,24 @@ const LOT2_GENERIC_AIRLINE_LIST_MAPPINGS = {
     ["PDF-IPPS, FQT-QPPS","FQTV"],
     ["PDF-IPPS, FQT-TPPS","FQTV"],
     ["PDF-AFQTA, FQT-KFEG","FQTV"],
-    ["PDF-AFQTA, FQT-KFES","FQTV"]
+    ["PDF-AFQTA, FQT-KFES","FQTV"],
+    /*
+     * Bug corrigé (17/09, relevé lecture seule réel) : ces sous-listes classe
+     * cabine SANS préfixe "PDF-VBCPLIST, " (contrairement au commentaire
+     * ci-dessus qui décrivait l'intention mais ne les avait jamais ajoutées)
+     * tombaient dans le repli par comptage de passagers (>=15 lignes) et se
+     * faisaient promouvoir en second MASTER, en conflit avec le vrai
+     * PDF-VBCPLIST — ex. CC-Y à 157/183 passagers écrasant/doublant le
+     * manifeste réel de 234. GRP et PDF-GOCLIST sont d'autres sous-ensembles
+     * du même manifeste (respectivement groupes et un export nommé), jamais
+     * le manifeste complet lui-même.
+     */
+    ["CC-F","OTHER"],
+    ["CC-J","OTHER"],
+    ["CC-S","OTHER"],
+    ["CC-Y","OTHER"],
+    ["GRP","OTHER"],
+    ["PDF-GOCLIST","OTHER"]
   ]
 };
 
@@ -3785,6 +3802,17 @@ function lot2LookupListMapping(airline,listName,text,allowMasterByCount=true){
   // Groupes de codes repas : si le nom explicite LIST OF est un code meal connu.
   if(/^[A-Z]{2}ML$/.test(raw)){
     return {cardKey:"MEAL", mappingScope:"DEFAULT_PATTERN", matchedListName:"MEAL_CODE"};
+  }
+
+  /*
+   * Paliers fidélité SQ "FQT-<code>" (KFES/KFEG/QPPS/TPPS déjà en dur pour
+   * SQ, mais un relevé réel a montré "FQT-LPPS" absent de cette énumération
+   * et tombant en OTHER). Motif général plutôt qu'une liste à tenir à jour
+   * à chaque nouveau palier découvert — couvre aussi bien "FQT-xxx" seul que
+   * via le motif suffixe "PDF-IPPS, FQT-xxx" (voir plus bas).
+   */
+  if(/^FQT [A-Z0-9]+$/.test(raw)){
+    return {cardKey:"FQTV", mappingScope:"DEFAULT_PATTERN", matchedListName:"FQT_CODE"};
   }
 
   // Noms composés "<préfixe>, <suffixe>" (ex. "PDF-06, WCH" chez SK,
@@ -5056,7 +5084,7 @@ function lot2TkClassCounts(items){
   return out;
 }
 
-function lot2ExtractPassengerItemsFromGenericList(text,listName,cardKey){
+function lot2ExtractPassengerItemsFromGenericList(text,listName,cardKey,airline=""){
   /*
    * V50.23 — extraction nominative générique propre.
    * - MASTER/ALL CUSTOMERS : ticket ou TKNE jamais en SSR.
@@ -5144,15 +5172,19 @@ function lot2ExtractPassengerItemsFromGenericList(text,listName,cardKey){
       item.note=details;
     }else if(cKey==="FQTV"){
       const tokens=details.split(/\s+/).filter(Boolean);
-      // Le numéro de billet/référence (ex. AF5378418086, KL5377187980) ne doit
-      // jamais être pris pour un palier fidélité, quelle que soit la compagnie.
-      const tier=tokens.find(t=>!/^(ACCRUAL|[A-Z]{2}\d{6,})$/i.test(t))||"FQA";
+      // Le numéro de billet/référence (ex. AF5378418086, KL5377187980) et le
+      // numéro de siège (ex. "045H") ne doivent jamais être pris pour un
+      // palier fidélité. Un palier peut tenir sur plusieurs mots (ex.
+      // "ELITE SILVER", "ELITE GOLD") : on garde tous les mots restants
+      // plutôt que le seul premier, sous peine de tronquer le palier.
+      const tierTokens=tokens.filter(t=>!/^(ACCRUAL|[A-Z]{2}\d{6,}|0*\d{1,3}[A-Z])$/i.test(t));
+      const tier=tierTokens.join(" ")||"FQA";
       const next1=String(lines[i+1]||"").trim();
       const next2=String(lines[i+2]||"").trim();
       const ffid=(next1.match(/\b[A-Z]{2}\d{6,}\b/i)||[])[0]||"";
       item.specific=String(tier||"FQA").toUpperCase();
       item.category=item.specific;
-      item.fqtv={program:"AH",tier:item.specific,number:ffid,ffid};
+      item.fqtv={program:String(airline||"").toUpperCase(),tier:item.specific,number:ffid,ffid};
       item.ssr=["FQTV"];
       item.note=[ffid,next2 && /ACCRUAL/i.test(next2)?"ACCRUAL":""].filter(Boolean).join(" · ");
     }else if(cKey==="INBOUND" || cKey==="OUTBOUND" || cKey==="CONNECTIONS"){
@@ -5460,7 +5492,7 @@ async function lot2ProcessOneJob(env,job){
     // avec contenu : on détecte donc d'abord un vrai manifeste nominatif avant de retomber
     // sur le mode "info seule".
     const genericManifestItems=(!specialKind && !listName && parserMode==="GENERIC" && extracted.readable)
-      ? lot2ExtractPassengerItemsFromGenericList(extracted.text,"","MASTER")
+      ? lot2ExtractPassengerItemsFromGenericList(extracted.text,"","MASTER",airline)
       : [];
     const listMapping=iportKind
       ? {cardKey:IPORT_LIST_CARD_KEYS[iportKind]||"OTHER",mappingScope:"IPORT",matchedListName:listName}
@@ -5496,7 +5528,7 @@ async function lot2ProcessOneJob(env,job){
           ? lot2TwExtractPassengerItems(extracted.text)
           : (tkKind
             ? lot2TkExtractPassengerItems(extracted.text)
-            : ((cardKey==="OPERATIONAL_INFO"||!extracted.readable||cardKey==="INBOUND_SUMMARY"||cardKey==="OUTBOUND_SUMMARY")?[]:lot2ExtractPassengerItemsFromGenericList(extracted.text,listName,cardKey))))));
+            : ((cardKey==="OPERATIONAL_INFO"||!extracted.readable||cardKey==="INBOUND_SUMMARY"||cardKey==="OUTBOUND_SUMMARY")?[]:lot2ExtractPassengerItemsFromGenericList(extracted.text,listName,cardKey,airline))))));
     const passengerCount=specialKind?passengerItems.length:(cardKey==="OPERATIONAL_INFO"?0:(extracted.readable?lot2ExtractPassengerCount(extracted.text,listName,cardKey):0));
     const classCounts=iportKind?lot2IportClassCounts(passengerItems):(juKind?{}:(vfKind?lot2VfClassCounts(passengerItems):(twKind?lot2TwClassCounts(passengerItems):(tkKind?lot2TkClassCounts(passengerItems):(cardKey==="OPERATIONAL_INFO"?{}:(extracted.readable?lot2ExtractClassCountsForDocument(extracted.text,listName,cardKey):{}))))));
     const connectionRows=(specialKind||cardKey==="OPERATIONAL_INFO"||!extracted.readable)?[]:lot2ExtractConnectionRows(extracted.text,listName,cardKey);
@@ -7519,7 +7551,7 @@ async function lot5SpecificGenericPreviewV1(env,messageId,airlineHint=''){
         listName=lot2DetectListName(extracted.text,filename);
         const mapping=lot2LookupListMapping(airline,listName,extracted.text);
         cardKey=mapping.cardKey;mappingScope=mapping.mappingScope;
-        items=lot2ExtractPassengerItemsFromGenericList(extracted.text,listName,cardKey);
+        items=lot2ExtractPassengerItemsFromGenericList(extracted.text,listName,cardKey,airline);
         count=lot2ExtractPassengerCount(extracted.text,listName,cardKey);
         classCounts=lot2ExtractClassCountsForDocument(extracted.text,listName,cardKey);
       }
@@ -7569,7 +7601,7 @@ async function lot5SpecificMergePreviewV1(env,messageId,airlineHint=''){
       if(!extracted?.readable)continue;
       const listName=lot2DetectListName(extracted.text,filename);
       const mapping=lot2LookupListMapping(airline,listName,extracted.text);
-      const items=lot2ExtractPassengerItemsFromGenericList(extracted.text,listName,mapping.cardKey);
+      const items=lot2ExtractPassengerItemsFromGenericList(extracted.text,listName,mapping.cardKey,airline);
       const count=lot2ExtractPassengerCount(extracted.text,listName,mapping.cardKey);
       const classCounts=lot2ExtractClassCountsForDocument(extracted.text,listName,mapping.cardKey);
       parsed.push({filename,listName,cardKey:mapping.cardKey,items,passengerCount:count,classCounts});
