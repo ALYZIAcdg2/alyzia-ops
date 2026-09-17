@@ -3742,6 +3742,10 @@ const LOT2_GENERIC_AIRLINE_LIST_MAPPINGS = {
     ["PDF-CINFT","INF"],
     ["FQT-KFES","FQTV"],
     ["FQT-KFEG","FQTV"],
+    // IPPS regroupe les paliers PPS Club de Singapore Airlines LPPS/QPPS/TPPS
+    // (LIFE/PPS/SOLITAIRE) : la liste "PDF-IPPS" seule (sans suffixe "FQT-xxx")
+    // est donc déjà une liste FQTV à part entière, pas un manifeste à part.
+    ["PDF-IPPS","FQTV"],
     ["PDF-IPPS, FQT-QPPS","FQTV"],
     ["PDF-IPPS, FQT-TPPS","FQTV"],
     ["PDF-AFQTA, FQT-KFEG","FQTV"],
