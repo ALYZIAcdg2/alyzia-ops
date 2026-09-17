@@ -1,4 +1,4 @@
-name: Relevé Gmail lecture seule — INF/KID (parent-infant) WB/RJ/IZ
+name: Relevé Gmail lecture seule — TK CHECK IN INFORMATION complet
 
 on:
   workflow_dispatch:
@@ -10,39 +10,30 @@ jobs:
   survey:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        code: [WB, RJ, IZ]
     env:
       BASE: https://alyzia-ops.alyzia-cdg2.workers.dev
     steps:
-      - name: Relevé ${{ matrix.code }}
+      - name: Relevé TK (30 messages, aperçu élargi)
         run: |
-          curl -sS -f --max-time 120 "$BASE/api/autopilot/dry-list-survey?query=in%3Aanywhere&maxMessages=30&airline=${{ matrix.code }}" -o /tmp/survey.json || true
-      - name: Affiche les listes INF/KID/PIL pour ${{ matrix.code }}
+          curl -sS -f --max-time 120 "$BASE/api/autopilot/dry-list-survey?query=in%3Aanywhere&maxMessages=30&airline=TK" -o /tmp/survey.json || true
+      - name: Affiche toutes les listes TK avec aperçu texte complet
         run: |
-          code="${{ matrix.code }}"
           file=/tmp/survey.json
-          echo "======== $code ========"
           if [ ! -s "$file" ]; then echo "(pas de fichier / erreur curl)"; exit 0; fi
           node -e '
-            const code=process.argv[1];
-            const file=process.argv[2];
             let j;
-            try{ j=JSON.parse(require("fs").readFileSync(file,"utf8")); }catch(e){ console.log("JSON invalide:",e.message); process.exit(0); }
+            try{ j=JSON.parse(require("fs").readFileSync("/tmp/survey.json","utf8")); }catch(e){ console.log("JSON invalide:",e.message); process.exit(0); }
             console.log(JSON.stringify({messagesFound:j.messagesFound,messagesChecked:j.messagesChecked,documentsSeen:j.documentsSeen,errors:(j.errors||[]).length}));
-            const co=(j.companies||[]).find(c=>c.airline===code);
+            const co=(j.companies||[]).find(c=>c.airline==="TK");
             const lists=co?co.lists:[];
             for(const l of lists){
               console.log(JSON.stringify({listName:l.listName,cardKey:l.cardKey,occurrences:l.occurrences,samplePassengerCount:l.samplePassengerCount}));
             }
-            console.log("---- aperçu texte (listes INF/KID/PIL) ----");
+            console.log("---- aperçu texte complet (toutes cartes TK) ----");
             for(const l of lists){
-              const ln=String(l.listName||"").toUpperCase();
-              if(/INF|KID|PIL/.test(ln) && l.textPreview){
+              if(l.textPreview){
                 console.log("--- "+l.listName+" ("+l.cardKey+") ---");
                 console.log(l.textPreview);
               }
             }
-          ' "$code" "$file"
+          '
