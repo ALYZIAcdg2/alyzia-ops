@@ -1,12 +1,14 @@
-name: Reprise de la resynchronisation Gmail (après réparation OAuth)
+name: Remise à zéro complète (Gmail + Drive + base) puis resynchronisation
 
-# La base a déjà été vidée (full-reset exécuté). La resynchronisation avait
-# été bloquée par un secret OAuth Google invalide, désormais réparé (nouveau
-# secret + reconnexion Gmail). Ce workflow reprend la pagination Gmail là où
-# le cron automatique l'a laissée (pageToken lu dynamiquement depuis
-# /api/gmail/status), applique la limite SQ à 3 dates après chaque page, puis
-# vide les files de classification et d'injection. Traitement du plus récent
-# au plus ancien (ordre déjà corrigé côté serveur).
+# Séquence complète demandée explicitement, exécutée maintenant que les deux
+# connexions OAuth (Gmail et Drive) sont réparées :
+# 1) arrête un éventuel AUTO PILOT en cours
+# 2) supprime les libellés Gmail ALYZIA
+# 3) vide l'archive Google Drive (dossier PRÉPA -> corbeille, ~30 jours)
+# 4) vide entièrement la base D1 (fiches vol + pipeline Gmail)
+# 5) resynchronise toute la boîte Gmail par pages (du plus récent au plus
+#    ancien), avec SQ plafonné aux 3 dates les plus récentes après chaque page
+# 6) vide les files de classification puis d'injection
 
 on:
   push:
@@ -20,24 +22,38 @@ permissions:
   contents: read
 
 jobs:
-  resume_resync:
+  full_reset_and_resync:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
       BASE: https://alyzia-ops.alyzia-cdg2.workers.dev
     steps:
-      - name: État AVANT reprise
+      - name: 1) Arrête un éventuel AUTO PILOT en cours
         run: |
-          curl -sS "$BASE/api/gmail/status"
+          curl -sS -X POST "$BASE/api/autopilot/stop" -H "Content-Type: application/json" || true
           echo
 
-      - name: Resynchronisation Gmail paginée (reprise) + limitation SQ
+      - name: 2) Supprime les libellés Gmail ALYZIA
+        run: |
+          curl -sS -f -X POST "$BASE/api/autopilot/delete-labels" -H "Content-Type: application/json"
+          echo
+
+      - name: 3) Vide l'archive Google Drive
+        run: |
+          curl -sS -f -X POST "$BASE/api/autopilot/clear-drive" -H "Content-Type: application/json"
+          echo
+
+      - name: 4) Remise à zéro complète de la base
+        run: |
+          curl -sS -f -X POST "$BASE/api/autopilot/full-reset" \
+            -H "Content-Type: application/json" \
+            -d '{"confirm":"YES_WIPE_EVERYTHING"}'
+          echo
+
+      - name: 5) Resynchronisation Gmail paginée + limitation SQ
         run: |
           set -u
-          STATUS=$(curl -sS "$BASE/api/gmail/status")
-          TOKEN=$(echo "$STATUS" | node -e 'let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>{try{const j=JSON.parse(d);process.stdout.write(String(j?.syncState?.backfill_page_token||""))}catch(e){}})')
-          echo "Reprise avec pageToken=[$TOKEN]"
-
+          TOKEN=""
           ITER=0
           MAX_ITER=80
           while [ "$ITER" -lt "$MAX_ITER" ]; do
@@ -60,7 +76,7 @@ jobs:
           done
           echo "Itérations de resync effectuées : $ITER"
 
-      - name: Vidage de la file de classification LOT2 (process-next en boucle)
+      - name: 6a) Vidage de la file de classification LOT2
         run: |
           set -u
           ITER=0
@@ -73,7 +89,7 @@ jobs:
             if [ "$FOUND" = "0" ]; then echo "== File LOT2 vidée =="; break; fi
           done
 
-      - name: Injection LOT3 en boucle (/api/autopilot/run)
+      - name: 6b) Injection LOT3 en boucle
         run: |
           set -u
           ITER=0
@@ -94,7 +110,7 @@ jobs:
             -d '{"airline":"SQ","keepDates":3}'
           echo
 
-      - name: État APRÈS
+      - name: État final
         run: |
           echo "== /api/prepa/summary =="
           curl -sS -f "$BASE/api/prepa/summary" | node -e 'let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>{const j=JSON.parse(d);console.log(JSON.stringify({documents:j.documents,flightCount:j.flightCount,unidentified:j.unidentified,counters:j.counters},null,2))})'
