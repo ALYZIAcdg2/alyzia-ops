@@ -3676,6 +3676,12 @@ const LOT2_GENERIC_AIRLINE_LIST_MAPPINGS = {
     // Préfixe "PDF-" observé uniquement sur INAD pour cette compagnie.
     ["PDF-INAD","INAD"]
   ],
+  // LO n'a pas de canal WEB confirmé par ailleurs (pas de CHL-WEB/PDF-ACCWEB
+  // vu chez LO) — sur demande utilisateur (17/09), PDF-ACC sert d'indicateur
+  // de canal web pour LO plutôt que MASTER (repli DEFAULT) ou IGNORE.
+  LO: [
+    ["PDF-ACC","WEB"]
+  ],
   MS: [
     // "CAS-SB" (Casual Standby) : équivalent MS de STF-SB, sans code
     // distinctif propre dans la liste elle-même.
