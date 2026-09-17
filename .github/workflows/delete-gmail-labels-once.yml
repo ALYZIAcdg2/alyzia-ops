@@ -1,11 +1,4 @@
-name: Vide le Drive puis remet la base à zéro (une fois)
-
-# Déclenchement manuel ponctuel, demande explicite de l'utilisateur :
-# 1) vide l'archive Google Drive (dossier PRÉPA -> corbeille, récupérable
-#    ~30 jours)
-# 2) remet entièrement la base à zéro (fiches vol + pipeline Gmail +
-#    libellés Gmail déjà supprimés séparément)
-# Séparé de report-unmapped-lists.yml pour ne pas interférer avec lui.
+name: Vide le Drive (après reconnexion OAuth)
 
 on:
   workflow_dispatch:
@@ -14,33 +7,13 @@ permissions:
   contents: read
 
 jobs:
-  clear_drive_and_reset:
+  clear_drive:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     env:
       BASE: https://alyzia-ops.alyzia-cdg2.workers.dev
     steps:
-      - name: Demande l'arrêt d'un éventuel AUTO PILOT en cours
-        run: |
-          curl -sS -X POST "$BASE/api/autopilot/stop" -H "Content-Type: application/json" || true
-          echo
-
-      - name: POST /api/autopilot/clear-drive (vide le Drive)
+      - name: POST /api/autopilot/clear-drive
         run: |
           curl -sS -X POST "$BASE/api/autopilot/clear-drive" -H "Content-Type: application/json"
-          echo
-
-      - name: POST /api/autopilot/full-reset (remise à zéro complète de la base)
-        run: |
-          curl -sS -X POST "$BASE/api/autopilot/full-reset" \
-            -H "Content-Type: application/json" \
-            -d '{"confirm":"YES_WIPE_EVERYTHING"}'
-          echo
-
-      - name: État après
-        run: |
-          echo "== /api/flights (nombre) =="
-          curl -sS "$BASE/api/flights" | node -e 'let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>{try{const j=JSON.parse(d);console.log((j.flights||j||[]).length)}catch(e){console.log("PARSE ERROR",d.slice(0,300))}})'
-          echo "== /api/gmail/status =="
-          curl -sS "$BASE/api/gmail/status"
           echo
