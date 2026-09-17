@@ -7665,9 +7665,13 @@ function airportTzOffsetHours(iata,date=new Date()){
 // réel (heure d'été/hiver incluse) au lieu d'un nombre figé en dur.
 const TZ=new Proxy({},{get:(_,iata)=>airportTzOffsetHours(String(iata))});
 let selected=0, editKey='', editClass='', currentList=[], currentView='home';
-// Squelette des filtres terminal (T1/T2/T3/ALL) dans la liste des vols :
-// filtre déjà branché sur x.terminal, mais aucun vol n'a encore cette donnée
-// (à fournir par l'utilisateur).
+// Filtres terminal (T1/T2/T3/ALL) dans la liste des vols, par compagnie
+// (répartition fournie par l'utilisateur le 17/09).
+const AIRLINE_TERMINAL={
+ EI:'T1',MS:'T1',SQ:'T1',HU:'T1',FB:'T1',KU:'T1',VF:'T1',S4:'T1',FI:'T1',OZ:'T1',TW:'T1',TK:'T1',J2:'T1',AV:'T1',WB:'T1',NH:'T1',
+ AH:'T2',MH:'T2',AT:'T2',A9:'T2',LY:'T2',SB:'T2',AI:'T2',HM:'T2',SK:'T2',LO:'T2',JU:'T2',LA:'T2',RJ:'T2',
+ BJ:'T3',LS:'T3','3O':'T3',IZ:'T3',TS:'T3',DE:'T3',SM:'T3',TB:'T3',ENT:'T3'
+};
 let TERMINAL_FILTER='ALL';
 function setTerminalFilter(t){TERMINAL_FILTER=['T1','T2','T3','ALL'].includes(t)?t:'ALL';renderHome()}
 let modalStack=[];
@@ -8297,7 +8301,7 @@ function renderHome(){
  updateMobileNav();
  const rows=FLIGHTS.map((x,i)=>({...x,_index:i}))
    .filter(x=>!x.date||x.date===HOME_DATE)
-   .filter(x=>TERMINAL_FILTER==='ALL'||String(x.terminal||'').toUpperCase()===TERMINAL_FILTER)
+   .filter(x=>TERMINAL_FILTER==='ALL'||AIRLINE_TERMINAL[String(x.airline||'').toUpperCase()]===TERMINAL_FILTER)
    .sort((a,b)=>(Number(isFavoriteFlight(b))-Number(isFavoriteFlight(a)))||sortByDeparture(a,b));
  const dateLabel=formatDateLong(HOME_DATE);
  document.getElementById('app').innerHTML=`
@@ -8311,7 +8315,7 @@ function renderHome(){
        <span id="homeVisibleFlightCount" class="flight-count-badge">${rows.length} VOL${rows.length>1?'S':''}</span><button class="home-print-btn" onclick="printFlightList()">🖨 IMPRIMER</button>
      </div>
    </div>
-   <div class="terminal-filter-bar" title="Filtre par terminal (à venir : répartition des vols par terminal)">
+   <div class="terminal-filter-bar" title="Filtre par terminal">
      <button type="button" class="terminal-filter-btn t1 ${TERMINAL_FILTER==='T1'?'active':''}" onclick="setTerminalFilter('T1')">T1</button>
      <button type="button" class="terminal-filter-btn t2 ${TERMINAL_FILTER==='T2'?'active':''}" onclick="setTerminalFilter('T2')">T2</button>
      <button type="button" class="terminal-filter-btn t3 ${TERMINAL_FILTER==='T3'?'active':''}" onclick="setTerminalFilter('T3')">T3</button>
