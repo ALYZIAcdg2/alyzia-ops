@@ -7597,6 +7597,117 @@ async function lot5FlightSummaryV1(env,identity){
 // et regroupe par type de liste détecté (listName), pour construire le futur
 // mapping GENERIC (comme OZ/WB) sans avoir à cliquer message par message.
 // Plafonné : lot2ExtractPdfTextFromBytes est coûteux en CPU sur beaucoup de PDF.
+/*
+ * Relevé en LECTURE SEULE directement dans la boîte Gmail (aucun appel à
+ * storeGmailMessage/cleanStoreDocumentV3, donc aucune écriture D1/R2, aucune
+ * modification de libellé) : liste les messages correspondant à la requête,
+ * résout leur identité (même cascade que le pipeline réel : sujet/corps,
+ * puis sonde SQ, puis sonde BJ/VF), extrait chaque pièce jointe et classe
+ * chaque document (même cascade que lot5SpecificGenericPreviewV1 : TW/TK/
+ * IPORT/VF/JU puis repli générique), et regroupe le tout par compagnie puis
+ * par nom de liste. Demande explicite : vérifier par compagnie les cartes
+ * produites par les parsers, sans lancer la moindre resynchronisation.
+ */
+async function lot5DryGmailListSurveyV1(env,{query='in:anywhere',maxMessages=40,airlineFilter=''}={}){
+  const q=String(query||'in:anywhere').trim()||'in:anywhere';
+  const n=Math.max(1,Math.min(100,Number(maxMessages||40)));
+  const filterAirline=String(airlineFilter||'').trim().toUpperCase();
+
+  const list=await gmailFetch(env,`/messages?${new URLSearchParams({q,maxResults:String(n)}).toString()}`);
+  const messages=list.messages||[];
+  const byAirline={};
+  const errors=[];
+  let messagesChecked=0,documentsSeen=0;
+
+  for(const m of messages){
+    const messageId=String(m?.id||'');
+    if(!messageId)continue;
+    try{
+      const message=await gmailFetch(env,`/messages/${encodeURIComponent(messageId)}?format=full`);
+      const subject=extractHeader(message,"Subject");
+      const bodyText=await extractPlainBodyFullV1(env,message);
+      const parts=walkParts(message.payload,[]);
+      const attachmentCache=new Map();
+
+      let flightBase=detectMailFlight(subject,"",bodyText);
+      if(!(flightBase.airline&&flightBase.flightNumber&&flightBase.flightDate)){
+        const probed=await cleanProbeAttachmentIdentitySQV3(env,messageId,subject,bodyText,parts,attachmentCache);
+        if(probed?.airline==='SQ')flightBase=probed;
+      }
+      const r224PdfCandidate=r224IsPdfPrefixCandidate(subject,parts);
+      if(r224PdfCandidate && !(flightBase.airline&&flightBase.flightNumber&&flightBase.flightDate)){
+        const r224Probe=await r224ProbeBjVfIdentityFromAttachments(env,messageId,subject,parts,attachmentCache);
+        if(r224Probe?.identity){
+          flightBase={...flightBase,airline:r224Probe.identity.airline,flightNumber:r224Probe.identity.flightNumber,flightDate:r224Probe.identity.flightDate};
+        }
+      }
+      messagesChecked++;
+      const airline=String(flightBase.airline||'').toUpperCase();
+      if(!airline)continue;
+      if(filterAirline && airline!==filterAirline)continue;
+
+      for(const part of parts){
+        const attachmentId=String(part.body?.attachmentId||"");
+        if(!attachmentId)continue;
+        try{
+          const filename=String(part.filename||"attachment");
+          const mime=String(part.mimeType||"application/octet-stream").toLowerCase();
+          let bytes=attachmentCache.get(attachmentId);
+          if(!bytes){
+            const att=await gmailFetch(env,`/messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachmentId)}`);
+            bytes=b64urlToBytes(att.data||"");attachmentCache.set(attachmentId,bytes);
+          }
+          let text='';
+          if(/\.pdf$/i.test(filename)||mime.includes('pdf')){
+            const ex=await lot2ExtractPdfTextFromBytes(bytes).catch(()=>({text:''}));
+            text=String(ex?.text||'');
+          }else if(/\.eml$/i.test(filename)||mime==='message/rfc822'){
+            const raw=new TextDecoder().decode(bytes);
+            const parsed=cleanParseEmlRecursiveV3(raw);
+            text=raw.slice(0,20000)+'\n'+(parsed.textBodies||[]).join('\n');
+          }else if(mime.startsWith('text/')||/\.(txt|csv|html?)$/i.test(filename)){
+            text=new TextDecoder().decode(bytes);
+          }else{
+            continue;
+          }
+          if(!text.trim())continue;
+          documentsSeen++;
+
+          const twKind=TW_CONTENT_AIRLINES.has(airline)?lot2TwContentDetect(text):"";
+          const tkKind=(!twKind && TK_ALLPAX_AIRLINES.has(airline))?lot2TkContentDetect(text):"";
+          const iportKind=(!twKind && !tkKind && IPORT_AIRLINES.has(airline))?lot2IportListKindFromBody(text):"";
+          const vfKind=(!twKind && !tkKind && !iportKind && (airline==="VF"||airline==="BJ"))?lot2VfListKindFromText(text):"";
+          const juKind=(!twKind && !tkKind && !iportKind && !vfKind && JU_AIRLINES.has(airline))?lot2JuListKindFromText(text):"";
+          let listName,cardKey,mappingScope,count;
+          if(twKind){listName="TW CONTENT";cardKey="MASTER";mappingScope="TW_CONTENT";count=lot2TwExtractPassengerItems(text).length;}
+          else if(tkKind){listName="TK ALL PAX";cardKey="MASTER";mappingScope="TK_ALLPAX";count=lot2TkExtractPassengerItems(text).length;}
+          else if(iportKind){listName=IPORT_LIST_LABELS[iportKind]||iportKind;cardKey=IPORT_LIST_CARD_KEYS[iportKind]||"OTHER";mappingScope="IPORT";count=lot2IportExtractPassengerItems(text,iportKind).length;}
+          else if(vfKind){listName=VF_LIST_LABELS[vfKind]||vfKind;cardKey=(airline==="BJ"&&vfKind==="CHECKIN")?"WEB":(VF_LIST_CARD_KEYS[vfKind]||"OTHER");mappingScope="VF";count=lot2VfExtractPassengerItems(text,vfKind).length;}
+          else if(juKind){listName=JU_LIST_LABELS[juKind]||juKind;cardKey="JU_MIXED";mappingScope="JU";count=lot2JuExtractPassengerItems(text).items.length;}
+          else{
+            listName=lot2DetectListName(text,filename);
+            const mapping=lot2LookupListMapping(airline,listName,text);
+            cardKey=mapping.cardKey;mappingScope=mapping.mappingScope;
+            count=lot2ExtractPassengerCount(text,listName,cardKey);
+          }
+
+          byAirline[airline]=byAirline[airline]||{};
+          const key=String(listName||'(SANS EN-TÊTE)');
+          const bucket=byAirline[airline][key]||(byAirline[airline][key]={listName:key,cardKey,mappingScope,occurrences:0,sampleSubject:subject,samplePassengerCount:count});
+          bucket.occurrences++;
+        }catch(e){errors.push({messageId,filename:part?.filename||'',error:String(e?.message||e)})}
+      }
+    }catch(e){errors.push({messageId,error:String(e?.message||e)})}
+  }
+
+  const companies=Object.entries(byAirline).map(([airline,lists])=>({
+    airline,
+    lists:Object.values(lists).sort((a,b)=>b.occurrences-a.occurrences)
+  })).sort((a,b)=>a.airline.localeCompare(b.airline));
+
+  return {ok:true,query:q,messagesFound:messages.length,messagesChecked,documentsSeen,companies,errors};
+}
+
 async function lot5SpecificListSurveyV1(env,airline,limit=30){
   const a=String(airline||'').trim().toUpperCase();
   if(!a)return {ok:false,error:'AIRLINE REQUISE'};
@@ -9839,6 +9950,13 @@ async function handleLot5(request,env,url){
     if(url.pathname==='/api/gmail-clean/sha-audit'&&request.method==='POST'){
       const body=await request.json().catch(()=>({}));
       return json(await gmailCleanShaAuditV33(env,body?.messageIds||[]));
+    }
+    if(url.pathname==='/api/autopilot/dry-list-survey'&&request.method==='GET'){
+      return json(await lot5DryGmailListSurveyV1(env,{
+        query:url.searchParams.get('query')||'in:anywhere',
+        maxMessages:Number(url.searchParams.get('maxMessages')||40),
+        airlineFilter:url.searchParams.get('airline')||''
+      }));
     }
     if(url.pathname==='/api/autopilot/specific-generic-preview'&&request.method==='GET'){
       const messageId=String(url.searchParams.get('messageId')||'').trim();
