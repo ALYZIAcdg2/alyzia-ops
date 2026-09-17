@@ -7929,7 +7929,13 @@ async function lot5DryGmailListSurveyV1(env,{query='in:anywhere',maxMessages=40,
 
           byAirline[airline]=byAirline[airline]||{};
           const key=String(listName||'(SANS EN-TÊTE)');
-          const bucket=byAirline[airline][key]||(byAirline[airline][key]={listName:key,cardKey,mappingScope,occurrences:0,sampleSubject:subject,samplePassengerCount:count,textPreview:(cardKey==='OTHER'||cardKey==='NO_LIST'||cardKey==='FQTV')?text.slice(0,1000):undefined});
+          // Avec un filtre compagnie explicite, le volume est déjà borné par
+          // construction : on capture alors l'aperçu texte pour TOUTE carte
+          // (pas seulement OTHER/NO_LIST/FQTV), utile pour vérifier un format
+          // réel précis (ex. passager "through" multi-tronçon) sans devoir
+          // redéployer un aperçu dédié à chaque nouvelle investigation.
+          const wantPreview=filterAirline?true:(cardKey==='OTHER'||cardKey==='NO_LIST'||cardKey==='FQTV');
+          const bucket=byAirline[airline][key]||(byAirline[airline][key]={listName:key,cardKey,mappingScope,occurrences:0,sampleSubject:subject,samplePassengerCount:count,textPreview:wantPreview?text.slice(0,2000):undefined});
           bucket.occurrences++;
         }catch(e){errors.push({messageId,filename:part?.filename||'',error:String(e?.message||e)})}
       }
