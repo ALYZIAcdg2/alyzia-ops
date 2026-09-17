@@ -1,4 +1,4 @@
-name: Vérification Drive + Gmail (lecture, sans relancer le traitement)
+name: Vérifie AUTO PILOT désactivé puis remise à zéro Drive+Gmail
 
 on:
   workflow_dispatch:
@@ -7,23 +7,42 @@ permissions:
   contents: read
 
 jobs:
-  check:
+  reset:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
       BASE: https://alyzia-ops.alyzia-cdg2.workers.dev
     steps:
-      - name: Statut Google Drive
+      - name: Vérifie que l'AUTO PILOT est désactivé
         run: |
-          curl -sS -f "$BASE/api/prepa/google-drive/status"
+          curl -sS -f "$BASE/api/autopilot/status" | node -e 'let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>{const j=JSON.parse(d);console.log(JSON.stringify({enabled:j?.config?.enabled,lastRunStatus:j?.lastRun?.status}));if(j?.config?.enabled===true){console.error("AUTO PILOT TOUJOURS ACTIVÉ");process.exit(1)}})'
           echo
 
-      - name: Statut Gmail
+      - name: 1) Supprime les libellés Gmail ALYZIA
         run: |
+          curl -sS -f -X POST "$BASE/api/autopilot/delete-labels" -H "Content-Type: application/json"
+          echo
+
+      - name: 2) Vide l'archive Google Drive
+        run: |
+          curl -sS -f -X POST "$BASE/api/autopilot/clear-drive" -H "Content-Type: application/json"
+          echo
+
+      - name: 3) Remise à zéro complète de la base
+        run: |
+          curl -sS -f -X POST "$BASE/api/autopilot/full-reset" \
+            -H "Content-Type: application/json" \
+            -d '{"confirm":"YES_WIPE_EVERYTHING"}'
+          echo
+
+      - name: État final
+        run: |
+          sleep 3
+          echo "== /api/flights (nombre) =="
+          curl -sS -f "$BASE/api/flights" | node -e 'let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>{const j=JSON.parse(d);console.log((j.flights||j||[]).length)})'
+          echo "== /api/prepa/summary =="
+          curl -sS -f "$BASE/api/prepa/summary"
+          echo
+          echo "== /api/gmail/status =="
           curl -sS -f "$BASE/api/gmail/status"
-          echo
-
-      - name: Statut AUTO PILOT (config + dernier run)
-        run: |
-          curl -sS -f "$BASE/api/autopilot/status"
           echo
