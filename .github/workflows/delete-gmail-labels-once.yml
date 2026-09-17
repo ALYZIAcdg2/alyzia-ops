@@ -1,4 +1,4 @@
-name: Relevé Gmail lecture seule — WB701 et SB501 ALL PAX (renvoyés)
+name: Relevé Gmail lecture seule — SB501 aperçu élargi
 
 on:
   workflow_dispatch:
@@ -13,28 +13,7 @@ jobs:
     env:
       BASE: https://alyzia-ops.alyzia-cdg2.workers.dev
     steps:
-      - name: Relevé WB (10 messages les plus récents, filtré compagnie)
-        run: |
-          curl -sS -f "$BASE/api/autopilot/dry-list-survey?query=in%3Aanywhere&maxMessages=10&airline=WB" -o /tmp/survey_wb.json
-          echo "== WB : toutes les listes =="
-          node -e '
-            const j=JSON.parse(require("fs").readFileSync("/tmp/survey_wb.json","utf8"));
-            console.log(JSON.stringify({messagesFound:j.messagesFound,messagesChecked:j.messagesChecked,documentsSeen:j.documentsSeen,errors:(j.errors||[]).length}));
-            const wb=(j.companies||[]).find(c=>c.airline==="WB");
-            const lists=wb?wb.lists:[];
-            for(const l of lists){
-              console.log(JSON.stringify({listName:l.listName,cardKey:l.cardKey,occurrences:l.occurrences,samplePassengerCount:l.samplePassengerCount}));
-            }
-            console.log("== WB : aperçu texte complet (toutes cartes) ==");
-            for(const l of lists){
-              if(l.textPreview){
-                console.log("--- "+l.listName+" ("+l.cardKey+") ---");
-                console.log(l.textPreview);
-              }
-            }
-          '
-          echo
-      - name: Relevé SB (10 messages les plus récents, filtré compagnie)
+      - name: Relevé SB (10 messages les plus récents, filtré compagnie, aperçu élargi)
         run: |
           curl -sS -f "$BASE/api/autopilot/dry-list-survey?query=in%3Aanywhere&maxMessages=10&airline=SB" -o /tmp/survey_sb.json
           echo "== SB : toutes les listes =="
