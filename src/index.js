@@ -7693,7 +7693,7 @@ async function lot5DryGmailListSurveyV1(env,{query='in:anywhere',maxMessages=40,
 
           byAirline[airline]=byAirline[airline]||{};
           const key=String(listName||'(SANS EN-TÊTE)');
-          const bucket=byAirline[airline][key]||(byAirline[airline][key]={listName:key,cardKey,mappingScope,occurrences:0,sampleSubject:subject,samplePassengerCount:count});
+          const bucket=byAirline[airline][key]||(byAirline[airline][key]={listName:key,cardKey,mappingScope,occurrences:0,sampleSubject:subject,samplePassengerCount:count,textPreview:(cardKey==='OTHER'||cardKey==='NO_LIST')?text.slice(0,800):undefined});
           bucket.occurrences++;
         }catch(e){errors.push({messageId,filename:part?.filename||'',error:String(e?.message||e)})}
       }
