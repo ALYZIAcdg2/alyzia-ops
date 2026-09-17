@@ -15,16 +15,16 @@ jobs:
     steps:
       - name: Relevé DE (Condor)
         run: |
-          curl -sS -f "$BASE/api/autopilot/dry-list-survey?query=in%3Aanywhere&maxMessages=100&airline=DE" -o /tmp/survey_de.json || true
+          curl -sS -f --max-time 240 "$BASE/api/autopilot/dry-list-survey?query=in%3Aanywhere&maxMessages=40&airline=DE" -o /tmp/survey_de.json || true
       - name: Relevé TU (Tunisair)
         run: |
-          curl -sS -f "$BASE/api/autopilot/dry-list-survey?query=in%3Aanywhere&maxMessages=100&airline=TU" -o /tmp/survey_tu.json || true
+          curl -sS -f --max-time 240 "$BASE/api/autopilot/dry-list-survey?query=in%3Aanywhere&maxMessages=40&airline=TU" -o /tmp/survey_tu.json || true
       - name: Relevé SB (Aircalin)
         run: |
-          curl -sS -f "$BASE/api/autopilot/dry-list-survey?query=in%3Aanywhere&maxMessages=100&airline=SB" -o /tmp/survey_sb.json || true
+          curl -sS -f --max-time 240 "$BASE/api/autopilot/dry-list-survey?query=in%3Aanywhere&maxMessages=40&airline=SB" -o /tmp/survey_sb.json || true
       - name: Relevé RJ (Royal Jordanian)
         run: |
-          curl -sS -f "$BASE/api/autopilot/dry-list-survey?query=in%3Aanywhere&maxMessages=100&airline=RJ" -o /tmp/survey_rj.json || true
+          curl -sS -f --max-time 240 "$BASE/api/autopilot/dry-list-survey?query=in%3Aanywhere&maxMessages=40&airline=RJ" -o /tmp/survey_rj.json || true
       - name: Affiche les listes KID/CHLD/INF de chaque compagnie
         run: |
           for pair in "DE:/tmp/survey_de.json" "TU:/tmp/survey_tu.json" "SB:/tmp/survey_sb.json" "RJ:/tmp/survey_rj.json"; do
