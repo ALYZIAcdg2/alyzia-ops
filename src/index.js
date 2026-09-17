@@ -4980,7 +4980,12 @@ function lot2TwExtractPassengerItems(text){
     // les champs optionnels doivent aussi accepter ce jeton, sans quoi le
     // repère ne matche plus jamais et TOUS les passagers du document sont
     // silencieusement ignorés (extraction à 0 malgré un document valide).
-    const core=rest.match(/\b(C|Y)\s+([A-Z]{1,2})\s+HK(?:\s+(?:CK|BD|NULL))*\s+CDG\s+ICN(?:\s+(?:([A-Z]{3})|NULL))?(?:\s+(?:(TW\d{2,4})|NULL))?\s+(\d\/\d)\s+([A-Z0-9]{6})(?:\s+NULL)?(?:\s+([0-9]{2}[A-Z]))?/);
+    // Le ratio "<jambe>/<jambes>" n'est pas toujours à un seul chiffre (ex.
+    // "31/31", "16/31" vus sur un vrai mail TW402/16SEP à forte affluence) :
+    // \d/\d seul ne matchait que "1/2", "7/8"... et faisait échouer le
+    // repère entier (donc perdre le passager en silence) dès qu'un groupe
+    // dépassait 9 passagers.
+    const core=rest.match(/\b(C|Y)\s+([A-Z]{1,2})\s+HK(?:\s+(?:CK|BD|NULL))*\s+CDG\s+ICN(?:\s+(?:([A-Z]{3})|NULL))?(?:\s+(?:(TW\d{2,4})|NULL))?\s+(\d{1,2}\/\d{1,2})\s+([A-Z0-9]{6})(?:\s+NULL)?(?:\s+([0-9]{2}[A-Z]))?/);
     if(!core)continue; // repère absent : ligne non fiable, ignorée plutôt que de créer un passager corrompu
     const ssrBlock=rest.slice(0,core.index).trim();
     items.push({
