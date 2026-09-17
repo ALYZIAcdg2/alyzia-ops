@@ -35,5 +35,7 @@ jobs:
             const fqtvSample=lists.find(l=>l.cardKey==="FQTV" && l.textPreview);
             if(fqtvSample) console.log(fqtvSample.textPreview.slice(0,1200));
             else console.log("(aucun textPreview FQTV disponible dans ce lot)");
+            console.log("== Erreurs de lecture (toutes compagnies confondues) ==");
+            for(const e of (j.errors||[])) console.log(JSON.stringify(e));
           '
           echo
