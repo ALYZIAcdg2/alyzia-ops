@@ -9,48 +9,40 @@ permissions:
 jobs:
   survey:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        code: [DE, TU, SB, RJ]
     env:
       BASE: https://alyzia-ops.alyzia-cdg2.workers.dev
     steps:
-      - name: Relevé DE (Condor)
+      - name: Relevé ${{ matrix.code }}
         run: |
-          curl -sS -f --max-time 240 "$BASE/api/autopilot/dry-list-survey?query=in%3Aanywhere&maxMessages=40&airline=DE" -o /tmp/survey_de.json || true
-      - name: Relevé TU (Tunisair)
+          curl -sS -f --max-time 120 "$BASE/api/autopilot/dry-list-survey?query=in%3Aanywhere&maxMessages=20&airline=${{ matrix.code }}" -o /tmp/survey.json || true
+      - name: Affiche les listes KID/CHLD/INF pour ${{ matrix.code }}
         run: |
-          curl -sS -f --max-time 240 "$BASE/api/autopilot/dry-list-survey?query=in%3Aanywhere&maxMessages=40&airline=TU" -o /tmp/survey_tu.json || true
-      - name: Relevé SB (Aircalin)
-        run: |
-          curl -sS -f --max-time 240 "$BASE/api/autopilot/dry-list-survey?query=in%3Aanywhere&maxMessages=40&airline=SB" -o /tmp/survey_sb.json || true
-      - name: Relevé RJ (Royal Jordanian)
-        run: |
-          curl -sS -f --max-time 240 "$BASE/api/autopilot/dry-list-survey?query=in%3Aanywhere&maxMessages=40&airline=RJ" -o /tmp/survey_rj.json || true
-      - name: Affiche les listes KID/CHLD/INF de chaque compagnie
-        run: |
-          for pair in "DE:/tmp/survey_de.json" "TU:/tmp/survey_tu.json" "SB:/tmp/survey_sb.json" "RJ:/tmp/survey_rj.json"; do
-            code="${pair%%:*}"
-            file="${pair#*:}"
-            echo "======== $code ========"
-            if [ ! -s "$file" ]; then echo "(pas de fichier / erreur curl)"; continue; fi
-            node -e '
-              const code=process.argv[1];
-              const file=process.argv[2];
-              let j;
-              try{ j=JSON.parse(require("fs").readFileSync(file,"utf8")); }catch(e){ console.log("JSON invalide:",e.message); process.exit(0); }
-              console.log(JSON.stringify({messagesFound:j.messagesFound,messagesChecked:j.messagesChecked,documentsSeen:j.documentsSeen,errors:(j.errors||[]).length}));
-              const co=(j.companies||[]).find(c=>c.airline===code);
-              const lists=co?co.lists:[];
-              for(const l of lists){
-                console.log(JSON.stringify({listName:l.listName,cardKey:l.cardKey,occurrences:l.occurrences,samplePassengerCount:l.samplePassengerCount}));
+          code="${{ matrix.code }}"
+          file=/tmp/survey.json
+          echo "======== $code ========"
+          if [ ! -s "$file" ]; then echo "(pas de fichier / erreur curl)"; exit 0; fi
+          node -e '
+            const code=process.argv[1];
+            const file=process.argv[2];
+            let j;
+            try{ j=JSON.parse(require("fs").readFileSync(file,"utf8")); }catch(e){ console.log("JSON invalide:",e.message); process.exit(0); }
+            console.log(JSON.stringify({messagesFound:j.messagesFound,messagesChecked:j.messagesChecked,documentsSeen:j.documentsSeen,errors:(j.errors||[]).length}));
+            const co=(j.companies||[]).find(c=>c.airline===code);
+            const lists=co?co.lists:[];
+            for(const l of lists){
+              console.log(JSON.stringify({listName:l.listName,cardKey:l.cardKey,occurrences:l.occurrences,samplePassengerCount:l.samplePassengerCount}));
+            }
+            console.log("---- aperçu texte (listes KID/CHLD/CHILD/INF/INFANT/INFKID) ----");
+            for(const l of lists){
+              const ln=String(l.listName||"").toUpperCase();
+              if(/KID|CHLD|CHILD|INF/.test(ln) && l.textPreview){
+                console.log("--- "+l.listName+" ("+l.cardKey+") ---");
+                console.log(l.textPreview);
               }
-              console.log("---- aperçu texte (listes KID/CHLD/CHILD/INF/INFANT/INFKID) ----");
-              for(const l of lists){
-                const ln=String(l.listName||"").toUpperCase();
-                if(/KID|CHLD|CHILD|INF/.test(ln) && l.textPreview){
-                  console.log("--- "+l.listName+" ("+l.cardKey+") ---");
-                  console.log(l.textPreview);
-                }
-              }
-            ' "$code" "$file"
-            echo
-          done
+            }
+          ' "$code" "$file"
