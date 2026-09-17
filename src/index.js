@@ -7935,7 +7935,7 @@ async function lot5DryGmailListSurveyV1(env,{query='in:anywhere',maxMessages=40,
           // réel précis (ex. passager "through" multi-tronçon) sans devoir
           // redéployer un aperçu dédié à chaque nouvelle investigation.
           const wantPreview=filterAirline?true:(cardKey==='OTHER'||cardKey==='NO_LIST'||cardKey==='FQTV');
-          const bucket=byAirline[airline][key]||(byAirline[airline][key]={listName:key,cardKey,mappingScope,occurrences:0,sampleSubject:subject,samplePassengerCount:count,textPreview:wantPreview?text.slice(0,2000):undefined});
+          const bucket=byAirline[airline][key]||(byAirline[airline][key]={listName:key,cardKey,mappingScope,occurrences:0,sampleSubject:subject,samplePassengerCount:count,textPreview:wantPreview?text.slice(0,8000):undefined});
           bucket.occurrences++;
         }catch(e){errors.push({messageId,filename:part?.filename||'',error:String(e?.message||e)})}
       }
