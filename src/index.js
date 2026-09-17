@@ -3698,9 +3698,14 @@ const LOT2_GENERIC_AIRLINE_LIST_MAPPINGS = {
     ["PDF-10","WCH"]
   ],
   WB: [
-    // RwandAir préfixe systématiquement ses listes par "X-TRT". X-TRT seule
-    // est un export complet des passagers (comme ALL CUSTOMERS/MASTER).
-    ["X-TRT","MASTER"],
+    // RwandAir préfixe systématiquement ses listes par "X-TRT". Correctif
+    // (17/09, confirmé sur un vrai relevé WB701/10SEP) : X-TRT seule n'est
+    // PAS un export complet équivalent à ALL CUSTOMERS (hypothèse initiale,
+    // fausse) — c'est un sous-ensemble "passagers joignant à CDG uniquement"
+    // (par opposition aux passagers through BRU->KGL marqués "TRT" dans le
+    // vrai manifeste ALL CUSTOMERS, 162 pax). La laisser en MASTER créait le
+    // même conflit à deux MASTER que CC-Y chez SQ.
+    ["X-TRT","OTHER"],
     ["X-TRT, ETKT","ETKT"],
     ["X-TRT, ONC","OUTBOUND"],
     ["X-TRT, INC","INBOUND"],
