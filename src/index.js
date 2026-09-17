@@ -9961,6 +9961,11 @@ async function handleLot5(request,env,url){
        * schéma par compagnie), pour qu'ils soient recréés proprement au fil
        * de la resynchronisation plutôt que de porter un état obsolète.
        *
+       * Bug corrigé (17/09) : prepa_inbox n'était jamais vidée, alors que
+       * /api/prepa/summary lit directement cette table — un full-reset
+       * "réussi" laissait donc l'écran PRÉPA afficher des centaines de
+       * vols/documents résiduels malgré une base soi-disant vide.
+       *
        * Geste irréversible et à fort impact (efface des données consultées
        * en direct par les équipes au sol) : protégé par un jeton de
        * confirmation explicite, jamais déclenchable par erreur via un simple
@@ -9972,9 +9977,10 @@ async function handleLot5(request,env,url){
       }
       await ensureGmailPipelineTables(env);
       await ensureImportProcessorTables(env);
+      await ensurePrepaControlTables(env);
 
       const counts={};
-      for(const table of ['flights','gmail_messages','gmail_message_documents','import_files','import_file_versions','import_jobs','import_job_results','import_changes','flight_import_cards','flight_import_injections']){
+      for(const table of ['flights','gmail_messages','gmail_message_documents','import_files','import_file_versions','import_jobs','import_job_results','import_changes','flight_import_cards','flight_import_injections','prepa_inbox']){
         const row=await env.OPS_DB.prepare(`SELECT COUNT(*) AS n FROM ${table}`).first().catch(()=>null);
         counts[table]=Number(row?.n||0);
         await env.OPS_DB.prepare(`DELETE FROM ${table}`).run();

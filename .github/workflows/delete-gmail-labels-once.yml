@@ -1,4 +1,4 @@
-name: Vide le Drive (après reconnexion OAuth)
+name: Diagnostic état actuel (lecture seule)
 
 on:
   workflow_dispatch:
@@ -7,13 +7,19 @@ permissions:
   contents: read
 
 jobs:
-  clear_drive:
+  diag:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
       BASE: https://alyzia-ops.alyzia-cdg2.workers.dev
     steps:
-      - name: POST /api/autopilot/clear-drive
+      - name: État actuel
         run: |
-          curl -sS -X POST "$BASE/api/autopilot/clear-drive" -H "Content-Type: application/json"
+          echo "== /api/flights (nombre) =="
+          curl -sS "$BASE/api/flights" | node -e 'let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>{try{const j=JSON.parse(d);console.log((j.flights||j||[]).length)}catch(e){console.log("PARSE ERROR",d.slice(0,300))}})'
+          echo "== /api/prepa/summary =="
+          curl -sS "$BASE/api/prepa/summary"
+          echo
+          echo "== /api/gmail/status =="
+          curl -sS "$BASE/api/gmail/status"
           echo
