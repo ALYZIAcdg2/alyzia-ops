@@ -8161,7 +8161,12 @@ function schedule(x){
 }
 function daytag(n){return n>0?'J+'+n:n<0?'J'+n:''}
 function liveFor(iata){const d=new Date(),utc=d.getUTCHours()*60+d.getUTCMinutes(),off=TZ[iata]??2;return fmt(utc+off*60)}
-function durationText(m){const n=Number(m);return Number.isFinite(n)&&n>0?pad(Math.floor(n/60))+':'+pad(n%60):'—'}
+function durationText(m){
+ const n=Math.round(Number(m));
+ return Number.isFinite(n)&&n>0
+   ? pad(Math.floor(n/60))+':'+pad(n%60)
+   :'—'
+}
 
 
 
