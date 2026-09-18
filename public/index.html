@@ -12896,11 +12896,24 @@ function prepareTwImportManifest(rawOriginal){
  let m=up.match(/\bFLIGHT\s*#?\s*:\s*(TW\s*\d{2,4})\b/);if(m)put('#edFlight',m[1].replace(/\s+/g,''));
  m=up.match(/\bSTD\s*:\s*(\d{2}:?\d{2})\b/);if(m)put('#edStd',m[1].includes(':')?m[1]:v5002PadTime(m[1]));
  const cfg=up.match(/\bCONFIG\s*:\s*([^\n\r]+)/);if(cfg){for(const q of cfg[1].matchAll(/(\d{1,3})\s*([CY])/g))put(`[data-ed-config="${q[2]}"]`,q[1])}
- const starts=[...up.matchAll(/(?:^|\s)(?:(?:WEBAPM|WEBAPI|KRAPP)\s*)?(\d{1,3})\s+([A-Z][A-Z' +.-]{1,80})\s*\/\s*([A-Z][A-Z' +.-]{1,100})/gm)];
+ // Le préfixe source varie (WEBAPI/WEBAPM/KRAPP/CDGAGT/FRMOB/FRWEB...) et se
+ // colle directement au compteur sans espace (ex. "CDGAGT08105") : une liste
+ // figée de préfixes connus, ou un compteur limité à 3 chiffres, ignoraient
+ // silencieusement une bonne moitié des passagers réels (préfixe non
+ // reconnu, ou queue numérique de 4-5 chiffres tronquée avant l'espace
+ // attendu). Le préfixe est donc générique (2-10 lettres) et le compteur
+ // accepte jusqu'à 6 chiffres — sa valeur exacte ne sert qu'au
+ // déduplicatoire ci-dessous, jamais stockée sur le passager.
+ // Le nom complet est ensuite dupliqué tel quel dans la source
+ // ("NOM / PRENOM NOM / PRENOM ...") : les rétro-références \2/\3 ancrent
+ // la fin réelle du prénom sur cette répétition, au lieu de laisser la
+ // classe de caractères (qui autorise l'espace, donc les noms à plusieurs
+ // mots) avaler le nom dupliqué suivant et produire "NOM/PRENOM NOM".
+ const starts=[...up.matchAll(/(?:^|\s)(?:[A-Z]{2,10})?(\d{1,6})\s+([A-Z][A-Z' +.-]{1,60}?)\s*\/\s*([A-Z][A-Z' +.-]{1,80}?)\s+\2\s*\/\s*\3(?=\s|$)/gm)];
  const seen=new Set();
  for(let i=0;i<starts.length;i++){
   const a=starts[i],b=starts[i+1],segment=up.slice(a.index,b?b.index:Math.min(up.length,a.index+1400));
-  const num=Number(a[1]);if(!num||num>999)continue;
+  const num=Number(a[1]);if(!num)continue;
   const name=`${a[2].trim()}/${a[3].trim()}`.replace(/\s+/g,' ');const key=`${num}|${name}`;if(seen.has(key))continue;
   // Le système source (WEBAPI) écrit littéralement "NULL" pour un champ
   // vide au lieu de l'omettre (ex. "HK CK NULL CDG ICN") : un jeton NULL
