@@ -154,7 +154,7 @@ const DELETE_FLIGHT_UI = String.raw`
       groups.get(airline).push(row);
     });
     if(prepaCompanyFilter&&groups.has(prepaCompanyFilter)){
-      rows.forEach(row=>row.hidden=prepaRowAirline(row)!==prepaCompanyFilter);
+      rows.forEach(row=>{if(prepaRowAirline(row)!==prepaCompanyFilter)row.remove()});
       const selected=groups.get(prepaCompanyFilter);
       const toolbar=document.createElement('div');
       toolbar.className='prepa-company-toolbar';
