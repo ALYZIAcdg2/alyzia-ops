@@ -5264,10 +5264,136 @@ function lot2TkExtractPassengerItems(text){
       title,gender:"",passengerType:ptype==="CHD"?"CHD":(ptype||"ADT"),
       class:cls,cabinClass:cls,seat,etkt,
       origin:"CDG",destination:"IST",
+      // Clé de rapprochement avec les autres sections du même mail (COMMENTED
+      // PAX/ONCARRIAGE PAX/...), qui ne portent QUE le nom tronqué de la
+      // ligne 1 (ex. "ERGUN    L"), jamais le "SURNAME/GIVEN" complet de la
+      // ligne 2 — voir lot2TkTruncNameFromLine (priorité 7, vérifié sur un
+      // vrai mail TK1828/17SEP).
+      tkTruncKey:lot2TkTruncNameFromLine(l1),
       specific:"",note:"",listName:"TK ALL PAX",cardKey:"MASTER",source:"TK_ALLPAX",ssr:[]
     });
   }
   return items;
+}
+// Clé de rapprochement partagée par TOUTES les sections TK (ALL PAX,
+// COMMENTED PAX, ONCARRIAGE PAX, PASSENGERS WITH INFANTS...) : chacune tronque
+// le nom de la même façon sur sa ligne 1 ("SURNAME  I" ou "SURNAME!I" si le
+// nom dépasse 8 caractères) — vérifié identique sur un vrai mail TK1828/17SEP
+// (ex. "ERGUN    L" et "CHRISTIA!N" retrouvés à l'identique dans ALL PAX,
+// COMMENTED PAX et PASSENGERS WITH INFANTS pour les mêmes passagers).
+function lot2TkTruncNameFromLine(line){
+  const m=String(line||"").match(/^\s*(.+?)\s+(?:IST|CDG)\b/);
+  if(!m)return "";
+  return m[1].toUpperCase().replace(/[^A-Z]/g,"");
+}
+// CHECK IN INFORMATION : config avion + booked/accepted/on sby/available
+// séparés (priorité 7, vérifié sur TK1828/17SEP réel). Structure réelle :
+// une ligne "TYPE ... CFG 0F 28C 261Y REGN TCJNL ..." puis un petit tableau
+// à deux lignes (station de départ CDG : seule AVAILABLE est renseignée ;
+// station d'arrivée IST : BOOKED/ACCEPTED/ON SBY dans l'ordre, AVAILABLE en
+// "Z/Z/Z" = non applicable côté arrivée).
+function lot2TkExtractCheckInInfo(text){
+  const flat=String(text||"");
+  const idx=flat.indexOf("CHECK IN INFORMATION");
+  if(idx<0)return null;
+  const block=flat.slice(idx,idx+800);
+  const typeM=block.match(/TYPE\s+(\S+)\s+\S+\s+CFG\s+(\d+)F\s+(\d+)C\s+(\d+)Y\s+REGN\s+(\S+)/);
+  const out={
+    type:typeM?typeM[1]:"",
+    reg:typeM?typeM[5]:"",
+    config:typeM?{F:Number(typeM[2]),C:Number(typeM[3]),Y:Number(typeM[4])}:null,
+    booked:null,accepted:null,onStandby:null,available:null
+  };
+  const tripletRe=/(\d+|Z)\s*\/\s*(\d+|Z)\s*\/\s*(\d+|Z)/g;
+  const parseTriplets=(line)=>{
+    const found=[];
+    let mm;
+    tripletRe.lastIndex=0;
+    while((mm=tripletRe.exec(String(line||"")))){
+      found.push(mm[1]==="Z"?null:{F:Number(mm[1]),C:Number(mm[2]),Y:Number(mm[3])});
+    }
+    return found;
+  };
+  const originLine=(block.match(/^\s*\d{3,4}\s+CDG\s+.*$/m)||[])[0]||"";
+  const originTriplets=parseTriplets(originLine).filter(Boolean);
+  if(originTriplets.length)out.available=originTriplets[originTriplets.length-1];
+  const destLine=(block.match(/^\s*\d{3,4}\s+IST\s+.*$/m)||[])[0]||"";
+  const destReal=parseTriplets(destLine).filter(Boolean);
+  out.booked=destReal[0]||null;
+  out.accepted=destReal[1]||null;
+  out.onStandby=destReal[2]||null;
+  return out;
+}
+// VIP/UPGR : marqueurs libres "!VIP!"/"!UPGR!" dans le commentaire attaché à
+// chaque passager des blocs "COMMENTED PAX" (il peut y en avoir PLUSIEURS
+// dans le même mail — vu 2 blocs réels sur TK1828/17SEP, se recoupant
+// partiellement). Les deux marqueurs coexistent sur un même passager (ex.
+// ERGUN, YILDIZ). Fusion par tkTruncKey pour dédupliquer les blocs qui se
+// recoupent, sans jamais perdre un VIP vu dans un bloc et un UPGR vu dans
+// l'autre pour le même passager.
+function lot2TkExtractCommentedPax(text){
+  const flat=String(text||"").replace(/\r/g,"");
+  const re=/CDG COMMENTED PAX[^\n]*\n([\s\S]*?)END NAMES/g;
+  const byKey=new Map();
+  let m;
+  while((m=re.exec(flat))){
+    const lines=m[1].split("\n");
+    let currentKey="";
+    for(const line of lines){
+      const numM=line.match(/^\s*\d{1,3}\.(.+)$/);
+      if(numM){
+        currentKey=lot2TkTruncNameFromLine(numM[1]);
+        if(currentKey && !byKey.has(currentKey))byKey.set(currentKey,{tkTruncKey:currentKey,vip:false,upgr:false});
+        // Le marqueur peut être présent DIRECTEMENT sur la ligne numérotée
+        // (ex. "7.YILDIZ Z IST C * 01B F 0/0 !UPGR! OTO MI @ K"), pas
+        // seulement sur la ligne de commentaire suivante — vérifié sur un
+        // vrai mail TK1828/17SEP (YILDIZ porte !UPGR! sur sa ligne propre et
+        // !VIP! sur la ligne suivante).
+      }
+      if(!currentKey)continue;
+      const entry=byKey.get(currentKey);
+      if(!entry)continue;
+      if(/!VIP!/.test(line))entry.vip=true;
+      if(/!UPGR!/.test(line))entry.upgr=true;
+    }
+  }
+  return [...byKey.values()];
+}
+// ONCARRIAGE PAX : connexions multi-segments (priorité 7). Un passager peut
+// avoir PLUSIEURS lignes de vol de correspondance à la suite (ex. "TK0060
+// IST-KUL" puis "TK7907 KUL-BNE" sur la ligne suivante, sans numéro) : toute
+// la chaîne est conservée, la destination finale est celle du DERNIER
+// tronçon, jamais un second passager créé pour la ligne de continuation
+// (vérifié sur TK1828/17SEP réel : PONCHAUT/TUCKEY/OVERMARS ont 2 tronçons).
+function lot2TkExtractOncarriagePax(text){
+  const flat=String(text||"").replace(/\r/g,"");
+  const m=flat.match(/CDG ONCARRIAGE PAX[^\n]*\n([\s\S]*?)END NAMES/);
+  if(!m)return [];
+  const lines=m[1].split("\n");
+  const items=[];
+  let current=null;
+  const legRe=/\b([A-Z]{2}\d{2,4})\s+([A-Z]{3})-([A-Z]{3})\s+[FCY]\s+OK\b/;
+  for(const line of lines){
+    const numM=line.match(/^\s*\d{1,3}\.(.+)$/);
+    if(numM){
+      if(current)items.push(current);
+      const rest=numM[1];
+      const key=lot2TkTruncNameFromLine(rest);
+      const legM=rest.match(legRe);
+      current=key?{tkTruncKey:key,legs:legM?[{flight:legM[1],from:legM[2],to:legM[3]}]:[]}:null;
+      continue;
+    }
+    if(current){
+      const legM=line.match(legRe);
+      if(legM)current.legs.push({flight:legM[1],from:legM[2],to:legM[3]});
+    }
+  }
+  if(current)items.push(current);
+  return items.filter(it=>it.legs.length).map(it=>({
+    ...it,
+    destination:it.legs[it.legs.length-1].to,
+    chain:it.legs.map(l=>`${l.flight} ${l.from}-${l.to}`).join(" / ")
+  }));
 }
 function lot2TkClassCounts(items){
   const out={};
@@ -5807,6 +5933,11 @@ async function lot2ProcessOneJob(env,job){
       mappingScope:listMapping.mappingScope,
       matchedListName:listMapping.matchedListName,
       operationalInfo: operationalInfo||null,
+      // TK uniquement (priorité 7) : sections annexes du même mail que ALL
+      // PAX, rapprochées par tkTruncKey dans lot3MergeFlightData.
+      tkCheckInInfo: tkKind?lot2TkExtractCheckInInfo(extracted.text):null,
+      tkCommentedPax: tkKind?lot2TkExtractCommentedPax(extracted.text):[],
+      tkOncarriage: tkKind?lot2TkExtractOncarriagePax(extracted.text):[],
       passengerItems,
       connectionRows,
       fqtvCategories
@@ -6033,6 +6164,10 @@ function lot3BuildImportCard(row){
     passengerItems:Array.isArray(result.passengerItems)?result.passengerItems:[],
     connectionRows:Array.isArray(result.connectionRows)?result.connectionRows:[],
     fqtvCategories:result.fqtvCategories||{},
+    // TK uniquement (priorité 7) : voir lot2TkExtractCheckInInfo/lot2TkExtractCommentedPax/lot2TkExtractOncarriagePax.
+    tkCheckInInfo:result.tkCheckInInfo||null,
+    tkCommentedPax:Array.isArray(result.tkCommentedPax)?result.tkCommentedPax:[],
+    tkOncarriage:Array.isArray(result.tkOncarriage)?result.tkOncarriage:[],
     rules:"LOT3 : injection depuis import_job_results validé ; n'écrase pas les corrections manuelles."
   };
 }
@@ -6516,7 +6651,7 @@ function lot3MergeFlightData(current,row,card){
   // BJ (sa propre carte "PETC / AVIH" dédiée), jamais branché jusqu'ici pour
   // les autres compagnies alors que les mappings SR-PETC/SR-AVIH existent
   // déjà plus haut (AT/A9/SK).
-  const map={WCH:"WCH",CHLD:"CHLD",INF:"INF",EMD:"EMD",ETKT:"ETK",FQTV:"FQTV",STAFF:"STAFF",MEAL:"MEAL",UMNR:"UMNR",MAAS:"MAAS",INAD:"INAD",DEPA:"DEPA",DEPU:"DEPU",CBAG:"CBAG",PETC:"PET_AV",AVIH:"PET_AV"};
+  const map={WCH:"WCH",CHLD:"CHLD",INF:"INF",EMD:"EMD",ETKT:"ETK",FQTV:"FQTV",STAFF:"STAFF",MEAL:"MEAL",UMNR:"UMNR",MAAS:"MAAS",INAD:"INAD",DEPA:"DEPA",DEPU:"DEPU",CBAG:"CBAG",PETC:"PET_AV",AVIH:"PET_AV",VIP:"VIP",UPGR:"UPGR"};
   const existingKey=map[String(card.cardKey||"").toUpperCase()];
   if(existingKey){
     const count=Number(card.passengerCount||0);
@@ -6844,6 +6979,65 @@ function lot3MergeFlightData(current,row,card){
         classCounts:{},
         connectionRows:[]
       });
+    }
+  }
+
+  /*
+   * TK (priorité 7) : CHECK IN INFORMATION (config avion + booked/accepted/
+   * on sby/available séparés), VIP/UPGR (coexistants, dédupliqués entre
+   * plusieurs blocs COMMENTED PAX) et connexions ONCARRIAGE multi-segments.
+   * Toutes ces sections partagent le même mail que ALL PAX (déjà posé comme
+   * MASTER juste au-dessus) et se rattachent aux MÊMES passagers via
+   * tkTruncKey (nom tronqué identique dans toutes les sections — voir
+   * lot2TkTruncNameFromLine), jamais par le nom complet SURNAME/GIVEN que
+   * ces sections annexes ne portent pas.
+   */
+  if(card.cardKey==="MASTER" && card.listName==="TK ALL PAX"){
+    const byTrunc=new Map();
+    for(const p of base.passengers||[]){
+      if(p?.tkTruncKey && !byTrunc.has(p.tkTruncKey))byTrunc.set(p.tkTruncKey,p);
+    }
+
+    if(card.tkCheckInInfo){
+      const info=card.tkCheckInInfo;
+      if(info.type)base.aircraft=base.aircraft||info.type;
+      if(info.reg && !/^\d+$/.test(String(base.reg||"")))base.reg=base.reg||info.reg;
+      if(info.config)base.config={...(base.config||{}),...info.config};
+      base.tkCheckIn={
+        booked:info.booked||null,
+        accepted:info.accepted||null,
+        onStandby:info.onStandby||null,
+        available:info.available||null
+      };
+    }
+
+    // ONCARRIAGE (mutation directe des entrées base.passengers) AVANT VIP/UPGR
+    // (appels récursifs à lot3MergeFlightData, qui reconstruit base.passengers
+    // avec de NOUVEAUX objets à chaque appel — une mutation faite après serait
+    // silencieusement perdue, byTrunc pointant alors vers des objets détachés).
+    if(Array.isArray(card.tkOncarriage) && card.tkOncarriage.length){
+      for(const o of card.tkOncarriage){
+        const master=byTrunc.get(o.tkTruncKey);
+        if(!master)continue;
+        // Champs dédiés (pas .specific/.note) : lot3CleanImportedPassengerStrict
+        // vide ces deux champs sur toute entrée cardKey===MASTER à chaque
+        // réinjection future — un champ propre à TK survit, lui, intact
+        // (copie superficielle, jamais nettoyé nulle part ailleurs).
+        master.oncarriageChain=o.chain;
+        master.oncarriageDestination=o.destination;
+      }
+    }
+
+    if(Array.isArray(card.tkCommentedPax) && card.tkCommentedPax.length){
+      const vipItems=[],upgrItems=[];
+      for(const c of card.tkCommentedPax){
+        const master=byTrunc.get(c.tkTruncKey);
+        if(!master)continue;
+        if(c.vip)vipItems.push({...master,cardKey:"VIP",listName:"TK COMMENTED PAX",ssr:["VIP"],specific:"",note:""});
+        if(c.upgr)upgrItems.push({...master,cardKey:"UPGR",listName:"TK COMMENTED PAX",ssr:["UPGR"],specific:"",note:""});
+      }
+      if(vipItems.length)base=lot3MergeFlightData(base,row,{...card,cardKey:"VIP",label:"VIP",passengerItems:vipItems,passengers:vipItems,passengerCount:vipItems.length,classCounts:{},connectionRows:[]});
+      if(upgrItems.length)base=lot3MergeFlightData(base,row,{...card,cardKey:"UPGR",label:"UPGR",passengerItems:upgrItems,passengers:upgrItems,passengerCount:upgrItems.length,classCounts:{},connectionRows:[]});
     }
   }
 
