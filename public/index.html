@@ -12886,7 +12886,11 @@ function prepareTwImportManifest(rawOriginal){
   const a=starts[i],b=starts[i+1],segment=up.slice(a.index,b?b.index:Math.min(up.length,a.index+1400));
   const num=Number(a[1]);if(!num||num>999)continue;
   const name=`${a[2].trim()}/${a[3].trim()}`.replace(/\s+/g,' ');const key=`${num}|${name}`;if(seen.has(key))continue;
-  const cm=segment.match(/\b([CY])\s+([A-Z]{1,2})\s+HK(?:\s+(CK))?\s+([A-Z]{3})\s+([A-Z]{3})\b/);if(!cm)continue;
+  // Le système source (WEBAPI) écrit littéralement "NULL" pour un champ
+  // vide au lieu de l'omettre (ex. "HK CK NULL CDG ICN") : un jeton NULL
+  // entre CK et l'origine faisait échouer tout le match, donc tout le
+  // passager, sans qu'aucune autre donnée ne soit récupérable ensuite.
+  const cm=segment.match(/\b([CY])\s+([A-Z]{1,2})\s+HK(?:\s+(CK))?(?:\s+NULL)?\s+([A-Z]{3})\s+([A-Z]{3})\b/);if(!cm)continue;
   seen.add(key);
   const p={name,class:cm[1],bookingClass:cm[2],status:'HK',checkedIn:!!cm[3],from:cm[4],to:cm[5],ssr:[],source:'TW MASTER'};
   const seat=(segment.match(/\b(\d{1,2}[A-K])\b/)||[])[1]||'';if(seat)p.seat=seat;
