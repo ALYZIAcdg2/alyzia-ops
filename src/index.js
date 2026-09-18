@@ -5532,6 +5532,40 @@ function lot2TkExtractInboundConnectionPax(text){
   }
   return out;
 }
+// INBOUND CONNECTIONS / OUTBOUND CONNECTIONS : tableau récapitulatif par vol
+// de correspondance (attendu EXP vs réel ACT, F/C/Y/INF), vérifié sur le
+// vrai mail TK1828/17SEP. Le total est recalculé à partir des lignes plutôt
+// que reparsé depuis la ligne "TOTAL ..." (alignement en colonnes fixes trop
+// fragile à faire tenir dans une regex fiable).
+function lot2TkExtractConnectionSummary(text,direction){
+  const flat=String(text||"").replace(/\r/g,"\n");
+  const label=direction==="INBOUND"?"INBOUND CONNECTIONS":"OUTBOUND CONNECTIONS";
+  const re=new RegExp(`CDG\\s+${label}\\s*\\n([\\s\\S]*?)(?:\\n\\s*\\n|$)`);
+  const m=flat.match(re);
+  if(!m)return null;
+  const rowRe=/^([A-Z]{2}\d{2,4})\s*\/([A-Z]{3})\/(\d{3,4})\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+([A-Z]{2}\d{2,4})\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*:\s*(\d+)\s+(\d+)/;
+  const rows=[];
+  for(const line of m[1].split("\n")){
+    const rm=line.match(rowRe);
+    if(!rm)continue;
+    rows.push({
+      flight:rm[1],airport:rm[2],time:rm[3],
+      exp:{F:Number(rm[4]),C:Number(rm[5]),Y:Number(rm[6]),INF:Number(rm[7])},
+      actFlight:rm[8],
+      act:{F:Number(rm[9]),C:Number(rm[10]),Y:Number(rm[11]),INF:Number(rm[12])},
+      bag:Number(rm[13]),weight:Number(rm[14])
+    });
+  }
+  if(!rows.length)return null;
+  const total={exp:{F:0,C:0,Y:0,INF:0},act:{F:0,C:0,Y:0,INF:0}};
+  for(const r of rows){
+    for(const k of ["F","C","Y","INF"]){
+      total.exp[k]+=r.exp[k];
+      total.act[k]+=r.act[k];
+    }
+  }
+  return {rows,total};
+}
 function lot2TkClassCounts(items){
   const out={};
   for(const p of items||[]){
@@ -6089,6 +6123,8 @@ async function lot2ProcessOneJob(env,job){
       tkEtktList: tkKind?lot2TkExtractEtktList(extracted.text):[],
       tkEmdList: tkKind?lot2TkExtractEmdList(extracted.text):[],
       tkInboundConnectionPax: tkKind?lot2TkExtractInboundConnectionPax(extracted.text):[],
+      tkInboundSummary: tkKind?lot2TkExtractConnectionSummary(extracted.text,"INBOUND"):null,
+      tkOutboundSummary: tkKind?lot2TkExtractConnectionSummary(extracted.text,"OUTBOUND"):null,
       passengerItems,
       connectionRows,
       fqtvCategories
@@ -6327,6 +6363,8 @@ function lot3BuildImportCard(row){
     tkEtktList:Array.isArray(result.tkEtktList)?result.tkEtktList:[],
     tkEmdList:Array.isArray(result.tkEmdList)?result.tkEmdList:[],
     tkInboundConnectionPax:Array.isArray(result.tkInboundConnectionPax)?result.tkInboundConnectionPax:[],
+    tkInboundSummary:result.tkInboundSummary||null,
+    tkOutboundSummary:result.tkOutboundSummary||null,
     rules:"LOT3 : injection depuis import_job_results validé ; n'écrase pas les corrections manuelles."
   };
 }
@@ -7169,6 +7207,12 @@ function lot3MergeFlightData(current,row,card){
         available:info.available||null
       };
     }
+
+    // INBOUND/OUTBOUND CONNECTIONS : tableau récapitulatif par vol, agrégat
+    // au niveau du vol (pas d'un passager) — simple champ dédié, pas de
+    // rapprochement par tkTruncKey nécessaire.
+    if(card.tkInboundSummary)base.tkInboundSummary=card.tkInboundSummary;
+    if(card.tkOutboundSummary)base.tkOutboundSummary=card.tkOutboundSummary;
 
     // Mutations directes des entrées base.passengers AVANT tout appel récursif
     // à lot3MergeFlightData (VIP/UPGR/CHLD/INF/STAFF/MEAL/WCH/ETKT/EMD plus
