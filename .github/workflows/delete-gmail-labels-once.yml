@@ -1,4 +1,4 @@
-name: Vérif intermédiaire IZ744/IZ742 (sans toucher à l'import en cours)
+name: Diagnostic — champs réels du vol IZ742 (pastille verte)
 
 on:
   workflow_dispatch:
@@ -7,21 +7,21 @@ permissions:
   contents: read
 
 jobs:
-  check:
+  diag:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
       BASE: https://alyzia-ops.alyzia-cdg2.workers.dev
     steps:
-      - name: Fiche vol IZ744
+      - name: Récupère /api/flights et isole IZ742
         run: |
-          curl -sS -f --max-time 30 -G "$BASE/api/autopilot/flight-summary" --data-urlencode "identity=2026-09-06|IZ|IZ744" -o /tmp/iz744.json || true
-          echo "=== IZ744 ==="; cat /tmp/iz744.json 2>/dev/null || echo "(vide)"
-      - name: Fiche vol IZ742
-        run: |
-          curl -sS -f --max-time 30 -G "$BASE/api/autopilot/flight-summary" --data-urlencode "identity=2026-09-06|IZ|IZ742" -o /tmp/iz742.json || true
-          echo "=== IZ742 ==="; cat /tmp/iz742.json 2>/dev/null || echo "(vide)"
-      - name: Statut autopilot (jobs en attente)
-        run: |
-          curl -sS --max-time 30 "$BASE/api/autopilot/status" -o /tmp/s.json || true
-          echo "=== STATUS ==="; cat /tmp/s.json 2>/dev/null || echo "(vide)"
+          curl -sS --max-time 30 "$BASE/api/flights" -o /tmp/flights.json
+          node -e '
+            const j=JSON.parse(require("fs").readFileSync("/tmp/flights.json","utf8"));
+            const list=Array.isArray(j)?j:(j.flights||j.items||[]);
+            const x=list.find(f=>String(f.flight||"").toUpperCase()==="IZ742");
+            if(!x){console.log("IZ742 INTROUVABLE. Total vols:",list.length); process.exit(0);}
+            const {passengers,common_lists,imports,...rest}=x;
+            console.log(JSON.stringify(rest,null,2));
+            console.log("imports.cards keys:", imports&&imports.cards?Object.keys(imports.cards):"(aucun)");
+          '
