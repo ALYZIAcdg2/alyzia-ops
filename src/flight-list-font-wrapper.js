@@ -21,7 +21,7 @@ const FLIGHT_LIST_FONT_STYLE = String.raw`
 #app .home-avail-value{font-size:16px!important;font-weight:950!important;flex:0 0 auto!important;margin:0!important}
 #app .home-favorites-filter{min-width:56px!important;display:inline-flex!important;align-items:center!important;justify-content:center!important}
 #app .home-favorites-filter.active{background:#fff8d8!important;border-color:#e8b82d!important;box-shadow:0 0 0 3px rgba(232,184,45,.16)!important}
-#app .home-note-alert{height:34px;min-width:48px;padding:0 5px 0 7px;display:inline-flex;align-items:center;justify-content:center;gap:2px;border:1px solid #e3bd63;border-radius:10px;background:#fff8df;color:#c69000;line-height:1;box-sizing:border-box}
+#app .home-note-alert{height:34px;min-width:48px;padding:0 5px 0 7px;display:inline-flex;align-items:center;justify-content:center;gap:2px;border:1px solid #e3bd63;border-radius:10px;background:#fff8df;color:#c69000;line-height:1;box-sizing:border-box;cursor:pointer}
 #app .home-note-bell{display:inline-block;font-size:18px;transform-origin:50% 12%;animation:homeNoteBellRing 1.45s ease-in-out infinite}
 #app .home-note-count{display:inline-flex;align-items:center;justify-content:center;min-width:19px;height:19px;padding:0 5px;border-radius:999px;background:#d9213f;color:#fff;border:2px solid #fff;font-size:10px;font-weight:1000;line-height:1;box-sizing:border-box;box-shadow:0 1px 3px rgba(150,0,20,.28);animation:homeNoteBadgePulse 1.45s ease-in-out infinite}
 @keyframes homeNoteBellRing{0%,72%,100%{transform:rotate(0deg)}78%{transform:rotate(14deg)}84%{transform:rotate(-13deg)}90%{transform:rotate(9deg)}96%{transform:rotate(-6deg)}}
@@ -130,15 +130,27 @@ const OLD_AVAILABLE_ROW = '<div class="home-mini home-avail ${avail<0?\'neg\':\'
 const NEW_AVAILABLE_ROW = '<div class="home-mini home-avail ${avail<0?\'neg\':\'\'}"><span class="home-avail-value">${avail}${nok?` · ${nok} INOP`:\'\'}</span></div>';
 
 const NOTES_HELPER = [
+  'let HOME_NOTES_MODAL_CONTEXT=null;',
   'function homeFlightNoteCount(x){',
   '  if(!Array.isArray(x?.flightNotes)) return 0;',
   '  return x.flightNotes.filter(n=>String(n?.text||\'\').trim()).length;',
+  '}',
+  'function openHomeNotesFromList(index){',
+  '  if(!FLIGHTS[index]) return;',
+  '  HOME_NOTES_MODAL_CONTEXT={index,previousSelected:selected};',
+  '  selected=index;',
+  '  openCombinedNotes();',
   '}',
   ''
 ].join('\n');
 
 const HOME_ACTIONS_START = '<div class="home-row-actions">\n          <button class="home-pin ';
-const HOME_ACTIONS_WITH_BELL = '<div class="home-row-actions">\n          ${homeFlightNoteCount(x)>0?\'<span class="home-note-alert" title="\'+homeFlightNoteCount(x)+\' NOTE(S)" aria-label="\'+homeFlightNoteCount(x)+\' notes présentes"><span class="home-note-bell">🔔</span><span class="home-note-count">\'+homeFlightNoteCount(x)+\'</span></span>\':\'\'}\n          <button class="home-pin ';
+const HOME_ACTIONS_WITH_BELL = '<div class="home-row-actions">\n          ${homeFlightNoteCount(x)>0?\'<span class="home-note-alert" role="button" tabindex="0" title="\'+homeFlightNoteCount(x)+\' NOTE(S)" aria-label="Ouvrir les notes du vol" onclick="event.stopPropagation();openHomeNotesFromList(\'+x._index+\')"><span class="home-note-bell">🔔</span><span class="home-note-count">\'+homeFlightNoteCount(x)+\'</span></span>\':\'\'}\n          <button class="home-pin ';
+
+const OLD_ADD_FLIGHT_NOTE = "async function v5007AddFlightNote(){const x=f(),sel=document.getElementById('v5007NoteClass'),ta=document.getElementById('v5007NoteText'),text=String(ta?.value||'').trim();if(!text)return;v5007FlightNotes(x).unshift({id:'N'+Date.now(),classScope:String(sel?.value||'ALL'),text,author:'OPS CDG',createdAt:new Date().toISOString()});await persistFlightAction('NOTE VOL',true);openCombinedNotes();render();}";
+const NEW_ADD_FLIGHT_NOTE = "async function v5007AddFlightNote(){const x=f(),sel=document.getElementById('v5007NoteClass'),ta=document.getElementById('v5007NoteText'),text=String(ta?.value||'').trim();if(!text)return;v5007FlightNotes(x).unshift({id:'N'+Date.now(),classScope:String(sel?.value||'ALL'),text,author:'OPS CDG',createdAt:new Date().toISOString()});await persistFlightAction('NOTE VOL',true);if(HOME_NOTES_MODAL_CONTEXT){renderHome();openCombinedNotes();}else{openCombinedNotes();render();}}";
+const OLD_DELETE_FLIGHT_NOTE = "async function v5007DeleteFlightNote(id){const x=f();x.flightNotes=v5007FlightNotes(x).filter(n=>n.id!==id);await persistFlightAction('SUPPRESSION NOTE VOL',true);openCombinedNotes();render();}";
+const NEW_DELETE_FLIGHT_NOTE = "async function v5007DeleteFlightNote(id){const x=f();x.flightNotes=v5007FlightNotes(x).filter(n=>n.id!==id);await persistFlightAction('SUPPRESSION NOTE VOL',true);if(HOME_NOTES_MODAL_CONTEXT){renderHome();if(v5007FlightNotes(x).length)openCombinedNotes();else closeAllModals();}else{openCombinedNotes();render();}}";
 
 function patchAvailableRow(html){
   const source=String(html||"");
@@ -153,9 +165,11 @@ function patchNotesBell(html){
   if(!source.includes('function homeFlightNoteCount(x)')&&source.includes('function renderHome(){')){
     source=source.replace('function renderHome(){',NOTES_HELPER+'function renderHome(){');
   }
-  if(!source.includes('home-note-bell')&&source.includes(HOME_ACTIONS_START)){
+  if(!source.includes('openHomeNotesFromList('+"'"+'+x._index+')&&source.includes(HOME_ACTIONS_START)){
     source=source.replaceAll(HOME_ACTIONS_START,HOME_ACTIONS_WITH_BELL);
   }
+  if(source.includes(OLD_ADD_FLIGHT_NOTE))source=source.replace(OLD_ADD_FLIGHT_NOTE,NEW_ADD_FLIGHT_NOTE);
+  if(source.includes(OLD_DELETE_FLIGHT_NOTE))source=source.replace(OLD_DELETE_FLIGHT_NOTE,NEW_DELETE_FLIGHT_NOTE);
   return source;
 }
 
