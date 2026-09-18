@@ -12,9 +12,9 @@ const FLIGHT_LIST_FONT_STYLE = String.raw`
 #app .flight-home-row .home-dest,
 #app .flight-home-row .home-destination{font-size:14px!important;font-weight:900!important}
 #app .flight-home-row>:nth-child(4){font-size:15px!important;font-weight:950!important;color:#20354c!important}
-#app .flight-home-row .home-config-booking small{font-size:12px!important;font-weight:900!important}
-#app .flight-home-row .home-config-booking b{font-size:15px!important;font-weight:950!important}
-#app .flight-home-row .home-config-booking>div:nth-child(2)>b{margin-left:12px!important}
+#app .flight-home-row .home-config-booking>div:nth-child(-n+2){display:grid!important;grid-template-columns:95px minmax(0,1fr)!important;column-gap:12px!important;align-items:baseline!important}
+#app .flight-home-row .home-config-booking small{font-size:12px!important;font-weight:900!important;margin:0!important}
+#app .flight-home-row .home-config-booking b{font-size:15px!important;font-weight:950!important;margin-left:0!important}
 #app .flight-home-row .home-load b{font-size:16px!important;font-weight:950!important}
 #app .home-avail{font-size:16px!important;font-weight:950!important;display:inline-flex!important;align-items:baseline!important;gap:0!important}
 #app .home-avail:before{content:'AVAILABLE'!important;display:inline-block!important;font-size:16px!important;font-weight:950!important;color:#718398!important;flex:0 0 auto!important;padding-right:12px!important;margin:0!important}
@@ -25,9 +25,9 @@ const FLIGHT_LIST_FONT_STYLE = String.raw`
   #app .flight-home-row .home-dest,
   #app .flight-home-row .home-destination{font-size:15px!important}
   #app .flight-home-row>:nth-child(4){font-size:15px!important}
+  #app .flight-home-row .home-config-booking>div:nth-child(-n+2){grid-template-columns:95px minmax(0,1fr)!important;column-gap:12px!important}
   #app .flight-home-row .home-config-booking small{font-size:11px!important}
-  #app .flight-home-row .home-config-booking b{font-size:15px!important}
-  #app .flight-home-row .home-config-booking>div:nth-child(2)>b{margin-left:12px!important}
+  #app .flight-home-row .home-config-booking b{font-size:15px!important;margin-left:0!important}
   #app .flight-home-row .home-load b{font-size:16px!important}
   #app .home-avail,
   #app .home-avail:before,
