@@ -1,4 +1,4 @@
-name: Import ciblé IZ744/IZ742 — requeue + traitement final
+name: Vérif intermédiaire IZ744/IZ742 (sans toucher à l'import en cours)
 
 on:
   workflow_dispatch:
@@ -7,31 +7,21 @@ permissions:
   contents: read
 
 jobs:
-  import:
+  check:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     env:
       BASE: https://alyzia-ops.alyzia-cdg2.workers.dev
     steps:
-      - name: Requeue des jobs IZ bloqués en PROCESSING
-        run: |
-          curl -sS --max-time 30 "$BASE/api/autopilot/requeue-airline?airline=IZ" -o /tmp/rq.json
-          cat /tmp/rq.json 2>/dev/null || echo "(vide)"
-      - name: Traitement complet des 9 messages IZ744/IZ742
-        run: |
-          curl -sS --max-time 120 -X POST "$BASE/api/autopilot/test-batch" \
-            -H "Content-Type: application/json" \
-            -d '{"messageIds":["1a07282cef9fe4cb","1a07282ce6ad65c7","1a072825eae203dc","1a072819e4156c91","1a0728196a204085","1a0727ffb96ce063","1a0727f8f559cee8","1a0727f195a98276","1a0727eed62e5b73"]}' \
-            -o /tmp/import.json
-          echo "=== RÉSULTAT IMPORT ==="
-          cat /tmp/import.json 2>/dev/null || echo "(vide)"
-      - name: Fiche vol IZ744 06SEP 2026 après import
+      - name: Fiche vol IZ744
         run: |
           curl -sS -f --max-time 30 -G "$BASE/api/autopilot/flight-summary" --data-urlencode "identity=2026-09-06|IZ|IZ744" -o /tmp/iz744.json || true
-          echo "=== IZ744 APRÈS IMPORT ==="
-          cat /tmp/iz744.json 2>/dev/null || echo "(vide)"
-      - name: Fiche vol IZ742 06SEP 2026 après import
+          echo "=== IZ744 ==="; cat /tmp/iz744.json 2>/dev/null || echo "(vide)"
+      - name: Fiche vol IZ742
         run: |
           curl -sS -f --max-time 30 -G "$BASE/api/autopilot/flight-summary" --data-urlencode "identity=2026-09-06|IZ|IZ742" -o /tmp/iz742.json || true
-          echo "=== IZ742 APRÈS IMPORT ==="
-          cat /tmp/iz742.json 2>/dev/null || echo "(vide)"
+          echo "=== IZ742 ==="; cat /tmp/iz742.json 2>/dev/null || echo "(vide)"
+      - name: Statut autopilot (jobs en attente)
+        run: |
+          curl -sS --max-time 30 "$BASE/api/autopilot/status" -o /tmp/s.json || true
+          echo "=== STATUS ==="; cat /tmp/s.json 2>/dev/null || echo "(vide)"
