@@ -1,4 +1,4 @@
-name: Import ciblé test — IZ744/IZ742 06SEP (un par un)
+name: Diagnostic — worker vivant + Gmail labels accessibles ?
 
 on:
   workflow_dispatch:
@@ -7,64 +7,17 @@ permissions:
   contents: read
 
 jobs:
-  import:
+  diag:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     env:
       BASE: https://alyzia-ops.alyzia-cdg2.workers.dev
     steps:
-      - name: "1/9 IZ744 INFT (1a07282cef9fe4cb)"
-        continue-on-error: true
+      - name: Statut autopilot (léger, pas de Gmail)
         run: |
-          curl -sS --max-time 60 -X POST "$BASE/api/autopilot/test-batch" -H "Content-Type: application/json" -d '{"messageIds":["1a07282cef9fe4cb"]}' -o /tmp/r1.json
-          echo "exit=$?"; cat /tmp/r1.json 2>/dev/null || echo "(vide)"
-      - name: "2/9 IZ744 Children (1a07282ce6ad65c7)"
-        continue-on-error: true
+          curl -sS --max-time 30 "$BASE/api/autopilot/status" -o /tmp/s1.json
+          echo "exit=$?"; cat /tmp/s1.json 2>/dev/null || echo "(vide)"
+      - name: Relevé Gmail simple (labels, 1 seul appel Gmail)
         run: |
-          curl -sS --max-time 60 -X POST "$BASE/api/autopilot/test-batch" -H "Content-Type: application/json" -d '{"messageIds":["1a07282ce6ad65c7"]}' -o /tmp/r2.json
-          echo "exit=$?"; cat /tmp/r2.json 2>/dev/null || echo "(vide)"
-      - name: "3/9 IZ744 All passengers (1a072825eae203dc)"
-        continue-on-error: true
-        run: |
-          curl -sS --max-time 90 -X POST "$BASE/api/autopilot/test-batch" -H "Content-Type: application/json" -d '{"messageIds":["1a072825eae203dc"]}' -o /tmp/r3.json
-          echo "exit=$?"; cat /tmp/r3.json 2>/dev/null || echo "(vide)"
-      - name: "4/9 IZ742 PIL SSR (1a072819e4156c91)"
-        continue-on-error: true
-        run: |
-          curl -sS --max-time 60 -X POST "$BASE/api/autopilot/test-batch" -H "Content-Type: application/json" -d '{"messageIds":["1a072819e4156c91"]}' -o /tmp/r4.json
-          echo "exit=$?"; cat /tmp/r4.json 2>/dev/null || echo "(vide)"
-      - name: "5/9 IZ742 PIL SSR full name (1a0728196a204085)"
-        continue-on-error: true
-        run: |
-          curl -sS --max-time 60 -X POST "$BASE/api/autopilot/test-batch" -H "Content-Type: application/json" -d '{"messageIds":["1a0728196a204085"]}' -o /tmp/r5.json
-          echo "exit=$?"; cat /tmp/r5.json 2>/dev/null || echo "(vide)"
-      - name: "6/9 IZ742 Web checkin (1a0727ffb96ce063)"
-        continue-on-error: true
-        run: |
-          curl -sS --max-time 60 -X POST "$BASE/api/autopilot/test-batch" -H "Content-Type: application/json" -d '{"messageIds":["1a0727ffb96ce063"]}' -o /tmp/r6.json
-          echo "exit=$?"; cat /tmp/r6.json 2>/dev/null || echo "(vide)"
-      - name: "7/9 IZ742 INFT (1a0727f8f559cee8)"
-        continue-on-error: true
-        run: |
-          curl -sS --max-time 60 -X POST "$BASE/api/autopilot/test-batch" -H "Content-Type: application/json" -d '{"messageIds":["1a0727f8f559cee8"]}' -o /tmp/r7.json
-          echo "exit=$?"; cat /tmp/r7.json 2>/dev/null || echo "(vide)"
-      - name: "8/9 IZ742 Children (1a0727f195a98276)"
-        continue-on-error: true
-        run: |
-          curl -sS --max-time 60 -X POST "$BASE/api/autopilot/test-batch" -H "Content-Type: application/json" -d '{"messageIds":["1a0727f195a98276"]}' -o /tmp/r8.json
-          echo "exit=$?"; cat /tmp/r8.json 2>/dev/null || echo "(vide)"
-      - name: "9/9 IZ742 All passengers (1a0727eed62e5b73)"
-        continue-on-error: true
-        run: |
-          curl -sS --max-time 90 -X POST "$BASE/api/autopilot/test-batch" -H "Content-Type: application/json" -d '{"messageIds":["1a0727eed62e5b73"]}' -o /tmp/r9.json
-          echo "exit=$?"; cat /tmp/r9.json 2>/dev/null || echo "(vide)"
-      - name: Fiche vol IZ744 06SEP 2026 après import
-        run: |
-          curl -sS -f --max-time 60 -G "$BASE/api/autopilot/flight-summary" --data-urlencode "identity=2026-09-06|IZ|IZ744" -o /tmp/iz744.json || true
-          echo "=== IZ744 APRÈS IMPORT ==="
-          cat /tmp/iz744.json 2>/dev/null || echo "(vide)"
-      - name: Fiche vol IZ742 06SEP 2026 après import
-        run: |
-          curl -sS -f --max-time 60 -G "$BASE/api/autopilot/flight-summary" --data-urlencode "identity=2026-09-06|IZ|IZ742" -o /tmp/iz742.json || true
-          echo "=== IZ742 APRÈS IMPORT ==="
-          cat /tmp/iz742.json 2>/dev/null || echo "(vide)"
+          curl -sS --max-time 30 "$BASE/api/autopilot/dry-list-survey?query=IZ744&maxMessages=1" -o /tmp/s2.json
+          echo "exit=$?"; cat /tmp/s2.json 2>/dev/null || echo "(vide)"
