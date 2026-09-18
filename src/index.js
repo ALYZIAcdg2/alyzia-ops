@@ -5645,13 +5645,15 @@ function lot2ExtractConnectionRows(text,listName,cardKey){
 function lot2ParseOperationalInfo(text,airline,flightNumber,currentIso){
   /*
    * V50.20 — OPERATIONAL_INFO strict.
+   * Priorité 8 (verrouillage JFE, spec utilisateur) : un JFE SCREEN COPY
+   * n'alimente QUE STD, STA, AIRCRAFT, CONFIG, BOOKED, FLIGHT TIME.
    * Injection autorisée UNIQUEMENT :
    * - STD
    * - STA
-   * - DUREE / duration depuis TOTAL ELAPSED TIME
-   * - ROUTE dep/dest
-   * - TYPE A/C
-   * - CONFIGURATION / CAPACITY
+   * - DUREE / duration depuis TOTAL ELAPSED TIME (FLIGHT TIME)
+   * - ROUTE dep/dest (identité du vol, pas une donnée opérationnelle affichée)
+   * - TYPE A/C (AIRCRAFT)
+   * - CONFIGURATION (CONFIG) et BOOKED
    *
    * Ne pas injecter :
    * - BOARDING
@@ -5741,6 +5743,10 @@ function lot2ParseOperationalInfo(text,airline,flightNumber,currentIso){
   }
 
   // Ligne avion : CDG-ALG |738 | |14 |165 |14 |165 |10
+  // Format JFE Amadeus standard : CONFIG puis BOOKED, deux paires C/Y
+  // consécutives (pas CONFIG puis "capacity" — la 2e paire n'a jamais été
+  // affichée sous ce nom côté UI, qui recalcule sa propre "CAPACITY" à
+  // partir de CONFIG ; priorité 8, spec utilisateur : JFE alimente BOOKED).
   // REG peut être vide. On ne doit jamais prendre "14" comme immatriculation.
   for(const line of up.split(/\n+/)){
     const l=line.trim();
@@ -5765,7 +5771,7 @@ function lot2ParseOperationalInfo(text,airline,flightNumber,currentIso){
     const nums=t.slice(p).filter(x=>/^\d+$/.test(x)).map(Number);
     if(nums.length>=4){
       info.config={C:nums[0],Y:nums[1]};
-      info.capacity={C:nums[2],Y:nums[3]};
+      info.booked={C:nums[2],Y:nums[3]};
     }
     break;
   }
@@ -7076,8 +7082,11 @@ async function lot3UpsertFlightCard(env,identity,row,card){
 function lot3MergeOperationalInfo(existing,row){
   /*
    * V50.20 — injection stricte OPERATIONAL_INFO.
-   * On alimente uniquement les champs opérationnels validés :
-   * STD/STA, ROUTE, TYPE A/C, CONFIGURATION/CAPACITY, DUREE.
+   * Priorité 8 (verrouillage JFE, spec utilisateur) : un JFE SCREEN COPY
+   * n'alimente QUE STD, STA, AIRCRAFT, CONFIG, BOOKED, FLIGHT TIME — jamais
+   * Gate/Boarding/Accepted/Available/Standby/Staff/Registry/ATD/commentaires.
+   * (dep/dest servent uniquement à identifier/créer la fiche vol, pas à
+   * afficher une donnée opérationnelle JFE.)
    */
   const result=lot3SafeResultJson(row.result_json);
   const info=result.operationalInfo||{};
@@ -7095,7 +7104,18 @@ function lot3MergeOperationalInfo(existing,row){
   // REG/GATE restent manuels. Nettoyage uniquement si une ancienne mauvaise injection numérique existe.
   if(/^\d+$/.test(String(x.reg||"")))x.reg="";
   if(info.config)x.config={...(x.config||{}),...info.config};
-  if(info.capacity)x.capacity={...(x.capacity||{}),...info.capacity};
+  // BOOKED (2e paire C/Y de la ligne avion JFE, ex-"capacity" jamais affiché
+  // sous ce nom) : fusion par max class par class, jamais un simple écrasement
+  // — ne doit ni effacer un manifeste MASTER déjà plus complet, ni être
+  // écrasé par un JFE arrivé après coup avec un chiffre plus ancien/petit.
+  if(info.booked){
+    const merged={...(x.booked||{})};
+    for(const [k,v] of Object.entries(info.booked)){
+      const n=Number(v||0);
+      if(n>0)merged[k]=Math.max(Number(merged[k]||0),n);
+    }
+    x.booked=merged;
+  }
 
   x.imports=x.imports||{};
   x.imports.operationalInfo={
@@ -7110,10 +7130,10 @@ function lot3MergeOperationalInfo(existing,row){
     aircraft:info.aircraft||x.aircraft||"",
     reg:info.reg||x.reg||"",
     config:info.config||x.config||{},
-    capacity:info.capacity||x.capacity||{},
+    booked:info.booked||x.booked||{},
     source:{jobId:row.job_id,versionId:row.version_id,fileId:row.file_id},
     updatedAt:new Date().toISOString(),
-    rules:"OPERATIONAL_INFO strict : STD/STA, route, type A/C, config/capacity, duration only."
+    rules:"OPERATIONAL_INFO strict : STD, STA, AIRCRAFT, CONFIG, BOOKED, FLIGHT TIME uniquement."
   };
   x.imports.status="INJECTED";
   x.imports.lastInjectionAt=new Date().toISOString();
