@@ -21,6 +21,7 @@ const FLIGHT_LIST_FONT_STYLE = String.raw`
 #app .home-avail-value{font-size:16px!important;font-weight:950!important;flex:0 0 auto!important;margin:0!important}
 #app .home-favorites-filter{min-width:56px!important;display:inline-flex!important;align-items:center!important;justify-content:center!important}
 #app .home-favorites-filter.active{background:#fff8d8!important;border-color:#e8b82d!important;box-shadow:0 0 0 3px rgba(232,184,45,.16)!important}
+#app .home-note-alert{width:32px;height:32px;min-width:32px;display:inline-flex;align-items:center;justify-content:center;border:1px solid #e3bd63;border-radius:8px;background:#fff8df;color:#c69000;font-size:17px;line-height:1}
 @media(max-width:680px){
   #app .flight-home-row .home-flight{font-size:18px!important}
   #app .flight-home-row .home-sub,
@@ -35,6 +36,7 @@ const FLIGHT_LIST_FONT_STYLE = String.raw`
   #app .home-avail:before,
   #app .home-avail-value{font-size:16px!important}
   #app .home-favorites-filter{min-width:56px!important}
+  #app .home-note-alert{width:29px;height:29px;min-width:29px;font-size:15px}
 }
 </style>`;
 
@@ -121,6 +123,16 @@ const FAVORITES_FILTER_SCRIPT = String.raw`
 const OLD_AVAILABLE_ROW = '<div class="home-mini home-avail ${avail<0?\'neg\':\'\'}">${avail}${nok?` · ${nok} INOP`:\'\'}</div>';
 const NEW_AVAILABLE_ROW = '<div class="home-mini home-avail ${avail<0?\'neg\':\'\'}"><span class="home-avail-value">${avail}${nok?` · ${nok} INOP`:\'\'}</span></div>';
 
+const NOTES_HELPER = [
+  'function homeFlightHasNotes(x){',
+  '  return Array.isArray(x?.flightNotes) && x.flightNotes.some(n=>String(n?.text||\'\').trim());',
+  '}',
+  ''
+].join('\n');
+
+const HOME_ACTIONS_START = '<div class="home-row-actions">\n          <button class="home-pin ';
+const HOME_ACTIONS_WITH_BELL = '<div class="home-row-actions">\n          ${homeFlightHasNotes(x)?\'<span class="home-note-alert" title="NOTES PRÉSENTES" aria-label="Notes présentes">🔔</span>\':\'\'}\n          <button class="home-pin ';
+
 function patchAvailableRow(html){
   const source=String(html||"");
   return source.includes(OLD_AVAILABLE_ROW)
@@ -128,8 +140,21 @@ function patchAvailableRow(html){
     : source;
 }
 
+function patchNotesBell(html){
+  let source=String(html||"");
+  if(!source)return source;
+  if(!source.includes('function homeFlightHasNotes(x)')&&source.includes('function renderHome(){')){
+    source=source.replace('function renderHome(){',NOTES_HELPER+'function renderHome(){');
+  }
+  if(!source.includes('home-note-alert')&&source.includes(HOME_ACTIONS_START)){
+    source=source.replaceAll(HOME_ACTIONS_START,HOME_ACTIONS_WITH_BELL);
+  }
+  return source;
+}
+
 export function injectFlightListFontStyle(html){
   let source=patchAvailableRow(html);
+  source=patchNotesBell(source);
   if(!source)return source;
 
   // Inject last in the document so these list styles win over the mobile
