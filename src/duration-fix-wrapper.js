@@ -182,8 +182,9 @@ export function patchDurationFormatter(html) {
 export function injectDeleteFlightUi(html) {
   const source = String(html || "");
   if (!source || source.includes('id="alyzia-delete-flight-ui"')) return source;
-  return source.includes("</body>")
-    ? source.replace("</body>", `${DELETE_FLIGHT_UI}\n</body>`)
+  const bodyEnd = source.lastIndexOf("</body>");
+  return bodyEnd >= 0
+    ? source.slice(0, bodyEnd) + DELETE_FLIGHT_UI + "\n" + source.slice(bodyEnd)
     : source + DELETE_FLIGHT_UI;
 }
 
