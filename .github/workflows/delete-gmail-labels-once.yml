@@ -1,4 +1,4 @@
-name: Relevé Gmail lecture seule — IZ744/IZ742 contenu brut (diagnostic)
+name: Relevé Gmail lecture seule — état réel IZ744/IZ742 06SEP
 
 on:
   workflow_dispatch:
@@ -13,11 +13,13 @@ jobs:
     env:
       BASE: https://alyzia-ops.alyzia-cdg2.workers.dev
     steps:
-      - name: Relevé brut IZ744/IZ742 (sujet + aperçu corps, sans détection)
+      - name: Fiche vol IZ744 06SEP 2026 (déjà en base ?)
         run: |
-          curl -sS -f --max-time 150 "$BASE/api/autopilot/dry-raw-message-dump?query=IZ744%20OR%20IZ742&maxMessages=20" -o /tmp/survey.json || true
-      - name: Affiche le contenu brut
+          curl -sS -f --max-time 60 -G "$BASE/api/autopilot/flight-summary" --data-urlencode "identity=2026-09-06|IZ|IZ744" -o /tmp/iz744.json || true
+          echo "=== IZ744 ==="
+          cat /tmp/iz744.json 2>/dev/null || echo "(vide)"
+      - name: Fiche vol IZ742 06SEP 2026 (déjà en base ?)
         run: |
-          file=/tmp/survey.json
-          if [ ! -s "$file" ]; then echo "(pas de fichier / erreur curl)"; exit 0; fi
-          cat "$file"
+          curl -sS -f --max-time 60 -G "$BASE/api/autopilot/flight-summary" --data-urlencode "identity=2026-09-06|IZ|IZ742" -o /tmp/iz742.json || true
+          echo "=== IZ742 ==="
+          cat /tmp/iz742.json 2>/dev/null || echo "(vide)"
