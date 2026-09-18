@@ -15,8 +15,8 @@ const FLIGHT_LIST_FONT_STYLE = String.raw`
 #app .flight-home-row .home-config-booking small{font-size:12px!important;font-weight:900!important}
 #app .flight-home-row .home-config-booking b{font-size:15px!important;font-weight:950!important}
 #app .flight-home-row .home-load b{font-size:16px!important;font-weight:950!important}
-#app .flight-home-row .home-avail{font-size:16px!important;font-weight:950!important;display:flex!important;align-items:baseline!important;column-gap:14px!important;gap:14px!important}
-#app .flight-home-row .home-avail:before{content:'AVAILABLE\00A0\00A0'!important;display:inline-block!important;flex:0 0 auto!important;font-size:16px!important;font-weight:950!important;color:#718398;margin-right:4px!important;padding-right:0!important;white-space:pre!important}
+#app .flight-home-row .home-avail{font-size:16px!important;font-weight:950!important;display:flex!important;align-items:center!important;gap:10px!important}
+#app .flight-home-row .home-avail:before{content:'AVAILABLE';font-size:16px!important;font-weight:950!important;color:#718398;margin-right:0!important}
 @media(max-width:680px){
   #app .flight-home-row .home-flight{font-size:18px!important}
   #app .flight-home-row .home-sub,
@@ -26,7 +26,7 @@ const FLIGHT_LIST_FONT_STYLE = String.raw`
   #app .flight-home-row .home-config-booking small{font-size:11px!important}
   #app .flight-home-row .home-config-booking b{font-size:15px!important}
   #app .flight-home-row .home-load b{font-size:16px!important}
-  #app .flight-home-row .home-avail{font-size:16px!important;column-gap:14px!important;gap:14px!important}
+  #app .flight-home-row .home-avail{font-size:16px!important;gap:10px!important}
 }
 </style>`;
 
