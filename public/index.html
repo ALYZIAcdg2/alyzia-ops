@@ -12882,8 +12882,17 @@ function prepareTwImportManifest(rawOriginal){
   .replace(/\\r\\n|\\n|\\r/g,'\n')
   .replace(/\\t/g,' ');
  const up=raw.toUpperCase().replace(/\u00a0/g,' ');
- const values={},passengers=[],commonLists={WCH:[],MEAL:[],FQTV:[],STAFF:[],EXBG:[],TKNE:[],DOOR:[],UPRQ:[],EXMO:[]};
+ const values={},passengers=[],commonLists={INF:[],WCH:[],MEAL:[],FQTV:[],STAFF:[],EXBG:[],TKNE:[],DOOR:[],UPRQ:[],EXMO:[]};
  const put=(k,v)=>{if(v!==undefined&&v!==null&&String(v)!=='')values[k]=String(v)};
+ const summaryNumber=(pattern)=>{const q=up.match(pattern);return q?Number(q[1]):null};
+ const checkedLabel='CHECKED\\s*[-‐‑–—]?\\s*IN';
+ const finalC=summaryNumber(new RegExp(`\\bBUSINESS\\s+PAX\\s+${checkedLabel}\\s*\\(\\s*FINAL\\s*\\)\\s*[:=-]?\\s*(\\d{1,3})\\b`));
+ const finalY=summaryNumber(new RegExp(`\\bECONOMY(?:\\s+PAX)?\\s+${checkedLabel}\\s*\\(\\s*FINAL\\s*\\)\\s*[:=-]?\\s*(\\d{1,3})\\b`));
+ const finalInf=summaryNumber(new RegExp(`\\bINF\\s+${checkedLabel}\\s*\\(\\s*FINAL\\s*\\)\\s*[:=-]?\\s*(\\d{1,3})\\b`));
+ const webTotal=summaryNumber(/\bCHECK\s*[-‐‑–—]?\s*IN\s+WEB\s*[:=-]?\s*(\d{1,3})\b/);
+ const summaryWch=summaryNumber(/\bWCH\b[^\d]{0,120}?(\d{1,3})\b/);
+ if(finalC!=null)put('[data-ed-booking="C"]',finalC);
+ if(finalY!=null)put('[data-ed-booking="Y"]',finalY);
  let m=up.match(/\bFLIGHT\s*#?\s*:\s*(TW\s*\d{2,4})\b/);if(m)put('#edFlight',m[1].replace(/\s+/g,''));
  m=up.match(/\bSTD\s*:\s*(\d{2}:?\d{2})\b/);if(m)put('#edStd',m[1].includes(':')?m[1]:v5002PadTime(m[1]));
  const cfg=up.match(/\bCONFIG\s*:\s*([^\n\r]+)/);if(cfg){for(const q of cfg[1].matchAll(/(\d{1,3})\s*([CY])/g))put(`[data-ed-config="${q[2]}"]`,q[1])}
@@ -12904,7 +12913,13 @@ function prepareTwImportManifest(rawOriginal){
   const pnr=(segment.match(/\b\d+\/\d+\s+([A-Z0-9]{6})\b/)||[])[1]||'';if(pnr)p.pnr=pnr;
   const seq=(segment.match(/(?:^|\s)(\d{1,3})\s+C\s+\d{1,3}\s+N\b/m)||[])[1]||'';if(seq){p.seq=Number(seq);p.checkedIn=true}
   const ssr=[];
-  const add=(cat,code)=>{if(!ssr.includes(code))ssr.push(code);v50GenericUniquePush(commonLists[cat],{...p,specific:code,ssr:[code],source:'TW MASTER'})};
+  const add=(cat,code)=>{
+   if(!ssr.includes(code))ssr.push(code);
+   const list=commonLists[cat];
+   const existing=list.find(q=>String(q.name||'')===p.name&&String(q.from||'')===p.from&&String(q.to||'')===p.to);
+   if(existing){existing.ssr=[...new Set([...(existing.ssr||[]),code])];existing.specific=existing.ssr.join(' / ');return}
+   list.push({...p,specific:code,ssr:[code],source:'TW MASTER'});
+  };
   for(const code of ['WCHR','WCHS','WCHC','RWCH'])if(new RegExp(`\\b${code}\\b`).test(segment))add('WCH',code==='RWCH'?'RWCH':code);
   for(const code of [...segment.matchAll(/\b(?:LHML\d|MEAL\d|MEALD|[A-Z]{2}ML(?:-[A-Z]+)?)\b/g)].map(x=>x[0]))add('MEAL',code);
   for(const code of ['VTIAA','VTIAB'])if(new RegExp(`\\b${code}\\b`).test(segment))add('FQTV',code);
@@ -12912,19 +12927,31 @@ function prepareTwImportManifest(rawOriginal){
   for(const code of ['EXBG','TKNE','DOOR','UPRQ','EXMO'])if(new RegExp(`\\b${code}\\b`).test(segment))add(code,code);
   p.ssr=ssr;passengers.push(p);
  }
- const booked={C:0,Y:0},checked={C:0,Y:0};passengers.forEach(p=>{if(booked[p.class]!=null)booked[p.class]++;if(p.checkedIn&&checked[p.class]!=null)checked[p.class]++});
+ const named={C:0,Y:0},namedChecked={C:0,Y:0};passengers.forEach(p=>{if(named[p.class]!=null)named[p.class]++;if(p.checkedIn&&namedChecked[p.class]!=null)namedChecked[p.class]++});
+ const booked={C:finalC??named.C,Y:finalY??named.Y};
+ const checked={C:finalC??namedChecked.C,Y:finalY??namedChecked.Y};
+ const web=webTotal!=null?{C:named.C,Y:named.Y}:null;
  const counts={};Object.keys(commonLists).forEach(k=>counts[k]=commonLists[k].length);
- return {airline:'TW',mode:'SPECIFIC',hasMainManifest:passengers.length>0,values,passengers,booked,checked,commonLists,counts,owned:Object.fromEntries(Object.keys(commonLists).map(k=>[k,commonLists[k].length>0]))};
+ if(finalInf!=null)counts.INF=finalInf;
+ if(summaryWch!=null)counts.WCH=summaryWch;
+ const owned=Object.fromEntries(Object.keys(commonLists).map(k=>[k,commonLists[k].length>0]));
+ if(finalInf!=null)owned.INF=true;
+ if(summaryWch!=null)owned.WCH=true;
+ return {airline:'TW',mode:'SPECIFIC',hasMainManifest:passengers.length>0||finalC!=null||finalY!=null,values,passengers,booked,checked,web,webTotal,commonLists,counts,owned};
 }
 function applyTwManifestToFlight(manifest,ctx){
  const x=FLIGHTS[Number(ctx?.idx)];if(!x||!manifest)return false;
  x.config=x.config||{C:0,Y:0};x.booked=x.booked||{C:0,Y:0};x.web=x.web||{C:0,Y:0};x.common=x.common||{};x.common_lists=x.common_lists||{};
- if(manifest.passengers?.length){
-  x.passengers=manifest.passengers.map(p=>({...p}));x.booked.C=Number(manifest.booked?.C||0);x.booked.Y=Number(manifest.booked?.Y||0);
-  x.checkedIn={C:Number(manifest.checked?.C||0),Y:Number(manifest.checked?.Y||0),total:Number(manifest.checked?.C||0)+Number(manifest.checked?.Y||0)};
+ if(manifest.passengers?.length)x.passengers=manifest.passengers.map(p=>({...p}));
+ x.booked.C=Number(manifest.booked?.C||0);x.booked.Y=Number(manifest.booked?.Y||0);
+ x.checkedIn={C:Number(manifest.checked?.C||0),Y:Number(manifest.checked?.Y||0),total:Number(manifest.checked?.C||0)+Number(manifest.checked?.Y||0)};
+ if(manifest.web){x.web.C=Number(manifest.web.C||0);x.web.Y=Number(manifest.web.Y||0)}
+ for(const k of Object.keys(manifest.commonLists||{})){
+  if(!manifest.owned?.[k])continue;
+  x.common_lists[k]=(manifest.commonLists[k]||[]).map(v=>({...v}));
+  x.common[k]=Number(manifest.counts?.[k]??x.common_lists[k].length);
  }
- for(const k of Object.keys(manifest.commonLists||{})){if(!manifest.owned?.[k])continue;x.common_lists[k]=mergeGenericOperationalList(x.common_lists[k]||[],manifest.commonLists[k]);x.common[k]=x.common_lists[k].length}
- x.twSpecific={master:true,checkedRule:'CK_OR_SEQ',updatedAt:new Date().toISOString()};return true;
+ x.twSpecific={master:true,checkedRule:'FINAL_SUMMARY_OR_CK',webTotal:Number(manifest.webTotal||0),identifiedPassengers:manifest.passengers?.length||0,updatedAt:new Date().toISOString()};return true;
 }
 function v5002LegStripHtml(x){
  const legs=Array.isArray(x?.legs)?x.legs:[];if(legs.length<2)return '';
