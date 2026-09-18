@@ -15,10 +15,10 @@ const FLIGHT_LIST_FONT_STYLE = String.raw`
 #app .flight-home-row .home-config-booking small{font-size:12px!important;font-weight:900!important}
 #app .flight-home-row .home-config-booking b{font-size:15px!important;font-weight:950!important}
 #app .flight-home-row .home-load b{font-size:16px!important;font-weight:950!important}
-#app .flight-home-row .home-avail{font-size:16px!important;font-weight:950!important;display:inline-flex!important;align-items:baseline!important;gap:12px!important}
-#app .flight-home-row .home-avail:before{content:none!important;display:none!important}
-#app .flight-home-row .home-avail-label{font-size:16px!important;font-weight:950!important;color:#718398!important;flex:0 0 auto!important}
-#app .flight-home-row .home-avail-value{font-size:16px!important;font-weight:950!important;flex:0 0 auto!important}
+#app .home-avail{font-size:16px!important;font-weight:950!important;display:inline-flex!important;align-items:baseline!important;gap:12px!important}
+#app .home-avail:before{content:none!important;display:none!important}
+#app .home-avail-label{font-size:16px!important;font-weight:950!important;color:#718398!important;flex:0 0 auto!important}
+#app .home-avail-value{font-size:16px!important;font-weight:950!important;flex:0 0 auto!important}
 @media(max-width:680px){
   #app .flight-home-row .home-flight{font-size:18px!important}
   #app .flight-home-row .home-sub,
@@ -28,9 +28,9 @@ const FLIGHT_LIST_FONT_STYLE = String.raw`
   #app .flight-home-row .home-config-booking small{font-size:11px!important}
   #app .flight-home-row .home-config-booking b{font-size:15px!important}
   #app .flight-home-row .home-load b{font-size:16px!important}
-  #app .flight-home-row .home-avail,
-  #app .flight-home-row .home-avail-label,
-  #app .flight-home-row .home-avail-value{font-size:16px!important}
+  #app .home-avail,
+  #app .home-avail-label,
+  #app .home-avail-value{font-size:16px!important}
 }
 </style>`;
 
@@ -38,7 +38,7 @@ const FLIGHT_LIST_AVAIL_SCRIPT = String.raw`
 <script id="alyzia-flight-list-avail-script">
 (()=>{
   const splitAvailable=()=>{
-    document.querySelectorAll('#app .flight-home-row .home-avail').forEach(element=>{
+    document.querySelectorAll('#app .home-avail').forEach(element=>{
       if(element.querySelector('.home-avail-label')&&element.querySelector('.home-avail-value'))return;
       const raw=String(element.textContent||'').trim();
       if(!raw)return;
