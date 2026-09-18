@@ -12873,6 +12873,9 @@ function v5002PassengerLegRefs(p,legs){
  }
  return [];
 }
+// Préfixes de code source = enregistrement en ligne (WEB) sur le manifeste
+// TW brut ; CDGAGT = agent comptoir CDG, jamais compté en WEB.
+const TW_WEB_PREFIXES=new Set(['WEBAPI','WEBAPM','KRAPP','FRWEB','FRMOB']);
 function prepareTwImportManifest(rawOriginal){
  // Certaines sources TW copiées depuis l'interface transmettent les sauts de
  // ligne sous forme de texte littéral "\\n". Sans normalisation, le N reste
@@ -12909,19 +12912,25 @@ function prepareTwImportManifest(rawOriginal){
  // la fin réelle du prénom sur cette répétition, au lieu de laisser la
  // classe de caractères (qui autorise l'espace, donc les noms à plusieurs
  // mots) avaler le nom dupliqué suivant et produire "NOM/PRENOM NOM".
- const starts=[...up.matchAll(/(?:^|\s)(?:[A-Z]{2,10})?(\d{1,6})\s+([A-Z][A-Z' +.-]{1,60}?)\s*\/\s*([A-Z][A-Z' +.-]{1,80}?)\s+\2\s*\/\s*\3(?=\s|$)/gm)];
+ // Préfixe capturé (plus seulement ignoré) : sert à distinguer les
+ // passagers enregistrés en ligne (WEBAPI/WEBAPM/KRAPP/FRWEB/FRMOB — canal
+ // WEB, confirmé par l'utilisateur sur ce format) de ceux enregistrés au
+ // comptoir (CDGAGT — agent CDG), pour calculer le compteur WEB.
+ const starts=[...up.matchAll(/(?:^|\s)([A-Z]{2,10})?(\d{1,6})\s+([A-Z][A-Z' +.-]{1,60}?)\s*\/\s*([A-Z][A-Z' +.-]{1,80}?)\s+\3\s*\/\s*\4(?=\s|$)/gm)];
  const seen=new Set();
  for(let i=0;i<starts.length;i++){
   const a=starts[i],b=starts[i+1],segment=up.slice(a.index,b?b.index:Math.min(up.length,a.index+1400));
-  const num=Number(a[1]);if(!num)continue;
-  const name=`${a[2].trim()}/${a[3].trim()}`.replace(/\s+/g,' ');const key=`${num}|${name}`;if(seen.has(key))continue;
+  const num=Number(a[2]);if(!num)continue;
+  const name=`${a[3].trim()}/${a[4].trim()}`.replace(/\s+/g,' ');const key=`${num}|${name}`;if(seen.has(key))continue;
   // Le système source (WEBAPI) écrit littéralement "NULL" pour un champ
   // vide au lieu de l'omettre (ex. "HK CK NULL CDG ICN") : un jeton NULL
   // entre CK et l'origine faisait échouer tout le match, donc tout le
   // passager, sans qu'aucune autre donnée ne soit récupérable ensuite.
   const cm=segment.match(/\b([CY])\s+([A-Z]{1,2})\s+HK(?:\s+(CK))?(?:\s+NULL)?\s+([A-Z]{3})\s+([A-Z]{3})\b/);if(!cm)continue;
   seen.add(key);
-  const p={name,class:cm[1],bookingClass:cm[2],status:'HK',checkedIn:!!cm[3],from:cm[4],to:cm[5],ssr:[],source:'TW MASTER'};
+  const prefix=String(a[1]||'').trim();
+  const web=TW_WEB_PREFIXES.has(prefix);
+  const p={name,class:cm[1],bookingClass:cm[2],status:'HK',checkedIn:!!cm[3],from:cm[4],to:cm[5],ssr:[],source:'TW MASTER',prefix,web};
   const seat=(segment.match(/\b(\d{1,2}[A-K])\b/)||[])[1]||'';if(seat)p.seat=seat;
   const pnr=(segment.match(/\b\d+\/\d+\s+([A-Z0-9]{6})\b/)||[])[1]||'';if(pnr)p.pnr=pnr;
   const seq=(segment.match(/(?:^|\s)(\d{1,3})\s+C\s+\d{1,3}\s+N\b/m)||[])[1]||'';if(seq){p.seq=Number(seq);p.checkedIn=true}
@@ -12940,10 +12949,17 @@ function prepareTwImportManifest(rawOriginal){
   for(const code of ['EXBG','TKNE','DOOR','UPRQ','EXMO'])if(new RegExp(`\\b${code}\\b`).test(segment))add(code,code);
   p.ssr=ssr;passengers.push(p);
  }
- const named={C:0,Y:0},namedChecked={C:0,Y:0};passengers.forEach(p=>{if(named[p.class]!=null)named[p.class]++;if(p.checkedIn&&namedChecked[p.class]!=null)namedChecked[p.class]++});
+ const named={C:0,Y:0},namedChecked={C:0,Y:0},namedWeb={C:0,Y:0};
+ passengers.forEach(p=>{
+  if(named[p.class]!=null)named[p.class]++;
+  if(p.checkedIn&&namedChecked[p.class]!=null)namedChecked[p.class]++;
+  if(p.web&&namedWeb[p.class]!=null)namedWeb[p.class]++;
+ });
  const booked={C:finalC??named.C,Y:finalY??named.Y};
  const checked={C:finalC??namedChecked.C,Y:finalY??namedChecked.Y};
- const web=webTotal!=null?{C:named.C,Y:named.Y}:null;
+ // Priorité à un total WEB explicite du rapport ; à défaut, compté par
+ // préfixe source (voir TW_WEB_PREFIXES) sur le manifeste nominatif brut.
+ const web=webTotal!=null?{C:named.C,Y:named.Y}:((namedWeb.C+namedWeb.Y)>0?namedWeb:null);
  const counts={};Object.keys(commonLists).forEach(k=>counts[k]=commonLists[k].length);
  if(finalInf!=null)counts.INF=finalInf;
  if(summaryWch!=null)counts.WCH=summaryWch;
