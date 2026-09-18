@@ -5,7 +5,7 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>ALYZIA OPS - V50.32 · BUILD140 · MASTER MERGE FIX</title>
 <style>
 :root{
@@ -32,6 +32,8 @@ button{cursor:pointer}
 .headcell{padding:16px 22px;border-right:1px solid #dbe3ec;min-width:0}
 .headcell:last-child{border-right:0}
 .airline-pill{display:inline-block;background:#eaf3ff;color:#075fc8;border-radius:8px;padding:6px 10px;font-size:12px;font-weight:900}
+.flight-back-btn{display:inline-block;background:#fff;color:#34465a;border:1px solid #ccd8e5;border-radius:8px;padding:6px 10px;font-size:12px;font-weight:900;margin-bottom:8px;cursor:pointer}
+.flight-back-btn:active{background:#eef2f6}
 .flight-number{font-size:57px;line-height:1;font-weight:900;margin:18px 0 16px;letter-spacing:.01em}
 .route{font-size:28px;font-weight:900}
 .route .arrow{color:var(--blue);padding:0 14px}
@@ -1338,6 +1340,15 @@ body{
   white-space:nowrap;
   flex:0 0 auto;
 }
+.home-status-dot{
+  display:inline-block;
+  width:10px;
+  height:10px;
+  border-radius:50%;
+  flex:0 0 auto;
+}
+.home-status-dot.green{background:var(--green,#16b43b)}
+.home-status-dot.orange{background:var(--orange,#ff7a00)}
 .home-flight-actions{
   display:flex;
   align-items:center;
@@ -7665,6 +7676,9 @@ function airportTzOffsetHours(iata,date=new Date()){
 // réel (heure d'été/hiver incluse) au lieu d'un nombre figé en dur.
 const TZ=new Proxy({},{get:(_,iata)=>airportTzOffsetHours(String(iata))});
 let selected=0, editKey='', editClass='', currentList=[], currentView='home';
+let HOME_LIST_SCROLL_Y=0;
+function openFlightFromHomeList(index){HOME_LIST_SCROLL_Y=window.scrollY||document.documentElement.scrollTop||0;selected=index;f().activeDate=HOME_DATE;render()}
+function backToFlightListSamePosition(){renderHome();requestAnimationFrame(()=>requestAnimationFrame(()=>window.scrollTo(0,HOME_LIST_SCROLL_Y)))}
 // Filtres terminal (T1/T2/T3/ALL) dans la liste des vols, par compagnie
 // (répartition fournie par l'utilisateur le 17/09).
 const AIRLINE_TERMINAL={
@@ -7833,6 +7847,13 @@ function flightMissingInfo(x){
  return missing;
 }
 
+function flightListStatusDot(x){
+ const injected=!!(x.imports&&x.imports.cards&&Object.keys(x.imports.cards).length)||sum(x.booked)>0;
+ const missing=flightMissingInfo(x).filter(m=>m!=='IMMAT'&&m!=='GATE');
+ if(injected&&missing.length===0)return 'green';
+ if(missing.includes('TYPE A/C')||missing.includes('CONFIG'))return 'orange';
+ return '';
+}
 function flightEnrichmentStatus(x){
  seedEnrichmentSources(x);
  const missing=flightMissingInfo(x),total=7;
@@ -8343,10 +8364,11 @@ function renderHome(){
       const booked=classes.reduce((s,k)=>s+Number(x.booked?.[k]||0),0);
       const nok=(x.inopSeats||[]).filter(r=>r.status==='NOK').length;
       const avail=cap-booked-nok,pct=cap?Math.round(booked/cap*100):0;
-      return `<div class="flight-home-row" data-flight-search="${flightListSearchText(x).replace(/"/g,'&quot;')}" onclick="selected=${x._index};f().activeDate='${HOME_DATE}';render()">
+      const statusDot=flightListStatusDot(x);
+      return `<div class="flight-home-row" data-flight-search="${flightListSearchText(x).replace(/"/g,'&quot;')}" onclick="openFlightFromHomeList(${x._index})">
         <div class="home-time">${x.std}${x.edt?`<span class="etd-small">ETD ${x.edt}</span>`:''}</div>
         <div class="home-flight-cell">${airlineLogo(x.airline)}<div>
-          <div class="home-flight-top"><div class="home-flight">${x.flight}</div></div>
+          <div class="home-flight-top">${statusDot?`<span class="home-status-dot ${statusDot}" title="${statusDot==='green'?'Vol injecté et fiche complète':'Type A/C ou config manquant'}"></span>`:''}<div class="home-flight">${x.flight}</div></div>
           <div class="home-flight-actions">${prepaBadge(x,HOME_DATE)}</div>
         </div></div>
         <div><div class="home-route">${x.dep} → ${x.dest}</div><div class="home-sub">${x.airline} · ${CITY[x.dest]||x.dest}</div></div>
@@ -8360,7 +8382,7 @@ function renderHome(){
         <div class="home-mini home-avail ${avail<0?'neg':''}">${avail}${nok?` · ${nok} INOP`:''}</div>
         <div class="home-row-actions">
           <button class="home-pin ${isFavoriteFlight(x)?'active':''}" title="${isFavoriteFlight(x)?'Retirer des favoris':'Épingler ce vol'}" onclick="event.stopPropagation();toggleFavoriteFlight(${x._index})">${isFavoriteFlight(x)?'★':'☆'}</button>
-          <button class="home-open" onclick="event.stopPropagation();selected=${x._index};f().activeDate='${HOME_DATE}';render()">›</button>
+          <button class="home-open" onclick="event.stopPropagation();openFlightFromHomeList(${x._index})">›</button>
         </div>
       </div>`;
     }).join('')}
@@ -15235,9 +15257,11 @@ async function saveAirlineConfig(airline){
  publishCompanyConfigToCloud().catch(e=>console.warn('CONFIG COMPAGNIE CLOUD',e));
 
  // A save is a terminal action: close CONFIG AIRLINE + parent CONFIG COMPAGNIE
- // instead of walking backward through the modal history.
+ // instead of walking backward through the modal history. It must not force
+ // navigation to a flight card: stay on whatever screen was open underneath
+ // (home list, PRÉPA, or simply closed if it was OUTILS/recherche/admin).
  closeAllModals();
- render();
+ renderCurrentViewPreserved();
 
  // Lightweight confirmation without creating a new modal-stack level.
  setTimeout(()=>{
@@ -15274,6 +15298,7 @@ function render(){
  document.getElementById('app').innerHTML=`
  ${companyModuleVisible(x,'header')?`<section class="card flight-head">
    <div class="headcell">
+    <button type="button" class="flight-back-btn" title="Retour à la liste des vols" onclick="backToFlightListSamePosition()">‹ RETOUR</button>
     <span class="airline-pill">${x.airline} · AIRLINE</span>
     <span class="auto-refresh-chip">↻ AUTO REFRESH ${Math.round(OPS_REALTIME_INTERVAL_VISIBLE/100)/10}S</span>
     <div class="flight-date">${formatDateLong(x.activeDate||HOME_DATE||selectedDate)}</div>
@@ -18132,6 +18157,18 @@ function modalIsOpen(){
  return !!(m && m.classList.contains('open'));
 }
 
+// Un re-render en fond (auto-refresh cloud) reconstruit tout le HTML et
+// détruit donc n'importe quel <input>/<select>/<textarea> en cours de
+// saisie — sur mobile, ça ferme le clavier numérique sans prévenir pendant
+// que l'utilisateur tape. On saute ce cycle de rendu tant qu'un champ a le
+// focus, exactement comme on le fait déjà pour un modal ouvert.
+function hasFocusedEditableInput(){
+ const el=document.activeElement;
+ if(!el)return false;
+ const tag=String(el.tagName||'').toUpperCase();
+ return tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT';
+}
+
 function renderCurrentViewPreserved(){
  if(currentView==='detail'){
    if(FLIGHTS[selected])render();
@@ -18202,8 +18239,8 @@ async function silentCloudRefresh({forceRender=false}={}){
 
      // Ne jamais fermer un formulaire/modal en cours de saisie.
      // La mémoire est déjà à jour ; le rendu se rafraîchit dès fermeture du modal.
-     if(!skipDetailBounce && (!modalIsOpen() || forceRender))renderCurrentViewPreserved();
-   }else if(forceRender && !modalIsOpen()){
+     if(!skipDetailBounce && (!modalIsOpen() || forceRender) && !hasFocusedEditableInput())renderCurrentViewPreserved();
+   }else if(forceRender && !modalIsOpen() && !hasFocusedEditableInput()){
      renderCurrentViewPreserved();
    }
    return changed;
@@ -18222,7 +18259,7 @@ let OPS_SELECTED_FLIGHT_TIMER=null;
 let OPS_SELECTED_FLIGHT_RUNNING=false;
 
 async function syncSelectedFlightFast(){
- if(OPS_SELECTED_FLIGHT_RUNNING||opsCloudWriteInProgress()||document.hidden||currentView!=='detail'||modalIsOpen()||!navigator.onLine)return false;
+ if(OPS_SELECTED_FLIGHT_RUNNING||opsCloudWriteInProgress()||document.hidden||currentView!=='detail'||modalIsOpen()||hasFocusedEditableInput()||!navigator.onLine)return false;
  const identity=currentSelectedIdentity();
  if(!identity)return false;
 
@@ -25570,6 +25607,7 @@ async function import143RenderDashboard(replace=false,force=false){
   }catch(e){replaceModal('IMPORT GMAIL','ERREUR RÉSUMÉ',`<div class="import-status error">${escapeHtml(String(e?.message||e))}</div><button class="import139-mini" onclick="openImportsDashboard()">RÉESSAYER</button>`)}
 }
 window.openImportsDashboard=function(){return import143RenderDashboard(false,false)};
+window.import143OpenStateList=import143OpenStateList;
 window.refreshImports143=function(){return import143RenderDashboard(true,true)};
 window.refreshImports141=window.refreshImports143;
 window.backToImports140=function(){return import143RenderDashboard(true,false)};
