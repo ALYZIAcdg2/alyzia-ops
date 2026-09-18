@@ -12874,7 +12874,14 @@ function v5002PassengerLegRefs(p,legs){
  return [];
 }
 function prepareTwImportManifest(rawOriginal){
- const raw=String(rawOriginal||''),up=raw.toUpperCase().replace(/\u00a0/g,' ');
+ // Certaines sources TW copiées depuis l'interface transmettent les sauts de
+ // ligne sous forme de texte littéral "\\n". Sans normalisation, le N reste
+ // accolé au premier champ de la ligne suivante (ex. "TKNE\\nY G HK") et la
+ // frontière de mot attendue avant la cabine Y/C n'existe plus.
+ const raw=String(rawOriginal||'')
+  .replace(/\\r\\n|\\n|\\r/g,'\n')
+  .replace(/\\t/g,' ');
+ const up=raw.toUpperCase().replace(/\u00a0/g,' ');
  const values={},passengers=[],commonLists={WCH:[],MEAL:[],FQTV:[],STAFF:[],EXBG:[],TKNE:[],DOOR:[],UPRQ:[],EXMO:[]};
  const put=(k,v)=>{if(v!==undefined&&v!==null&&String(v)!=='')values[k]=String(v)};
  let m=up.match(/\bFLIGHT\s*#?\s*:\s*(TW\s*\d{2,4})\b/);if(m)put('#edFlight',m[1].replace(/\s+/g,''));
