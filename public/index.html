@@ -7849,7 +7849,10 @@ function flightMissingInfo(x){
 
 function flightListStatusDot(x){
  const injected=!!(x.imports&&x.imports.cards&&Object.keys(x.imports.cards).length)||sum(x.booked)>0;
- const missing=flightMissingInfo(x).filter(m=>m!=='IMMAT'&&m!=='GATE');
+ // STA n'est jamais fourni par l'import Gmail et reste souvent absent (pas
+ // de durée de vol connue) sans que ça reflète une fiche incomplète côté
+ // ops CDG au départ — exclu du critère "complet", comme IMMAT/GATE.
+ const missing=flightMissingInfo(x).filter(m=>m!=='IMMAT'&&m!=='GATE'&&m!=='STA');
  if(injected&&missing.length===0)return 'green';
  if(missing.includes('TYPE A/C')||missing.includes('CONFIG'))return 'orange';
  return '';
