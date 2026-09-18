@@ -15,10 +15,10 @@ const FLIGHT_LIST_FONT_STYLE = String.raw`
 #app .flight-home-row .home-config-booking small{font-size:12px!important;font-weight:900!important}
 #app .flight-home-row .home-config-booking b{font-size:15px!important;font-weight:950!important}
 #app .flight-home-row .home-load b{font-size:16px!important;font-weight:950!important}
-.home-avail{font-size:16px!important;font-weight:950!important;display:inline-flex!important;align-items:baseline!important;gap:12px!important}
-.home-avail::before,.home-avail:before{content:none!important;display:none!important;width:0!important;margin:0!important;padding:0!important}
-.home-avail-label{font-size:16px!important;font-weight:950!important;color:#718398!important;flex:0 0 auto!important}
-.home-avail-value{font-size:16px!important;font-weight:950!important;flex:0 0 auto!important}
+#app .home-avail{font-size:16px!important;font-weight:950!important;display:inline-flex!important;align-items:baseline!important;gap:12px!important}
+#app .home-avail:before{content:none!important;display:none!important}
+#app .home-avail-label{font-size:16px!important;font-weight:950!important;color:#718398!important;flex:0 0 auto!important}
+#app .home-avail-value{font-size:16px!important;font-weight:950!important;flex:0 0 auto!important}
 @media(max-width:680px){
   #app .flight-home-row .home-flight{font-size:18px!important}
   #app .flight-home-row .home-sub,
@@ -28,7 +28,9 @@ const FLIGHT_LIST_FONT_STYLE = String.raw`
   #app .flight-home-row .home-config-booking small{font-size:11px!important}
   #app .flight-home-row .home-config-booking b{font-size:15px!important}
   #app .flight-home-row .home-load b{font-size:16px!important}
-  .home-avail,.home-avail-label,.home-avail-value{font-size:16px!important}
+  #app .home-avail,
+  #app .home-avail-label,
+  #app .home-avail-value{font-size:16px!important}
 }
 </style>`;
 
@@ -36,15 +38,16 @@ const FLIGHT_LIST_AVAIL_SCRIPT = String.raw`
 <script id="alyzia-flight-list-avail-script">
 (()=>{
   const splitAvailable=()=>{
-    document.querySelectorAll('.home-avail').forEach(element=>{
+    document.querySelectorAll('#app .home-avail').forEach(element=>{
+      if(element.querySelector('.home-avail-label')&&element.querySelector('.home-avail-value'))return;
       const raw=String(element.textContent||'').trim();
       if(!raw)return;
       const value=raw.replace(/^(?:AVAILABLE\s*)+/i,'').trim();
       if(!value)return;
-      const label=element.querySelector('.home-avail-label')||document.createElement('span');
+      const label=document.createElement('span');
       label.className='home-avail-label';
       label.textContent='AVAILABLE';
-      const number=element.querySelector('.home-avail-value')||document.createElement('span');
+      const number=document.createElement('span');
       number.className='home-avail-value';
       number.textContent=value;
       element.replaceChildren(label,number);
@@ -54,7 +57,7 @@ const FLIGHT_LIST_AVAIL_SCRIPT = String.raw`
   const start=()=>{
     splitAvailable();
     const observer=new MutationObserver(splitAvailable);
-    observer.observe(document.body,{childList:true,subtree:true,characterData:true});
+    observer.observe(document.body,{childList:true,subtree:true});
   };
 
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});
