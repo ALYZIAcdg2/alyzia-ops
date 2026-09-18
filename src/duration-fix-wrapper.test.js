@@ -21,3 +21,18 @@ console.assert(durationText(730.00013333) === '12:10');
 console.assert(durationText(115) === '1:55');
 console.assert(durationText(null) === '—');
 console.assert(patchDurationFormatter(oldFormatter).includes('Math.round(Number(m))'));
+
+const deleteUiMarker = 'id="alyzia-delete-flight-ui"';
+const injectDeleteFlightUi = html => {
+  const source = String(html || '');
+  if (!source || source.includes(deleteUiMarker)) return source;
+  const ui = '<script id="alyzia-delete-flight-ui">openDeleteFlight()</script>';
+  return source.includes('</body>')
+    ? source.replace('</body>', ui + '\n</body>')
+    : source + ui;
+};
+
+const firstInjection = injectDeleteFlightUi('<html><body></body></html>');
+const secondInjection = injectDeleteFlightUi(firstInjection);
+console.assert(firstInjection.includes(deleteUiMarker));
+console.assert((secondInjection.match(/id="alyzia-delete-flight-ui"/g) || []).length === 1);
