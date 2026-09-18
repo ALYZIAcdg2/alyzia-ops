@@ -1,16 +1,12 @@
 import app from "./index.js";
 
 /*
- * V50.31 — Correctif d'affichage des durées.
+ * V50.32 — Correctif d'affichage des durées.
  *
- * Le calcul des décalages horaires IANA passe par Intl.DateTimeFormat, qui
- * restitue les secondes mais pas les millisecondes de Date. La soustraction
- * avec date.getTime() peut donc produire un très petit résidu flottant
- * (ex. 12:10.00013333 au lieu de 12:10).
- *
- * On arrondit le décalage à la minute — granularité suffisante pour les
- * fuseaux IANA utilisés — puis on normalise aussi les anciennes durées déjà
- * présentes en mémoire avant de relancer le rendu.
+ * Le calcul interne peut encore produire un résidu flottant dans certaines
+ * chaînes déjà formatées (ex. 12:10.00013333). En plus d'arrondir les valeurs
+ * numériques connues, on normalise le texte réellement rendu dans le DOM et
+ * on observe les futurs rerendus de l'application.
  */
 const DURATION_FIX_SCRIPT = `
 <script>
@@ -40,7 +36,52 @@ const DURATION_FIX_SCRIPT = `
       }
     } catch (_) {}
 
+    const normalizeDurationText = value => String(value || '').replace(
+      /(^|[^0-9])(\d{1,3}):([0-5]\d)\.\d+(?=$|[^0-9])/g,
+      '$1$2:$3'
+    );
+
+    const normalizeTextNode = node => {
+      if (!node || node.nodeType !== Node.TEXT_NODE) return;
+      const parent = node.parentElement;
+      if (parent && /^(SCRIPT|STYLE|TEXTAREA|INPUT)$/i.test(parent.tagName)) return;
+      const current = node.nodeValue || '';
+      const next = normalizeDurationText(current);
+      if (next !== current) node.nodeValue = next;
+    };
+
+    const normalizeTree = root => {
+      if (!root) return;
+      if (root.nodeType === Node.TEXT_NODE) {
+        normalizeTextNode(root);
+        return;
+      }
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      let node;
+      while ((node = walker.nextNode())) normalizeTextNode(node);
+    };
+
+    const runNormalize = () => normalizeTree(document.body);
+
+    if (document.body) runNormalize();
+    else document.addEventListener('DOMContentLoaded', runNormalize, { once: true });
+
+    const startObserver = () => {
+      if (!document.body) return;
+      const observer = new MutationObserver(mutations => {
+        for (const mutation of mutations) {
+          if (mutation.type === 'characterData') normalizeTextNode(mutation.target);
+          for (const node of mutation.addedNodes || []) normalizeTree(node);
+        }
+      });
+      observer.observe(document.body, { subtree: true, childList: true, characterData: true });
+    };
+
+    if (document.body) startObserver();
+    else document.addEventListener('DOMContentLoaded', startObserver, { once: true });
+
     if (typeof render === 'function') render();
+    queueMicrotask(runNormalize);
   } catch (_) {}
 })();
 </script>`;
