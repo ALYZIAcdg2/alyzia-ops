@@ -1,4 +1,4 @@
-name: Relevé Gmail lecture seule — état réel IZ744/IZ742 06SEP
+name: Import ciblé test — IZ744/IZ742 06SEP (9 messages)
 
 on:
   workflow_dispatch:
@@ -7,19 +7,27 @@ permissions:
   contents: read
 
 jobs:
-  survey:
+  import:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
       BASE: https://alyzia-ops.alyzia-cdg2.workers.dev
     steps:
-      - name: Fiche vol IZ744 06SEP 2026 (déjà en base ?)
+      - name: Import ciblé (test-batch, 9 messages IZ744/IZ742 06SEP)
+        run: |
+          curl -sS -f --max-time 150 -X POST "$BASE/api/autopilot/test-batch" \
+            -H "Content-Type: application/json" \
+            -d '{"messageIds":["1a07282cef9fe4cb","1a07282ce6ad65c7","1a072825eae203dc","1a072819e4156c91","1a0728196a204085","1a0727ffb96ce063","1a0727f8f559cee8","1a0727f195a98276","1a0727eed62e5b73"]}' \
+            -o /tmp/import.json || true
+          echo "=== RÉSULTAT IMPORT ==="
+          cat /tmp/import.json 2>/dev/null || echo "(vide)"
+      - name: Fiche vol IZ744 06SEP 2026 après import
         run: |
           curl -sS -f --max-time 60 -G "$BASE/api/autopilot/flight-summary" --data-urlencode "identity=2026-09-06|IZ|IZ744" -o /tmp/iz744.json || true
-          echo "=== IZ744 ==="
+          echo "=== IZ744 APRÈS IMPORT ==="
           cat /tmp/iz744.json 2>/dev/null || echo "(vide)"
-      - name: Fiche vol IZ742 06SEP 2026 (déjà en base ?)
+      - name: Fiche vol IZ742 06SEP 2026 après import
         run: |
           curl -sS -f --max-time 60 -G "$BASE/api/autopilot/flight-summary" --data-urlencode "identity=2026-09-06|IZ|IZ742" -o /tmp/iz742.json || true
-          echo "=== IZ742 ==="
+          echo "=== IZ742 APRÈS IMPORT ==="
           cat /tmp/iz742.json 2>/dev/null || echo "(vide)"
