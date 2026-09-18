@@ -12876,6 +12876,34 @@ function v5002PassengerLegRefs(p,legs){
 // Préfixes de code source = enregistrement en ligne (WEB) sur le manifeste
 // TW brut ; CDGAGT = agent comptoir CDG, jamais compté en WEB.
 const TW_WEB_PREFIXES=new Set(['WEBAPI','WEBAPM','KRAPP','FRWEB','FRMOB']);
+const TW_OUTBOUND_SCHEDULE={
+ 7:['DAD','Da Nang','07:55'],11:['DAD','Da Nang','19:00'],13:['DAD','Da Nang','21:35'],33:['CXR','Nha Trang','19:00'],
+ 49:['CNX','Chiang Mai','16:25'],55:['PQC','Phu Quoc','16:35'],61:['HAN','Hanoi','20:10'],101:['BKK','Bangkok','19:50'],
+ 121:['CEB','Cebu','08:00'],125:['KLO','Kalibo','08:30'],131:['VTE','Vientiane','19:15'],149:['BKI','Kota Kinabalu','18:05'],
+ 153:['BKI','Kota Kinabalu','18:30'],155:['CGK','Jakarta',''],161:['SIN','Singapore','15:50'],171:['DAC','Dhaka','19:30'],
+ 201:['FUK','Fukuoka','10:05'],203:['FUK','Fukuoka',''],205:['FUK','Fukuoka','15:00'],207:['FUK','Fukuoka','18:05'],
+ 237:['NRT','Tokyo',''],239:['NRT','Tokyo','12:25'],241:['NRT','Tokyo','08:35'],243:['NRT','Tokyo','10:20'],
+ 245:['NRT','Tokyo','15:00'],247:['NRT','Tokyo',''],249:['NRT','Tokyo',''],263:['CTS','Sapporo','10:20'],
+ 279:['OKA','Okinawa','07:20'],281:['OKA','Okinawa','11:00'],285:['HSG','Saga','07:55'],287:['KMJ','Kumamoto','07:55'],
+ 301:['KIX','Osaka','08:00'],303:['KIX','Osaka','10:50'],305:['KIX','Osaka','15:50'],307:['KIX','Osaka',''],317:['KIX','Osaka',''],
+ 401:['CDG','Paris','09:50'],403:['FRA','Frankfurt','09:35'],405:['FCO','Rome','12:35'],407:['BCN','Barcelona','11:05'],
+ 409:['ZAG','Zagreb',''],421:['UBN','Ulaanbaatar','11:10'],431:['TAS','Tashkent','17:50'],437:['BSZ','Bishkek','19:45'],
+ 501:['SYD','Sydney','22:10'],513:['SPN','Saipan','20:00'],525:['SPN','Saipan','22:10'],529:['GUM','Guam',''],
+ 531:['YVR','Vancouver','21:10'],605:['TNA','Jinan',''],607:['TAO','Qingdao',''],613:['SHE','Shenyang','23:05'],
+ 615:['WUH','Wuhan',''],643:['HKG','Hong Kong','08:45'],669:['RMQ','Taichung','14:25'],671:['KHH','Kaohsiung',''],
+ 9617:['LYI','Linyi',''],9623:['YCU','Yuncheng',''],9635:['HLD','Hailar','']
+};
+function twOutboundRowsFromPassengers(passengers){
+ const rows=[];
+ for(const p of passengers||[]){
+  const flight=String(p.connectingFlight||'').toUpperCase();
+  const to=String(p.onwardAirport||'').toUpperCase();
+  if(!flight||!to)continue;
+  const num=Number((flight.match(/(\d+)/)||[])[1]||0),sched=TW_OUTBOUND_SCHEDULE[num]||[];
+  rows.push({...p,passenger:p.name,flight,from:p.to||'ICN',to,time:sched[2]||'',city:sched[1]||'',sourceList:'TW MASTER',connection:{direction:'OUTBOUND',flight,airport:to,std:sched[2]||'',city:sched[1]||''}});
+ }
+ return rows;
+}
 function prepareTwImportManifest(rawOriginal){
  // Certaines sources TW copiées depuis l'interface transmettent les sauts de
  // ligne sous forme de texte littéral "\\n". Sans normalisation, le N reste
@@ -12931,6 +12959,8 @@ function prepareTwImportManifest(rawOriginal){
   const prefix=String(a[1]||'').trim();
   const web=TW_WEB_PREFIXES.has(prefix);
   const p={name,class:cm[1],bookingClass:cm[2],status:'HK',checkedIn:!!cm[3],from:cm[4],to:cm[5],ssr:[],source:'TW MASTER',prefix,web};
+  const onward=segment.match(new RegExp(`\\b${cm[4]}\\s+${cm[5]}\\s+([A-Z]{3})\\s+(TW\\s*\\d{2,4})\\b`));
+  if(onward){p.onwardAirport=onward[1];p.connectingFlight=onward[2].replace(/\s+/g,'')}
   const seat=(segment.match(/\b(\d{1,2}[A-K])\b/)||[])[1]||'';if(seat)p.seat=seat;
   const pnr=(segment.match(/\b\d+\/\d+\s+([A-Z0-9]{6})\b/)||[])[1]||'';if(pnr)p.pnr=pnr;
   const seq=(segment.match(/(?:^|\s)(\d{1,3})\s+C\s+\d{1,3}\s+N\b/m)||[])[1]||'';if(seq){p.seq=Number(seq);p.checkedIn=true}
@@ -12943,6 +12973,7 @@ function prepareTwImportManifest(rawOriginal){
    list.push({...p,specific:code,ssr:[code],source:'TW MASTER'});
   };
   for(const code of ['WCHR','WCHS','WCHC','RWCH'])if(new RegExp(`\\b${code}\\b`).test(segment))add('WCH',code==='RWCH'?'RWCH':code);
+  if(/\bINFT\b|\bIF\d{2}\b/.test(segment))add('INF','INFT');
   for(const code of [...segment.matchAll(/\b(?:LHML\d|MEAL\d|MEALD|[A-Z]{2}ML(?:-[A-Z]+)?)\b/g)].map(x=>x[0]))add('MEAL',code);
   for(const code of ['VTIAA','VTIAB'])if(new RegExp(`\\b${code}\\b`).test(segment))add('FQTV',code);
   if(/\bTED\b/.test(segment))add('STAFF','TED');
@@ -12957,16 +12988,23 @@ function prepareTwImportManifest(rawOriginal){
  });
  const booked={C:finalC??named.C,Y:finalY??named.Y};
  const checked={C:finalC??namedChecked.C,Y:finalY??namedChecked.Y};
+ const classifiedWeb={...namedWeb};
+ for(const p of commonLists.INF)if(p.web&&classifiedWeb[p.class]!=null)classifiedWeb[p.class]++;
  // Priorité à un total WEB explicite du rapport ; à défaut, compté par
  // préfixe source (voir TW_WEB_PREFIXES) sur le manifeste nominatif brut.
- const web=webTotal!=null?{C:named.C,Y:named.Y}:((namedWeb.C+namedWeb.Y)>0?namedWeb:null);
+ // Les INF n'ont pas leur propre ligne cabine dans le manifeste : lorsqu'ils
+ // sont rattachés à un passager WEB, ils comptent dans la cabine de ce parent.
+ const classifiedWebTotal=classifiedWeb.C+classifiedWeb.Y;
+ const web=classifiedWebTotal>0?classifiedWeb:(webTotal!=null&&named.C+named.Y===webTotal?named:null);
+ const outbound=twOutboundRowsFromPassengers(passengers);
  const counts={};Object.keys(commonLists).forEach(k=>counts[k]=commonLists[k].length);
  if(finalInf!=null)counts.INF=finalInf;
  if(summaryWch!=null)counts.WCH=summaryWch;
  const owned=Object.fromEntries(Object.keys(commonLists).map(k=>[k,commonLists[k].length>0]));
  if(finalInf!=null)owned.INF=true;
  if(summaryWch!=null)owned.WCH=true;
- return {airline:'TW',mode:'SPECIFIC',hasMainManifest:passengers.length>0||finalC!=null||finalY!=null,values,passengers,booked,checked,web,webTotal,commonLists,counts,owned};
+ if(outbound.length)owned.OUTBOUND=true;
+ return {airline:'TW',mode:'SPECIFIC',hasMainManifest:passengers.length>0||finalC!=null||finalY!=null,values,passengers,booked,checked,web,webTotal,outbound,commonLists,counts,owned};
 }
 function applyTwManifestToFlight(manifest,ctx){
  const x=FLIGHTS[Number(ctx?.idx)];if(!x||!manifest)return false;
@@ -12975,6 +13013,7 @@ function applyTwManifestToFlight(manifest,ctx){
  x.booked.C=Number(manifest.booked?.C||0);x.booked.Y=Number(manifest.booked?.Y||0);
  x.checkedIn={C:Number(manifest.checked?.C||0),Y:Number(manifest.checked?.Y||0),total:Number(manifest.checked?.C||0)+Number(manifest.checked?.Y||0)};
  if(manifest.web){x.web.C=Number(manifest.web.C||0);x.web.Y=Number(manifest.web.Y||0)}
+ if(manifest.owned?.OUTBOUND)x.outbound=(manifest.outbound||[]).map(v=>({...v}));
  for(const k of Object.keys(manifest.commonLists||{})){
   if(!manifest.owned?.[k])continue;
   x.common_lists[k]=(manifest.commonLists[k]||[]).map(v=>({...v}));
