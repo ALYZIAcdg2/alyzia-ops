@@ -8432,6 +8432,38 @@ async function lot5FlightSummaryV1(env,identity){
  * par nom de liste. Demande explicite : vérifier par compagnie les cartes
  * produites par les parsers, sans lancer la moindre resynchronisation.
  */
+async function lot5DryRawMessageDumpV1(env,{query='in:anywhere',maxMessages=20}={}){
+  const q=String(query||'in:anywhere').trim()||'in:anywhere';
+  const n=Math.max(1,Math.min(50,Number(maxMessages||20)));
+  const list=await gmailFetch(env,`/messages?${new URLSearchParams({q,maxResults:String(n)}).toString()}`);
+  const messages=list.messages||[];
+  const out=[];
+  for(const m of messages){
+    const messageId=String(m?.id||'');
+    if(!messageId)continue;
+    try{
+      const message=await gmailFetch(env,`/messages/${encodeURIComponent(messageId)}?format=full`);
+      const subject=extractHeader(message,"Subject");
+      const from=extractHeader(message,"From");
+      const date=extractHeader(message,"Date");
+      const bodyText=await extractPlainBodyFullV1(env,message);
+      const parts=walkParts(message.payload,[]);
+      const attachmentNames=(parts||[]).filter(p=>p?.body?.attachmentId).map(p=>String(p.filename||'(sans nom)'));
+      const detected=detectMailFlight(subject,"",bodyText);
+      out.push({
+        messageId,subject,from,date,
+        bodyTextLength:bodyText.length,
+        bodyTextPreview:bodyText.slice(0,1500),
+        attachmentNames,
+        detected
+      });
+    }catch(e){
+      out.push({messageId,error:String(e?.message||e)});
+    }
+  }
+  return {messagesFound:messages.length,results:out};
+}
+
 async function lot5DryGmailListSurveyV1(env,{query='in:anywhere',maxMessages=40,airlineFilter=''}={}){
   const q=String(query||'in:anywhere').trim()||'in:anywhere';
   const n=Math.max(1,Math.min(100,Number(maxMessages||40)));
@@ -10786,6 +10818,12 @@ async function handleLot5(request,env,url){
         query:url.searchParams.get('query')||'in:anywhere',
         maxMessages:Number(url.searchParams.get('maxMessages')||40),
         airlineFilter:url.searchParams.get('airline')||''
+      }));
+    }
+    if(url.pathname==='/api/autopilot/dry-raw-message-dump'&&request.method==='GET'){
+      return json(await lot5DryRawMessageDumpV1(env,{
+        query:url.searchParams.get('query')||'in:anywhere',
+        maxMessages:Number(url.searchParams.get('maxMessages')||20)
       }));
     }
     if(url.pathname==='/api/autopilot/specific-generic-preview'&&request.method==='GET'){

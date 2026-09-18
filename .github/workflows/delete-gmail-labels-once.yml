@@ -1,4 +1,4 @@
-name: Relevé Gmail lecture seule — IZ744/IZ742 sans filtre compagnie
+name: Relevé Gmail lecture seule — IZ744/IZ742 contenu brut (diagnostic)
 
 on:
   workflow_dispatch:
@@ -13,23 +13,11 @@ jobs:
     env:
       BASE: https://alyzia-ops.alyzia-cdg2.workers.dev
     steps:
-      - name: Relevé IZ744/IZ742 sans filtre compagnie (diagnostic)
+      - name: Relevé brut IZ744/IZ742 (sujet + aperçu corps, sans détection)
         run: |
-          curl -sS -f --max-time 150 "$BASE/api/autopilot/dry-list-survey?query=IZ744%20OR%20IZ742&maxMessages=50" -o /tmp/survey.json || true
-      - name: Affiche tout (toutes compagnies détectées)
+          curl -sS -f --max-time 150 "$BASE/api/autopilot/dry-raw-message-dump?query=IZ744%20OR%20IZ742&maxMessages=20" -o /tmp/survey.json || true
+      - name: Affiche le contenu brut
         run: |
           file=/tmp/survey.json
           if [ ! -s "$file" ]; then echo "(pas de fichier / erreur curl)"; exit 0; fi
-          node -e '
-            let j;
-            try{ j=JSON.parse(require("fs").readFileSync("/tmp/survey.json","utf8")); }catch(e){ console.log("JSON invalide:",e.message); process.exit(0); }
-            console.log(JSON.stringify({messagesFound:j.messagesFound,messagesChecked:j.messagesChecked,documentsSeen:j.documentsSeen,errors:(j.errors||[]).length}));
-            if((j.errors||[]).length)console.log("erreurs:",JSON.stringify((j.errors||[]).slice(0,5)));
-            console.log("---- compagnies détectées ----");
-            for(const co of (j.companies||[])){
-              console.log("=== "+co.airline+" ===");
-              for(const l of co.lists||[]){
-                console.log(JSON.stringify({listName:l.listName,cardKey:l.cardKey,occurrences:l.occurrences,samplePassengerCount:l.samplePassengerCount}));
-              }
-            }
-          '
+          cat "$file"
