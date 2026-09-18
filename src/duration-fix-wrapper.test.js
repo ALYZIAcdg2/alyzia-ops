@@ -27,8 +27,9 @@ const injectDeleteFlightUi = html => {
   const source = String(html || '');
   if (!source || source.includes(deleteUiMarker)) return source;
   const ui = '<script id="alyzia-delete-flight-ui">openDeleteFlight()</script>';
-  return source.includes('</body>')
-    ? source.replace('</body>', ui + '\n</body>')
+  const bodyEnd = source.lastIndexOf('</body>');
+  return bodyEnd >= 0
+    ? source.slice(0, bodyEnd) + ui + '\n' + source.slice(bodyEnd)
     : source + ui;
 };
 
@@ -36,3 +37,9 @@ const firstInjection = injectDeleteFlightUi('<html><body></body></html>');
 const secondInjection = injectDeleteFlightUi(firstInjection);
 console.assert(firstInjection.includes(deleteUiMarker));
 console.assert((secondInjection.match(/id="alyzia-delete-flight-ui"/g) || []).length === 1);
+
+const templateBody = '<script>const printHtml = `<html><body>PRINT</body></html>`;</script>';
+const fullPage = '<html><body>' + templateBody + '</body></html>';
+const safeInjection = injectDeleteFlightUi(fullPage);
+console.assert(safeInjection.indexOf(deleteUiMarker) > safeInjection.indexOf(templateBody));
+console.assert(safeInjection.includes('PRINT</body></html>'));
