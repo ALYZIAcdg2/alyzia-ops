@@ -40,7 +40,9 @@ const FLIGHT_LIST_AVAIL_SCRIPT = String.raw`
   const splitAvailable=()=>{
     document.querySelectorAll('#app .flight-home-row .home-avail').forEach(element=>{
       if(element.querySelector('.home-avail-label')&&element.querySelector('.home-avail-value'))return;
-      const value=String(element.textContent||'').trim();
+      const raw=String(element.textContent||'').trim();
+      if(!raw)return;
+      const value=raw.replace(/^(?:AVAILABLE\s*)+/i,'').trim();
       if(!value)return;
       const label=document.createElement('span');
       label.className='home-avail-label';
