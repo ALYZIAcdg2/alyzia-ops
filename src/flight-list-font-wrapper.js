@@ -19,6 +19,8 @@ const FLIGHT_LIST_FONT_STYLE = String.raw`
 #app .home-avail{font-size:16px!important;font-weight:950!important;display:inline-flex!important;align-items:baseline!important;gap:0!important}
 #app .home-avail:before{content:'AVAILABLE'!important;display:inline-block!important;font-size:16px!important;font-weight:950!important;color:#718398!important;flex:0 0 auto!important;padding-right:12px!important;margin:0!important}
 #app .home-avail-value{font-size:16px!important;font-weight:950!important;flex:0 0 auto!important;margin:0!important}
+#app .home-favorites-filter{min-width:56px!important;display:inline-flex!important;align-items:center!important;justify-content:center!important}
+#app .home-favorites-filter.active{background:#fff8d8!important;border-color:#e8b82d!important;box-shadow:0 0 0 3px rgba(232,184,45,.16)!important}
 @media(max-width:680px){
   #app .flight-home-row .home-flight{font-size:18px!important}
   #app .flight-home-row .home-sub,
@@ -32,8 +34,89 @@ const FLIGHT_LIST_FONT_STYLE = String.raw`
   #app .home-avail,
   #app .home-avail:before,
   #app .home-avail-value{font-size:16px!important}
+  #app .home-favorites-filter{min-width:56px!important}
 }
 </style>`;
+
+const FAVORITES_FILTER_SCRIPT = String.raw`
+<script id="alyzia-home-favorites-filter-script">
+(()=>{
+  'use strict';
+  let favoritesOnly=false;
+  let scheduled=false;
+
+  function findTerminalFilterBar(){
+    const allButtons=[...document.querySelectorAll('#app button')];
+    const all=allButtons.find(button=>{
+      if(String(button.textContent||'').trim().toUpperCase()!=='ALL')return false;
+      const parent=button.parentElement;
+      if(!parent)return false;
+      const labels=[...parent.querySelectorAll('button')].map(b=>String(b.textContent||'').trim().toUpperCase());
+      return labels.includes('T1')&&labels.includes('T2')&&labels.includes('T3');
+    });
+    return all?{all,parent:all.parentElement}:null;
+  }
+
+  function ensureFavoritesButton(){
+    const found=findTerminalFilterBar();
+    if(!found)return null;
+    const {all,parent}=found;
+    let button=parent.querySelector('.home-favorites-filter');
+    if(!button){
+      button=all.cloneNode(false);
+      button.classList.remove('active');
+      button.classList.add('home-favorites-filter');
+      button.removeAttribute('onclick');
+      button.type='button';
+      button.textContent='⭐️';
+      button.title='AFFICHER UNIQUEMENT LES VOLS FAVORIS';
+      button.setAttribute('aria-label','Afficher uniquement les vols favoris');
+      button.addEventListener('click',event=>{
+        event.preventDefault();
+        event.stopPropagation();
+        favoritesOnly=!favoritesOnly;
+        applyFavoritesFilter();
+      });
+      all.insertAdjacentElement('afterend',button);
+    }
+    button.classList.toggle('active',favoritesOnly);
+    button.setAttribute('aria-pressed',favoritesOnly?'true':'false');
+    return button;
+  }
+
+  function applyFavoritesFilter(){
+    ensureFavoritesButton();
+    document.querySelectorAll('#app .flight-home-row').forEach(row=>{
+      const isFavorite=Boolean(row.querySelector('.home-pin.active'));
+      row.style.display=favoritesOnly&&!isFavorite?'none':'';
+    });
+  }
+
+  function scheduleApply(){
+    if(scheduled)return;
+    scheduled=true;
+    requestAnimationFrame(()=>{
+      scheduled=false;
+      applyFavoritesFilter();
+    });
+  }
+
+  document.addEventListener('click',event=>{
+    if(event.target.closest('.home-pin'))setTimeout(scheduleApply,0);
+  },true);
+
+  const start=()=>{
+    applyFavoritesFilter();
+    const app=document.getElementById('app');
+    if(!app)return;
+    const observer=new MutationObserver(scheduleApply);
+    observer.observe(app,{childList:true,subtree:true});
+  };
+
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});
+  else start();
+})();
+</script>`;
 
 const OLD_AVAILABLE_ROW = '<div class="home-mini home-avail ${avail<0?\'neg\':\'\'}">${avail}${nok?` · ${nok} INOP`:\'\'}</div>';
 const NEW_AVAILABLE_ROW = '<div class="home-mini home-avail ${avail<0?\'neg\':\'\'}"><span class="home-avail-value">${avail}${nok?` · ${nok} INOP`:\'\'}</span></div>';
@@ -48,14 +131,18 @@ function patchAvailableRow(html){
 export function injectFlightListFontStyle(html){
   let source=patchAvailableRow(html);
   if(!source)return source;
-  if(source.includes('id="alyzia-flight-list-font-css"'))return source;
 
   // Inject last in the document so these list styles win over the mobile
   // overrides inserted by duration-fix-wrapper.js.
   const bodyEnd=source.lastIndexOf("</body>");
+  const additions=[];
+  if(!source.includes('id="alyzia-flight-list-font-css"'))additions.push(FLIGHT_LIST_FONT_STYLE);
+  if(!source.includes('id="alyzia-home-favorites-filter-script"'))additions.push(FAVORITES_FILTER_SCRIPT);
+  if(!additions.length)return source;
+  const block=additions.join("\n")+"\n";
   return bodyEnd>=0
-    ? source.slice(0,bodyEnd)+FLIGHT_LIST_FONT_STYLE+"\n"+source.slice(bodyEnd)
-    : source+FLIGHT_LIST_FONT_STYLE;
+    ? source.slice(0,bodyEnd)+block+source.slice(bodyEnd)
+    : source+block;
 }
 
 export default {
