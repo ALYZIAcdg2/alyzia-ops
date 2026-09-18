@@ -49,11 +49,17 @@ const DELETE_FLIGHT_UI = String.raw`
 .prepa-company-copy{display:grid;gap:5px}.prepa-company-copy b{font-size:22px;font-weight:950}.prepa-company-copy span{font-size:10px;font-weight:850;color:#70839a}
 .prepa-company-status{display:grid;gap:3px;text-align:right}.prepa-company-status strong{font-size:22px;color:#087749}.prepa-company-status span{font-size:8px;font-weight:950;color:#70839a}.prepa-company-status em{font-size:9px;font-style:normal;font-weight:950;color:#b42318}
 .prepa-company-arrow{font-size:30px;color:#075fd3}.prepa-company-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}.prepa-company-toolbar>button{min-height:42px;border:1px solid #d6e3f1;border-radius:11px;background:#fff;color:#27445f;font-size:10px;font-weight:950;padding:0 15px;cursor:pointer}.prepa-company-toolbar>div{display:flex;align-items:center;gap:9px}.prepa-company-toolbar b{font-size:18px}.prepa-company-toolbar span{font-size:9px;font-weight:850;color:#70839a}
-.flight-head{min-height:0!important;grid-template-columns:minmax(285px,1.55fr) repeat(6,minmax(92px,1fr))!important;padding:10px!important;gap:0!important;background:linear-gradient(135deg,#fff 0%,#f7faff 100%)!important}
+.prepa-visibility-section{border-color:#a9cbed!important;background:#f6faff!important}.prepa-visibility-toggle{min-height:54px!important;border-color:#8ab9ec!important;background:#fff!important}.prepa-visibility-toggle span{font-size:10px!important;color:#075fc8!important}
+.flight-head{min-height:0!important;grid-template-columns:minmax(285px,1.55fr) repeat(5,minmax(100px,1fr))!important;padding:10px!important;gap:0!important;background:linear-gradient(135deg,#fff 0%,#f7faff 100%)!important}
 .flight-head .headcell{border:0!important;background:transparent!important;box-shadow:none!important;min-height:190px!important;padding:12px 10px!important}
 .flight-head .headcell:first-child{padding-left:16px!important}
+.home-sub{font-size:10px!important}.home-config-booking small{font-size:8px!important}.home-config-booking b{font-size:10px!important}.home-load b{font-size:12px!important}.home-avail{font-weight:950!important}
 @media(max-width:1100px){.flight-head{grid-template-columns:minmax(245px,1.45fr) repeat(3,minmax(92px,1fr))!important}.flight-head>.headcell:first-child{grid-row:span 2!important}.flight-head>.headcell:nth-child(n+5){min-height:96px!important}}
-@media(max-width:680px){.delete-flight-grid,.prepa-company-grid{grid-template-columns:1fr}.delete-flight-choice{min-height:78px}.prepa-company-card{min-height:104px;padding:14px;grid-template-columns:auto 1fr auto}.prepa-company-status{grid-column:2}.prepa-company-arrow{grid-column:3;grid-row:1/3}.flight-head{grid-template-columns:1fr 1fr!important;padding:7px!important}.flight-head>.headcell:first-child{grid-column:1/-1!important;grid-row:auto!important;min-height:215px!important}.flight-head .headcell{min-height:105px!important;padding:10px 8px!important}.flight-management-tabs{position:sticky;top:0;z-index:2}}
+@media(max-width:680px){
+ .delete-flight-grid,.prepa-company-grid{grid-template-columns:1fr}.delete-flight-choice{min-height:78px}.prepa-company-card{min-height:104px;padding:14px;grid-template-columns:auto 1fr auto}.prepa-company-status{grid-column:2}.prepa-company-arrow{grid-column:3;grid-row:1/3}
+ .flight-head{grid-template-columns:1fr 1fr!important;padding:7px!important}.flight-head>.headcell:first-child{grid-column:1/-1!important;grid-row:auto!important;min-height:0!important;padding:12px 12px 10px!important}.flight-head .headcell{min-height:102px!important;padding:10px 8px!important}.flight-head>.headcell:nth-child(6){grid-column:1/-1!important;min-height:92px!important}.flight-head .saria-bridge-pill{display:none!important}.flight-head .saria-ac-wrap{gap:4px!important}.flight-head .live-strip{margin-top:4px!important}.flight-head .detail-prepa-actions{margin-top:7px!important}.flight-management-tabs{position:sticky;top:0;z-index:2}
+ .flight-home-row>:nth-child(4){font-size:12px!important;font-weight:900!important;color:#20354c!important}.home-sub{font-size:11px!important;font-weight:850!important}.home-config-booking small{font-size:9px!important}.home-config-booking b{font-size:12px!important}.home-load b{font-size:13px!important}.home-avail{display:flex!important;align-items:center!important;gap:8px!important;font-size:13px!important}.home-avail:before{content:'AVAILABLE';font-size:9px;font-weight:950;color:#718398}
+}
 </style>
 <script id="alyzia-delete-flight-ui">
 (()=>{
@@ -135,6 +141,43 @@ const DELETE_FLIGHT_UI = String.raw`
     if(body&&!body.querySelector('.flight-management-tabs'))body.insertAdjacentHTML('afterbegin',flightManagementTabs('add'));
   };
 
+  function ensurePrepaCompanyOptions(){
+    if(typeof COMPANY_CONFIG!=='object'||!COMPANY_CONFIG)return;
+    Object.keys(COMPANY_CONFIG).forEach(airline=>{
+      const cfg=COMPANY_CONFIG[airline];
+      if(!cfg)return;
+      cfg.modules=cfg.modules&&typeof cfg.modules==='object'?cfg.modules:{};
+      if(cfg.modules.prepa===undefined)cfg.modules.prepa=true;
+    });
+  }
+  function companyVisibleInPrepa(airline){
+    ensurePrepaCompanyOptions();
+    return !(typeof COMPANY_CONFIG==='object'&&COMPANY_CONFIG&&COMPANY_CONFIG[airline]&&COMPANY_CONFIG[airline].modules&&COMPANY_CONFIG[airline].modules.prepa===false);
+  }
+  ensurePrepaCompanyOptions();
+
+  const previousOpenAirlineConfig=window.openAirlineConfig;
+  if(typeof previousOpenAirlineConfig==='function'){
+    window.openAirlineConfig=function(airline){
+      ensurePrepaCompanyOptions();
+      const result=previousOpenAirlineConfig.apply(this,arguments);
+      const input=document.querySelector('[data-company-module="prepa"]');
+      const label=input&&input.closest('.airline-module-toggle');
+      const modulesSection=label&&label.closest('.airline-config-section');
+      if(label&&modulesSection){
+        const text=label.querySelector('span');
+        if(text)text.textContent='AFFICHER LA COMPAGNIE DANS L’ONGLET PRÉPA VOLS';
+        label.classList.add('prepa-visibility-toggle');
+        const section=document.createElement('div');
+        section.className='airline-config-section prepa-visibility-section';
+        section.innerHTML='<div class="airline-config-section-title"><div><b>VISIBILITÉ DANS PRÉPA VOLS</b><small>ACTIVER OU MASQUER CETTE COMPAGNIE DANS LES CARTES PRÉPA.</small></div></div><div class="airline-module-grid"></div>';
+        section.querySelector('.airline-module-grid').appendChild(label);
+        modulesSection.after(section);
+      }
+      return result;
+    };
+  }
+
   let prepaCompanyFilter='';
   function prepaRowAirline(row){
     const flight=clean(row&&row.querySelector('.home-flight')&&row.querySelector('.home-flight').textContent);
@@ -145,7 +188,12 @@ const DELETE_FLIGHT_UI = String.raw`
     const page=document.querySelector('#app .prepa-page');
     const list=page&&page.querySelector('.prepa-list');
     if(!page||!list)return;
-    const rows=[...list.querySelectorAll('.prepa-row')];
+    const rows=[...list.querySelectorAll('.prepa-row')].filter(row=>{
+      const airline=prepaRowAirline(row);
+      if(companyVisibleInPrepa(airline))return true;
+      row.remove();
+      return false;
+    });
     const groups=new Map();
     rows.forEach(row=>{
       const airline=prepaRowAirline(row);
@@ -153,6 +201,11 @@ const DELETE_FLIGHT_UI = String.raw`
       if(!groups.has(airline))groups.set(airline,[]);
       groups.get(airline).push(row);
     });
+    const countBadge=page.querySelector('.flight-count-badge');
+    if(countBadge){
+      const ok=rows.filter(row=>row.querySelector('.prepa-validate.done')).length;
+      countBadge.textContent=ok+'/'+rows.length+' OK';
+    }
     if(prepaCompanyFilter&&groups.has(prepaCompanyFilter)){
       rows.forEach(row=>{if(prepaRowAirline(row)!==prepaCompanyFilter)row.remove()});
       const selected=groups.get(prepaCompanyFilter);
@@ -185,6 +238,44 @@ const DELETE_FLIGHT_UI = String.raw`
   document.querySelectorAll('.nav button,.mobile-bottom-nav button').forEach(button=>{
     if(clean(button.textContent)==='PRÉPA')button.setAttribute('onclick','openPrepaOverview()');
   });
+
+  function decorateHomeFlightList(){
+    document.querySelectorAll('#app .flight-home-row').forEach(row=>{
+      const flight=clean(row.querySelector('.home-flight')&&row.querySelector('.home-flight').textContent);
+      if(!flight.startsWith('SQ')||row.querySelector('.home-status-dot'))return;
+      const data=(Array.isArray(FLIGHTS)?FLIGHTS:[]).find(item=>clean(item&&item.flight)===flight&&(!item.date||String(item.date)===String(HOME_DATE)));
+      let level='orange';
+      try{level=flightListStatusDot(data)||'orange'}catch(_){}
+      const dot=document.createElement('span');
+      dot.className='home-status-dot '+level;
+      dot.title=level==='green'?'Vol injecté et fiche complète':'Informations du vol à compléter';
+      row.querySelector('.home-flight-top')?.insertBefore(dot,row.querySelector('.home-flight'));
+    });
+  }
+  const previousRenderHome=window.renderHome;
+  if(typeof previousRenderHome==='function'){
+    window.renderHome=function(...args){
+      const result=previousRenderHome.apply(this,args);
+      decorateHomeFlightList();
+      return result;
+    };
+  }
+  decorateHomeFlightList();
+
+  function decorateFlightHeader(){
+    document.querySelectorAll('#app .flight-head .live-badge').forEach(element=>{
+      if(clean(element.textContent).includes('AERODATABOX'))element.remove();
+    });
+    document.querySelectorAll('#app .flight-head .live-meta').forEach(element=>element.remove());
+  }
+  const previousRenderFlight=window.render;
+  if(typeof previousRenderFlight==='function'){
+    window.render=function(...args){
+      const result=previousRenderFlight.apply(this,args);
+      decorateFlightHeader();
+      return result;
+    };
+  }
 
   window.openDeleteFlight=function(replace,feedback){
     const rows=deleteFlightRows();
