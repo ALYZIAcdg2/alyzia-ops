@@ -21,7 +21,9 @@ const FLIGHT_LIST_FONT_STYLE = String.raw`
 #app .home-avail-value{font-size:16px!important;font-weight:950!important;flex:0 0 auto!important;margin:0!important}
 #app .home-favorites-filter{min-width:56px!important;display:inline-flex!important;align-items:center!important;justify-content:center!important}
 #app .home-favorites-filter.active{background:#fff8d8!important;border-color:#e8b82d!important;box-shadow:0 0 0 3px rgba(232,184,45,.16)!important}
-#app .home-note-alert{width:32px;height:32px;min-width:32px;display:inline-flex;align-items:center;justify-content:center;border:1px solid #e3bd63;border-radius:8px;background:#fff8df;color:#c69000;font-size:17px;line-height:1}
+#app .home-note-alert{position:relative;width:34px;height:34px;min-width:34px;display:inline-flex;align-items:center;justify-content:center;border:1px solid #e3bd63;border-radius:9px;background:#fff8df;color:#c69000;font-size:18px;line-height:1;animation:homeNoteBellPulse 1.25s ease-in-out infinite}
+#app .home-note-count{position:absolute;top:-7px;right:-7px;min-width:18px;height:18px;padding:0 4px;border-radius:999px;background:#d9213f;color:#fff;border:2px solid #fff;font-size:10px;font-weight:1000;line-height:14px;text-align:center;box-sizing:border-box}
+@keyframes homeNoteBellPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
 @media(max-width:680px){
   #app .flight-home-row .home-flight{font-size:18px!important}
   #app .flight-home-row .home-sub,
@@ -36,7 +38,8 @@ const FLIGHT_LIST_FONT_STYLE = String.raw`
   #app .home-avail:before,
   #app .home-avail-value{font-size:16px!important}
   #app .home-favorites-filter{min-width:56px!important}
-  #app .home-note-alert{width:29px;height:29px;min-width:29px;font-size:15px}
+  #app .home-note-alert{width:31px;height:31px;min-width:31px;font-size:16px}
+  #app .home-note-count{top:-7px;right:-7px;min-width:17px;height:17px;font-size:9px;line-height:13px}
 }
 </style>`;
 
@@ -124,14 +127,15 @@ const OLD_AVAILABLE_ROW = '<div class="home-mini home-avail ${avail<0?\'neg\':\'
 const NEW_AVAILABLE_ROW = '<div class="home-mini home-avail ${avail<0?\'neg\':\'\'}"><span class="home-avail-value">${avail}${nok?` · ${nok} INOP`:\'\'}</span></div>';
 
 const NOTES_HELPER = [
-  'function homeFlightHasNotes(x){',
-  '  return Array.isArray(x?.flightNotes) && x.flightNotes.some(n=>String(n?.text||\'\').trim());',
+  'function homeFlightNoteCount(x){',
+  '  if(!Array.isArray(x?.flightNotes)) return 0;',
+  '  return x.flightNotes.filter(n=>String(n?.text||\'\').trim()).length;',
   '}',
   ''
 ].join('\n');
 
 const HOME_ACTIONS_START = '<div class="home-row-actions">\n          <button class="home-pin ';
-const HOME_ACTIONS_WITH_BELL = '<div class="home-row-actions">\n          ${homeFlightHasNotes(x)?\'<span class="home-note-alert" title="NOTES PRÉSENTES" aria-label="Notes présentes">🔔</span>\':\'\'}\n          <button class="home-pin ';
+const HOME_ACTIONS_WITH_BELL = '<div class="home-row-actions">\n          ${homeFlightNoteCount(x)>0?\'<span class="home-note-alert" title="\'+homeFlightNoteCount(x)+\' NOTE(S)" aria-label="\'+homeFlightNoteCount(x)+\' notes présentes">🔔<span class="home-note-count">\'+homeFlightNoteCount(x)+\'</span></span>\':\'\'}\n          <button class="home-pin ';
 
 function patchAvailableRow(html){
   const source=String(html||"");
@@ -143,10 +147,10 @@ function patchAvailableRow(html){
 function patchNotesBell(html){
   let source=String(html||"");
   if(!source)return source;
-  if(!source.includes('function homeFlightHasNotes(x)')&&source.includes('function renderHome(){')){
+  if(!source.includes('function homeFlightNoteCount(x)')&&source.includes('function renderHome(){')){
     source=source.replace('function renderHome(){',NOTES_HELPER+'function renderHome(){');
   }
-  if(!source.includes('home-note-alert')&&source.includes(HOME_ACTIONS_START)){
+  if(!source.includes('home-note-count')&&source.includes(HOME_ACTIONS_START)){
     source=source.replaceAll(HOME_ACTIONS_START,HOME_ACTIONS_WITH_BELL);
   }
   return source;
