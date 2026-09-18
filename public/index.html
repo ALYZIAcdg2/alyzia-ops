@@ -15257,11 +15257,13 @@ async function saveAirlineConfig(airline){
  publishCompanyConfigToCloud().catch(e=>console.warn('CONFIG COMPAGNIE CLOUD',e));
 
  // A save is a terminal action: close CONFIG AIRLINE + parent CONFIG COMPAGNIE
- // instead of walking backward through the modal history. It must not force
- // navigation to a flight card: stay on whatever screen was open underneath
- // (home list, PRÉPA, or simply closed if it was OUTILS/recherche/admin).
- closeAllModals();
- renderCurrentViewPreserved();
+ // (2 modal levels) and land on whatever was open right before CONFIG
+ // COMPAGNIE — normally OUTILS. Neither forcing a flight card (old bug) nor
+ // wiping the whole modal stack down to the underlying tab (VOLS/PRÉPA),
+ // which just swaps one wrong destination for another.
+ modalStack.pop();
+ if(modalStack.length)renderModalSnapshot(modalStack.pop());
+ else closeAllModals();
 
  // Lightweight confirmation without creating a new modal-stack level.
  setTimeout(()=>{
