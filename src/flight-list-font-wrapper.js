@@ -21,9 +21,11 @@ const FLIGHT_LIST_FONT_STYLE = String.raw`
 #app .home-avail-value{font-size:16px!important;font-weight:950!important;flex:0 0 auto!important;margin:0!important}
 #app .home-favorites-filter{min-width:56px!important;display:inline-flex!important;align-items:center!important;justify-content:center!important}
 #app .home-favorites-filter.active{background:#fff8d8!important;border-color:#e8b82d!important;box-shadow:0 0 0 3px rgba(232,184,45,.16)!important}
-#app .home-note-alert{position:relative;width:34px;height:34px;min-width:34px;display:inline-flex;align-items:center;justify-content:center;border:1px solid #e3bd63;border-radius:9px;background:#fff8df;color:#c69000;font-size:18px;line-height:1;animation:homeNoteBellPulse 1.25s ease-in-out infinite}
-#app .home-note-count{position:absolute;top:-7px;right:-7px;min-width:18px;height:18px;padding:0 4px;border-radius:999px;background:#d9213f;color:#fff;border:2px solid #fff;font-size:10px;font-weight:1000;line-height:14px;text-align:center;box-sizing:border-box}
-@keyframes homeNoteBellPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+#app .home-note-alert{height:34px;min-width:48px;padding:0 5px 0 7px;display:inline-flex;align-items:center;justify-content:center;gap:2px;border:1px solid #e3bd63;border-radius:10px;background:#fff8df;color:#c69000;line-height:1;box-sizing:border-box}
+#app .home-note-bell{display:inline-block;font-size:18px;transform-origin:50% 12%;animation:homeNoteBellRing 1.45s ease-in-out infinite}
+#app .home-note-count{display:inline-flex;align-items:center;justify-content:center;min-width:19px;height:19px;padding:0 5px;border-radius:999px;background:#d9213f;color:#fff;border:2px solid #fff;font-size:10px;font-weight:1000;line-height:1;box-sizing:border-box;box-shadow:0 1px 3px rgba(150,0,20,.28);animation:homeNoteBadgePulse 1.45s ease-in-out infinite}
+@keyframes homeNoteBellRing{0%,72%,100%{transform:rotate(0deg)}78%{transform:rotate(14deg)}84%{transform:rotate(-13deg)}90%{transform:rotate(9deg)}96%{transform:rotate(-6deg)}}
+@keyframes homeNoteBadgePulse{0%,60%,100%{transform:scale(1)}75%{transform:scale(1.16)}}
 @media(max-width:680px){
   #app .flight-home-row .home-flight{font-size:18px!important}
   #app .flight-home-row .home-sub,
@@ -38,8 +40,9 @@ const FLIGHT_LIST_FONT_STYLE = String.raw`
   #app .home-avail:before,
   #app .home-avail-value{font-size:16px!important}
   #app .home-favorites-filter{min-width:56px!important}
-  #app .home-note-alert{width:31px;height:31px;min-width:31px;font-size:16px}
-  #app .home-note-count{top:-7px;right:-7px;min-width:17px;height:17px;font-size:9px;line-height:13px}
+  #app .home-note-alert{height:31px;min-width:44px;padding:0 4px 0 6px}
+  #app .home-note-bell{font-size:16px}
+  #app .home-note-count{min-width:18px;height:18px;font-size:9px;padding:0 4px}
 }
 </style>`;
 
@@ -135,7 +138,7 @@ const NOTES_HELPER = [
 ].join('\n');
 
 const HOME_ACTIONS_START = '<div class="home-row-actions">\n          <button class="home-pin ';
-const HOME_ACTIONS_WITH_BELL = '<div class="home-row-actions">\n          ${homeFlightNoteCount(x)>0?\'<span class="home-note-alert" title="\'+homeFlightNoteCount(x)+\' NOTE(S)" aria-label="\'+homeFlightNoteCount(x)+\' notes présentes">🔔<span class="home-note-count">\'+homeFlightNoteCount(x)+\'</span></span>\':\'\'}\n          <button class="home-pin ';
+const HOME_ACTIONS_WITH_BELL = '<div class="home-row-actions">\n          ${homeFlightNoteCount(x)>0?\'<span class="home-note-alert" title="\'+homeFlightNoteCount(x)+\' NOTE(S)" aria-label="\'+homeFlightNoteCount(x)+\' notes présentes"><span class="home-note-bell">🔔</span><span class="home-note-count">\'+homeFlightNoteCount(x)+\'</span></span>\':\'\'}\n          <button class="home-pin ';
 
 function patchAvailableRow(html){
   const source=String(html||"");
@@ -150,7 +153,7 @@ function patchNotesBell(html){
   if(!source.includes('function homeFlightNoteCount(x)')&&source.includes('function renderHome(){')){
     source=source.replace('function renderHome(){',NOTES_HELPER+'function renderHome(){');
   }
-  if(!source.includes('home-note-count')&&source.includes(HOME_ACTIONS_START)){
+  if(!source.includes('home-note-bell')&&source.includes(HOME_ACTIONS_START)){
     source=source.replaceAll(HOME_ACTIONS_START,HOME_ACTIONS_WITH_BELL);
   }
   return source;
