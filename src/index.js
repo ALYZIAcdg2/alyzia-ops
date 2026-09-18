@@ -5395,6 +5395,143 @@ function lot2TkExtractOncarriagePax(text){
     chain:it.legs.map(l=>`${l.flight} ${l.from}-${l.to}`).join(" / ")
   }));
 }
+// Sections annexes TK complémentaires (au-delà du périmètre strict de la
+// priorité 7), construites et vérifiées contre le même vrai mail TK1828/17SEP.
+function lot2TkExtractSimpleSection(text,headerLiteral){
+  const flat=String(text||"").replace(/\r/g,"\n");
+  const re=new RegExp(`CDG ${headerLiteral}[^\\n]*\\n([\\s\\S]*?)END NAMES`);
+  const m=flat.match(re);
+  return m?m[1].split("\n"):null;
+}
+// PASSENGERS WITH INFANTS : les lignes listent le PARENT adulte, pas un bébé
+// séparé (vérifié : "CHRISTIA!N" a un titre MR dans ALL PAX + une ligne "*
+// ET INF TICKET" liée juste en dessous) — on tague donc le parent avec INF.
+function lot2TkExtractInfantParents(text){
+  const lines=lot2TkExtractSimpleSection(text,"PASSENGERS WITH INFANTS");
+  const out=new Set();
+  if(!lines)return out;
+  for(const line of lines){
+    const numM=line.match(/^\s*\d{1,3}\.(.+)$/);
+    if(!numM)continue;
+    const key=lot2TkTruncNameFromLine(numM[1]);
+    if(key)out.add(key);
+  }
+  return out;
+}
+// TOY'S R US : CHLD si marqueur "CHL" présent, sinon INF-parent si également
+// listé dans PASSENGERS WITH INFANTS ; le reliquat (ex. GURROBY, ni l'un ni
+// l'autre) se résout par le titre MSTR/MISS déjà connu du MASTER, voir
+// l'appel dans lot3MergeFlightData.
+function lot2TkExtractToysRUs(text){
+  const lines=lot2TkExtractSimpleSection(text,"TOY'S R US");
+  if(!lines)return [];
+  const infantParents=lot2TkExtractInfantParents(text);
+  const out=[];
+  for(const line of lines){
+    const numM=line.match(/^\s*\d{1,3}\.(.+)$/);
+    if(!numM)continue;
+    const key=lot2TkTruncNameFromLine(numM[1]);
+    if(!key)continue;
+    const hasChl=/\bCHL\b/.test(numM[1]);
+    out.push({tkTruncKey:key,chld:hasChl,infParent:!hasChl && infantParents.has(key)});
+  }
+  return out;
+}
+// REBATE PAX : code staff/rebate conservé (ex. "R9A/Y01").
+function lot2TkExtractRebatePax(text){
+  const lines=lot2TkExtractSimpleSection(text,"REBATE PAX");
+  if(!lines)return [];
+  const out=[];
+  for(const line of lines){
+    const numM=line.match(/^\s*\d{1,3}\.(.+)$/);
+    if(!numM)continue;
+    const key=lot2TkTruncNameFromLine(numM[1]);
+    if(!key)continue;
+    const codeM=numM[1].match(/\b([A-Z0-9]{2,4}\/[A-Z0-9]{2,4})\b/);
+    out.push({tkTruncKey:key,code:codeM?codeM[1]:""});
+  }
+  return out;
+}
+// PAX WITH SPECIAL MEAL : code repas conservé (VGML/KSML/...).
+function lot2TkExtractSpecialMeal(text){
+  const lines=lot2TkExtractSimpleSection(text,"PAX WITH SPECIAL MEAL");
+  if(!lines)return [];
+  const out=[];
+  for(const line of lines){
+    const numM=line.match(/^\s*\d{1,3}\.(.+)$/);
+    if(!numM)continue;
+    const key=lot2TkTruncNameFromLine(numM[1]);
+    if(!key)continue;
+    const mealM=numM[1].match(/\b([A-Z]{2}ML)\b/);
+    out.push({tkTruncKey:key,meal:mealM?mealM[1]:""});
+  }
+  return out;
+}
+// WCHR/WCHS/WCHC/WCMP : section sans nom d'en-tête propre, détectée par le
+// contenu ("!WCHR"/"!WCHS!"/"!WCHC!" sur la ligne du passager) — même
+// principe que le repli générique WCH par contenu utilisé ailleurs.
+function lot2TkExtractWchByContent(text){
+  const flat=String(text||"").replace(/\r/g,"\n");
+  const wchRe=/!(WCHR|WCHS|WCHC|WCMP)!?/;
+  const out=[];
+  for(const line of flat.split("\n")){
+    const numM=line.match(/^\s*\d{1,3}\.(.+)$/);
+    if(!numM)continue;
+    const wm=numM[1].match(wchRe);
+    if(!wm)continue;
+    const key=lot2TkTruncNameFromLine(numM[1]);
+    if(key)out.push({tkTruncKey:key,code:wm[1]});
+  }
+  return out;
+}
+// E-TKT FULL PAX LIST / EMD FULL PAX LIST : numéro de document + code
+// service EMD conservé (RQST/XBAG/PETC/PDUG/SPEQ/FQTU/...).
+function lot2TkExtractEtktList(text){
+  const lines=lot2TkExtractSimpleSection(text,"E-TKT FULL PAX LIST");
+  if(!lines)return [];
+  const out=[];
+  for(const line of lines){
+    const numM=line.match(/^\s*\d{1,3}\.(.+)$/);
+    if(!numM)continue;
+    const key=lot2TkTruncNameFromLine(numM[1]);
+    if(!key)continue;
+    const etM=numM[1].match(/(\d{10,14}[A-Z]\d)/);
+    out.push({tkTruncKey:key,etkt:etM?etM[1]:""});
+  }
+  return out;
+}
+function lot2TkExtractEmdList(text){
+  const lines=lot2TkExtractSimpleSection(text,"EMD FULL PAX LIST");
+  if(!lines)return [];
+  const out=[];
+  for(const line of lines){
+    const numM=line.match(/^\s*\d{1,3}\.(.+)$/);
+    if(!numM)continue;
+    const key=lot2TkTruncNameFromLine(numM[1]);
+    if(!key)continue;
+    const emdM=numM[1].match(/(\d{10,14}[A-Z]\d)/);
+    const codeM=numM[1].match(/\*([A-Z]{4})\*/);
+    out.push({tkTruncKey:key,emd:emdM?emdM[1]:"",code:codeM?codeM[1]:""});
+  }
+  return out;
+}
+// PAX WITH INBOUND CONNECTION : un seul tronçon entrant par passager dans le
+// vrai mail vérifié (contrairement à ONCARRIAGE qui peut en avoir plusieurs).
+function lot2TkExtractInboundConnectionPax(text){
+  const lines=lot2TkExtractSimpleSection(text,"PAX WITH INBOUND CONNECTION");
+  if(!lines)return [];
+  const out=[];
+  const legRe=/\b([A-Z]{2}\d{2,4})\s+([A-Z]{3})\s+[FCY]\s+OK\b/;
+  for(const line of lines){
+    const numM=line.match(/^\s*\d{1,3}\.(.+)$/);
+    if(!numM)continue;
+    const key=lot2TkTruncNameFromLine(numM[1]);
+    if(!key)continue;
+    const legM=numM[1].match(legRe);
+    if(legM)out.push({tkTruncKey:key,flight:legM[1],airport:legM[2]});
+  }
+  return out;
+}
 function lot2TkClassCounts(items){
   const out={};
   for(const p of items||[]){
@@ -5944,6 +6081,14 @@ async function lot2ProcessOneJob(env,job){
       tkCheckInInfo: tkKind?lot2TkExtractCheckInInfo(extracted.text):null,
       tkCommentedPax: tkKind?lot2TkExtractCommentedPax(extracted.text):[],
       tkOncarriage: tkKind?lot2TkExtractOncarriagePax(extracted.text):[],
+      tkToysRUs: tkKind?lot2TkExtractToysRUs(extracted.text):[],
+      tkInfantParents: tkKind?[...lot2TkExtractInfantParents(extracted.text)]:[],
+      tkRebatePax: tkKind?lot2TkExtractRebatePax(extracted.text):[],
+      tkSpecialMeal: tkKind?lot2TkExtractSpecialMeal(extracted.text):[],
+      tkWchContent: tkKind?lot2TkExtractWchByContent(extracted.text):[],
+      tkEtktList: tkKind?lot2TkExtractEtktList(extracted.text):[],
+      tkEmdList: tkKind?lot2TkExtractEmdList(extracted.text):[],
+      tkInboundConnectionPax: tkKind?lot2TkExtractInboundConnectionPax(extracted.text):[],
       passengerItems,
       connectionRows,
       fqtvCategories
@@ -6174,6 +6319,14 @@ function lot3BuildImportCard(row){
     tkCheckInInfo:result.tkCheckInInfo||null,
     tkCommentedPax:Array.isArray(result.tkCommentedPax)?result.tkCommentedPax:[],
     tkOncarriage:Array.isArray(result.tkOncarriage)?result.tkOncarriage:[],
+    tkToysRUs:Array.isArray(result.tkToysRUs)?result.tkToysRUs:[],
+    tkInfantParents:Array.isArray(result.tkInfantParents)?result.tkInfantParents:[],
+    tkRebatePax:Array.isArray(result.tkRebatePax)?result.tkRebatePax:[],
+    tkSpecialMeal:Array.isArray(result.tkSpecialMeal)?result.tkSpecialMeal:[],
+    tkWchContent:Array.isArray(result.tkWchContent)?result.tkWchContent:[],
+    tkEtktList:Array.isArray(result.tkEtktList)?result.tkEtktList:[],
+    tkEmdList:Array.isArray(result.tkEmdList)?result.tkEmdList:[],
+    tkInboundConnectionPax:Array.isArray(result.tkInboundConnectionPax)?result.tkInboundConnectionPax:[],
     rules:"LOT3 : injection depuis import_job_results validé ; n'écrase pas les corrections manuelles."
   };
 }
@@ -7017,10 +7170,11 @@ function lot3MergeFlightData(current,row,card){
       };
     }
 
-    // ONCARRIAGE (mutation directe des entrées base.passengers) AVANT VIP/UPGR
-    // (appels récursifs à lot3MergeFlightData, qui reconstruit base.passengers
-    // avec de NOUVEAUX objets à chaque appel — une mutation faite après serait
-    // silencieusement perdue, byTrunc pointant alors vers des objets détachés).
+    // Mutations directes des entrées base.passengers AVANT tout appel récursif
+    // à lot3MergeFlightData (VIP/UPGR/CHLD/INF/STAFF/MEAL/WCH/ETKT/EMD plus
+    // bas) : ces appels reconstruisent base.passengers avec de NOUVEAUX objets
+    // à chaque fois — une mutation faite après serait silencieusement perdue,
+    // byTrunc pointant alors vers des objets détachés.
     if(Array.isArray(card.tkOncarriage) && card.tkOncarriage.length){
       for(const o of card.tkOncarriage){
         const master=byTrunc.get(o.tkTruncKey);
@@ -7031,6 +7185,14 @@ function lot3MergeFlightData(current,row,card){
         // (copie superficielle, jamais nettoyé nulle part ailleurs).
         master.oncarriageChain=o.chain;
         master.oncarriageDestination=o.destination;
+      }
+    }
+    if(Array.isArray(card.tkInboundConnectionPax) && card.tkInboundConnectionPax.length){
+      for(const c of card.tkInboundConnectionPax){
+        const master=byTrunc.get(c.tkTruncKey);
+        if(!master)continue;
+        master.inboundConnectionFlight=c.flight;
+        master.inboundConnectionAirport=c.airport;
       }
     }
 
@@ -7044,6 +7206,81 @@ function lot3MergeFlightData(current,row,card){
       }
       if(vipItems.length)base=lot3MergeFlightData(base,row,{...card,cardKey:"VIP",label:"VIP",passengerItems:vipItems,passengers:vipItems,passengerCount:vipItems.length,classCounts:{},connectionRows:[]});
       if(upgrItems.length)base=lot3MergeFlightData(base,row,{...card,cardKey:"UPGR",label:"UPGR",passengerItems:upgrItems,passengers:upgrItems,passengerCount:upgrItems.length,classCounts:{},connectionRows:[]});
+    }
+
+    // TOY'S R US -> CHLD (marqueur "CHL", ou repli sur le titre MSTR/MISS déjà
+    // connu du MASTER pour les cas ambigus type "GURROBY" sans marqueur ni
+    // présence dans PASSENGERS WITH INFANTS) + INF (parents d'un bébé, listés
+    // aussi par PASSENGERS WITH INFANTS elle-même — union des deux sources,
+    // dédupliquée par tkTruncKey/identité passager).
+    if(Array.isArray(card.tkToysRUs) && card.tkToysRUs.length){
+      const chldItems=[],infItems=[];
+      for(const t of card.tkToysRUs){
+        const master=byTrunc.get(t.tkTruncKey);
+        if(!master)continue;
+        const isChld=t.chld || (!t.infParent && (master.title==="MSTR"||master.title==="MISS"));
+        if(isChld)chldItems.push({...master,cardKey:"CHLD",listName:"TK TOY'S R US",ssr:["CHLD"],specific:"",note:""});
+        else if(t.infParent)infItems.push({...master,cardKey:"INF",listName:"TK TOY'S R US",ssr:["INF"],specific:"",note:""});
+      }
+      if(chldItems.length)base=lot3MergeFlightData(base,row,{...card,cardKey:"CHLD",label:"CHLD",passengerItems:chldItems,passengers:chldItems,passengerCount:chldItems.length,classCounts:{},connectionRows:[]});
+      if(infItems.length)base=lot3MergeFlightData(base,row,{...card,cardKey:"INF",label:"INF",passengerItems:infItems,passengers:infItems,passengerCount:infItems.length,classCounts:{},connectionRows:[]});
+    }
+    if(Array.isArray(card.tkInfantParents) && card.tkInfantParents.length){
+      const infItems=[];
+      for(const key of card.tkInfantParents){
+        const master=byTrunc.get(key);
+        if(master)infItems.push({...master,cardKey:"INF",listName:"TK PASSENGERS WITH INFANTS",ssr:["INF"],specific:"",note:""});
+      }
+      if(infItems.length)base=lot3MergeFlightData(base,row,{...card,cardKey:"INF",label:"INF",passengerItems:infItems,passengers:infItems,passengerCount:infItems.length,classCounts:{},connectionRows:[]});
+    }
+
+    // REBATE PAX -> STAFF (code conservé en specific).
+    if(Array.isArray(card.tkRebatePax) && card.tkRebatePax.length){
+      const staffItems=[];
+      for(const r of card.tkRebatePax){
+        const master=byTrunc.get(r.tkTruncKey);
+        if(master)staffItems.push({...master,cardKey:"STAFF",listName:"TK REBATE PAX",ssr:["STAFF","REBATE"],specific:r.code||"",note:""});
+      }
+      if(staffItems.length)base=lot3MergeFlightData(base,row,{...card,cardKey:"STAFF",label:"STAFF",passengerItems:staffItems,passengers:staffItems,passengerCount:staffItems.length,classCounts:{},connectionRows:[]});
+    }
+
+    // PAX WITH SPECIAL MEAL -> MEAL (code repas conservé).
+    if(Array.isArray(card.tkSpecialMeal) && card.tkSpecialMeal.length){
+      const mealItems=[];
+      for(const m2 of card.tkSpecialMeal){
+        const master=byTrunc.get(m2.tkTruncKey);
+        if(master)mealItems.push({...master,cardKey:"MEAL",listName:"TK PAX WITH SPECIAL MEAL",ssr:[m2.meal||"MEAL"],specific:m2.meal||"",note:""});
+      }
+      if(mealItems.length)base=lot3MergeFlightData(base,row,{...card,cardKey:"MEAL",label:"MEAL",passengerItems:mealItems,passengers:mealItems,passengerCount:mealItems.length,classCounts:{},connectionRows:[]});
+    }
+
+    // WCHR/WCHS/WCHC/WCMP (détecté par contenu) -> WCH (code conservé).
+    if(Array.isArray(card.tkWchContent) && card.tkWchContent.length){
+      const wchItems=[];
+      for(const w of card.tkWchContent){
+        const master=byTrunc.get(w.tkTruncKey);
+        if(master)wchItems.push({...master,cardKey:"WCH",listName:"TK WCH",category:w.code,ssr:[w.code],specific:w.code,note:""});
+      }
+      if(wchItems.length)base=lot3MergeFlightData(base,row,{...card,cardKey:"WCH",label:"WCH",passengerItems:wchItems,passengers:wchItems,passengerCount:wchItems.length,classCounts:{},connectionRows:[]});
+    }
+
+    // E-TKT / EMD FULL PAX LIST -> ETKT/EMD (numéro de document conservé,
+    // code service EMD conservé en specific).
+    if(Array.isArray(card.tkEtktList) && card.tkEtktList.length){
+      const etktItems=[];
+      for(const e of card.tkEtktList){
+        const master=byTrunc.get(e.tkTruncKey);
+        if(master)etktItems.push({...master,cardKey:"ETKT",listName:"TK E-TKT FULL PAX LIST",etkt:e.etkt||master.etkt||"",ssr:[],specific:"",note:""});
+      }
+      if(etktItems.length)base=lot3MergeFlightData(base,row,{...card,cardKey:"ETKT",label:"ETKT",passengerItems:etktItems,passengers:etktItems,passengerCount:etktItems.length,classCounts:{},connectionRows:[]});
+    }
+    if(Array.isArray(card.tkEmdList) && card.tkEmdList.length){
+      const emdItems=[];
+      for(const e of card.tkEmdList){
+        const master=byTrunc.get(e.tkTruncKey);
+        if(master)emdItems.push({...master,cardKey:"EMD",listName:"TK EMD FULL PAX LIST",emd:e.emd||"",ssr:[],specific:e.code||"",note:""});
+      }
+      if(emdItems.length)base=lot3MergeFlightData(base,row,{...card,cardKey:"EMD",label:"EMD",passengerItems:emdItems,passengers:emdItems,passengerCount:emdItems.length,classCounts:{},connectionRows:[]});
     }
   }
 
