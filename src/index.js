@@ -3689,7 +3689,13 @@ const LOT2_GENERIC_AIRLINE_LIST_MAPPINGS = {
   // fausse carte FQTV, même principe que les sous-ensembles CC-x de SQ.
   SK: [
     ["FQA","OTHER"],
-    ["FQTV","OTHER"]
+    ["FQTV","OTHER"],
+    // Spec utilisateur : codes de liste numérotés propres à SK (même principe
+    // que PDF-02/PDF-10 chez DE) — PDF-07 = personnel SAS (staff), PDF-09 =
+    // repas spécial, PDF-08 = pas de contenu exploitable identifié pour SK.
+    ["PDF-07","STAFF"],
+    ["PDF-09","MEAL"],
+    ["PDF-08","OTHER"]
   ],
   // AI (spec utilisateur, priorité 4) : seule la liste "FQA" nue est ignorée
   // (ambiguïté "A S"/"A G" non résolue, mise de côté par l'utilisateur) —
