@@ -14146,9 +14146,11 @@ function injectPrepaRawText(airline){
       ?prepareSqImportManifest(rawOriginal)
       :(importAirline==='TK'||/\bTK\s*\d{3,4}\b/i.test(rawOriginal)||looksLikeTkPriorityPassengerList(rawOriginal))
         ?prepareTkImportManifest(rawOriginal)
-        :isGenericAirlineV50(importAirline)
-          ?prepareGenericImportManifest(rawOriginal,importAirline)
-          :null;
+        :(importAirline==='TW'||/\bTW\s*\d{2,4}\b/i.test(rawOriginal))
+          ?prepareTwImportManifest(rawOriginal)
+          :isGenericAirlineV50(importAirline)
+            ?prepareGenericImportManifest(rawOriginal,importAirline)
+            :null;
 
   // V49.46: independent read-only engine runs in parallel.
   v4920FinalizeShadowComparison(rawOriginal,importAirline,values,PREPA_PENDING_MANIFEST);
