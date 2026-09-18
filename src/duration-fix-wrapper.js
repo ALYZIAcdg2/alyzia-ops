@@ -24,15 +24,18 @@ const DURATION_FIX_SCRIPT = `
       };
     }
 
+    const roundExistingMinutes = (flight, key) => {
+      const raw = flight?.[key];
+      if (raw === '' || raw === null || raw === undefined) return;
+      const value = Number(raw);
+      if (Number.isFinite(value)) flight[key] = Math.round(value);
+    };
+
     try {
       if (typeof FLIGHTS !== 'undefined' && Array.isArray(FLIGHTS)) {
         for (const flight of FLIGHTS) {
-          if (Number.isFinite(Number(flight?.duration))) {
-            flight.duration = Math.round(Number(flight.duration));
-          }
-          if (Number.isFinite(Number(flight?.durationMinutes))) {
-            flight.durationMinutes = Math.round(Number(flight.durationMinutes));
-          }
+          roundExistingMinutes(flight, 'duration');
+          roundExistingMinutes(flight, 'durationMinutes');
         }
       }
     } catch (_) {}
