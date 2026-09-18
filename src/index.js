@@ -3707,7 +3707,10 @@ const LOT2_GENERIC_AIRLINE_LIST_MAPPINGS = {
   MS: [
     // "CAS-SB" (Casual Standby) : équivalent MS de STF-SB, sans code
     // distinctif propre dans la liste elle-même.
-    ["CAS-SB","STAFF"]
+    ["CAS-SB","STAFF"],
+    // Spec utilisateur : "PDF-CHNL" est l'équivalent MS de CHL-WEB (déjà en
+    // DEFAULT) pour le canal d'enregistrement web.
+    ["PDF-CHNL","WEB"]
   ],
   TS: [
     // Même structure que PDF-ACC (liste passagers "accepted"), mais
