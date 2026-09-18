@@ -15,9 +15,9 @@ const FLIGHT_LIST_FONT_STYLE = String.raw`
 #app .flight-home-row .home-config-booking small{font-size:12px!important;font-weight:900!important}
 #app .flight-home-row .home-config-booking b{font-size:15px!important;font-weight:950!important}
 #app .flight-home-row .home-load b{font-size:16px!important;font-weight:950!important}
-#app .home-avail{font-size:16px!important;font-weight:950!important;display:inline-flex!important;align-items:baseline!important}
-#app .home-avail:before{content:'AVAILABLE'!important;display:inline-block!important;font-size:16px!important;font-weight:950!important;color:#718398!important;flex:0 0 auto!important}
-#app .home-avail-value{font-size:16px!important;font-weight:950!important;flex:0 0 auto!important;margin-left:12px!important}
+#app .home-avail{font-size:16px!important;font-weight:950!important;display:inline-flex!important;align-items:baseline!important;gap:0!important}
+#app .home-avail:before{content:'AVAILABLE'!important;display:inline-block!important;font-size:16px!important;font-weight:950!important;color:#718398!important;flex:0 0 auto!important;padding-right:12px!important;margin:0!important}
+#app .home-avail-value{font-size:16px!important;font-weight:950!important;flex:0 0 auto!important;margin:0!important}
 @media(max-width:680px){
   #app .flight-home-row .home-flight{font-size:18px!important}
   #app .flight-home-row .home-sub,
@@ -47,10 +47,13 @@ export function injectFlightListFontStyle(html){
   let source=patchAvailableRow(html);
   if(!source)return source;
   if(source.includes('id="alyzia-flight-list-font-css"'))return source;
-  const headEnd=source.lastIndexOf("</head>");
-  return headEnd>=0
-    ? source.slice(0,headEnd)+FLIGHT_LIST_FONT_STYLE+"\n"+source.slice(headEnd)
-    : FLIGHT_LIST_FONT_STYLE+source;
+
+  // Inject last in the document so these list styles win over the mobile
+  // overrides inserted by duration-fix-wrapper.js.
+  const bodyEnd=source.lastIndexOf("</body>");
+  return bodyEnd>=0
+    ? source.slice(0,bodyEnd)+FLIGHT_LIST_FONT_STYLE+"\n"+source.slice(bodyEnd)
+    : source+FLIGHT_LIST_FONT_STYLE;
 }
 
 export default {
