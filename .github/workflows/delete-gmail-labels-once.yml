@@ -1,4 +1,4 @@
-name: Diagnostic — worker vivant + Gmail labels accessibles ?
+name: Diagnostic — pourquoi le POST test-batch bloque
 
 on:
   workflow_dispatch:
@@ -9,15 +9,18 @@ permissions:
 jobs:
   diag:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     env:
       BASE: https://alyzia-ops.alyzia-cdg2.workers.dev
     steps:
-      - name: Statut autopilot (léger, pas de Gmail)
+      - name: POST test-batch 1 message avec timeout dur + verbose
         run: |
-          curl -sS --max-time 30 "$BASE/api/autopilot/status" -o /tmp/s1.json
-          echo "exit=$?"; cat /tmp/s1.json 2>/dev/null || echo "(vide)"
-      - name: Relevé Gmail simple (labels, 1 seul appel Gmail)
-        run: |
-          curl -sS --max-time 30 "$BASE/api/autopilot/dry-list-survey?query=IZ744&maxMessages=1" -o /tmp/s2.json
-          echo "exit=$?"; cat /tmp/s2.json 2>/dev/null || echo "(vide)"
+          echo "Début: $(date -u +%H:%M:%S)"
+          timeout 70 curl -v --max-time 60 -X POST "$BASE/api/autopilot/test-batch" \
+            -H "Content-Type: application/json" \
+            -d '{"messageIds":["1a07282cef9fe4cb"]}' \
+            -o /tmp/r1.json 2>&1 | tail -60
+          echo "exit=$?"
+          echo "Fin: $(date -u +%H:%M:%S)"
+          echo "=== BODY ==="
+          cat /tmp/r1.json 2>/dev/null || echo "(vide)"
