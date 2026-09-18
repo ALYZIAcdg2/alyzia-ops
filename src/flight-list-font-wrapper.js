@@ -34,56 +34,24 @@ const FLIGHT_LIST_FONT_STYLE = String.raw`
 }
 </style>`;
 
-const FLIGHT_LIST_AVAIL_SCRIPT = String.raw`
-<script id="alyzia-flight-list-avail-script">
-(()=>{
-  const splitAvailable=()=>{
-    document.querySelectorAll('#app .home-avail').forEach(element=>{
-      if(element.querySelector('.home-avail-label')&&element.querySelector('.home-avail-value'))return;
-      const raw=String(element.textContent||'').trim();
-      if(!raw)return;
-      const value=raw.replace(/^(?:AVAILABLE\s*)+/i,'').trim();
-      if(!value)return;
-      const label=document.createElement('span');
-      label.className='home-avail-label';
-      label.textContent='AVAILABLE';
-      const number=document.createElement('span');
-      number.className='home-avail-value';
-      number.textContent=value;
-      element.replaceChildren(label,number);
-    });
-  };
+const OLD_AVAILABLE_ROW = '<div class="home-mini home-avail ${avail<0?\'neg\':\'\'}">${avail}${nok?` · ${nok} INOP`:\'\'}</div>';
+const NEW_AVAILABLE_ROW = '<div class="home-mini home-avail ${avail<0?\'neg\':\'\'}"><span class="home-avail-label">AVAILABLE</span><span class="home-avail-value">${avail}${nok?` · ${nok} INOP`:\'\'}</span></div>';
 
-  const start=()=>{
-    splitAvailable();
-    const observer=new MutationObserver(splitAvailable);
-    observer.observe(document.body,{childList:true,subtree:true});
-  };
-
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});
-  else start();
-})();
-</script>`;
+function patchAvailableRow(html){
+  const source=String(html||"");
+  return source.includes(OLD_AVAILABLE_ROW)
+    ? source.replaceAll(OLD_AVAILABLE_ROW,NEW_AVAILABLE_ROW)
+    : source;
+}
 
 export function injectFlightListFontStyle(html){
-  let source=String(html||"");
+  let source=patchAvailableRow(html);
   if(!source)return source;
-
-  if(!source.includes('id="alyzia-flight-list-font-css"')){
-    const headEnd=source.lastIndexOf("</head>");
-    source=headEnd>=0
-      ? source.slice(0,headEnd)+FLIGHT_LIST_FONT_STYLE+"\n"+source.slice(headEnd)
-      : FLIGHT_LIST_FONT_STYLE+source;
-  }
-
-  if(!source.includes('id="alyzia-flight-list-avail-script"')){
-    const bodyEnd=source.lastIndexOf("</body>");
-    source=bodyEnd>=0
-      ? source.slice(0,bodyEnd)+FLIGHT_LIST_AVAIL_SCRIPT+"\n"+source.slice(bodyEnd)
-      : source+FLIGHT_LIST_AVAIL_SCRIPT;
-  }
-
-  return source;
+  if(source.includes('id="alyzia-flight-list-font-css"'))return source;
+  const headEnd=source.lastIndexOf("</head>");
+  return headEnd>=0
+    ? source.slice(0,headEnd)+FLIGHT_LIST_FONT_STYLE+"\n"+source.slice(headEnd)
+    : FLIGHT_LIST_FONT_STYLE+source;
 }
 
 export default {
