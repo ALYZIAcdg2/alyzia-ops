@@ -41,6 +41,17 @@ const DELETE_FLIGHT_UI = String.raw`
 .flight-management-tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 14px;padding:5px;border:1px solid #dce8f4;border-radius:14px;background:#f4f8fc}
 .flight-management-tabs button{min-height:42px;border:0;border-radius:10px;background:transparent;color:#62758a;font-size:11px;font-weight:950;cursor:pointer}
 .flight-management-tabs button.active{background:#fff;color:#075fd3;box-shadow:0 3px 12px rgba(28,74,121,.12)}
+.delete-flight-help-row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.delete-flight-toggle-select{min-height:38px;border:1px solid #d6e3f1;border-radius:10px;background:#fff;color:#075fd3;font-size:9px;font-weight:950;padding:0 12px;cursor:pointer;white-space:nowrap}
+.delete-flight-toggle-select.active{border-color:#efb5b5;background:#fff5f5;color:#b42318}
+.delete-flight-select-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:9px 10px;border:1px solid #d9e5f1;border-radius:12px;background:#f7faff}
+.delete-flight-select-bar .mini{min-height:34px;border:1px solid #d6e3f1;border-radius:9px;background:#fff;color:#27445f;font-size:9px;font-weight:950;padding:0 10px;cursor:pointer}
+.delete-flight-select-bar .mini.danger{color:#b42318;border-color:#efb5b5;background:#fff5f5}
+.delete-flight-select-bar .mini:disabled{opacity:.45;cursor:default}
+.delete-flight-select-count{font-size:10px;font-weight:950;color:#3a5674;margin-right:auto}
+.delete-flight-check{display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+.delete-flight-check input{width:18px;height:18px;cursor:pointer}
+.delete-flight-choice.selected{border-color:#075fd3!important;background:#f0f7ff!important}
 .gmail-tool-card .tool-icon{color:#b42318!important}
 .prepa-company-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
 .prepa-company-card{min-height:128px;border:1px solid #dce8f4;border-radius:18px;background:#fff;padding:18px;display:grid;grid-template-columns:auto 1fr auto auto;gap:14px;align-items:center;text-align:left;color:#17324d;cursor:pointer;box-shadow:0 8px 24px rgba(32,75,120,.06)}
@@ -69,6 +80,44 @@ const DELETE_FLIGHT_UI = String.raw`
     clean(row&&row.airline)===clean(airline) &&
     clean(row&&row.flight)===clean(flight) &&
     String(row&&row.date||'').trim()===String(date||'').trim();
+
+  let dfNumSelectMode=false,dfDateSelectMode=false;
+  const dfNumSelected=new Set(),dfDateSelected=new Set();
+
+  async function deleteFlightRowsBulk(rows){
+    let done=0;const failed=[];
+    for(const row of rows){
+      try{
+        const response=await fetch(opsApiUrl('/api/prepa/flight'),{
+          method:'DELETE',cache:'no-store',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({airline:row.airline,flightNumber:row.flight,flightDate:row.date,deleteDrive:false})
+        });
+        const result=await response.json().catch(()=>({}));
+        if(!response.ok||!result||!result.ok)throw new Error(result&&result.error||('HTTP '+response.status));
+        for(let i=FLIGHTS.length-1;i>=0;i--)if(sameFlight(FLIGHTS[i],row.airline,row.flight,row.date))FLIGHTS.splice(i,1);
+        try{
+          const prefix=clean(row.airline)+'|'+clean(row.flight)+'|'+String(row.date||'').trim();
+          if(typeof PREPA_STATE==='object'&&PREPA_STATE){
+            Object.keys(PREPA_STATE).forEach(key=>{if(key===prefix||key.startsWith(prefix+'|'))delete PREPA_STATE[key]});
+            if(typeof savePrepaState==='function')savePrepaState();
+          }
+          if(typeof loadEditingStore==='function'&&typeof saveEditingStore==='function'){
+            const store=loadEditingStore()||{};
+            Object.keys(store).forEach(key=>{if(key===prefix||key.startsWith(prefix+'|'))delete store[key]});
+            saveEditingStore(store);
+          }
+        }catch(_){}
+        done++;
+      }catch(error){
+        failed.push(clean(row.flight)+' · '+deleteFlightDateLabel(row.date));
+      }
+    }
+    await saveImportedFlightsPersistent(FLIGHTS).catch(()=>{});
+    if(typeof fetchRecentPrepaImports==='function')await fetchRecentPrepaImports().catch(()=>{});
+    selected=Math.max(0,Math.min(Number(selected)||0,FLIGHTS.length-1));
+    if(typeof renderHome==='function')renderHome();
+    return {done,failed};
+  }
 
   function deleteFlightRows(){
     const seen=new Set();
@@ -290,30 +339,139 @@ const DELETE_FLIGHT_UI = String.raw`
     else showModal('GESTION DES VOLS','SUPPRIMER · 1/3 · CHOISIR LA COMPAGNIE',html);
   };
 
-  window.openDeleteFlightNumbers=function(airline){
+  window.openDeleteFlightNumbers=function(airline,feedback){
     airline=clean(airline);
     const rows=deleteFlightRows().filter(row=>clean(row.airline)===airline);
     const numbers=[...new Set(rows.map(row=>clean(row.flight)))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
+    for(const k of [...dfNumSelected])if(!numbers.includes(k))dfNumSelected.delete(k);
+    const sel=dfNumSelectMode;
     const cards=numbers.map(flight=>{
       const list=rows.filter(row=>clean(row.flight)===flight);
       const destinations=[...new Set(list.map(row=>clean(row.dest)).filter(Boolean))];
       const route=destinations.length?'CDG → '+destinations.join(' / '):'DESTINATION NON RENSEIGNÉE';
-      return '<button class="delete-flight-choice" onclick=\'openDeleteFlightDates('+JSON.stringify(airline)+','+JSON.stringify(flight)+')\'><span class="delete-flight-choice-copy"><b>'+deleteFlightLogo(airline)+' '+escapeHtml(flight)+'</b><span>'+escapeHtml(route)+' · '+list.length+' DATE'+(list.length>1?'S':'')+'</span></span></button>';
+      const checked=dfNumSelected.has(flight);
+      const checkbox=sel?'<span class="delete-flight-check"><input type="checkbox" '+(checked?'checked':'')+' onclick="event.stopPropagation();toggleDeleteFlightNumberSelect('+JSON.stringify(airline)+','+JSON.stringify(flight)+')"></span>':'';
+      const onclick=sel?'toggleDeleteFlightNumberSelect('+JSON.stringify(airline)+','+JSON.stringify(flight)+')':'openDeleteFlightDates('+JSON.stringify(airline)+','+JSON.stringify(flight)+')';
+      return '<button class="delete-flight-choice'+(sel&&checked?' selected':'')+'" onclick=\''+onclick+'\'>'+checkbox+'<span class="delete-flight-choice-copy"><b>'+deleteFlightLogo(airline)+' '+escapeHtml(flight)+'</b><span>'+escapeHtml(route)+' · '+list.length+' DATE'+(list.length>1?'S':'')+'</span></span></button>';
     }).join('');
-    showModal('GESTION DES VOLS','SUPPRIMER · 2/3 · '+airline+' · CHOISIR LE VOL',flightManagementTabs('delete')+'<div class="delete-flight-step"><div class="delete-flight-help">Choisissez le numéro de vol.</div><div class="delete-flight-grid">'+(cards||'<div class="import-status">AUCUN VOL POUR CETTE COMPAGNIE.</div>')+'</div></div>');
+    const nSel=dfNumSelected.size;
+    const selectBar=sel?'<div class="delete-flight-select-bar"><button class="mini" onclick=\'selectAllDeleteFlightNumbers('+JSON.stringify(airline)+')\'>TOUT SÉLECTIONNER</button><button class="mini" onclick=\'clearDeleteFlightNumberSelection('+JSON.stringify(airline)+')\'>AUCUN</button><span class="delete-flight-select-count">'+nSel+' VOL'+(nSel>1?'S':'')+' SÉLECTIONNÉ'+(nSel>1?'S':'')+'</span><button class="mini danger" '+(nSel?'':'disabled')+' onclick=\'confirmDeleteFlightNumbersBulk('+JSON.stringify(airline)+')\'>🗑 SUPPRIMER LA SÉLECTION</button></div>':'';
+    const toggleBtn='<button class="delete-flight-toggle-select'+(sel?' active':'')+'" onclick=\'toggleDeleteFlightNumberSelectMode('+JSON.stringify(airline)+')\'>'+(sel?'✕ ANNULER SÉLECTION':'☑ SÉLECTIONNER PLUSIEURS VOLS')+'</button>';
+    const html=flightManagementTabs('delete')+(feedback?'<div class="import-status ok">✓ '+escapeHtml(feedback)+'</div>':'')+'<div class="delete-flight-step"><div class="delete-flight-help-row"><div class="delete-flight-help">Choisissez le numéro de vol, ou sélectionnez-en plusieurs pour les supprimer d’un coup.</div>'+toggleBtn+'</div>'+selectBar+'<div class="delete-flight-grid">'+(cards||'<div class="import-status">AUCUN VOL POUR CETTE COMPAGNIE.</div>')+'</div></div>';
+    showModal('GESTION DES VOLS','SUPPRIMER · 2/3 · '+airline+' · CHOISIR LE VOL',html);
+  };
+  window.toggleDeleteFlightNumberSelectMode=function(airline){
+    dfNumSelectMode=!dfNumSelectMode;
+    if(!dfNumSelectMode)dfNumSelected.clear();
+    openDeleteFlightNumbers(airline);
+  };
+  window.toggleDeleteFlightNumberSelect=function(airline,flight){
+    flight=clean(flight);
+    if(dfNumSelected.has(flight))dfNumSelected.delete(flight);else dfNumSelected.add(flight);
+    openDeleteFlightNumbers(airline);
+  };
+  window.selectAllDeleteFlightNumbers=function(airline){
+    airline=clean(airline);
+    deleteFlightRows().filter(row=>clean(row.airline)===airline).forEach(row=>dfNumSelected.add(clean(row.flight)));
+    openDeleteFlightNumbers(airline);
+  };
+  window.clearDeleteFlightNumberSelection=function(airline){
+    dfNumSelected.clear();
+    openDeleteFlightNumbers(airline);
+  };
+  window.confirmDeleteFlightNumbersBulk=function(airline){
+    airline=clean(airline);
+    const flights=[...dfNumSelected];
+    if(!flights.length)return;
+    const rows=deleteFlightRows().filter(row=>clean(row.airline)===airline&&flights.includes(clean(row.flight)));
+    const list=flights.map(flight=>{
+      const n=rows.filter(row=>clean(row.flight)===flight).length;
+      return escapeHtml(flight)+' ('+n+' date'+(n>1?'s':'')+')';
+    }).join('<br>');
+    showModal('CONFIRMER LA SUPPRESSION',flights.length+' VOL'+(flights.length>1?'S':''),
+      '<div class="delete-flight-confirm"><strong>'+flights.length+' numéro'+(flights.length>1?'s':'')+' de vol · '+rows.length+' date'+(rows.length>1?'s':'')+' au total</strong>'+list+'<br><br>La fiche vol, sa PRÉPA et ses données associées seront supprimées pour chaque date. Les e-mails restent dans Gmail et ne recréeront pas automatiquement ces vols.<br><br><b>ACTION IRRÉVERSIBLE.</b></div><div class="delete-flight-actions"><button class="cancel" onclick=\'openDeleteFlightNumbers('+JSON.stringify(airline)+')\'>ANNULER</button><button class="danger" onclick=\'runDeleteFlightNumbersBulk('+JSON.stringify(airline)+')\'>SUPPRIMER DÉFINITIVEMENT</button></div>');
+  };
+  window.runDeleteFlightNumbersBulk=async function(airline){
+    airline=clean(airline);
+    const flights=[...dfNumSelected];
+    const rows=deleteFlightRows().filter(row=>clean(row.airline)===airline&&flights.includes(clean(row.flight)));
+    const body=document.getElementById('modalBody');
+    if(body)body.innerHTML='<div class="import-status">SUPPRESSION DE '+rows.length+' VOL(S) EN COURS…</div>';
+    const {done,failed}=await deleteFlightRowsBulk(rows);
+    dfNumSelected.clear();dfNumSelectMode=false;
+    if(typeof modalStack!=='undefined'&&Array.isArray(modalStack)){
+      const toolsSnapshot=modalStack.find(snapshot=>clean(snapshot&&snapshot.title)==='OUTILS');
+      modalStack.length=0;
+      if(toolsSnapshot)modalStack.push(toolsSnapshot);
+    }
+    const feedback=done+' DATE'+(done>1?'S':'')+' SUPPRIMÉE'+(done>1?'S':'')+' POUR '+flights.length+' VOL'+(flights.length>1?'S':'')+(failed.length?' · '+failed.length+' ÉCHEC'+(failed.length>1?'S':'')+' ('+failed.join(', ')+')':'');
+    openDeleteFlightNumbers(airline,feedback);
   };
 
-  window.openDeleteFlightDates=function(airline,flight){
+  window.openDeleteFlightDates=function(airline,flight,feedback){
     airline=clean(airline);flight=clean(flight);
     const rows=deleteFlightRows()
       .filter(row=>clean(row.airline)===airline&&clean(row.flight)===flight)
       .sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
+    const validDates=new Set(rows.map(row=>String(row.date||'').trim()));
+    for(const k of [...dfDateSelected])if(!validDates.has(k))dfDateSelected.delete(k);
+    const sel=dfDateSelectMode;
     const cards=rows.map(row=>{
       const date=String(row.date||'').trim();
       const details=[row.std?'STD '+row.std:'',row.dest?'CDG → '+clean(row.dest):''].filter(Boolean).join(' · ');
-      return '<button class="delete-flight-choice danger" onclick=\'openDeleteFlightConfirmation('+JSON.stringify(airline)+','+JSON.stringify(flight)+','+JSON.stringify(date)+')\'><span class="delete-flight-choice-copy"><b>'+escapeHtml(deleteFlightDateLabel(date))+'</b><span>'+escapeHtml(details||date)+'</span></span></button>';
+      const checked=dfDateSelected.has(date);
+      const checkbox=sel?'<span class="delete-flight-check"><input type="checkbox" '+(checked?'checked':'')+' onclick="event.stopPropagation();toggleDeleteFlightDateSelect('+JSON.stringify(airline)+','+JSON.stringify(flight)+','+JSON.stringify(date)+')"></span>':'';
+      const onclick=sel?'toggleDeleteFlightDateSelect('+JSON.stringify(airline)+','+JSON.stringify(flight)+','+JSON.stringify(date)+')':'openDeleteFlightConfirmation('+JSON.stringify(airline)+','+JSON.stringify(flight)+','+JSON.stringify(date)+')';
+      return '<button class="delete-flight-choice danger'+(sel&&checked?' selected':'')+'" onclick=\''+onclick+'\'>'+checkbox+'<span class="delete-flight-choice-copy"><b>'+escapeHtml(deleteFlightDateLabel(date))+'</b><span>'+escapeHtml(details||date)+'</span></span></button>';
     }).join('');
-    showModal('GESTION DES VOLS','SUPPRIMER · 3/3 · '+flight+' · CHOISIR LA DATE',flightManagementTabs('delete')+'<div class="delete-flight-step"><div class="delete-flight-help">Choisissez la date exacte du vol à supprimer.</div><div class="delete-flight-grid">'+(cards||'<div class="import-status">AUCUNE DATE DISPONIBLE.</div>')+'</div></div>');
+    const nSel=dfDateSelected.size;
+    const selectBar=sel?'<div class="delete-flight-select-bar"><button class="mini" onclick=\'selectAllDeleteFlightDates('+JSON.stringify(airline)+','+JSON.stringify(flight)+')\'>TOUT SÉLECTIONNER</button><button class="mini" onclick=\'clearDeleteFlightDateSelection('+JSON.stringify(airline)+','+JSON.stringify(flight)+')\'>AUCUN</button><span class="delete-flight-select-count">'+nSel+' DATE'+(nSel>1?'S':'')+' SÉLECTIONNÉE'+(nSel>1?'S':'')+'</span><button class="mini danger" '+(nSel?'':'disabled')+' onclick=\'confirmDeleteFlightDatesBulk('+JSON.stringify(airline)+','+JSON.stringify(flight)+')\'>🗑 SUPPRIMER LA SÉLECTION</button></div>':'';
+    const toggleBtn='<button class="delete-flight-toggle-select'+(sel?' active':'')+'" onclick=\'toggleDeleteFlightDateSelectMode('+JSON.stringify(airline)+','+JSON.stringify(flight)+')\'>'+(sel?'✕ ANNULER SÉLECTION':'☑ SÉLECTIONNER PLUSIEURS DATES')+'</button>';
+    const html=flightManagementTabs('delete')+(feedback?'<div class="import-status ok">✓ '+escapeHtml(feedback)+'</div>':'')+'<div class="delete-flight-step"><div class="delete-flight-help-row"><div class="delete-flight-help">Choisissez la date exacte du vol à supprimer, ou sélectionnez-en plusieurs.</div>'+toggleBtn+'</div>'+selectBar+'<div class="delete-flight-grid">'+(cards||'<div class="import-status">AUCUNE DATE DISPONIBLE.</div>')+'</div></div>';
+    showModal('GESTION DES VOLS','SUPPRIMER · 3/3 · '+flight+' · CHOISIR LA DATE',html);
+  };
+  window.toggleDeleteFlightDateSelectMode=function(airline,flight){
+    dfDateSelectMode=!dfDateSelectMode;
+    if(!dfDateSelectMode)dfDateSelected.clear();
+    openDeleteFlightDates(airline,flight);
+  };
+  window.toggleDeleteFlightDateSelect=function(airline,flight,date){
+    date=String(date||'').trim();
+    if(dfDateSelected.has(date))dfDateSelected.delete(date);else dfDateSelected.add(date);
+    openDeleteFlightDates(airline,flight);
+  };
+  window.selectAllDeleteFlightDates=function(airline,flight){
+    deleteFlightRows().filter(row=>clean(row.airline)===clean(airline)&&clean(row.flight)===clean(flight)).forEach(row=>dfDateSelected.add(String(row.date||'').trim()));
+    openDeleteFlightDates(airline,flight);
+  };
+  window.clearDeleteFlightDateSelection=function(airline,flight){
+    dfDateSelected.clear();
+    openDeleteFlightDates(airline,flight);
+  };
+  window.confirmDeleteFlightDatesBulk=function(airline,flight){
+    airline=clean(airline);flight=clean(flight);
+    const dates=[...dfDateSelected];
+    if(!dates.length)return;
+    const list=dates.map(date=>escapeHtml(deleteFlightDateLabel(date))).join('<br>');
+    showModal('CONFIRMER LA SUPPRESSION',flight+' · '+dates.length+' DATE'+(dates.length>1?'S':''),
+      '<div class="delete-flight-confirm"><strong>'+deleteFlightLogo(airline)+' '+escapeHtml(flight)+' · '+dates.length+' date'+(dates.length>1?'s':'')+'</strong>'+list+'<br><br>La fiche vol, sa PRÉPA et ses données associées seront supprimées pour chaque date. Les e-mails restent dans Gmail et ne recréeront pas automatiquement ces vols.<br><br><b>ACTION IRRÉVERSIBLE.</b></div><div class="delete-flight-actions"><button class="cancel" onclick=\'openDeleteFlightDates('+JSON.stringify(airline)+','+JSON.stringify(flight)+')\'>ANNULER</button><button class="danger" onclick=\'runDeleteFlightDatesBulk('+JSON.stringify(airline)+','+JSON.stringify(flight)+')\'>SUPPRIMER DÉFINITIVEMENT</button></div>');
+  };
+  window.runDeleteFlightDatesBulk=async function(airline,flight){
+    airline=clean(airline);flight=clean(flight);
+    const dates=[...dfDateSelected];
+    const rows=deleteFlightRows().filter(row=>clean(row.airline)===airline&&clean(row.flight)===flight&&dates.includes(String(row.date||'').trim()));
+    const body=document.getElementById('modalBody');
+    if(body)body.innerHTML='<div class="import-status">SUPPRESSION DE '+rows.length+' DATE(S) EN COURS…</div>';
+    const {done,failed}=await deleteFlightRowsBulk(rows);
+    dfDateSelected.clear();dfDateSelectMode=false;
+    if(typeof modalStack!=='undefined'&&Array.isArray(modalStack)){
+      const toolsSnapshot=modalStack.find(snapshot=>clean(snapshot&&snapshot.title)==='OUTILS');
+      modalStack.length=0;
+      if(toolsSnapshot)modalStack.push(toolsSnapshot);
+    }
+    const feedback=done+' DATE'+(done>1?'S':'')+' SUPPRIMÉE'+(done>1?'S':'')+(failed.length?' · '+failed.length+' ÉCHEC'+(failed.length>1?'S':'')+' ('+failed.join(', ')+')':'');
+    if(deleteFlightRows().some(row=>clean(row.airline)===airline&&clean(row.flight)===flight))openDeleteFlightDates(airline,flight,feedback);
+    else openDeleteFlightNumbers(airline,feedback);
   };
 
   window.openDeleteFlightConfirmation=function(airline,flight,date){
