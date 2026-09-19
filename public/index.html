@@ -4741,6 +4741,25 @@ html,body{
 .home-config-booking small{font-size:6px;font-weight:1000;color:#718398}
 .home-config-booking b{font-size:8px;color:#20354c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .home-row-actions{display:flex;align-items:center;justify-content:flex-end;gap:4px}
+.home-avail-value{display:block;font-size:16px;font-weight:1000;line-height:1;color:#20354c;white-space:nowrap}
+.home-avail.neg .home-avail-value{color:#ef1f2e}
+@media(min-width:1301px){
+ .home-head,
+ .flight-home-row{
+  grid-template-columns:110px minmax(230px,1.35fr) minmax(160px,1fr) minmax(130px,.85fr) 90px minmax(175px,1fr) 104px 76px
+ }
+ .home-avail{
+  position:relative;
+  z-index:2;
+  min-width:0;
+  overflow:visible;
+  font-size:0!important
+ }
+ .home-row-actions{min-width:72px}
+}
+@media(max-width:700px){
+ .home-avail-value{font-size:10px}
+}
 .home-pin{
  width:32px;height:32px;min-height:32px;border:1px solid #d9e2eb;border-radius:8px;
  background:#fff;color:#8294a6;font-size:19px;line-height:1
@@ -8435,7 +8454,7 @@ function renderHome(){
           <div><small>BOOKING</small><b>${classes.map(k=>`${k}${Number(x.booked?.[k]||0)}`).join(' · ')||'—'}</b></div>
           <div class="home-load"><div class="gauge"><span style="width:${Math.min(100,pct)}%"></span></div><b>${pct}%</b></div>
         </div>
-        <div class="home-mini home-avail ${avail<0?'neg':''}">${avail}${nok?` · ${nok} INOP`:''}</div>
+        <div class="home-mini home-avail ${avail<0?'neg':''}"><b class="home-avail-value">${avail}${nok?` · ${nok} INOP`:''}</b></div>
         <div class="home-row-actions">
           <button class="home-pin ${isFavoriteFlight(x)?'active':''}" title="${isFavoriteFlight(x)?'Retirer des favoris':'Épingler ce vol'}" onclick="event.stopPropagation();toggleFavoriteFlight(${x._index})">${isFavoriteFlight(x)?'★':'☆'}</button>
           <button class="home-open" onclick="event.stopPropagation();openFlightFromHomeList(${x._index})">›</button>
