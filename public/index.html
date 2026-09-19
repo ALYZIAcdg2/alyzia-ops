@@ -25370,6 +25370,13 @@ console.log('ALYZIA OPS BUILD140 — IMPORT GMAIL HISTORY SYNC LOADED');
 .import141-invalid-note{margin:10px 0;padding:10px 12px;border:1px solid #f2c6c6;background:#fff5f5;border-radius:10px;font-size:11px;font-weight:800;color:#9b2c2c}
 .import141-state-received{background:#eef4ff!important;color:#1e5fa8!important}.import141-state-imported{background:#fff7db!important;color:#8a6500!important}.import141-state-injected{background:#e8f5ff!important;color:#006eb8!important}.import141-state-validated{background:#e9f8ef!important;color:#087749!important}.import141-state-review{background:#fff1dc!important;color:#a65c00!important}.import141-state-error{background:#ffe9e9!important;color:#b42318!important}.import141-state-duplicate{background:#f0f2f5!important;color:#596579!important}
 @media(max-width:760px){#import141FlightOverlay{padding:4px}#import141FlightOverlay .i141-shell{width:100vw;height:calc(100vh - 8px);border-radius:12px}.i141-actions button{padding:0 9px}.i141-title{font-size:15px}}
+.import139-flight-row.select-mode{grid-template-columns:30px minmax(120px,1.2fr) 92px 92px minmax(0,1fr)}
+.import141-select-check{display:flex;align-items:center;justify-content:center}
+.import141-select-check input{width:19px;height:19px;cursor:pointer}
+.import141-select-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;padding:9px 10px;border:1px solid #d9e5f1;border-radius:12px;background:#f7faff}
+.import141-select-count{font-size:10px;font-weight:950;color:#3a5674;margin-right:auto}
+.import139-mini.danger{color:#a83b3b;border-color:#f0cdcd;background:#fff5f5}
+@media(max-width:760px){.import139-flight-row.select-mode{grid-template-columns:24px 1fr 1fr}.import139-flight-row.select-mode .import139-flight-id{grid-column:2/4}}
 </style>
 <script id="alyzia-build141-import-pipeline-sync">
 (()=>{
@@ -25379,6 +25386,8 @@ let import141D1Flights=[];
 let import141OverlayState=null;
 let import141Timer=null;
 let import141View={type:'',company:''};
+let import141SelectMode=false;
+const import141Selected=new Set();
 function import141SetWide(on=true){const modal=document.getElementById('modal');if(modal)modal.classList.toggle('import140-wide',!!on)}
 function import141StopTimer(){if(import141Timer){clearInterval(import141Timer);import141Timer=null}}
 async function import141FetchAllPrepa(){try{const r=await fetch(opsApiUrl('/api/prepa?limit=2000'),{cache:'no-store',headers:{Accept:'application/json'}});if(!r.ok)throw new Error(`HTTP ${r.status}`);const j=await r.json();PREPA_IMPORTS_UI_ITEMS=Array.isArray(j?.items)?j.items:[];return PREPA_IMPORTS_UI_ITEMS}catch(e){console.warn(BUILD141,'PREPA',e);return PREPA_IMPORTS_UI_ITEMS||[]}}
@@ -25537,14 +25546,82 @@ window.openImportsDashboard=async function(){await import141RefreshData({reconci
 function import141GroupRows(rows){const m=new Map();for(const r of rows){const d=String(r.flightDate||'DATE INCONNUE');if(!m.has(d))m.set(d,[]);m.get(d).push(r)}return [...m.entries()].sort((a,b)=>String(b[0]).localeCompare(String(a[0])))}
 function renderImportsCompany141(c,replace=false){
   import141SetWide(true);import141View={type:'company',company:c};const s=impStats(c),flights=impFlights(c),groups=import141GroupRows(flights);
-  const blocks=groups.map(([date,rows])=>`<section class="import140-date-block"><div class="import140-date-head">${escapeHtml(impDate(date))} · ${rows.length} VOL${rows.length>1?'S':''}</div><div class="import140-company-list">${rows.map(row=>{const st=impRowState(row);return `<div class="import139-flight-row"><div class="import139-flight-id"><b>${airlineLogo(c)} ${escapeHtml(row.flightNumber)}</b><span>${escapeHtml(impDate(row.flightDate))}</span></div><button class="import139-pill" onclick="openImportFlightFiles('${c}','${row.key}')">${row.files} FICHIER${row.files>1?'S':''}</button><button class="import139-pill imports-flight-status ${st.cls}" onclick="openImportFlightDiagnostics('${c}','${row.key}')">${st.label}</button><div class="import139-actions"><button class="primary" onclick="openImpFlight141('${c}','${row.key}')">FICHE VOL</button><button onclick="openImport139Advanced('${c}','${row.key}')">GESTION</button></div></div>`}).join('')}</div></section>`).join('');
-  const html=`<div class="import139-toolbar"><div class="import139-toolbar-left"><button class="import140-back" onclick="backToImports140()">← RETOUR IMPORT GMAIL</button><button class="import139-mini" onclick="refreshImports141()">↻ ACTUALISER</button></div><span class="import140-auto">ACTUALISATION AUTO · 30 S</span></div>${import141SummaryHtml({received:s.received,imported:s.imported,injected:s.injected,validated:s.validated,errors:s.errors,review:s.review,unidentified:0})}<div class="import140-section-title"><span>FICHES DE VOL · ${escapeHtml(c)}</span><span>TRIÉES PAR DATE</span></div>${blocks||`<div class="import-status">AUCUN VOL IMPORTÉ POUR ${escapeHtml(c)}.</div>`}`;
+  const sel=import141SelectMode;
+  const validKeys=new Set(flights.map(r=>r.key));
+  if(sel)for(const k of [...import141Selected])if(!validKeys.has(k))import141Selected.delete(k);
+  const nSel=import141Selected.size;
+  const blocks=groups.map(([date,rows])=>`<section class="import140-date-block"><div class="import140-date-head">${escapeHtml(impDate(date))} · ${rows.length} VOL${rows.length>1?'S':''}</div><div class="import140-company-list">${rows.map(row=>{const st=impRowState(row),checked=import141Selected.has(row.key);return `<div class="import139-flight-row${sel?' select-mode':''}">${sel?`<label class="import141-select-check"><input type="checkbox" ${checked?'checked':''} onchange="import141ToggleRow('${row.key}')"></label>`:''}<div class="import139-flight-id"><b>${airlineLogo(c)} ${escapeHtml(row.flightNumber)}</b><span>${escapeHtml(impDate(row.flightDate))}</span></div><button class="import139-pill" onclick="openImportFlightFiles('${c}','${row.key}')">${row.files} FICHIER${row.files>1?'S':''}</button><button class="import139-pill imports-flight-status ${st.cls}" onclick="openImportFlightDiagnostics('${c}','${row.key}')">${st.label}</button><div class="import139-actions">${sel?'':`<button class="primary" onclick="openImpFlight141('${c}','${row.key}')">FICHE VOL</button><button onclick="openImport139Advanced('${c}','${row.key}')">GESTION</button>`}</div></div>`}).join('')}</div></section>`).join('');
+  const selectBar=sel?`<div class="import141-select-bar"><button class="import139-mini" onclick="import141SelectAll('${c}')">TOUT SÉLECTIONNER</button><button class="import139-mini" onclick="import141ClearSelection('${c}')">AUCUN</button><span class="import141-select-count">${nSel} SÉLECTIONNÉ${nSel>1?'S':''}</span><button class="import139-mini danger" ${nSel?'':'disabled'} onclick="import141BulkDeleteConfirm('${c}')">🗑 SUPPRIMER LA SÉLECTION</button></div>`:'';
+  const html=`<div class="import139-toolbar"><div class="import139-toolbar-left"><button class="import140-back" onclick="backToImports140()">← RETOUR IMPORT GMAIL</button><button class="import139-mini" onclick="refreshImports141()">↻ ACTUALISER</button><button class="import139-mini${sel?' danger':''}" onclick="import141ToggleSelectMode('${c}')">${sel?'✕ ANNULER SÉLECTION':'☑ SÉLECTIONNER PLUSIEURS VOLS'}</button></div><span class="import140-auto">ACTUALISATION AUTO · 30 S</span></div>${selectBar}${import141SummaryHtml({received:s.received,imported:s.imported,injected:s.injected,validated:s.validated,errors:s.errors,review:s.review,unidentified:0})}<div class="import140-section-title"><span>FICHES DE VOL · ${escapeHtml(c)}</span><span>TRIÉES PAR DATE</span></div>${blocks||`<div class="import-status">AUCUN VOL IMPORTÉ POUR ${escapeHtml(c)}.</div>`}`;
   if(replace)replaceModal(`IMPORTS ${c}`,`${s.flights} VOLS · ${s.files} DOCUMENTS`,html);else showModal(`IMPORTS ${c}`,`${s.flights} VOLS · ${s.files} DOCUMENTS`,html);
   import141SetWide(true);import141StartTimer();
 }
 window.renderImportsCompany140=renderImportsCompany141;
 window.openImportsCompany=function(c){renderImportsCompany141(c,false)};
-window.backToImports140=function(){renderImportsDashboard141(true)};
+window.backToImports140=function(){import141SelectMode=false;import141Selected.clear();renderImportsDashboard141(true)};
+
+/* ---------- Sélection multiple : suppression groupée sans perdre la suppression individuelle ---------- */
+window.import141ToggleSelectMode=function(c){
+  import141SelectMode=!import141SelectMode;
+  if(!import141SelectMode)import141Selected.clear();
+  renderImportsCompany141(c,true);
+};
+window.import141ToggleRow=function(key){
+  if(import141Selected.has(key))import141Selected.delete(key);else import141Selected.add(key);
+  renderImportsCompany141(import141View.company,true);
+};
+window.import141SelectAll=function(c){
+  impFlights(c).forEach(row=>import141Selected.add(row.key));
+  renderImportsCompany141(c,true);
+};
+window.import141ClearSelection=function(c){
+  import141Selected.clear();
+  renderImportsCompany141(c||import141View.company,true);
+};
+window.import141BulkDeleteConfirm=function(c){
+  const rows=impFlights(c).filter(r=>import141Selected.has(r.key));
+  if(!rows.length)return;
+  const list=rows.map(r=>`${escapeHtml(r.flightNumber)} · ${escapeHtml(impDate(r.flightDate))}`).join('<br>');
+  showModal('SUPPRIMER LA SÉLECTION',`${rows.length} VOL${rows.length>1?'S':''}`,
+    `<div class="v5008-delete-warning">
+       <b>SUPPRESSION MULTIPLE</b>
+       <p>${rows.length} vol${rows.length>1?'s':''} seront supprimés de la liste des vols, des imports Gmail/D1 et du dossier Drive associé :</p>
+       <p>${list}</p>
+       <p><strong>Action irréversible.</strong></p>
+     </div>
+     <div class="modal-actions">
+       <button onclick="openImportsCompany('${c}')">ANNULER</button>
+       <button class="danger" onclick="import141BulkDeleteRun('${c}')">SUPPRIMER DÉFINITIVEMENT</button>
+     </div>`);
+};
+window.import141BulkDeleteRun=async function(c){
+  const rows=impFlights(c).filter(r=>import141Selected.has(r.key));
+  const total=rows.length;
+  let done=0,failed=[];
+  const renderProgress=()=>`<div class="v5013-native-message"><span class="v5009-spinner"></span> SUPPRESSION ${done}/${total}…</div>`;
+  showModal('SUPPRESSION EN COURS',`${c}`,renderProgress());
+  for(const row of rows){
+    try{
+      const r=await fetch(opsApiUrl('/api/prepa/flight'),{
+        method:'DELETE',cache:'no-store',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({airline:row.company,flightNumber:row.flightNumber,flightDate:row.flightDate,deleteDrive:true})
+      });
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok||!j?.ok)throw new Error(j?.error||`HTTP ${r.status}`);
+    }catch(e){failed.push(`${row.flightNumber} · ${impDate(row.flightDate)}`)}
+    done++;
+    const body=document.getElementById('modalBody');
+    if(body)body.innerHTML=renderProgress();
+  }
+  import141Selected.clear();import141SelectMode=false;
+  await fetchRecentPrepaImports().catch(()=>{});
+  showModal('SUPPRESSION TERMINÉE',`${done-failed.length} / ${total} SUPPRIMÉ${done-failed.length>1?'S':''}`,
+    `<div class="v5013-native-message ${failed.length?'error':'success'}">
+       ${done-failed.length} vol${done-failed.length>1?'s':''} supprimé${done-failed.length>1?'s':''} de D1/R2 et Drive.
+       ${failed.length?`<br><br>${failed.length} ÉCHEC${failed.length>1?'S':''} :<br>${failed.map(escapeHtml).join('<br>')}`:''}
+     </div>
+     <div class="modal-actions"><button class="primary" onclick="closeAllModals();setTimeout(()=>openImportsDashboard(),30)">OK</button></div>`);
+};
 
 async function import141ResolveFlight(row){
   let idx=findImpFlightIndex(row);if(idx>=0)return idx;
