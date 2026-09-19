@@ -4779,7 +4779,30 @@ html,body{
  transform:scale(1.14);
  transform-origin:center;
 }
-.home-flight-cell .airline-logo{width:42px!important;height:26px!important}
+.home-flight-cell .airline-logo{
+ width:72px!important;
+ height:34px!important;
+ max-width:72px!important;
+ object-fit:contain!important;
+ object-position:center!important;
+ transform:scale(var(--flight-list-logo-scale,1.08))!important;
+ transform-origin:center!important
+}
+/* Harmonise la taille perçue sans déformer les formats très larges ou carrés. */
+.home-flight-cell .airline-logo.logo-nh,
+.home-flight-cell .airline-logo.logo-hm,
+.home-flight-cell .airline-logo.logo-no{--flight-list-logo-scale:1.18}
+.home-flight-cell .airline-logo.logo-to,
+.home-flight-cell .airline-logo.logo-pvg{--flight-list-logo-scale:1.3}
+.home-flight-cell .airline-logo.logo-bm{--flight-list-logo-scale:.88}
+
+@media(max-width:620px){
+ .home-flight-cell .airline-logo{
+  width:62px!important;
+  height:32px!important;
+  max-width:62px!important
+ }
+}
 
 /* preserve list structure on mobile */
 @media(max-width:850px){
