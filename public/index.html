@@ -18556,7 +18556,7 @@ async function openTools(){
    <button class="tool-card" onclick="openFlightImport()"><span class="tool-icon">⇩</span><b>IMPORTER LISTE DES VOLS</b><span>IMPORT EXCEL .XLS / .XLSX AVEC LES COLONNES OPÉRATIONNELLES K, L, M, N, O, W, X ET Y.</span></button>
    <button class="tool-card" onclick="openCreateFlight()"><span class="tool-icon">＋</span><b>CRÉATION DE VOLS</b><span>AJOUTER MANUELLEMENT UN VOL ABSENT DE L'IMPORT, AVEC DATE, COMPAGNIE, NUMÉRO, ROUTE ET HORAIRES.</span></button>
    <button class="tool-card company-config-tool" onclick="openCompanyConfig()"><span class="tool-icon">⚙</span><b>CONFIG COMPAGNIE</b><span>CONFIGURER LES CLASSES PAR NUMÉRO DE VOL ET LES BLOCS VISIBLES SUR LA FICHE. TK / SQ.</span></button>
-   <button class="tool-card" onclick="openSeatmap()"><span class="tool-icon">▦</span><b>SEATMAP</b><span>OUVRIR LE PLAN CABINE DU VOL ACTUEL.</span></button>
+   <button class="tool-card" onclick="openToolsSeatmap()"><span class="tool-icon">▦</span><b>SEATMAP</b><span>OUVRIR LE PLAN CABINE DU VOL ACTUEL.</span></button>
    <button class="tool-card" onclick="openSariaApp()"><span class="tool-icon">✈</span><b>SARIA</b><span>OUVRIR DIRECTEMENT L’OUTIL SARIA CABIN / SEATMAP.</span></button>
    <div class="ops-cloud-card">
      ${(()=>{const st=opsCloudStatusMarkup();return `<div id="opsCloudStatusBox" class="ops-cloud-status ${st.cls}">${st.text}</div>`})()}
@@ -18579,6 +18579,41 @@ function openSariaApp(){
        <button class="primary" onclick="location.href='https://saria-seatmap.alyzia-cdg2.workers.dev/'">OUVRIR SARIA</button>
      </div>`);
  }
+}
+
+/* Compatibilité avec les anciennes versions du panneau OUTILS. */
+function openSaria(){
+ return openSariaApp();
+}
+
+function openToolsSeatmap(){
+ if(currentView==='detail'&&f()){
+   openSeatmap();
+   return;
+ }
+
+ const date=HOME_DATE||selectedDate||localISO(new Date());
+ const rows=FLIGHTS.map((flight,index)=>({flight,index}))
+   .filter(({flight})=>!flight.date||flight.date===date)
+   .sort((a,b)=>String(a.flight.std||'').localeCompare(String(b.flight.std||'')));
+
+ showModal('SEATMAP','CHOISIR LE VOL',rows.length
+   ?`<div class="saria-config-list">${rows.map(({flight,index})=>`
+      <button class="saria-config-option" onclick="openToolsSeatmapFlight(${index})">
+       <div class="saria-config-main">
+        <b>${escapeHtml(flight.flight||'VOL —')}</b>
+        <span>${escapeHtml(flight.std||'—')} · ${escapeHtml(flight.dep||'CDG')} → ${escapeHtml(flight.dest||'—')} · ${escapeHtml(flight.aircraft||'TYPE A/C —')}</span>
+       </div>
+       <div class="saria-config-total">OUVRIR</div>
+      </button>`).join('')}</div>`
+   :`<div class="saria-state-note warn">AUCUN VOL DISPONIBLE POUR LE ${escapeHtml(formatDateLong(date))}.</div>`);
+}
+
+function openToolsSeatmapFlight(index){
+ const next=Number(index);
+ if(!Number.isInteger(next)||!FLIGHTS[next])return;
+ selected=next;
+ openSeatmap();
 }
 
 function openCreateFlight(){
@@ -20815,7 +20850,7 @@ async function openTools(){
     <button class="tool-card" onclick="openFlightImport()"><span class="tool-icon">⇩</span><b>IMPORTER VOLS</b><span>Excel XLS / XLSX</span></button>
     <button class="tool-card" onclick="openCreateFlight()"><span class="tool-icon">＋</span><b>CRÉER VOL</b><span>Ajout manuel</span></button>
     <button class="tool-card company-config-tool" onclick="openCompanyConfig()"><span class="tool-icon">⚙</span><b>CONFIG COMPAGNIE</b><span>Classes et modules</span></button>
-    <button class="tool-card" onclick="openSeatmap()"><span class="tool-icon">▦</span><b>SEATMAP</b><span>Plan cabine</span></button>
+    <button class="tool-card" onclick="openToolsSeatmap()"><span class="tool-icon">▦</span><b>SEATMAP</b><span>Plan cabine</span></button>
     <button class="tool-card" onclick="openSariaApp()"><span class="tool-icon">✈</span><b>SARIA</b><span>Cabin / Seatmap</span></button>
     <div class="ops-cloud-card">${(()=>{const st=opsCloudStatusMarkup();return `<div id="opsCloudStatusBox" class="ops-cloud-status ${st.cls}">${st.text}</div>`})()}<div class="ops-cloud-help"><b style="color:#087749">V50.15 · IMPORT BACKGROUND + PREPA MULTI-COMPAGNIES</b></div><button class="live-refresh" onclick="manualCloudRefresh()">↻ SYNCHRONISER</button></div>
     <div class="adb-usage-card"><div id="adbUsageBox"><button class="live-refresh" onclick="loadAeroUsage()">AERODATABOX</button></div></div>
@@ -22590,11 +22625,11 @@ openTools=async function(){
         <span class="tool-icon">⚙</span><b>CONFIG COMPAGNIE</b><span>CLASSES ET MODULES</span>
       </button>
 
-      <button class="tool-card" onclick="openSeatmap()">
+      <button class="tool-card" onclick="openToolsSeatmap()">
         <span class="tool-icon">▦</span><b>SEATMAP</b><span>PLAN CABINE</span>
       </button>
 
-      <button class="tool-card" onclick="openSaria()">
+      <button class="tool-card" onclick="openSariaApp()">
         <span class="tool-icon">✈</span><b>SARIA</b><span>CABIN / SEATMAP</span>
       </button>
 
@@ -22806,11 +22841,11 @@ openTools=async function(){
         <span class="tool-icon">⚙</span><b>CONFIG COMPAGNIE</b><span>CLASSES ET MODULES</span>
       </button>
 
-      <button class="tool-card" onclick="openSeatmap()">
+      <button class="tool-card" onclick="openToolsSeatmap()">
         <span class="tool-icon">▦</span><b>SEATMAP</b><span>PLAN CABINE</span>
       </button>
 
-      <button class="tool-card" onclick="openSaria()">
+      <button class="tool-card" onclick="openSariaApp()">
         <span class="tool-icon">✈</span><b>SARIA</b><span>CABIN / SEATMAP</span>
       </button>
 
@@ -22882,11 +22917,11 @@ openTools=async function(){
         <span class="tool-icon">⚙</span><b>CONFIG COMPAGNIE</b><span>CLASSES ET MODULES</span>
       </button>
 
-      <button class="tool-card" onclick="openSeatmap()">
+      <button class="tool-card" onclick="openToolsSeatmap()">
         <span class="tool-icon">▦</span><b>SEATMAP</b><span>PLAN CABINE</span>
       </button>
 
-      <button class="tool-card" onclick="openSaria()">
+      <button class="tool-card" onclick="openSariaApp()">
         <span class="tool-icon">✈</span><b>SARIA</b><span>CABIN / SEATMAP</span>
       </button>
 
@@ -23120,11 +23155,11 @@ openTools=async function(){
         <span class="tool-icon">⚙</span><b>CONFIG COMPAGNIE</b><span>CLASSES ET MODULES</span>
       </button>
 
-      <button class="tool-card" onclick="openSeatmap()">
+      <button class="tool-card" onclick="openToolsSeatmap()">
         <span class="tool-icon">▦</span><b>SEATMAP</b><span>PLAN CABINE</span>
       </button>
 
-      <button class="tool-card" onclick="openSaria()">
+      <button class="tool-card" onclick="openSariaApp()">
         <span class="tool-icon">✈</span><b>SARIA</b><span>CABIN / SEATMAP</span>
       </button>
 
@@ -25149,8 +25184,8 @@ openTools=async function(){
     <button class="tool-card" onclick="openFlightImport()"><span class="tool-icon">⇩</span><b>IMPORTER VOLS</b><span>EXCEL XLS / XLSX</span></button>
     <button class="tool-card" onclick="openCreateFlight()"><span class="tool-icon">＋</span><b>CRÉER VOL</b><span>AJOUT MANUEL</span></button>
     <button class="tool-card company-config-tool" onclick="openCompanyConfig()"><span class="tool-icon">⚙</span><b>CONFIG COMPAGNIE</b><span>CLASSES ET MODULES</span></button>
-    <button class="tool-card" onclick="openSeatmap()"><span class="tool-icon">▦</span><b>SEATMAP</b><span>PLAN CABINE</span></button>
-    <button class="tool-card" onclick="openSaria()"><span class="tool-icon">✈</span><b>SARIA</b><span>CABIN / SEATMAP</span></button>${opsCloudToolCardHtml()}
+    <button class="tool-card" onclick="openToolsSeatmap()"><span class="tool-icon">▦</span><b>SEATMAP</b><span>PLAN CABINE</span></button>
+    <button class="tool-card" onclick="openSariaApp()"><span class="tool-icon">✈</span><b>SARIA</b><span>CABIN / SEATMAP</span></button>${opsCloudToolCardHtml()}
   </div>`);
 };
 openImportsDashboard=async function(){
@@ -25808,8 +25843,8 @@ window.openTools=async function(){
       <button class="tool-card" onclick="openFlightImport()"><span class="tool-icon">⇩</span><b>IMPORTER VOLS</b><span>EXCEL XLS / XLSX</span></button>
       <button class="tool-card" onclick="openCreateFlight()"><span class="tool-icon">＋</span><b>CRÉER VOL</b><span>AJOUT MANUEL</span></button>
       <button class="tool-card company-config-tool" onclick="openCompanyConfig()"><span class="tool-icon">⚙</span><b>CONFIG COMPAGNIE</b><span>CLASSES ET MODULES</span></button>
-      <button class="tool-card" onclick="openSeatmap()"><span class="tool-icon">▦</span><b>SEATMAP</b><span>PLAN CABINE</span></button>
-      <button class="tool-card" onclick="openSaria()"><span class="tool-icon">✈</span><b>SARIA</b><span>CABIN / SEATMAP</span></button>${opsCloudToolCardHtml()}
+      <button class="tool-card" onclick="openToolsSeatmap()"><span class="tool-icon">▦</span><b>SEATMAP</b><span>PLAN CABINE</span></button>
+      <button class="tool-card" onclick="openSariaApp()"><span class="tool-icon">✈</span><b>SARIA</b><span>CABIN / SEATMAP</span></button>${opsCloudToolCardHtml()}
     </div>`);
   }catch(e){return oldOpenTools143?.()}
 };
