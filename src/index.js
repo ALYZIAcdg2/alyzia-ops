@@ -5016,8 +5016,9 @@ function lot2VfClassCounts(items){
 // tk_prepa_plain_text.txt / tw_prepa_plain_text.txt") mais n'a pas
 // encore été vérifié sur de vraies données : seule TW est activée ici.
 const TW_CONTENT_AIRLINES=new Set(["TW"]);
+const TW_WEB_PREFIXES=new Set(["WEBAPI","WEBAPM","KRAPP","FRWEB","FRMOB"]);
 function lot2TwNameAnchorRe(){
-  return /(\d{1,4})\s+([A-Z][A-Z\s'\-]*?\s*\/\s*[A-Z][A-Z\s'\-]*?)\s\2(?=\s)/g;
+  return /([A-Z]{2,10})?(\d{1,6})\s+([A-Z][A-Z\s'\-]*?\s*\/\s*[A-Z][A-Z\s'\-]*?)\s\3(?=\s)/g;
 }
 function lot2TwContentDetect(text){
   const flat=String(text||"").replace(/\s+/g," ").trim();
@@ -5032,13 +5033,14 @@ function lot2TwExtractPassengerItems(text){
   const re=lot2TwNameAnchorRe();
   const anchors=[];
   let m;
-  while((m=re.exec(flat)))anchors.push({index:m.index,end:m.index+m[0].length,name:m[2].trim()});
+  while((m=re.exec(flat)))anchors.push({index:m.index,end:m.index+m[0].length,prefix:String(m[1]||""),name:m[3].trim()});
   const items=[];
   for(let i=0;i<anchors.length;i++){
     const start=anchors[i].end;
     const end=i+1<anchors.length?anchors[i+1].index:flat.length;
     const tail=flat.slice(start,end).trim();
     const name=anchors[i].name;
+    const prefix=anchors[i].prefix;
     const gt=tail.match(/^([MF])\s+(MSTR|MISS|MRS|MR|MS)\s+(\S+)\s+/);
     let rest=tail,gender="",title="",ptype="";
     if(gt){gender=gt[1];title=gt[2];ptype=gt[3];rest=tail.slice(gt[0].length)}
@@ -5062,6 +5064,7 @@ function lot2TwExtractPassengerItems(text){
       origin:"CDG",destination:core[3]||"ICN",
       seat:core[7]||"",pnr:core[6],legRatio:core[5],connectingFlight:core[4]||"",
       specific:"",note:"",listName:"TW CONTENT",cardKey:"MASTER",source:"TW_CONTENT",
+      prefix,web:TW_WEB_PREFIXES.has(prefix),
       ssr:ssrBlock?ssrBlock.split(/\s+/).filter(x=>x&&x!=="NULL"):[]
     });
   }
@@ -5184,6 +5187,16 @@ function lot2TwDeriveSecondaryCards(items){
   // les deux formes vues dans des données réelles pour un nourrisson.
   const inf=(items||[]).filter(p=>(p.ssr||[]).includes("INFT")||/^IF/i.test(p.passengerType||"")).map(p=>({...p,cardKey:"INF"}));
   if(inf.length)out.push({cardKey:"INF",passengerItems:inf});
+
+  // WEB est porté par le préfixe de la ligne source. Un INF n'a pas de ligne
+  // cabine autonome : il est ajouté à la cabine de son passager accompagnant,
+  // ce qui restitue le total opérationnel affiché par T'way.
+  const web=(items||[]).filter(p=>p.web).map(p=>({...p,cardKey:"WEB"}));
+  if(web.length){
+    const classCounts=lot2TwClassCounts(web);
+    for(const p of inf)if(p.web){const c=String(p.cabinClass||p.class||"").toUpperCase();if(c)classCounts[c]=(classCounts[c]||0)+1;}
+    out.push({cardKey:"WEB",passengerItems:web,classCounts});
+  }
 
   const outbound=[];
   for(const p of items||[]){
@@ -7182,7 +7195,7 @@ function lot3MergeFlightData(current,row,card){
         passengerItems:derived.passengerItems,
         passengers:derived.passengerItems,
         passengerCount:derived.passengerItems.length,
-        classCounts:{},
+        classCounts:derived.classCounts||{},
         connectionRows:[]
       });
     }
