@@ -64,12 +64,15 @@ const DELETE_FLIGHT_UI = String.raw`
 /* En-tête fiche vol V2 — bandeau compact (identité + 6 champs sur une ligne, statut + actions sur une seconde). */
 .flight-head{min-height:0!important;grid-template-columns:none!important;padding:14px 16px!important;gap:10px!important;background:linear-gradient(135deg,#fff 0%,#f7faff 100%)!important;display:flex!important;flex-direction:column!important}
 .flight-head .fh-row1{display:flex!important;flex-wrap:wrap!important;align-items:stretch!important;gap:10px!important}
-.flight-head .fh-id{flex:1 1 210px!important;min-width:190px!important;display:flex!important;flex-direction:column!important;justify-content:center!important;gap:6px!important;padding:4px 16px 4px 0!important;border-right:1px solid #e4edf7!important;min-height:0!important}
-.flight-head .fh-id .flight-id-with-logo{margin:0!important;gap:8px!important}
-.flight-head .fh-id .airline-logo.large{width:44px!important;height:44px!important;flex:0 0 44px!important;object-fit:contain!important}
-.flight-head .fh-id .flight-number{font-size:24px!important;letter-spacing:0!important;max-width:none!important;overflow:visible!important}
+.flight-head .fh-id{flex:1 1 230px!important;min-width:210px!important;display:flex!important;flex-direction:column!important;justify-content:center!important;gap:4px!important;padding:4px 16px 4px 0!important;border-right:1px solid #e4edf7!important;min-height:0!important}
+.flight-head .fh-id-meta{font-size:11px!important;font-weight:950!important;color:#0f2741!important;letter-spacing:.02em!important}
+.flight-head .fh-id .flight-id-with-logo{margin:0!important;gap:10px!important;position:relative!important}
+.flight-head .fh-id .airline-logo.large{width:58px!important;height:58px!important;flex:0 0 58px!important;object-fit:contain!important}
+.flight-head .fh-id .flight-number{font-size:26px!important;letter-spacing:0!important;max-width:none!important;overflow:visible!important}
 .flight-head .fh-id .route{font-size:15px!important;margin:0!important;width:auto!important;white-space:nowrap!important}
-.flight-head .fh-stat{flex:1 1 130px!important;min-width:112px!important;border:1px solid #e4edf7!important;border-radius:12px!important;background:#fff!important;min-height:0!important;padding:9px 12px!important;display:flex!important;flex-direction:column!important;justify-content:center!important;gap:3px!important}
+.flight-head .fh-note-bell{border:0!important;background:transparent!important;cursor:pointer!important;display:inline-flex!important;align-items:flex-start!important;gap:2px!important;padding:0!important;margin-left:2px!important}
+.flight-head .fh-note-bell .home-note-bell{font-size:17px!important}
+.flight-head .fh-stat{flex:1 1 130px!important;min-width:112px!important;border:1px solid #e4edf7!important;border-radius:12px!important;background:#fff!important;min-height:0!important;padding:9px 12px!important;display:flex!important;flex-direction:column!important;justify-content:flex-start!important;gap:3px!important}
 .flight-head .fh-stat-double{flex:1 1 210px!important;min-width:180px!important}
 .flight-head .fh-row2{display:flex!important;flex-wrap:wrap!important;align-items:center!important;gap:8px!important;padding-top:10px!important;border-top:1px solid #e7edf3!important}
 .flight-head .fh-row2-spacer{flex:1 1 24px!important}
@@ -77,7 +80,6 @@ const DELETE_FLIGHT_UI = String.raw`
 .flight-head .fh-row2 .live-strip{width:auto!important;flex:0 0 auto!important;margin-top:0!important}
 .flight-head .fh-row2 .detail-prepa-actions{flex:0 0 auto!important;width:auto!important}
 .flight-head .time-big{min-height:0!important;font-size:22px!important}
-.flight-head .duration{font-size:16px!important}
 .home-sub{font-size:10px!important}.home-config-booking small{font-size:8px!important}.home-config-booking b{font-size:10px!important}.home-load b{font-size:12px!important}.home-avail{font-weight:950!important}
 @media(max-width:1100px){.flight-head .fh-stat{flex-basis:118px!important}}
 @media(max-width:680px){

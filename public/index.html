@@ -7736,6 +7736,15 @@ function airportTzOffsetHours(iata,date=new Date()){
 // TZ conservé en compatibilité : accès par clé calcule maintenant le décalage
 // réel (heure d'été/hiver incluse) au lieu d'un nombre figé en dur.
 const TZ=new Proxy({},{get:(_,iata)=>airportTzOffsetHours(String(iata))});
+function gmtLabel(iata){
+ const off=Number(TZ[iata]);
+ if(!Number.isFinite(off))return '';
+ const totalMinutes=Math.round(off*60);
+ const sign=totalMinutes>=0?'+':'−';
+ const abs=Math.abs(totalMinutes);
+ const h=Math.floor(abs/60), m=abs%60;
+ return `GMT${sign}${h}${m?':'+String(m).padStart(2,'0'):''}`;
+}
 let selected=0, editKey='', editClass='', currentList=[], currentView='home';
 let HOME_LIST_SCROLL_Y=0;
 function openFlightFromHomeList(index){HOME_LIST_SCROLL_Y=window.scrollY||document.documentElement.scrollTop||0;selected=index;f().activeDate=HOME_DATE;render()}
@@ -15478,7 +15487,8 @@ function render(){
  ${companyModuleVisible(x,'header')?`<section class="card flight-head fh-compact">
   <div class="fh-row1">
    <div class="fh-id">
-    <div class="flight-id-with-logo">${airlineLogo(x.airline,'large')}<div class="flight-number">${x.flight}</div></div>
+    <div class="fh-id-meta">${x.airline} · AIRLINE · ${formatDateLong(x.activeDate||HOME_DATE||selectedDate)}</div>
+    <div class="flight-id-with-logo">${airlineLogo(x.airline,'large')}<div class="flight-number">${x.flight}</div>${typeof homeFlightNoteCount==='function'&&homeFlightNoteCount(x)>0?`<button type="button" class="fh-note-bell" title="${homeFlightNoteCount(x)} note(s)" onclick="openCombinedNotes()"><span class="home-note-bell">🔔</span><span class="home-note-count">${homeFlightNoteCount(x)}</span></button>`:''}</div>
     <div class="route">${x.dep}<span class="arrow">→</span>${x.dest}</div>
    </div>
    <div class="fh-stat">
@@ -15487,7 +15497,7 @@ function render(){
     ${x.edt?`<div class="time-secondary">ETD &nbsp;<span class="red">${x.edt}</span><span class="delay">${sc.delay>=0?'+':''}${sc.delay} MIN</span></div>`:''}
     ${adbState(x)?.data?.departure?.etd?`<span class="adb-value adb-red">ADB ETD ${adbState(x).data.departure.etd}${adbState(x).data.delayMinutes!=null?` · ${adbState(x).data.delayMinutes>=0?'+':''}${adbState(x).data.delayMinutes} MIN`:''}</span>`:''}
     ${adbState(x)?.data?.departure?.atd?`<span class="adb-value adb-green">ATD ${adbState(x).data.departure.atd}</span>`:''}
-    <div class="local-clock">◷ <div><span id="depClock">${liveFor(x.dep)}</span><small>${x.dep} LOCAL</small></div></div>
+    <div class="local-clock">◷ <div><span id="depClock">${liveFor(x.dep)}</span><small>${x.dep} LOCAL · ${gmtLabel(x.dep)}</small></div></div>
    </div>
    <div class="fh-stat">
     <div class="head-label">STA <button class="edit-link" onclick="openEdit('sta')">✎</button></div>
@@ -15495,10 +15505,10 @@ function render(){
     ${x.edt&&sc.eta?`<div class="time-secondary">ETA &nbsp;<span class="red">${sc.eta}</span> <span class="red">${daytag(sc.etaDay)}</span></div>`:''}
     ${adbState(x)?.data?.arrival?.eta?`<span class="adb-value adb-red">ADB ETA ${adbState(x).data.arrival.eta}</span>`:''}
     ${adbState(x)?.data?.arrival?.ata?`<span class="adb-value adb-green">ATA ${adbState(x).data.arrival.ata}</span>`:''}
-    <div class="local-clock">◷ <div><span id="arrClock">${liveFor(x.dest)}</span><small>${x.dest} LOCAL</small></div></div>
+    <div class="local-clock">◷ <div><span id="arrClock">${liveFor(x.dest)}</span><small>${x.dest} LOCAL · ${gmtLabel(x.dest)}</small></div></div>
    </div>
    <div class="fh-stat">
-    <div class="head-label">DURÉE</div><div class="duration"><span class="timer">◷</span> ${durationText(x.duration)}</div>
+    <div class="head-label">DURÉE</div><div class="time-big duration"><span class="timer">◷</span> ${durationText(x.duration)}</div>
    </div>
    <div class="fh-stat">
     <div class="head-label">TYPE A/C <button class="edit-link" onclick="openEdit('aircraft')">✎</button></div>
@@ -15519,9 +15529,7 @@ function render(){
    </div>
   </div>
   <div class="fh-row2">
-   <span class="airline-pill">${x.airline} · AIRLINE</span>
    <span class="auto-refresh-chip">↻ AUTO REFRESH ${Math.round(OPS_REALTIME_INTERVAL_VISIBLE/100)/10}S</span>
-   <span class="flight-date">${formatDateLong(x.activeDate||HOME_DATE||selectedDate)}</span>
    ${adbLiveStrip(x)}
    ${enrichmentHeaderButton(x)}
    <div class="fh-row2-spacer"></div>
