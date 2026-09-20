@@ -15526,7 +15526,7 @@ function render(){
    ${enrichmentHeaderButton(x)}
    <div class="fh-row2-spacer"></div>
    <div class="detail-prepa-actions"><button class="detail-prepa-btn ${getPrepaInfo(x,currentFlightDate())?.state?.ok?'done':'nok'}" onclick="openDetailPrepa()"><span class="sheet">▤</span><span>PREPA</span></button><button class="print-icon-btn" title="Imprimer la prépa" onclick="printCurrentFlightPrepa()">🖨</button><button class="clear-flight-btn" title="Vider la fiche du vol" onclick="openClearCurrentFlight()">⌫</button><button class="v5011-flight-info-action" title="Informations du vol" onclick="openFlightInfo()">ⓘ INFOS VOL ${passengerNotesForCurrentFlight().length?`<span class="note-bell active">🔔</span>`:""}</button></div>
-   <button type="button" class="flight-back-btn" title="Retour à la liste des vols" onclick="backToFlightListSamePosition()">‹ RETOUR</button>
+   <button type="button" class="flight-back-btn" title="Retour à la liste des vols" onclick="backToFlightListSamePosition()">‹ RETOUR LISTE</button>
   </div>
  </section>`:''}
  ${v5002LegStripHtml(x)}

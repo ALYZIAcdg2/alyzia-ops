@@ -66,7 +66,7 @@ const DELETE_FLIGHT_UI = String.raw`
 .flight-head .fh-row1{display:flex!important;flex-wrap:wrap!important;align-items:stretch!important;gap:10px!important}
 .flight-head .fh-id{flex:1 1 210px!important;min-width:190px!important;display:flex!important;flex-direction:column!important;justify-content:center!important;gap:6px!important;padding:4px 16px 4px 0!important;border-right:1px solid #e4edf7!important;min-height:0!important}
 .flight-head .fh-id .flight-id-with-logo{margin:0!important;gap:8px!important}
-.flight-head .fh-id .airline-logo.large{width:32px!important;height:32px!important;flex:0 0 32px!important}
+.flight-head .fh-id .airline-logo.large{width:44px!important;height:44px!important;flex:0 0 44px!important;object-fit:contain!important}
 .flight-head .fh-id .flight-number{font-size:24px!important;letter-spacing:0!important;max-width:none!important;overflow:visible!important}
 .flight-head .fh-id .route{font-size:15px!important;margin:0!important;width:auto!important;white-space:nowrap!important}
 .flight-head .fh-stat{flex:1 1 130px!important;min-width:112px!important;border:1px solid #e4edf7!important;border-radius:12px!important;background:#fff!important;min-height:0!important;padding:9px 12px!important;display:flex!important;flex-direction:column!important;justify-content:center!important;gap:3px!important}
