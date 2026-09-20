@@ -61,14 +61,28 @@ const DELETE_FLIGHT_UI = String.raw`
 .prepa-company-status{display:grid;gap:3px;text-align:right}.prepa-company-status strong{font-size:22px;color:#087749}.prepa-company-status span{font-size:8px;font-weight:950;color:#70839a}.prepa-company-status em{font-size:9px;font-style:normal;font-weight:950;color:#b42318}
 .prepa-company-arrow{font-size:30px;color:#075fd3}.prepa-company-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}.prepa-company-toolbar>button{min-height:42px;border:1px solid #d6e3f1;border-radius:11px;background:#fff;color:#27445f;font-size:10px;font-weight:950;padding:0 15px;cursor:pointer}.prepa-company-toolbar>div{display:flex;align-items:center;gap:9px}.prepa-company-toolbar b{font-size:18px}.prepa-company-toolbar span{font-size:9px;font-weight:850;color:#70839a}
 .prepa-visibility-section{border-color:#a9cbed!important;background:#f6faff!important}.prepa-visibility-toggle{min-height:54px!important;border-color:#8ab9ec!important;background:#fff!important}.prepa-visibility-toggle span{font-size:10px!important;color:#075fc8!important}
-.flight-head{min-height:0!important;grid-template-columns:minmax(285px,1.55fr) repeat(5,minmax(100px,1fr))!important;padding:10px!important;gap:0!important;background:linear-gradient(135deg,#fff 0%,#f7faff 100%)!important}
-.flight-head .headcell{border:0!important;background:transparent!important;box-shadow:none!important;min-height:190px!important;padding:12px 10px!important}
-.flight-head .headcell:first-child{padding-left:16px!important}
+/* En-tête fiche vol V2 — bandeau compact (identité + 6 champs sur une ligne, statut + actions sur une seconde). */
+.flight-head{min-height:0!important;grid-template-columns:none!important;padding:14px 16px!important;gap:10px!important;background:linear-gradient(135deg,#fff 0%,#f7faff 100%)!important;display:flex!important;flex-direction:column!important}
+.flight-head .fh-row1{display:flex!important;flex-wrap:wrap!important;align-items:stretch!important;gap:10px!important}
+.flight-head .fh-id{flex:1 1 210px!important;min-width:190px!important;display:flex!important;flex-direction:column!important;justify-content:center!important;gap:6px!important;padding:4px 16px 4px 0!important;border-right:1px solid #e4edf7!important;min-height:0!important}
+.flight-head .fh-id .flight-id-with-logo{margin:0!important;gap:8px!important}
+.flight-head .fh-id .airline-logo.large{width:32px!important;height:32px!important;flex:0 0 32px!important}
+.flight-head .fh-id .flight-number{font-size:24px!important;letter-spacing:0!important;max-width:none!important;overflow:visible!important}
+.flight-head .fh-id .route{font-size:15px!important;margin:0!important;width:auto!important;white-space:nowrap!important}
+.flight-head .fh-stat{flex:1 1 130px!important;min-width:112px!important;border:1px solid #e4edf7!important;border-radius:12px!important;background:#fff!important;min-height:0!important;padding:9px 12px!important;display:flex!important;flex-direction:column!important;justify-content:center!important;gap:3px!important}
+.flight-head .fh-stat-double{flex:1 1 210px!important;min-width:180px!important}
+.flight-head .fh-row2{display:flex!important;flex-wrap:wrap!important;align-items:center!important;gap:8px!important;padding-top:10px!important;border-top:1px solid #e7edf3!important}
+.flight-head .fh-row2-spacer{flex:1 1 24px!important}
+.flight-head .fh-row2 .enrichment-chip{width:auto!important;flex:0 0 auto!important;margin-top:0!important;padding:5px 10px!important}
+.flight-head .fh-row2 .live-strip{width:auto!important;flex:0 0 auto!important;margin-top:0!important}
+.flight-head .fh-row2 .detail-prepa-actions{flex:0 0 auto!important;width:auto!important}
+.flight-head .time-big{min-height:0!important;font-size:22px!important}
+.flight-head .duration{font-size:16px!important}
 .home-sub{font-size:10px!important}.home-config-booking small{font-size:8px!important}.home-config-booking b{font-size:10px!important}.home-load b{font-size:12px!important}.home-avail{font-weight:950!important}
-@media(max-width:1100px){.flight-head{grid-template-columns:minmax(245px,1.45fr) repeat(3,minmax(92px,1fr))!important}.flight-head>.headcell:first-child{grid-row:span 2!important}.flight-head>.headcell:nth-child(n+5){min-height:96px!important}}
+@media(max-width:1100px){.flight-head .fh-stat{flex-basis:118px!important}}
 @media(max-width:680px){
  .delete-flight-grid,.prepa-company-grid{grid-template-columns:1fr}.delete-flight-choice{min-height:78px}.prepa-company-card{min-height:104px;padding:14px;grid-template-columns:auto 1fr auto}.prepa-company-status{grid-column:2}.prepa-company-arrow{grid-column:3;grid-row:1/3}
- .flight-head{grid-template-columns:1fr 1fr!important;padding:7px!important}.flight-head>.headcell:first-child{grid-column:1/-1!important;grid-row:auto!important;min-height:0!important;padding:12px 12px 10px!important}.flight-head .headcell{min-height:102px!important;padding:10px 8px!important}.flight-head>.headcell:nth-child(6){grid-column:1/-1!important;min-height:92px!important}.flight-head .saria-bridge-pill{display:none!important}.flight-head .saria-ac-wrap{gap:4px!important}.flight-head .live-strip{margin-top:4px!important}.flight-head .detail-prepa-actions{margin-top:7px!important}.flight-management-tabs{position:sticky;top:0;z-index:2}
+ .flight-head{padding:10px!important}.flight-head .fh-id{flex-basis:100%!important;border-right:0!important;border-bottom:1px solid #e4edf7!important;padding:2px 0 10px!important}.flight-head .fh-stat{flex-basis:calc(50% - 6px)!important}.flight-head .saria-bridge-pill{display:none!important}.flight-head .saria-ac-wrap{gap:4px!important}.flight-management-tabs{position:sticky;top:0;z-index:2}
  .flight-home-row>:nth-child(4){font-size:12px!important;font-weight:900!important;color:#20354c!important}.home-sub{font-size:11px!important;font-weight:850!important}.home-config-booking small{font-size:9px!important}.home-config-booking b{font-size:12px!important}.home-load b{font-size:13px!important}.home-avail{display:flex!important;align-items:center!important;gap:8px!important;font-size:13px!important}.home-avail:before{content:'AVAILABLE';font-size:9px;font-weight:950;color:#718398}
 }
 </style>

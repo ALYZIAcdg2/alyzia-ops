@@ -15475,19 +15475,13 @@ function render(){
  const webTotal=sum(web), webPct=booked?Math.round(webTotal/booked*100):0;
 
  document.getElementById('app').innerHTML=`
- ${companyModuleVisible(x,'header')?`<section class="card flight-head">
-   <div class="headcell">
-    <button type="button" class="flight-back-btn" title="Retour à la liste des vols" onclick="backToFlightListSamePosition()">‹ RETOUR</button>
-    <span class="airline-pill">${x.airline} · AIRLINE</span>
-    <span class="auto-refresh-chip">↻ AUTO REFRESH ${Math.round(OPS_REALTIME_INTERVAL_VISIBLE/100)/10}S</span>
-    <div class="flight-date">${formatDateLong(x.activeDate||HOME_DATE||selectedDate)}</div>
+ ${companyModuleVisible(x,'header')?`<section class="card flight-head fh-compact">
+  <div class="fh-row1">
+   <div class="fh-id">
     <div class="flight-id-with-logo">${airlineLogo(x.airline,'large')}<div class="flight-number">${x.flight}</div></div>
     <div class="route">${x.dep}<span class="arrow">→</span>${x.dest}</div>
-    ${adbLiveStrip(x)}
-    ${enrichmentHeaderButton(x)}
-    <div class="detail-prepa-actions"><button class="detail-prepa-btn ${getPrepaInfo(x,currentFlightDate())?.state?.ok?'done':'nok'}" onclick="openDetailPrepa()"><span class="sheet">▤</span><span>PREPA</span></button><button class="print-icon-btn" title="Imprimer la prépa" onclick="printCurrentFlightPrepa()">🖨</button><button class="clear-flight-btn" title="Vider la fiche du vol" onclick="openClearCurrentFlight()">⌫</button><button class="v5011-flight-info-action" title="Informations du vol" onclick="openFlightInfo()">ⓘ INFOS VOL ${passengerNotesForCurrentFlight().length?`<span class="note-bell active">🔔</span>`:""}</button></div>
    </div>
-   <div class="headcell">
+   <div class="fh-stat">
     <div class="head-label">STD <button class="edit-link" onclick="openEdit('time')">✎</button></div>
     <div class="time-big">${x.std}</div>
     ${x.edt?`<div class="time-secondary">ETD &nbsp;<span class="red">${x.edt}</span><span class="delay">${sc.delay>=0?'+':''}${sc.delay} MIN</span></div>`:''}
@@ -15495,22 +15489,22 @@ function render(){
     ${adbState(x)?.data?.departure?.atd?`<span class="adb-value adb-green">ATD ${adbState(x).data.departure.atd}</span>`:''}
     <div class="local-clock">◷ <div><span id="depClock">${liveFor(x.dep)}</span><small>${x.dep} LOCAL</small></div></div>
    </div>
-   <div class="headcell">
+   <div class="fh-stat">
     <div class="head-label">STA <button class="edit-link" onclick="openEdit('sta')">✎</button></div>
-    <div class="time-big">${sc.sta||'—'}${sc.sta?` &nbsp;<span class="blue" style="font-size:16px">${daytag(sc.staDay)}</span>`:''}</div>
+    <div class="time-big">${sc.sta||'—'}${sc.sta?` &nbsp;<span class="blue" style="font-size:14px">${daytag(sc.staDay)}</span>`:''}</div>
     ${x.edt&&sc.eta?`<div class="time-secondary">ETA &nbsp;<span class="red">${sc.eta}</span> <span class="red">${daytag(sc.etaDay)}</span></div>`:''}
     ${adbState(x)?.data?.arrival?.eta?`<span class="adb-value adb-red">ADB ETA ${adbState(x).data.arrival.eta}</span>`:''}
     ${adbState(x)?.data?.arrival?.ata?`<span class="adb-value adb-green">ATA ${adbState(x).data.arrival.ata}</span>`:''}
     <div class="local-clock">◷ <div><span id="arrClock">${liveFor(x.dest)}</span><small>${x.dest} LOCAL</small></div></div>
    </div>
-   <div class="headcell">
+   <div class="fh-stat">
     <div class="head-label">DURÉE</div><div class="duration"><span class="timer">◷</span> ${durationText(x.duration)}</div>
    </div>
-   <div class="headcell">
+   <div class="fh-stat">
     <div class="head-label">TYPE A/C <button class="edit-link" onclick="openEdit('aircraft')">✎</button></div>
     ${sariaAircraftSelectHtml(x)}
    </div>
-   <div class="headcell v5010-reg-gate-cell">
+   <div class="fh-stat fh-stat-double v5010-reg-gate-cell">
     <div class="v5010-reg-gate-grid">
       <button type="button" class="v5010-edit-field" onclick="v5009EditHeaderField('reg')" title="Modifier l'immatriculation">
         <span class="head-label">IMMAT <span class="v5010-pencil">✎</span></span>
@@ -15523,6 +15517,17 @@ function render(){
     </div>
     ${adbState(x)?.data?.departure?.terminal?`<span class="adb-value adb-blue v5010-terminal">TERMINAL ${adbState(x).data.departure.terminal}</span>`:''}
    </div>
+  </div>
+  <div class="fh-row2">
+   <span class="airline-pill">${x.airline} · AIRLINE</span>
+   <span class="auto-refresh-chip">↻ AUTO REFRESH ${Math.round(OPS_REALTIME_INTERVAL_VISIBLE/100)/10}S</span>
+   <span class="flight-date">${formatDateLong(x.activeDate||HOME_DATE||selectedDate)}</span>
+   ${adbLiveStrip(x)}
+   ${enrichmentHeaderButton(x)}
+   <div class="fh-row2-spacer"></div>
+   <div class="detail-prepa-actions"><button class="detail-prepa-btn ${getPrepaInfo(x,currentFlightDate())?.state?.ok?'done':'nok'}" onclick="openDetailPrepa()"><span class="sheet">▤</span><span>PREPA</span></button><button class="print-icon-btn" title="Imprimer la prépa" onclick="printCurrentFlightPrepa()">🖨</button><button class="clear-flight-btn" title="Vider la fiche du vol" onclick="openClearCurrentFlight()">⌫</button><button class="v5011-flight-info-action" title="Informations du vol" onclick="openFlightInfo()">ⓘ INFOS VOL ${passengerNotesForCurrentFlight().length?`<span class="note-bell active">🔔</span>`:""}</button></div>
+   <button type="button" class="flight-back-btn" title="Retour à la liste des vols" onclick="backToFlightListSamePosition()">‹ RETOUR</button>
+  </div>
  </section>`:''}
  ${v5002LegStripHtml(x)}
 
