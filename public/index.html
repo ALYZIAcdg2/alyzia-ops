@@ -16831,7 +16831,7 @@ function renderCompanyParticularities(x){
  if(String(x?.airline||'').toUpperCase()==='TW'){
    const defs=companyParticularityDefs('TW');
    return defs
-     .filter(def=>companyParticularityVisible(x,def.id))
+     .filter(def=>companyParticularityVisible(x,def.id)&&Number(x.common?.[def.id]||0)>0)
      .map(def=>commonTile(def.id,def.label))
      .join('') + passengerSearchTile();
  }
@@ -16839,11 +16839,23 @@ function renderCompanyParticularities(x){
    return renderGenericParticularitiesV50(x);
  }
  if(String(x?.airline||'').toUpperCase()==='BJ'){
-   return [
-     commonTile('WCH','WCH'),commonTile('UMNR','UMNR'),commonTile('MAAS','MAAS'),commonTile('PET_AV','PETC / AVIH'),commonTile('DEAF_BLND','DEAF / BLND'),
-     commonTile('INF','INF'),commonTile('CHLD','CHLD'),commonTile('STAFF','STAFF'),commonTile('WEB','WEB'),bjPriorityTile(x),commonTile('MEAL','MEAL'),
-     bjEmdTile(x),commonTile('FQTV','FQTV')
-   ].join('');
+   // Uniquement les cartes SSR effectivement reçues (compteur > 0).
+   const bjTiles=[
+     [Number(x.common?.WCH||0)>0, ()=>commonTile('WCH','WCH')],
+     [Number(x.common?.UMNR||0)>0, ()=>commonTile('UMNR','UMNR')],
+     [Number(x.common?.MAAS||0)>0, ()=>commonTile('MAAS','MAAS')],
+     [Number(x.common?.PET_AV||0)>0, ()=>commonTile('PET_AV','PETC / AVIH')],
+     [Number(x.common?.DEAF_BLND||0)>0, ()=>commonTile('DEAF_BLND','DEAF / BLND')],
+     [Number(x.common?.INF||0)>0, ()=>commonTile('INF','INF')],
+     [Number(x.common?.CHLD||0)>0, ()=>commonTile('CHLD','CHLD')],
+     [Number(x.common?.STAFF||0)>0, ()=>commonTile('STAFF','STAFF')],
+     [Number(x.common?.WEB||0)>0, ()=>commonTile('WEB','WEB')],
+     [bjPriorityPassengers(x).length>0, ()=>bjPriorityTile(x)],
+     [Number(x.common?.MEAL||0)>0, ()=>commonTile('MEAL','MEAL')],
+     [(x.bjEmdRows||[]).length>0, ()=>bjEmdTile(x)],
+     [Number(x.common?.FQTV||0)>0, ()=>commonTile('FQTV','FQTV')]
+   ];
+   return bjTiles.filter(([has])=>has).map(([,render])=>render()).join('');
  }
  const defs=companyParticularityDefs(x.airline);
  if(!defs.length){
@@ -16867,7 +16879,7 @@ function renderCompanyParticularities(x){
    `;
  }
  return defs
-   .filter(def=>companyParticularityVisible(x,def.id))
+   .filter(def=>companyParticularityVisible(x,def.id)&&particularityCountByDef(x,def)>0)
    .map(def=>companyParticularityCard(def))
    .join('') + passengerSearchTile();
 }
