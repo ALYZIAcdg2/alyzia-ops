@@ -2,16 +2,15 @@ name: Cabin — reconnaissance sources réelles (lot 1)
 
 # Étape 2 de la vérification demandée par l'utilisateur : avant d'extraire un
 # plan précis, on repère d'abord quelles pages de référence publiques
-# (SeatGuru, AeroLOPA...) existent réellement pour chacun des 5 avions
-# prioritaires (les plus utilisés dans les vols traités, cf. /api/cabin/coverage).
-# Lecture seule, aucune écriture. Le sandbox de dev n'a pas d'accès réseau
-# vers ces sites (politique d'egress), d'où le relais CI.
+# existent réellement pour AH 73H / BJ 320 / SK 32N / AH 320 / EI 32Q (les
+# plus utilisés dans les vols traités, cf. /api/cabin/coverage). Lecture
+# seule, aucune écriture.
 #
-# V2 : le premier passage n'a récupéré que des 301 (redirections non
-# suivies) et des pages AeroLOPA dont le motif de lien deviné ne
-# correspondait pas à la vraie structure du site — on suit les redirections
-# (-L) et on imprime tous les href bruts pour inspection au lieu de deviner
-# un motif de filtre.
+# V3 : SeatGuru redirige maintenant vers TripAdvisor et bloque (403) —
+# abandonné. AeroLOPA utilise le code IATA 2 lettres comme slug de page
+# (/ah, /ei...) — on va directement dessus. SeatMaps.com liste ses
+# compagnies sous /airlines/<code-iata>-<nom>/ — on récupère l'index pour
+# trouver le bon slug avant d'aller sur la page avion.
 
 on:
   workflow_dispatch:
@@ -24,54 +23,38 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Pages compagnie SeatGuru (avec suivi des redirections)
+      - name: AeroLOPA — pages compagnie par code IATA (/ah, /ei, /sk, /bj)
         run: |
           set +e
-          declare -A PAGES=(
-            ["AH (Air Algerie)"]="https://www.seatguru.com/airlines/Air_Algerie.php"
-            ["SK (SAS)"]="https://www.seatguru.com/airlines/SAS_Scandinavian_Airlines.php"
-            ["EI (Aer Lingus)"]="https://www.seatguru.com/airlines/Aer_Lingus.php"
-            ["BJ (Nouvelair)"]="https://www.seatguru.com/airlines/Nouvelair.php"
-          )
-          for name in "${!PAGES[@]}"; do
-            url="${PAGES[$name]}"
-            echo "===== $name : $url ====="
-            final=$(curl -sS -L -o page.html -w "%{url_effective} | HTTP %{http_code}" "$url" --max-time 20)
+          for code in ah ei sk bj; do
+            url="https://www.aerolopa.com/${code}"
+            echo "===== AeroLOPA /${code} ====="
+            final=$(curl -sS -L -o "ael_${code}.html" -w "%{url_effective} | HTTP %{http_code}" "$url" --max-time 20)
             echo "$final"
-            echo "--- taille ---"; wc -c page.html
-            echo "--- tous les hrefs contenant .php (avion probable) ---"
-            grep -oE 'href="[^"]*\.php"' page.html -i | sort -u | head -60
+            echo "--- titre + liens avion (hrefs internes non génériques) ---"
+            grep -oE '<title>[^<]*</title>' "ael_${code}.html" | head -1
+            grep -oE 'href="/[a-z0-9-]+"' "ael_${code}.html" -i | sort -u | grep -viE '^href="/(about|contact|cookies|aircraft|airlines|app|favicon)' | head -40
             echo
           done
 
-      - name: AeroLOPA — recherche (tous les hrefs bruts pour inspection)
+      - name: SeatMaps.com — index des compagnies (trouver le bon slug)
         run: |
           set +e
-          for q in "Air+Algerie" "SAS+A320neo" "Aer+Lingus+A321" "Nouvelair"; do
-            url="https://www.aerolopa.com/?s=${q}"
-            echo "===== AeroLOPA recherche: $q ====="
-            final=$(curl -sS -L -o aerolopa.html -w "%{url_effective} | HTTP %{http_code}" "$url" --max-time 20)
-            echo "$final"
-            echo "--- tous les hrefs (premiers 40) ---"
-            grep -oE 'href="[^"]+"' aerolopa.html -i | sort -u | grep -v 'wp-content\|wp-json\|\.css\|\.js\|feed\|xmlrpc' | head -40
-            echo
-          done
+          curl -sS -L -o sm_index.html -w "%{url_effective} | HTTP %{http_code}\n" "https://seatmaps.com/airlines/" --max-time 20
+          echo "--- slugs commençant par ah- / ei- / sk- / bj- ---"
+          grep -oE 'href="/airlines/(ah|ei|sk|bj)-[a-z0-9-]+/"' sm_index.html -i | sort -u
 
-      - name: SeatMaps.com — pages compagnie (avec suivi des redirections)
+      - name: SeatMaps.com — pages compagnie (slugs trouvés ci-dessus)
         run: |
           set +e
-          declare -A PAGES=(
-            ["AH (Air Algerie)"]="https://seatmaps.com/airlines/air-algerie"
-            ["SK (SAS)"]="https://seatmaps.com/airlines/sas"
-            ["EI (Aer Lingus)"]="https://seatmaps.com/airlines/aer-lingus"
-            ["BJ (Nouvelair)"]="https://seatmaps.com/airlines/nouvelair"
-          )
-          for name in "${!PAGES[@]}"; do
-            url="${PAGES[$name]}"
-            echo "===== $name : $url ====="
-            final=$(curl -sS -L -o sm.html -w "%{url_effective} | HTTP %{http_code}" "$url" --max-time 20)
+          SLUGS=$(grep -oE 'href="/airlines/(ah|ei|sk|bj)-[a-z0-9-]+/"' sm_index.html -i | sed -E 's/href="\/airlines\/(.+)\/"/\1/' | sort -u)
+          echo "Slugs retenus: $SLUGS"
+          for slug in $SLUGS; do
+            url="https://seatmaps.com/airlines/${slug}/"
+            echo "===== $url ====="
+            final=$(curl -sS -L -o "sm_${slug}.html" -w "%{url_effective} | HTTP %{http_code}" "$url" --max-time 20)
             echo "$final"
-            echo "--- tous les hrefs (premiers 40) ---"
-            grep -oE 'href="[^"]+"' sm.html -i | sort -u | grep -v '\.css\|\.js\|/wp-\|feed' | head -40
+            echo "--- liens avion (737/738/a320/a321/neo) ---"
+            grep -oE 'href="[^"]*(737|738|a320|a321|neo)[^"]*"' "sm_${slug}.html" -i | sort -u | head -30
             echo
           done
