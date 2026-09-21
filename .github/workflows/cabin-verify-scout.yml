@@ -1,9 +1,12 @@
 name: Cabin — reconnaissance sources réelles (lot 1)
 
-# Étape 5 : aucune balise <text> trouvée dans le HTML brut malgré 3 <svg> —
-# la page est probablement une SPA (JS) qui charge le plan après coup via
-# une API. On cherche des indices d'API (fetch/XHR vers un domaine ou
-# chemin JSON) dans le HTML et les bundles JS référencés. Lecture seule.
+# Étape 6 : le plan AeroLOPA est en fait une image statique sur CloudFront
+# (https://d9k46j35fmriq.cloudfront.net/maptool/seatmaps/<slug>.webp), pas
+# une donnée JSON — le SVG applicatif n'est qu'une couche cliquable
+# par-dessus. Le sandbox de dev ne peut pas non plus joindre ce CDN
+# directement (même politique d'egress). On récupère l'image via CI, on la
+# convertit en PNG, et on l'imprime en base64 dans le log pour la
+# reconstruire et l'examiner visuellement côté agent. Lecture seule.
 
 on:
   workflow_dispatch:
@@ -16,19 +19,25 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Inspecte le HTML brut de la page AH-738 (début + indices d'API)
+      - name: Récupère l'image seatmap AH-738 et l'imprime en base64 (PNG)
         run: |
           set +e
-          curl -sS -L -o ah738.html "https://www.aerolopa.com/ah-738" --max-time 20
-          echo "--- 3000 premiers caracteres ---"
-          head -c 3000 ah738.html
-          echo
-          echo
-          echo "--- balises <svg ...> avec leurs attributs (ouverture seulement) ---"
-          grep -oE '<svg[^>]*>' ah738.html
-          echo
-          echo "--- scripts externes charges (src=) ---"
-          grep -oE '<script[^>]*src="[^"]+"' ah738.html | sort -u
-          echo
-          echo "--- toute URL contenant api ou .json dans le HTML ---"
-          grep -oE '"[a-zA-Z0-9_/.:-]*(api|\.json)[a-zA-Z0-9_/.:?=&-]*"' ah738.html | sort -u | head -30
+          url="https://d9k46j35fmriq.cloudfront.net/maptool/seatmaps/ah-738.webp"
+          echo "URL: $url"
+          code=$(curl -sS -o ah738.webp -w "%{http_code}" "$url" --max-time 20)
+          echo "HTTP $code — taille: $(wc -c < ah738.webp) octets"
+          file ah738.webp
+          which dwebp convert 2>&1
+          if command -v dwebp >/dev/null 2>&1; then
+            dwebp ah738.webp -o ah738.png
+          elif command -v convert >/dev/null 2>&1; then
+            convert ah738.webp ah738.png
+          else
+            sudo apt-get update -qq && sudo apt-get install -y -qq webp
+            dwebp ah738.webp -o ah738.png
+          fi
+          echo "--- taille PNG ---"
+          wc -c ah738.png
+          echo "--- BASE64 START ---"
+          base64 -w 200 ah738.png
+          echo "--- BASE64 END ---"
