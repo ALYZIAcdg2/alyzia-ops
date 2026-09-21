@@ -688,15 +688,15 @@
     "airline": "AH",
     "aircraft": "73H",
     "configuration": "148Y",
-    "label": "AH 73H · 148Y",
-    "sourceLabel": "Base Excel validée par l’utilisateur · AeroLOPA",
-    "quality": "summary",
+    "label": "Air Algérie 737-8D6 · 148Y",
+    "sourceLabel": "AeroLOPA — Air Algérie Boeing 737-8D6 (relevé direct du plan)",
+    "quality": "exact",
     "zones": [
       {
         "class": "C",
         "row_start": 1,
         "row_end": 4,
-        "pattern": "AC|DF",
+        "pattern": "AB|EF",
         "exceptions": ""
       },
       {
@@ -1188,9 +1188,9 @@
     "airline": "BJ",
     "aircraft": "320",
     "configuration": "180Y",
-    "label": "BJ 320 · 180Y",
-    "sourceLabel": "Base Excel validée par l’utilisateur · Excel utilisateur",
-    "quality": "summary",
+    "label": "Nouvelair Airbus A320 · 180Y",
+    "sourceLabel": "SeatMaps.com — Nouvelair Airbus A320 (relevé direct jusqu'à la rangée 13, motif uniforme prolongé jusqu'au total confirmé de 180 sièges)",
+    "quality": "exact",
     "zones": [
       {
         "class": "Y",
@@ -1350,16 +1350,16 @@
     "airline": "EI",
     "aircraft": "32Q",
     "configuration": "184Y",
-    "label": "EI 32Q · 184Y",
-    "sourceLabel": "Base Excel validée par l’utilisateur · AeroLOPA",
-    "quality": "summary",
+    "label": "Aer Lingus A321-253NX · 184Y",
+    "sourceLabel": "AeroLOPA — Aer Lingus Airbus A321-253NX (relevé direct du plan)",
+    "quality": "exact",
     "zones": [
       {
         "class": "C",
         "row_start": 2,
-        "row_end": 5,
-        "pattern": "A|DF|K",
-        "exceptions": ""
+        "row_end": 6,
+        "pattern": "AC|HK",
+        "exceptions": "3=A|K\n5=A|K"
       },
       {
         "class": "Y",
@@ -1400,16 +1400,16 @@
     "airline": "EI",
     "aircraft": "32Q",
     "configuration": "Y168J16",
-    "label": "EI 32Q · Y168J16",
-    "sourceLabel": "Base Excel validée par l’utilisateur · AeroLOPA",
-    "quality": "summary",
+    "label": "Aer Lingus A321-253NY · Y168J16",
+    "sourceLabel": "AeroLOPA — Aer Lingus Airbus A321-253NY (relevé direct du plan, même géométrie que 184Y)",
+    "quality": "exact",
     "zones": [
       {
         "class": "C",
         "row_start": 2,
-        "row_end": 5,
-        "pattern": "A|DF|K",
-        "exceptions": ""
+        "row_end": 6,
+        "pattern": "AC|HK",
+        "exceptions": "3=A|K\n5=A|K"
       },
       {
         "class": "Y",
@@ -1885,6 +1885,31 @@
         "row_end": 34,
         "pattern": "ABC|DEF|HJK",
         "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "SK|32N|C32Y132",
+    "airline": "SK",
+    "aircraft": "32N",
+    "configuration": "C32Y132",
+    "label": "SAS Airbus A320-251N · C32Y132",
+    "sourceLabel": "AeroLOPA — SAS Airbus A320-251N (relevé direct du plan)",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 8,
+        "pattern": "AC|DF",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 9,
+        "row_end": 31,
+        "pattern": "ABC|DEF",
+        "exceptions": "13=SKIP"
       }
     ]
   }
