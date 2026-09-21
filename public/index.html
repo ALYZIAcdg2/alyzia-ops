@@ -3244,11 +3244,17 @@ body{
  width:20px;height:20px;border-radius:5px;display:flex;align-items:center;justify-content:center;
  font-size:8px;font-weight:950;color:#fff;background:var(--seat-color,#4b5f78)
 }
+.cabin-seat.ghost{background:transparent;visibility:hidden}
 .cabin-aisle{width:14px;flex:0 0 14px}
 .cabin-divider{
- display:flex;align-items:center;gap:6px;margin:5px 0;padding:4px 8px;border-radius:6px;
- background:#f1f5f9;color:#5d7187;font-size:8px;font-weight:950;letter-spacing:.03em
+ display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin:5px 0;padding:4px 8px;border-radius:6px;
+ background:#f1f5f9
 }
+.cabin-divider.has-exit{background:#fff4ec;box-shadow:inset 0 0 0 1px #f3c79a}
+.cabin-divider-chip{
+ display:inline-flex;align-items:center;gap:5px;color:#5d7187;font-size:8px;font-weight:950;letter-spacing:.03em
+}
+.cabin-divider-chip.exit{color:#a8580f}
 .cabin-plan-actions{display:flex;justify-content:flex-end;gap:7px;flex-wrap:wrap;margin-top:12px}
 .cabin-plan-actions button{
  border:1px solid #cfdbe6;background:#fff;border-radius:8px;padding:8px 12px;font-size:9px;font-weight:950;cursor:pointer
@@ -20924,11 +20930,34 @@ function cabinZoneRows(zone){
   const exc=exceptions[r];
   if(exc==='SKIP')continue;
   const pattern=(exc&&exc!=='SKIP')?exc:zone.pattern;
-  const groups=String(pattern||'').split('|').map(g=>g.trim()).filter(Boolean);
-  if(!groups.length)continue;
+  // Les groupes vides (ex. "|DEG|" quand une rangée perd ses sièges hublot/couloir
+  // à cause d'une porte ou d'un bloc sanitaire) sont conservés tels quels : leur
+  // POSITION dans la rangée doit rester connue pour l'alignement sur la grille
+  // commune de colonnes (cf. cabinMasterGroups), donc pas de filter(Boolean) ici.
+  const groups=String(pattern||'').split('|').map(g=>g.trim());
   rows.push({row:r,groups,cls:zone.class});
  }
  return rows;
+}
+// Grille de colonnes commune à tout l'avion (toutes classes confondues) : la
+// classe C n'a presque jamais autant de sièges par rangée que la classe Y
+// (ex. business "AC|DEG|HK" vs économique "ABC|DEG|HJK" — sans siège B ni J en
+// business). Sans référentiel commun, les sièges de chaque rangée se
+// regroupent à gauche et les classes ne sont plus centrées les unes par
+// rapport aux autres, ni alignées sur les couloirs réels. On calcule donc,
+// par index de groupe (hublot-gauche / milieu / hublot-droit…), l'union de
+// toutes les lettres utilisées par une classe quelconque de la config — la
+// grille de rendu réserve ensuite une place (siège réel ou case fantôme
+// invisible) pour CHAQUE lettre de cette union, sur CHAQUE rangée.
+function cabinMasterGroups(zones){
+ const sets=[];
+ (zones||[]).forEach(zone=>{
+  String(zone.pattern||'').split('|').forEach((g,i)=>{
+   if(!sets[i])sets[i]=new Set();
+   g.trim().split('').forEach(ch=>{ if(/[A-Z]/.test(ch))sets[i].add(ch); });
+  });
+ });
+ return sets.map(set=>[...set].sort());
 }
 const CABIN_CLASS_COLOR={F:'#7c3aed',C:'#d97706',J:'#d97706',W:'#0891b2',S:'#0891b2',Y:'#1d6fd6',M:'#1d6fd6'};
 const CABIN_EQUIPMENT_ICON={GALLEY:'🍽',LAVATORY:'🚻',TOILET:'🚻',EXIT:'🚪',STAIRS:'🪜',CREW:'👤',BAR:'🍸',OTHER:'•'};
@@ -20936,18 +20965,41 @@ function cabinPlanBodyHtml(configRow,zones,equipment){
  if(!zones.length){
   return `<div class="cabin-plan-empty">AUCUN PLAN ENREGISTRÉ POUR CETTE CONFIGURATION.<br><button class="primary" onclick="openCabinZoneEditor('${escapeHtml(configRow.config_key)}')">＋ AJOUTER UNE ZONE</button></div>`;
  }
+ const masterGroups=cabinMasterGroups(zones);
+
  const items=[];
  zones.forEach(zone=>cabinZoneRows(zone).forEach(r=>items.push({row:r.row,type:'seats',...r})));
- (equipment||[]).forEach(eq=>items.push({row:Number(eq.row_reference||0)+0.5,type:'divider',label:eq.label||eq.type,kind:String(eq.type||'OTHER').toUpperCase()}));
+ // Regroupe les équipements partageant la même position (ex. galley + toilettes
+ // + porte au même endroit) en UNE seule ligne plutôt que 3 bandeaux empilés.
+ const equipByRow={};
+ (equipment||[]).forEach(eq=>{
+  const row=Number(eq.row_reference||0)+0.5;
+  (equipByRow[row]=equipByRow[row]||[]).push(eq);
+ });
+ Object.entries(equipByRow).forEach(([row,list])=>{
+  items.push({row:Number(row),type:'divider',list});
+ });
  items.sort((a,b)=>a.row-b.row);
 
  const rowsHtml=items.map(it=>{
   if(it.type==='divider'){
-   const icon=CABIN_EQUIPMENT_ICON[it.kind]||CABIN_EQUIPMENT_ICON.OTHER;
-   return `<div class="cabin-divider"><span>${icon}</span>${escapeHtml(it.label||it.kind)}</div>`;
+   const hasExit=it.list.some(eq=>String(eq.type||'').toUpperCase()==='EXIT');
+   const chips=it.list.map(eq=>{
+    const kind=String(eq.type||'OTHER').toUpperCase();
+    const icon=CABIN_EQUIPMENT_ICON[kind]||CABIN_EQUIPMENT_ICON.OTHER;
+    return `<span class="cabin-divider-chip ${kind==='EXIT'?'exit':''}"><span>${icon}</span>${escapeHtml(eq.label||kind)}</span>`;
+   }).join('');
+   return `<div class="cabin-divider${hasExit?' has-exit':''}">${chips}</div>`;
   }
   const color=CABIN_CLASS_COLOR[it.cls]||'#4b5f78';
-  const groupsHtml=it.groups.map(g=>`<div class="cabin-seat-group">${g.split('').map(letter=>`<div class="cabin-seat" style="--seat-color:${color}">${letter}</div>`).join('')}</div>`).join('<div class="cabin-aisle"></div>');
+  const groupsHtml=masterGroups.map((letters,gi)=>{
+   const present=new Set((it.groups[gi]||'').split(''));
+   const seatsHtml=letters.map(letter=>present.has(letter)
+    ?`<div class="cabin-seat" style="--seat-color:${color}">${letter}</div>`
+    :`<div class="cabin-seat ghost"></div>`
+   ).join('');
+   return `<div class="cabin-seat-group">${seatsHtml}</div>`;
+  }).join('<div class="cabin-aisle"></div>');
   return `<div class="cabin-row"><div class="cabin-row-num">${it.row}</div><div class="cabin-row-seats">${groupsHtml}</div></div>`;
  }).join('');
 
