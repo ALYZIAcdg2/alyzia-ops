@@ -1,0 +1,81 @@
+name: Diagnostic SARIA (lecture seule, ponctuel)
+
+# Etat des lieux demandé par l'utilisateur sur l'architecture des seatmaps
+# SARIA : ce Worker n'a pas accès réseau direct depuis le sandbox vers
+# saria-cabin.pages.dev / saria-seatmap.alyzia-cdg2.workers.dev (politique
+# d'egress), donc on relaie via un run GitHub Actions (lecture seule,
+# aucune écriture) pour récupérer la page front, ses bundles JS, et un
+# échantillon de données réelles via l'API.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  saria_diagnostic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      FRONT: https://saria-cabin.pages.dev
+      API: https://saria-seatmap.alyzia-cdg2.workers.dev
+    steps:
+      - name: 1) Page d'accueil du frontend SARIA (HTML)
+        run: |
+          curl -sS -f "$FRONT/" -o front_index.html
+          echo "----- TAILLE -----"; wc -c front_index.html
+          echo "----- SCRIPTS/LIENS REPERES -----"
+          grep -oE '(src|href)="[^"]+"' front_index.html | sort -u || true
+          echo "----- EXTRAIT (premiers 4000 caracteres) -----"
+          head -c 4000 front_index.html
+
+      - name: 2) Récupère chaque bundle JS/CSS lié depuis la page
+        run: |
+          BASE="$FRONT"
+          mkdir -p front_assets
+          grep -oE '(src|href)="[^"]+\.(js|css)"' front_index.html | sed -E 's/^(src|href)="//;s/"$//' | sort -u > asset_urls.txt || true
+          cat asset_urls.txt || true
+          while IFS= read -r u; do
+            [ -z "$u" ] && continue
+            case "$u" in
+              http*) full="$u" ;;
+              /*) full="$BASE$u" ;;
+              *) full="$BASE/$u" ;;
+            esac
+            name=$(echo "$full" | sed -E 's#https?://##; s#[/?&=]#_#g')
+            echo "=== $full ==="
+            curl -sS -f "$full" -o "front_assets/$name" && wc -c "front_assets/$name" || echo "ECHEC TELECHARGEMENT $full"
+          done < asset_urls.txt
+
+      - name: 3) API SARIA — health + liste des configurations existantes
+        run: |
+          echo "----- /api/health -----"
+          curl -sS -f "$API/api/health" || true
+          echo
+          echo "----- /api/configurations -----"
+          curl -sS -f "$API/api/configurations" -o configurations.json || true
+          cat configurations.json || true
+
+      - name: 4) API SARIA — détail d'une configuration (premier config_key trouvé)
+        run: |
+          KEY=$(node -e "try{const j=JSON.parse(require('fs').readFileSync('configurations.json','utf8'));console.log((j.data&&j.data[0]&&j.data[0].config_key)||'')}catch(e){console.log('')}")
+          echo "KEY=$KEY"
+          if [ -n "$KEY" ]; then
+            curl -sS -f "$API/api/layout?key=$KEY" -o layout_sample.json || true
+            echo "----- /api/layout?key=$KEY -----"
+            cat layout_sample.json || true
+          else
+            echo "Aucune configuration trouvée pour échantillonner /api/layout."
+          fi
+
+      - name: 5) Upload des artefacts (page, bundles, JSON) pour inspection
+        uses: actions/upload-artifact@v4
+        with:
+          name: saria-diagnostic
+          path: |
+            front_index.html
+            front_assets/**
+            configurations.json
+            layout_sample.json
+          retention-days: 3
