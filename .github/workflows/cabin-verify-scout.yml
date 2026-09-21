@@ -6,6 +6,12 @@ name: Cabin — reconnaissance sources réelles (lot 1)
 # prioritaires (les plus utilisés dans les vols traités, cf. /api/cabin/coverage).
 # Lecture seule, aucune écriture. Le sandbox de dev n'a pas d'accès réseau
 # vers ces sites (politique d'egress), d'où le relais CI.
+#
+# V2 : le premier passage n'a récupéré que des 301 (redirections non
+# suivies) et des pages AeroLOPA dont le motif de lien deviné ne
+# correspondait pas à la vraie structure du site — on suit les redirections
+# (-L) et on imprime tous les href bruts pour inspection au lieu de deviner
+# un motif de filtre.
 
 on:
   workflow_dispatch:
@@ -18,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Pages compagnie SeatGuru (index des avions listés)
+      - name: Pages compagnie SeatGuru (avec suivi des redirections)
         run: |
           set +e
           declare -A PAGES=(
@@ -30,30 +36,28 @@ jobs:
           for name in "${!PAGES[@]}"; do
             url="${PAGES[$name]}"
             echo "===== $name : $url ====="
-            code=$(curl -sS -o page.html -w "%{http_code}" "$url" --max-time 20)
-            echo "HTTP $code"
-            if [ "$code" = "200" ]; then
-              echo "--- liens vers des pages avion (.php contenant le nom de la compagnie) ---"
-              grep -oE 'href="/airlines/[^"]+\.php"' page.html | sort -u | head -40
-            fi
+            final=$(curl -sS -L -o page.html -w "%{url_effective} | HTTP %{http_code}" "$url" --max-time 20)
+            echo "$final"
+            echo "--- taille ---"; wc -c page.html
+            echo "--- tous les hrefs contenant .php (avion probable) ---"
+            grep -oE 'href="[^"]*\.php"' page.html -i | sort -u | head -60
             echo
           done
 
-      - name: AeroLOPA — page de recherche (fallback pour compagnies absentes de SeatGuru)
+      - name: AeroLOPA — recherche (tous les hrefs bruts pour inspection)
         run: |
           set +e
           for q in "Air+Algerie" "SAS+A320neo" "Aer+Lingus+A321" "Nouvelair"; do
             url="https://www.aerolopa.com/?s=${q}"
             echo "===== AeroLOPA recherche: $q ====="
-            code=$(curl -sS -o aerolopa.html -w "%{http_code}" "$url" --max-time 20)
-            echo "HTTP $code"
-            if [ "$code" = "200" ]; then
-              grep -oE 'href="https://www\.aerolopa\.com/[a-z0-9/-]+"' aerolopa.html | sort -u | head -15
-            fi
+            final=$(curl -sS -L -o aerolopa.html -w "%{url_effective} | HTTP %{http_code}" "$url" --max-time 20)
+            echo "$final"
+            echo "--- tous les hrefs (premiers 40) ---"
+            grep -oE 'href="[^"]+"' aerolopa.html -i | sort -u | grep -v 'wp-content\|wp-json\|\.css\|\.js\|feed\|xmlrpc' | head -40
             echo
           done
 
-      - name: SeatMaps.com — pages compagnie
+      - name: SeatMaps.com — pages compagnie (avec suivi des redirections)
         run: |
           set +e
           declare -A PAGES=(
@@ -65,10 +69,9 @@ jobs:
           for name in "${!PAGES[@]}"; do
             url="${PAGES[$name]}"
             echo "===== $name : $url ====="
-            code=$(curl -sS -o sm.html -w "%{http_code}" "$url" --max-time 20)
-            echo "HTTP $code"
-            if [ "$code" = "200" ]; then
-              grep -oE 'href="/[a-z0-9/-]*(737|738|a320|a321|neo)[a-z0-9/-]*"' sm.html -i | sort -u | head -30
-            fi
+            final=$(curl -sS -L -o sm.html -w "%{url_effective} | HTTP %{http_code}" "$url" --max-time 20)
+            echo "$final"
+            echo "--- tous les hrefs (premiers 40) ---"
+            grep -oE 'href="[^"]+"' sm.html -i | sort -u | grep -v '\.css\|\.js\|/wp-\|feed' | head -40
             echo
           done
