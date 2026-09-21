@@ -28,22 +28,35 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
+      - name: Sanity check — wrangler + accès D1
+        run: |
+          set +e
+          npx wrangler --version 2>&1
+          echo "----- COUNT(*) FROM flights -----"
+          npx wrangler d1 execute alyzia-ops-db --remote --json --command "SELECT COUNT(*) AS n FROM flights" 2>&1 | tee sanity.json
+          echo "exit code: $?"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
       - name: Avions réellement vus dans les vols traités
         run: |
+          set +e
           npx wrangler d1 execute alyzia-ops-db --remote --json --command \
             "SELECT airline, json_extract(data_json,'\$.aircraft') AS aircraft, COUNT(*) AS n FROM flights WHERE json_extract(data_json,'\$.aircraft') IS NOT NULL AND json_extract(data_json,'\$.aircraft')!='' GROUP BY airline, aircraft ORDER BY n DESC" \
-            > flights_ac.json
-          cat flights_ac.json
+            2>&1 | tee flights_ac.json
+          echo "exit code: ${PIPESTATUS[0]}"
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
       - name: Plans cabine déjà en base
         run: |
+          set +e
           npx wrangler d1 execute alyzia-ops-db --remote --json --command \
             "SELECT airline, aircraft, configuration, quality FROM cabin_configs ORDER BY airline, aircraft" \
-            > cabin_configs.json
-          cat cabin_configs.json
+            2>&1 | tee cabin_configs.json
+          echo "exit code: ${PIPESTATUS[0]}"
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
