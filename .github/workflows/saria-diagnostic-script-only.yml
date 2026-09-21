@@ -4,10 +4,11 @@ name: Diagnostic SARIA - script JS uniquement (lecture seule, ponctuel)
 # precedent imprimait front_index.html en entier (CSS + HTML + JS), ce qui
 # rend le log CI trop long pour etre relu integralement par un outil qui ne
 # peut recuperer que la queue (tail) du log. Ce job imprime uniquement le
-# contenu des balises <script>...</script> (sans le <style>), ce qui doit
-# tenir dans la limite et permettre de lire la partie tete du JS (fonctions
-# renderPlane / renderHorizontalFuselage / renderVerticalFuselage / le
-# fallback generique quand zones/seats D1 sont vides).
+# plus gros bloc <script>...</script> inline (celui qui contient la logique
+# applicative SARIA), ce qui doit tenir dans la limite et permettre de lire
+# la partie tete du JS (fonctions renderPlane / renderHorizontalFuselage /
+# renderVerticalFuselage / le fallback generique quand zones/seats D1 sont
+# vides).
 
 on:
   workflow_dispatch:
@@ -22,7 +23,7 @@ jobs:
     env:
       FRONT: https://saria-cabin.pages.dev
     steps:
-      - name: Extraire uniquement les balises script du front SARIA
+      - name: Extraire uniquement le plus gros bloc script du front SARIA
         run: |
           curl -sS -f "$FRONT/" -o front_index.html
           echo "----- TAILLE -----"; wc -c front_index.html; wc -l front_index.html
@@ -34,13 +35,8 @@ jobs:
           print(f"NB_SCRIPT_BLOCKS={len(scripts)}")
           for i, s in enumerate(scripts):
               print(f"===== SCRIPT BLOCK {i} LEN={len(s)} LINES={s.count(chr(10))+1} =====")
-          # On n'imprime EN ENTIER que le premier bloc <script> (le plus gros,
-          # celui qui contient renderPlane/renderHorizontalFuselage/etc.) : le
-          # second bloc (V19/V20, plus petit) a deja ete lu integralement lors
-          # du diagnostic precedent (saria-diagnostic-once.yml), donc on evite
-          # de le reimprimer pour ne pas depasser la limite de lignes captees
-          # par l'outil qui relit ce log (qui ne recupere que la queue).
           if scripts:
-              print("===== FULL CONTENT OF SCRIPT BLOCK 0 =====")
-              print(scripts[0])
+              idx = max(range(len(scripts)), key=lambda i: len(scripts[i]))
+              print(f"===== FULL CONTENT OF LARGEST SCRIPT BLOCK (index {idx}) =====")
+              print(scripts[idx])
           PYEOF
