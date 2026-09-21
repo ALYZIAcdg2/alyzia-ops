@@ -19,9 +19,12 @@ const FLIGHT_LIST_FONT_STYLE = String.raw`
 #app .home-avail{font-size:16px!important;font-weight:950!important;display:inline-flex!important;align-items:baseline!important;gap:0!important}
 #app .home-avail:before{content:'AVAILABLE'!important;display:inline-block!important;font-size:16px!important;font-weight:950!important;color:#718398!important;flex:0 0 auto!important;padding-right:12px!important;margin:0!important}
 #app .home-avail-value{font-size:16px!important;font-weight:950!important;flex:0 0 auto!important;margin:0!important}
-#app .home-mini.home-gate{display:flex!important;flex-direction:column!important;gap:2px!important}
-#app .home-mini.home-gate small{font-size:9px!important;font-weight:950!important;color:#718398!important;letter-spacing:.03em!important;margin:0!important}
-#app .home-mini.home-gate b{font-size:18px!important;font-weight:950!important;color:#20354c!important;line-height:1!important}
+#app .home-mini.home-gate,
+#app .home-mini.home-aircraft{display:flex!important;flex-direction:column!important;gap:2px!important}
+#app .home-mini.home-gate small,
+#app .home-mini.home-aircraft small{font-size:9px!important;font-weight:950!important;color:#718398!important;letter-spacing:.03em!important;margin:0!important}
+#app .home-mini.home-gate b,
+#app .home-mini.home-aircraft b{font-size:18px!important;font-weight:950!important;color:#20354c!important;line-height:1!important}
 #app .home-favorites-filter{min-width:56px!important;display:inline-flex!important;align-items:center!important;justify-content:center!important}
 #app .home-favorites-filter.active{background:#fff8d8!important;border-color:#e8b82d!important;box-shadow:0 0 0 3px rgba(232,184,45,.16)!important}
 #app .home-note-alert{height:34px;min-width:48px;padding:0 5px 0 7px;display:inline-flex;align-items:center;justify-content:center;gap:2px;border:1px solid #e3bd63;border-radius:10px;background:#fff8df;color:#c69000;line-height:1;box-sizing:border-box;cursor:pointer}

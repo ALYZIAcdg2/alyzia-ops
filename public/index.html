@@ -8456,7 +8456,7 @@ function renderHome(){
           <div class="home-flight-actions">${prepaBadge(x,HOME_DATE)}</div>
         </div></div>
         <div><div class="home-route">${x.dep} → ${x.dest}</div><div class="home-sub">${x.airline} · ${CITY[x.dest]||x.dest}</div></div>
-        <div class="home-mini">${x.aircraft}</div>
+        <div class="home-mini home-aircraft"><small>A/C</small><b>${x.aircraft||'—'}</b></div>
         <div class="home-mini home-gate"><small>GATE</small><b>${x.gate&&x.gate!=='—'?x.gate:'—'}</b></div>
         <div class="home-config-booking">
           <div><small>CONFIG</small><b>${classes.map(k=>`${k}${Number(x.config?.[k]||0)}`).join(' · ')||'—'}</b></div>
