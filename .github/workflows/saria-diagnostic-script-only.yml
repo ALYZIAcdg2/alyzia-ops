@@ -1,0 +1,46 @@
+name: Diagnostic SARIA - script JS uniquement (lecture seule, ponctuel)
+
+# Complement au diagnostic precedent (saria-diagnostic-once.yml) : le job
+# precedent imprimait front_index.html en entier (CSS + HTML + JS), ce qui
+# rend le log CI trop long pour etre relu integralement par un outil qui ne
+# peut recuperer que la queue (tail) du log. Ce job imprime uniquement le
+# contenu des balises <script>...</script> (sans le <style>), ce qui doit
+# tenir dans la limite et permettre de lire la partie tete du JS (fonctions
+# renderPlane / renderHorizontalFuselage / renderVerticalFuselage / le
+# fallback generique quand zones/seats D1 sont vides).
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  saria_script_only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      FRONT: https://saria-cabin.pages.dev
+    steps:
+      - name: Extraire uniquement les balises script du front SARIA
+        run: |
+          curl -sS -f "$FRONT/" -o front_index.html
+          echo "----- TAILLE -----"; wc -c front_index.html; wc -l front_index.html
+          echo "----- SCRIPT ONLY (sans CSS) -----"
+          python3 - <<'PYEOF'
+          import re
+          html = open('front_index.html', 'r', encoding='utf-8', errors='replace').read()
+          scripts = re.findall(r'<script\b[^>]*>(.*?)</script>', html, re.S | re.I)
+          print(f"NB_SCRIPT_BLOCKS={len(scripts)}")
+          for i, s in enumerate(scripts):
+              print(f"===== SCRIPT BLOCK {i} LEN={len(s)} LINES={s.count(chr(10))+1} =====")
+          # On n'imprime EN ENTIER que le premier bloc <script> (le plus gros,
+          # celui qui contient renderPlane/renderHorizontalFuselage/etc.) : le
+          # second bloc (V19/V20, plus petit) a deja ete lu integralement lors
+          # du diagnostic precedent (saria-diagnostic-once.yml), donc on evite
+          # de le reimprimer pour ne pas depasser la limite de lignes captees
+          # par l'outil qui relit ce log (qui ne recupere que la queue).
+          if scripts:
+              print("===== FULL CONTENT OF SCRIPT BLOCK 0 =====")
+              print(scripts[0])
+          PYEOF
