@@ -48,6 +48,38 @@ jobs:
             curl -sS -f "$full" -o "front_assets/$name" && wc -c "front_assets/$name" || echo "ECHEC TELECHARGEMENT $full"
           done < asset_urls.txt
 
+      - name: 2b) Imprime le contenu utile des bundles dans les logs (le sandbox ne peut pas lire les artefacts binaires)
+        run: |
+          cd front_assets || exit 0
+          for f in *; do
+            [ -f "$f" ] && [ -s "$f" ] || continue
+            echo "############################################################"
+            echo "### FICHIER: $f"
+            bytes=$(wc -c < "$f")
+            echo "### TAILLE: $bytes octets"
+            case "$f" in
+              *.css)
+                echo "----- CONTENU CSS COMPLET -----"
+                cat "$f"
+                ;;
+              *.js)
+                echo "----- FRAMEWORK / MOTS-CLES DETECTES -----"
+                grep -oE '\b(React|ReactDOM|Vue|createElement|useState|svelte|__vite|webpack|<svg|createSvg|canvas|getContext\(.2d.\)|three\.js|THREE\.|pixi|Konva|d3\.|D3)\b' "$f" | sort -u || echo "(aucun)"
+                echo "----- CHAMPS DU MODELE DE DONNEES SARIA REFERENCES -----"
+                grep -oE '\b(config_key|row_start|row_end|placement_mode|odd_pattern|even_pattern|stagger_letters|stagger_px|offset_x|offset_y|rotation|block_number|block_position|seat_letter|row_number|zone_id|equipments?|visible|locked)\b' "$f" | sort | uniq -c | sort -rn || echo "(aucun)"
+                echo "----- PREMIERS 6000 CARACTERES -----"
+                head -c 6000 "$f"
+                echo
+                echo "----- 6000 CARACTERES AUTOUR DU MOT 'seat' (si trouve) -----"
+                grep -aboE '.{0,200}seat.{0,3000}' "$f" | head -c 6000 || true
+                ;;
+              *)
+                echo "(type non traité)"
+                ;;
+            esac
+            echo
+          done
+
       - name: 3) API SARIA — health + liste des configurations existantes
         run: |
           echo "----- /api/health -----"
