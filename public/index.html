@@ -15514,18 +15514,18 @@ function render(){
     <div class="head-label">TYPE A/C <button class="edit-link" onclick="openEdit('aircraft')">✎</button></div>
     ${sariaAircraftSelectHtml(x)}
    </div>
-   <div class="fh-stat fh-stat-double v5010-reg-gate-cell">
-    <div class="v5010-reg-gate-grid">
-      <button type="button" class="v5010-edit-field" onclick="v5009EditHeaderField('reg')" title="Modifier l'immatriculation">
-        <span class="head-label">IMMAT <span class="v5010-pencil">✎</span></span>
-        <strong>${x.reg||'—'}</strong>
-      </button>
-      <button type="button" class="v5010-edit-field" onclick="v5009EditHeaderField('gate')" title="Modifier la gate">
-        <span class="head-label">GATE <span class="v5010-pencil">✎</span></span>
-        <strong>${x.gate||'—'}</strong>
-      </button>
-    </div>
+   <div class="fh-stat fh-gate-cell">
+    <button type="button" class="v5010-edit-field fh-gate-field" onclick="v5009EditHeaderField('gate')" title="Modifier la gate">
+      <span class="head-label">GATE <span class="v5010-pencil">✎</span></span>
+      <strong>${x.gate||'—'}</strong>
+    </button>
     ${adbState(x)?.data?.departure?.terminal?`<span class="adb-value adb-blue v5010-terminal">TERMINAL ${adbState(x).data.departure.terminal}</span>`:''}
+   </div>
+   <div class="fh-stat v5010-reg-cell">
+    <button type="button" class="v5010-edit-field" onclick="v5009EditHeaderField('reg')" title="Modifier l'immatriculation">
+      <span class="head-label">IMMAT <span class="v5010-pencil">✎</span></span>
+      <strong>${x.reg||'—'}</strong>
+    </button>
    </div>
   </div>
   <div class="fh-row2">

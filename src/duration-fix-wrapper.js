@@ -73,7 +73,9 @@ const DELETE_FLIGHT_UI = String.raw`
 .flight-head .fh-note-bell{border:0!important;background:transparent!important;cursor:pointer!important;display:inline-flex!important;align-items:flex-start!important;gap:2px!important;padding:0!important;margin-left:2px!important}
 .flight-head .fh-note-bell .home-note-bell{font-size:17px!important}
 .flight-head .fh-stat{flex:1 1 130px!important;min-width:112px!important;border:1px solid #e4edf7!important;border-radius:12px!important;background:#fff!important;min-height:0!important;padding:9px 12px!important;display:flex!important;flex-direction:column!important;justify-content:flex-start!important;gap:3px!important}
-.flight-head .fh-stat-double{flex:1 1 210px!important;min-width:180px!important}
+.flight-head .fh-stat .v5010-edit-field{border:0!important;background:transparent!important;padding:0!important;width:100%!important;gap:4px!important}
+.flight-head .fh-gate-field strong{font-size:26px!important}
+.flight-head .v5010-reg-cell strong{font-size:20px!important}
 .flight-head .fh-row2{display:flex!important;flex-wrap:wrap!important;align-items:center!important;gap:8px!important;padding-top:10px!important;border-top:1px solid #e7edf3!important}
 .flight-head .fh-row2-spacer{flex:1 1 24px!important}
 .flight-head .fh-row2 .enrichment-chip{width:auto!important;flex:0 0 auto!important;margin-top:0!important;padding:5px 10px!important}

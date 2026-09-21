@@ -94,10 +94,30 @@ const FAVORITES_FILTER_SCRIPT = String.raw`
 
   function applyFavoritesFilter(){
     ensureFavoritesButton();
+    // BUG FIX : cette fonction tourne sur un MutationObserver déclenché par
+    // chaque rafraîchissement de la liste (auto refresh, favoris...). Avant
+    // ce correctif elle réaffichait TOUTES les lignes (display:'') dès qu'un
+    // re-rendu survenait, effaçant silencieusement le filtre de recherche
+    // texte (#app .home-flight-search) qui masque des lignes via
+    // filterFlightHomeRows(). On combine donc les deux filtres au lieu de
+    // laisser celui-ci écraser l'autre.
+    // HOME_FLIGHT_QUERY est déclarée avec "let" dans un autre bloc <script> :
+    // elle n'est donc pas accessible via window.* depuis ce script-ci. On lit
+    // directement la valeur du champ de recherche dans le DOM à la place.
+    const rawQuery=document.querySelector('#app .home-flight-search input')?.value||'';
+    const q=rawQuery.toUpperCase().replace(/\s+/g,'');
+    let visible=0;
     document.querySelectorAll('#app .flight-home-row').forEach(row=>{
       const isFavorite=Boolean(row.querySelector('.home-pin.active'));
-      row.style.display=favoritesOnly&&!isFavorite?'none':'';
+      const passesFavorite=!(favoritesOnly&&!isFavorite);
+      const hay=String(row.dataset.flightSearch||'').toUpperCase().replace(/\s+/g,'');
+      const passesSearch=!q||hay.includes(q);
+      const ok=passesFavorite&&passesSearch;
+      row.style.display=ok?'':'none';
+      if(ok)visible++;
     });
+    const badge=document.getElementById('homeVisibleFlightCount');
+    if(badge)badge.textContent=visible+' VOL'+(visible>1?'S':'');
   }
 
   function scheduleApply(){
