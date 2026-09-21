@@ -1,9 +1,9 @@
 name: Cabin — reconnaissance sources réelles (lot 1)
 
-# Étape 4 : les pages AeroLOPA embarquent le plan en SVG (3 balises <svg>
-# par page). On extrait les éléments <text> (numéros de rangée, lettres de
-# siège, repères sortie/galley/toilette) pour reconstruire la géométrie
-# réelle sans avoir à interpréter une image. Lecture seule.
+# Étape 5 : aucune balise <text> trouvée dans le HTML brut malgré 3 <svg> —
+# la page est probablement une SPA (JS) qui charge le plan après coup via
+# une API. On cherche des indices d'API (fetch/XHR vers un domaine ou
+# chemin JSON) dans le HTML et les bundles JS référencés. Lecture seule.
 
 on:
   workflow_dispatch:
@@ -16,31 +16,19 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Extrait les libellés texte des SVG (rangées, sièges, repères)
+      - name: Inspecte le HTML brut de la page AH-738 (début + indices d'API)
         run: |
           set +e
-          declare -A PAGES=(
-            ["AH738"]="https://www.aerolopa.com/ah-738"
-            ["SK32N"]="https://www.aerolopa.com/sk-32n"
-            ["EI32Q1"]="https://www.aerolopa.com/ei-32q-1"
-            ["EI32Q2"]="https://www.aerolopa.com/ei-32q-2"
-          )
-          for name in "${!PAGES[@]}"; do
-            url="${PAGES[$name]}"
-            file="page_${name}.html"
-            echo "===== $name : $url ====="
-            curl -sS -L -o "$file" "$url" --max-time 20
-            echo "--- nb de balises <text> ---"
-            grep -oc '<text' "$file"
-            echo "--- contenu de tous les <text>...</text> (dans l'ordre du document) ---"
-            grep -oE '<text[^>]*>[^<]*</text>' "$file" | sed -E 's/<text[^>]*>//; s/<\/text>//' | tr '\n' '|'
-            echo
-            echo
-          done
-
-      - name: Upload pages complètes (secours si le texte SVG ne suffit pas)
-        uses: actions/upload-artifact@v4
-        with:
-          name: cabin-scout-svg-pages
-          path: page_*.html
-          retention-days: 3
+          curl -sS -L -o ah738.html "https://www.aerolopa.com/ah-738" --max-time 20
+          echo "--- 3000 premiers caracteres ---"
+          head -c 3000 ah738.html
+          echo
+          echo
+          echo "--- balises <svg ...> avec leurs attributs (ouverture seulement) ---"
+          grep -oE '<svg[^>]*>' ah738.html
+          echo
+          echo "--- scripts externes charges (src=) ---"
+          grep -oE '<script[^>]*src="[^"]+"' ah738.html | sort -u
+          echo
+          echo "--- toute URL contenant api ou .json dans le HTML ---"
+          grep -oE '"[a-zA-Z0-9_/.:-]*(api|\.json)[a-zA-Z0-9_/.:?=&-]*"' ah738.html | sort -u | head -30
