@@ -149,7 +149,7 @@ tr:last-child td{border-bottom:0}
 .profile{display:grid;grid-template-columns:repeat(2,1fr);gap:9px;margin-top:15px}
 .profile div{border:1px solid #dfe7ef;background:#fafcff;border-radius:8px;padding:10px}
 .profile small{display:block;color:#718296;font-size:9px}.profile b{display:block;font-size:13px;margin-top:4px;word-break:break-word}
-.editform{display:grid;gap:10px;margin-top:15px}.editform label{font-size:11px;color:#65768a}.editform input{display:block;width:100%;margin-top:5px;border:1px solid #cdd9e5;border-radius:7px;padding:10px}.save{border:0;background:#076af0;color:#fff;border-radius:7px;padding:10px;font-weight:900}
+.editform{display:grid;gap:10px;margin-top:15px}.editform label{font-size:11px;color:#65768a}.editform input,.editform textarea{display:block;width:100%;margin-top:5px;border:1px solid #cdd9e5;border-radius:7px;padding:10px;font:inherit}.editform textarea{resize:vertical}.save{border:0;background:#076af0;color:#fff;border-radius:7px;padding:10px;font-weight:900}
 .flight-picker{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px}
 .flight-pick{border:1px solid #dfe7ef;background:#fafcff;border-radius:9px;padding:12px;text-align:left}.flight-pick b{display:block;font-size:16px;color:#075fd3}.flight-pick span{font-size:11px;color:#65768a}
 
@@ -813,7 +813,7 @@ button{min-height:36px}
  font-size:10px;color:#52667d;line-height:1.5
 }
 .import-status.ok{border-color:#a8d7bd;background:#effaf4;color:#08784b}
-.import-status.err{border-color:#efb2b6;background:#fff2f3;color:#c62734}
+.import-status.err,.import-status.error{border-color:#efb2b6;background:#fff2f3;color:#c62734}
 @media(max-width:1180px){.bottom{grid-template-columns:1fr 1fr}}
 @media(max-width:620px){
  .bottom{grid-template-columns:1fr}
@@ -3208,6 +3208,66 @@ body{
  font-size:7px;font-weight:950;color:#5d7187
 }
 .saria-bridge-pill:before{content:"";width:5px;height:5px;border-radius:50%;background:#19a466}
+
+/* PLAN CABINE ALYZIA — remplace le rendu générique SARIA */
+.cabin-plan-open-btn{
+ width:100%;margin-top:3px;border:1px solid #076af0;background:#076af0;color:#fff;
+ border-radius:7px;padding:7px 8px;font-size:9px;font-weight:950;letter-spacing:.02em;cursor:pointer
+}
+.cabin-plan-open-btn:hover{background:#0559c9;border-color:#0559c9}
+.cabin-plan-empty{
+ text-align:center;padding:22px 14px;border:1px dashed #cfdbe6;border-radius:10px;
+ background:#f8fafc;color:#5d7187;font-size:11px;font-weight:800;line-height:1.6
+}
+.cabin-plan-empty button{margin-top:10px}
+.cabin-plan-meta{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+.cabin-quality-badge{
+ display:inline-flex;align-items:center;gap:4px;border-radius:20px;padding:4px 10px;
+ font-size:9px;font-weight:950;letter-spacing:.02em;background:#fff2e0;color:#a86700;border:1px solid #f0d3a3
+}
+.cabin-quality-badge.exact{background:#effaf4;color:#08784b;border-color:#a8d7bd}
+.cabin-source{font-size:9px;font-weight:800;color:#6a7c90}
+.cabin-legend{display:flex;align-items:center;gap:10px;margin-left:auto}
+.cabin-legend-item{display:inline-flex;align-items:center;gap:4px;font-size:9px;font-weight:950;color:#4b5f78}
+.cabin-legend-dot{width:8px;height:8px;border-radius:50%;flex:0 0 auto}
+.cabin-plan-scroll{
+ max-height:56vh;overflow:auto;border:1px solid #e1e7ee;border-radius:10px;background:#fff;padding:8px
+}
+.cabin-row{display:flex;align-items:center;gap:8px;padding:3px 2px}
+.cabin-row-num{
+ flex:0 0 26px;text-align:right;font-size:9px;font-weight:950;color:#8fa0b3;
+ font-variant-numeric:tabular-nums
+}
+.cabin-row-seats{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.cabin-seat-group{display:flex;align-items:center;gap:3px}
+.cabin-seat{
+ width:20px;height:20px;border-radius:5px;display:flex;align-items:center;justify-content:center;
+ font-size:8px;font-weight:950;color:#fff;background:var(--seat-color,#4b5f78)
+}
+.cabin-aisle{width:14px;flex:0 0 14px}
+.cabin-divider{
+ display:flex;align-items:center;gap:6px;margin:5px 0;padding:4px 8px;border-radius:6px;
+ background:#f1f5f9;color:#5d7187;font-size:8px;font-weight:950;letter-spacing:.03em
+}
+.cabin-plan-actions{display:flex;justify-content:flex-end;gap:7px;flex-wrap:wrap;margin-top:12px}
+.cabin-plan-actions button{
+ border:1px solid #cfdbe6;background:#fff;border-radius:8px;padding:8px 12px;font-size:9px;font-weight:950;cursor:pointer
+}
+.cabin-plan-actions button.primary{background:#076af0;border-color:#076af0;color:#fff}
+.cabin-config-list{display:grid;gap:7px;max-height:52vh;overflow:auto;padding-right:3px}
+.cabin-config-choice{
+ width:100%;display:flex;flex-direction:column;gap:3px;text-align:left;
+ border:1px solid #d8e2eb;background:#fff;border-radius:9px;padding:10px 11px;cursor:pointer
+}
+.cabin-config-choice:hover{border-color:#80b7ee;background:#f9fcff}
+.cabin-config-choice b{font-size:12px;color:#13263c}
+.cabin-config-choice span{font-size:9px;color:#6a7c90;font-weight:800}
+.cabin-zone-list{display:grid;gap:6px}
+.cabin-zone-row{
+ display:flex;align-items:center;gap:9px;border:1px solid #e1e7ee;border-radius:8px;padding:8px 10px
+}
+.cabin-zone-row b{font-size:11px;color:#13263c;flex:0 0 auto}
+.cabin-zone-row span{font-size:9px;color:#6a7c90;font-weight:800;flex:1 1 auto}
 
 
 /* V46.3 — ouverture SeatMap non bloquante */
@@ -20843,9 +20903,157 @@ function sariaAircraftSelectHtml(x){
  return `<div class="saria-ac-wrap">
    <button type="button" class="v5008-aircraft-button" onclick="v5008OpenAircraftChooser()"><b>${escapeHtml(cur)}</b><span>⌄</span></button>
    <div class="saria-cabin-mini ${sariaSelectedEntry(x)?'':'missing'}">${sariaSelectedEntry(x)?'✓ ':'⚠ '}${sariaCabinLabel(x)}</div>
-   <div class="saria-bridge-pill">SARIA BRIDGE · PRÉCHARGEMENT ACTIF</div>
+   <button type="button" class="cabin-plan-open-btn" onclick="openCabinPlan()">▦ PLAN CABINE</button>
  </div>`;
 }
+
+/* ---------- Plan cabine ALYZIA (remplace le rendu générique SARIA) ---------- */
+function cabinParseExceptions(str){
+ const map={};
+ String(str||'').split(/\n+/).map(s=>s.trim()).filter(Boolean).forEach(line=>{
+  const m=line.match(/^(\d+)\s*=\s*(.+)$/);
+  if(m)map[Number(m[1])]=m[2].trim();
+ });
+ return map;
+}
+function cabinZoneRows(zone){
+ const exceptions=cabinParseExceptions(zone.exceptions);
+ const rows=[];
+ const start=Number(zone.row_start),end=Number(zone.row_end);
+ for(let r=start;r<=end;r++){
+  const exc=exceptions[r];
+  if(exc==='SKIP')continue;
+  const pattern=(exc&&exc!=='SKIP')?exc:zone.pattern;
+  const groups=String(pattern||'').split('|').map(g=>g.trim()).filter(Boolean);
+  if(!groups.length)continue;
+  rows.push({row:r,groups,cls:zone.class});
+ }
+ return rows;
+}
+const CABIN_CLASS_COLOR={F:'#7c3aed',C:'#d97706',J:'#d97706',W:'#0891b2',S:'#0891b2',Y:'#1d6fd6',M:'#1d6fd6'};
+const CABIN_EQUIPMENT_ICON={GALLEY:'🍽',LAVATORY:'🚻',TOILET:'🚻',EXIT:'🚪',STAIRS:'🪜',CREW:'👤',BAR:'🍸',OTHER:'•'};
+function cabinPlanBodyHtml(configRow,zones,equipment){
+ if(!zones.length){
+  return `<div class="cabin-plan-empty">AUCUN PLAN ENREGISTRÉ POUR CETTE CONFIGURATION.<br><button class="primary" onclick="openCabinZoneEditor('${escapeHtml(configRow.config_key)}')">＋ AJOUTER UNE ZONE</button></div>`;
+ }
+ const items=[];
+ zones.forEach(zone=>cabinZoneRows(zone).forEach(r=>items.push({row:r.row,type:'seats',...r})));
+ (equipment||[]).forEach(eq=>items.push({row:Number(eq.row_reference||0)+0.5,type:'divider',label:eq.label||eq.type,kind:String(eq.type||'OTHER').toUpperCase()}));
+ items.sort((a,b)=>a.row-b.row);
+
+ const rowsHtml=items.map(it=>{
+  if(it.type==='divider'){
+   const icon=CABIN_EQUIPMENT_ICON[it.kind]||CABIN_EQUIPMENT_ICON.OTHER;
+   return `<div class="cabin-divider"><span>${icon}</span>${escapeHtml(it.label||it.kind)}</div>`;
+  }
+  const color=CABIN_CLASS_COLOR[it.cls]||'#4b5f78';
+  const groupsHtml=it.groups.map(g=>`<div class="cabin-seat-group">${g.split('').map(letter=>`<div class="cabin-seat" style="--seat-color:${color}">${letter}</div>`).join('')}</div>`).join('<div class="cabin-aisle"></div>');
+  return `<div class="cabin-row"><div class="cabin-row-num">${it.row}</div><div class="cabin-row-seats">${groupsHtml}</div></div>`;
+ }).join('');
+
+ const classes=[...new Set(zones.map(z=>z.class))];
+ const legend=classes.map(c=>`<span class="cabin-legend-item"><span class="cabin-legend-dot" style="background:${CABIN_CLASS_COLOR[c]||'#4b5f78'}"></span>${escapeHtml(c)}</span>`).join('');
+
+ return `<div class="cabin-plan-meta">
+    <span class="cabin-quality-badge ${configRow.quality}">${configRow.quality==='exact'?'✓ PLAN CONFIRMÉ':'⚠ PLAN APPROXIMATIF'}</span>
+    ${configRow.source_label?`<span class="cabin-source">${escapeHtml(configRow.source_label)}</span>`:''}
+    <div class="cabin-legend">${legend}</div>
+  </div>
+  <div class="cabin-plan-scroll">${rowsHtml}</div>
+  <div class="cabin-plan-actions">
+    <button onclick="openCabinZoneEditor('${escapeHtml(configRow.config_key)}')">✎ MODIFIER LES ZONES</button>
+  </div>`;
+}
+async function openCabinPlan(){
+ const x=f();if(!x)return;
+ const aircraft=sariaNorm(x.aircraft)||String(x.aircraft||'').toUpperCase();
+ if(!aircraft){alert('RENSEIGNEZ D\'ABORD LE TYPE A/C.');return}
+ showModal('PLAN CABINE',`${x.airline} · ${aircraft}`,'<div class="import-status">CHARGEMENT…</div>');
+ try{
+  const r=await fetch(opsApiUrl(`/api/cabin/configs?airline=${encodeURIComponent(x.airline)}&aircraft=${encodeURIComponent(aircraft)}`),{cache:'no-store',headers:{Accept:'application/json'}});
+  const j=await r.json();
+  const configs=j?.configs||[];
+  if(!configs.length){
+   replaceModal('PLAN CABINE',`${x.airline} · ${aircraft}`,`<div class="cabin-plan-empty">AUCUN PLAN ENREGISTRÉ POUR ${escapeHtml(x.airline)} ${escapeHtml(aircraft)}.<br><button class="primary" onclick="openCabinConfigCreate('${escapeHtml(x.airline)}','${escapeHtml(aircraft)}')">＋ CRÉER UNE CONFIGURATION</button></div>`);
+   return;
+  }
+  if(configs.length===1){openCabinPlanByKey(configs[0].config_key);return}
+  replaceModal('PLAN CABINE',`${configs.length} CONFIGURATIONS · ${x.airline} ${aircraft}`,
+   `<div class="cabin-config-list">${configs.map(c=>`<button class="cabin-config-choice" onclick="openCabinPlanByKey('${escapeHtml(c.config_key)}')"><b>${escapeHtml(c.configuration)}</b><span>${Number(c.total||0)} SIÈGES · ${c.quality==='exact'?'CONFIRMÉ':'APPROXIMATIF'}</span></button>`).join('')}</div>`);
+ }catch(e){
+  replaceModal('PLAN CABINE','ERREUR',`<div class="import-status error">${escapeHtml(String(e?.message||e))}</div>`);
+ }
+}
+async function openCabinPlanByKey(key){
+ const x=f();
+ replaceModal('PLAN CABINE',key,'<div class="import-status">CHARGEMENT…</div>');
+ try{
+  const r=await fetch(opsApiUrl(`/api/cabin/layout?key=${encodeURIComponent(key)}`),{cache:'no-store',headers:{Accept:'application/json'}});
+  const j=await r.json();
+  if(!j?.ok||!j.configuration)throw new Error(j?.error||'PLAN INTROUVABLE');
+  replaceModal('PLAN CABINE',`${j.configuration.airline} ${j.configuration.aircraft} · ${j.configuration.configuration}`,cabinPlanBodyHtml(j.configuration,j.zones||[],j.equipment||[]));
+ }catch(e){
+  replaceModal('PLAN CABINE','ERREUR',`<div class="import-status error">${escapeHtml(String(e?.message||e))}</div>`);
+ }
+}
+function openCabinConfigCreate(airline,aircraft){
+ showModal('CRÉER UNE CONFIGURATION',`${airline} · ${aircraft}`,`
+  <div class="editform">
+   <label>CONFIGURATION (EX. C30Y270)<input id="cabinNewConfiguration" placeholder="C30Y270" autofocus></label>
+   <button class="save" onclick="saveCabinConfigCreate('${escapeHtml(airline)}','${escapeHtml(aircraft)}')">CRÉER ET AJOUTER LES ZONES</button>
+  </div>`);
+}
+async function saveCabinConfigCreate(airline,aircraft){
+ const configuration=String(document.getElementById('cabinNewConfiguration')?.value||'').trim().toUpperCase();
+ if(!configuration)return;
+ const configKey=`${airline}|${aircraft}|${configuration}`;
+ await fetch(opsApiUrl('/api/cabin/config'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({airline,aircraft,configuration,quality:'manuel'})});
+ openCabinZoneEditor(configKey);
+}
+function openCabinZoneEditor(configKey){
+ showModal('ZONES DU PLAN',configKey,`
+  <div id="cabinZoneEditorBody" class="import-status">CHARGEMENT…</div>
+  <div class="cabin-plan-actions"><button class="primary" onclick="openCabinZoneAdd('${escapeHtml(configKey)}')">＋ AJOUTER UNE ZONE</button></div>
+ `);
+ refreshCabinZoneEditor(configKey);
+}
+async function refreshCabinZoneEditor(configKey){
+ const body=document.getElementById('cabinZoneEditorBody');if(!body)return;
+ try{
+  const r=await fetch(opsApiUrl(`/api/cabin/layout?key=${encodeURIComponent(configKey)}`),{cache:'no-store',headers:{Accept:'application/json'}});
+  const j=await r.json();
+  const zones=j?.zones||[];
+  body.innerHTML=zones.length?`<div class="cabin-zone-list">${zones.map(z=>`<div class="cabin-zone-row"><b>${escapeHtml(z.class)}</b><span>RANGÉES ${z.row_start}–${z.row_end} · ${escapeHtml(z.pattern)}</span><button class="part-minus" onclick="deleteCabinZone(${z.id},'${escapeHtml(configKey)}')" title="Supprimer">−</button></div>`).join('')}</div>`
+   :'<div class="import-status">AUCUNE ZONE. AJOUTEZ-EN UNE.</div>';
+ }catch(e){body.innerHTML=`<div class="import-status error">${escapeHtml(String(e?.message||e))}</div>`}
+}
+function openCabinZoneAdd(configKey){
+ showModal('AJOUTER UNE ZONE',configKey,`
+  <div class="editform">
+   <label>CLASSE<input id="cabinZoneClass" maxlength="2" placeholder="Y"></label>
+   <label>RANGÉE DÉBUT<input id="cabinZoneRowStart" type="number" placeholder="10"></label>
+   <label>RANGÉE FIN<input id="cabinZoneRowEnd" type="number" placeholder="39"></label>
+   <label>MOTIF (SÉPARÉ PAR DES COULOIRS "|")<input id="cabinZonePattern" placeholder="ABC|DEF|HJK"></label>
+   <label>EXCEPTIONS (OPTIONNEL, UNE PAR LIGNE : 13=SKIP OU 34=DEFG)<textarea id="cabinZoneExceptions" rows="2" placeholder="13=SKIP"></textarea></label>
+   <button class="save" onclick="saveCabinZoneAdd('${escapeHtml(configKey)}')">ENREGISTRER LA ZONE</button>
+  </div>`);
+}
+async function saveCabinZoneAdd(configKey){
+ const cls=String(document.getElementById('cabinZoneClass')?.value||'').trim().toUpperCase();
+ const rowStart=Number(document.getElementById('cabinZoneRowStart')?.value||0);
+ const rowEnd=Number(document.getElementById('cabinZoneRowEnd')?.value||0);
+ const pattern=String(document.getElementById('cabinZonePattern')?.value||'').trim().toUpperCase();
+ const exceptions=String(document.getElementById('cabinZoneExceptions')?.value||'').trim();
+ if(!cls||!rowStart||!rowEnd||!pattern){alert('CLASSE, RANGÉES ET MOTIF SONT OBLIGATOIRES.');return}
+ await fetch(opsApiUrl('/api/cabin/zone'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({configKey,class:cls,rowStart,rowEnd,pattern,exceptions})});
+ modalBack();
+ refreshCabinZoneEditor(configKey);
+}
+async function deleteCabinZone(id,configKey){
+ await fetch(opsApiUrl(`/api/cabin/zone?id=${id}`),{method:'DELETE'});
+ refreshCabinZoneEditor(configKey);
+}
+
 async function v5008OpenAircraftChooser(){
  const x=f(); if(!x)return;
  await loadSariaCatalog().catch(()=>{});

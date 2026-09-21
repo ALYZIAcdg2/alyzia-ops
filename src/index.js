@@ -12686,6 +12686,235 @@ async function handlePrepa(request, env, url) {
   }, 404);
 }
 
+/*
+ * Plan cabine ALYZIA (remplace le pont SARIA pour l'affichage).
+ * Constat SARIA (audit CI du 21/09) : le rendu de SARIA ne lit jamais les
+ * lignes zones/seats/equipments de sa propre base D1 (code mort côté
+ * front) — il retombe systématiquement sur un gabarit générique par
+ * catégorie d'avion. On reconstruit donc ici un modèle minimal mais
+ * réellement utilisé par le rendu : une config = une ou plusieurs zones
+ * (classe, plage de rangées, motif de sièges façon "AC|DEF|HK", quelques
+ * exceptions ligne par ligne) + des équipements (office/toilette/sortie).
+ * La plupart des sièges se déduisent du motif ; pas de table par siège.
+ */
+async function ensureCabinTables(env){
+  await env.OPS_DB.batch([
+    env.OPS_DB.prepare(`
+      CREATE TABLE IF NOT EXISTS cabin_configs (
+        config_key TEXT PRIMARY KEY,
+        airline TEXT NOT NULL,
+        aircraft TEXT NOT NULL,
+        configuration TEXT NOT NULL,
+        total INTEGER NOT NULL DEFAULT 0,
+        classes_json TEXT NOT NULL DEFAULT '[]',
+        quality TEXT NOT NULL DEFAULT 'manuel',
+        source_label TEXT,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `),
+    env.OPS_DB.prepare(`
+      CREATE TABLE IF NOT EXISTS cabin_zones (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        config_key TEXT NOT NULL,
+        class TEXT NOT NULL,
+        row_start INTEGER NOT NULL,
+        row_end INTEGER NOT NULL,
+        pattern TEXT NOT NULL,
+        placement_mode TEXT NOT NULL DEFAULT 'ALIGNE',
+        exceptions TEXT DEFAULT '',
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `),
+    env.OPS_DB.prepare(`
+      CREATE TABLE IF NOT EXISTS cabin_equipment (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        config_key TEXT NOT NULL,
+        type TEXT NOT NULL,
+        row_reference INTEGER,
+        side TEXT,
+        label TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `),
+    env.OPS_DB.prepare(`CREATE INDEX IF NOT EXISTS idx_cabin_configs_ac ON cabin_configs(airline, aircraft)`),
+    env.OPS_DB.prepare(`CREATE INDEX IF NOT EXISTS idx_cabin_zones_key ON cabin_zones(config_key)`),
+    env.OPS_DB.prepare(`CREATE INDEX IF NOT EXISTS idx_cabin_equipment_key ON cabin_equipment(config_key)`)
+  ]);
+}
+
+async function handleCabin(request,env,url){
+  if(!url.pathname.startsWith("/api/cabin"))return null;
+  await ensureCabinTables(env);
+
+  if(request.method==="OPTIONS")return json({ok:true});
+
+  if(url.pathname==="/api/cabin/configs" && request.method==="GET"){
+    const airline=String(url.searchParams.get("airline")||"").trim().toUpperCase();
+    const aircraft=String(url.searchParams.get("aircraft")||"").trim().toUpperCase();
+    let sql=`SELECT config_key,airline,aircraft,configuration,total,classes_json,quality,source_label,updated_at FROM cabin_configs WHERE 1=1`;
+    const binds=[];
+    if(airline){sql+=` AND airline=?`;binds.push(airline)}
+    if(aircraft){sql+=` AND aircraft=?`;binds.push(aircraft)}
+    sql+=` ORDER BY airline,aircraft,configuration`;
+    const {results=[]}=await env.OPS_DB.prepare(sql).bind(...binds).all();
+    return json({ok:true,count:results.length,configs:results});
+  }
+
+  if(url.pathname==="/api/cabin/layout" && request.method==="GET"){
+    const key=String(url.searchParams.get("key")||"").trim();
+    if(!key)return json({ok:false,error:"KEY MANQUANTE"},400);
+
+    const configuration=await env.OPS_DB.prepare(`SELECT * FROM cabin_configs WHERE config_key=? LIMIT 1`).bind(key).first();
+    const zones=await env.OPS_DB.prepare(`SELECT * FROM cabin_zones WHERE config_key=? ORDER BY row_start,id`).bind(key).all();
+    const equipment=await env.OPS_DB.prepare(`SELECT * FROM cabin_equipment WHERE config_key=? ORDER BY row_reference,id`).bind(key).all();
+
+    return json({ok:true,key,configuration:configuration||null,zones:zones.results||[],equipment:equipment.results||[]});
+  }
+
+  if(url.pathname==="/api/cabin/config" && request.method==="POST"){
+    const body=await request.json().catch(()=>null);
+    const airline=String(body?.airline||"").trim().toUpperCase();
+    const aircraft=String(body?.aircraft||"").trim().toUpperCase();
+    const configuration=String(body?.configuration||"").trim().toUpperCase();
+    if(!airline||!aircraft||!configuration)return json({ok:false,error:"AIRLINE / AIRCRAFT / CONFIGURATION OBLIGATOIRES"},400);
+    const configKey=String(body?.configKey||`${airline}|${aircraft}|${configuration}`);
+
+    await env.OPS_DB.prepare(`
+      INSERT INTO cabin_configs (config_key,airline,aircraft,configuration,total,classes_json,quality,source_label,updated_at)
+      VALUES (?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)
+      ON CONFLICT(config_key) DO UPDATE SET
+        airline=excluded.airline, aircraft=excluded.aircraft, configuration=excluded.configuration,
+        total=excluded.total, classes_json=excluded.classes_json, quality=excluded.quality,
+        source_label=excluded.source_label, updated_at=CURRENT_TIMESTAMP
+    `).bind(
+      configKey,airline,aircraft,configuration,
+      Number(body?.total||0),
+      typeof body?.classes==="string"?body.classes:JSON.stringify(body?.classes||[]),
+      String(body?.quality||"manuel"),
+      body?.sourceLabel?String(body.sourceLabel):null
+    ).run();
+
+    return json({ok:true,configKey});
+  }
+
+  if(url.pathname==="/api/cabin/zone" && request.method==="POST"){
+    const body=await request.json().catch(()=>null);
+    const configKey=String(body?.configKey||"").trim();
+    const cls=String(body?.class||"").trim().toUpperCase();
+    const rowStart=Number(body?.rowStart);
+    const rowEnd=Number(body?.rowEnd);
+    const pattern=String(body?.pattern||"").trim().toUpperCase();
+    if(!configKey||!cls||!Number.isFinite(rowStart)||!Number.isFinite(rowEnd)||!pattern){
+      return json({ok:false,error:"ZONE INVALIDE (configKey/class/rowStart/rowEnd/pattern requis)"},400);
+    }
+
+    const result=await env.OPS_DB.prepare(`
+      INSERT INTO cabin_zones (config_key,class,row_start,row_end,pattern,placement_mode,exceptions,created_at)
+      VALUES (?,?,?,?,?,?,?,CURRENT_TIMESTAMP)
+    `).bind(configKey,cls,rowStart,rowEnd,pattern,String(body?.placementMode||"ALIGNE"),String(body?.exceptions||"")).run();
+
+    return json({ok:true,id:Number(result.meta?.last_row_id||0)});
+  }
+
+  if(url.pathname==="/api/cabin/zone" && request.method==="DELETE"){
+    const id=Number(url.searchParams.get("id"));
+    if(!id)return json({ok:false,error:"ID MANQUANT"},400);
+    await env.OPS_DB.prepare(`DELETE FROM cabin_zones WHERE id=?`).bind(id).run();
+    return json({ok:true});
+  }
+
+  if(url.pathname==="/api/cabin/equipment" && request.method==="POST"){
+    const body=await request.json().catch(()=>null);
+    const configKey=String(body?.configKey||"").trim();
+    const type=String(body?.type||"").trim().toUpperCase();
+    if(!configKey||!type)return json({ok:false,error:"CONFIGKEY / TYPE OBLIGATOIRES"},400);
+
+    const result=await env.OPS_DB.prepare(`
+      INSERT INTO cabin_equipment (config_key,type,row_reference,side,label,created_at)
+      VALUES (?,?,?,?,?,CURRENT_TIMESTAMP)
+    `).bind(
+      configKey,type,
+      body?.rowReference==null?null:Number(body.rowReference),
+      body?.side?String(body.side):null,
+      body?.label?String(body.label):null
+    ).run();
+
+    return json({ok:true,id:Number(result.meta?.last_row_id||0)});
+  }
+
+  if(url.pathname==="/api/cabin/equipment" && request.method==="DELETE"){
+    const id=Number(url.searchParams.get("id"));
+    if(!id)return json({ok:false,error:"ID MANQUANT"},400);
+    await env.OPS_DB.prepare(`DELETE FROM cabin_equipment WHERE id=?`).bind(id).run();
+    return json({ok:true});
+  }
+
+  if(url.pathname==="/api/cabin/layout" && request.method==="DELETE"){
+    const key=String(url.searchParams.get("key")||"").trim();
+    if(!key)return json({ok:false,error:"KEY MANQUANTE"},400);
+    await env.OPS_DB.batch([
+      env.OPS_DB.prepare(`DELETE FROM cabin_zones WHERE config_key=?`).bind(key),
+      env.OPS_DB.prepare(`DELETE FROM cabin_equipment WHERE config_key=?`).bind(key),
+      env.OPS_DB.prepare(`DELETE FROM cabin_configs WHERE config_key=?`).bind(key)
+    ]);
+    return json({ok:true,key});
+  }
+
+  // Import groupé (utilisé une fois pour amorcer la base avec des plans réels
+  // connus, réutilisable ensuite pour tout nouveau lot de plans vérifiés).
+  if(url.pathname==="/api/cabin/seed" && request.method==="POST"){
+    const body=await request.json().catch(()=>null);
+    const rows=Array.isArray(body?.configs)?body.configs:[];
+    if(!rows.length)return json({ok:false,error:"AUCUNE CONFIG A IMPORTER"},400);
+
+    let configsWritten=0,zonesWritten=0;
+    for(const row of rows){
+      const airline=String(row?.airline||"").trim().toUpperCase();
+      const aircraft=String(row?.aircraft||"").trim().toUpperCase();
+      const configuration=String(row?.configuration||"").trim().toUpperCase();
+      const configKey=String(row?.configKey||`${airline}|${aircraft}|${configuration}`);
+      const zones=Array.isArray(row?.zones)?row.zones:[];
+      if(!airline||!aircraft||!configuration||!zones.length)continue;
+
+      const total=zones.reduce((s,z)=>{
+        const groups=String(z.pattern||"").split("|").map(g=>g.trim()).filter(Boolean);
+        const perRow=groups.reduce((n,g)=>n+g.length,0)||0;
+        const rows2=Math.max(0,Number(z.row_end||0)-Number(z.row_start||0)+1);
+        return s+perRow*rows2;
+      },0);
+      const classesSet=[...new Set(zones.map(z=>String(z.class||"").toUpperCase()).filter(Boolean))];
+
+      await env.OPS_DB.prepare(`
+        INSERT INTO cabin_configs (config_key,airline,aircraft,configuration,total,classes_json,quality,source_label,updated_at)
+        VALUES (?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)
+        ON CONFLICT(config_key) DO UPDATE SET
+          airline=excluded.airline, aircraft=excluded.aircraft, configuration=excluded.configuration,
+          total=excluded.total, classes_json=excluded.classes_json, quality=excluded.quality,
+          source_label=excluded.source_label, updated_at=CURRENT_TIMESTAMP
+      `).bind(configKey,airline,aircraft,configuration,total,JSON.stringify(classesSet),String(row?.quality||"summary"),row?.sourceLabel?String(row.sourceLabel):null).run();
+      configsWritten++;
+
+      await env.OPS_DB.prepare(`DELETE FROM cabin_zones WHERE config_key=?`).bind(configKey).run();
+      for(const z of zones){
+        const cls=String(z?.class||"").trim().toUpperCase();
+        const rowStart=Number(z?.row_start);
+        const rowEnd=Number(z?.row_end);
+        const pattern=String(z?.pattern||"").trim().toUpperCase();
+        if(!cls||!Number.isFinite(rowStart)||!Number.isFinite(rowEnd)||!pattern)continue;
+        await env.OPS_DB.prepare(`
+          INSERT INTO cabin_zones (config_key,class,row_start,row_end,pattern,placement_mode,exceptions,created_at)
+          VALUES (?,?,?,?,?,?,?,CURRENT_TIMESTAMP)
+        `).bind(configKey,cls,rowStart,rowEnd,pattern,"ALIGNE",String(z?.exceptions||"")).run();
+        zonesWritten++;
+      }
+    }
+
+    return json({ok:true,configsWritten,zonesWritten});
+  }
+
+  return json({ok:false,error:"ROUTE CABIN INCONNUE"},404);
+}
+
 async function handleSariaBridge(request,env,url){
   if(!url.pathname.startsWith("/api/saria/"))return null;
 
@@ -12776,6 +13005,11 @@ export default {
 
       if(url.pathname.startsWith("/api/saria/")){
         const result=await handleSariaBridge(request,env,url);
+        if(result)return result;
+      }
+
+      if(url.pathname.startsWith("/api/cabin")){
+        const result=await handleCabin(request,env,url);
         if(result)return result;
       }
 
