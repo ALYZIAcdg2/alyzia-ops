@@ -4,8 +4,14 @@ name: Diagnostic SARIA (lecture seule, ponctuel)
 # SARIA : ce Worker n'a pas accès réseau direct depuis le sandbox vers
 # saria-cabin.pages.dev / saria-seatmap.alyzia-cdg2.workers.dev (politique
 # d'egress), donc on relaie via un run GitHub Actions (lecture seule,
-# aucune écriture) pour récupérer la page front, ses bundles JS, et un
+# aucune écriture) pour récupérer la page front (logique inline) et un
 # échantillon de données réelles via l'API.
+#
+# V2 : les 3 bundles JS liés (src=) se sont révélés être des libs tierces
+# sans rapport (mammoth.js, xlsx SheetJS, pdf.js — import de fichiers),
+# pas le code de rendu SARIA lui-même. Ce dernier est très probablement
+# inline dans front_index.html (page nommée "Cabin Config Explorer"), donc
+# on imprime maintenant ce fichier en entier au lieu de suivre les liens.
 
 on:
   workflow_dispatch:
@@ -21,66 +27,21 @@ jobs:
       FRONT: https://saria-cabin.pages.dev
       API: https://saria-seatmap.alyzia-cdg2.workers.dev
     steps:
-      - name: 1) Page d'accueil du frontend SARIA (HTML)
+      - name: 1) Page d'accueil du frontend SARIA — fichier complet
         run: |
           curl -sS -f "$FRONT/" -o front_index.html
           echo "----- TAILLE -----"; wc -c front_index.html
           echo "----- SCRIPTS/LIENS REPERES -----"
           grep -oE '(src|href)="[^"]+"' front_index.html | sort -u || true
-          echo "----- EXTRAIT (premiers 4000 caracteres) -----"
-          head -c 4000 front_index.html
+          echo "----- FICHIER COMPLET -----"
+          cat front_index.html
+          echo
+          echo "----- FRAMEWORK / TECHNIQUE DE RENDU DETECTES -----"
+          LC_ALL=C grep -oE '\b(React|ReactDOM|Vue|createElement|useState|svelte|__vite|webpack|<svg|createSvg|createSVGElement|canvas|getContext\(.2d.\)|three\.js|THREE\.|pixi|Konva|d3\.|D3)\b' front_index.html | sort | uniq -c | sort -rn || echo "(aucun)"
+          echo "----- CHAMPS DU MODELE DE DONNEES SARIA REFERENCES -----"
+          LC_ALL=C grep -oE '\b(config_key|row_start|row_end|placement_mode|odd_pattern|even_pattern|stagger_letters|stagger_px|offset_x|offset_y|rotation|block_number|block_position|seat_letter|row_number|zone_id|equipments?|visible|locked|api/layout|api/seat|api/zone|api/equipment)\b' front_index.html | sort | uniq -c | sort -rn || echo "(aucun)"
 
-      - name: 2) Récupère chaque bundle JS/CSS lié depuis la page
-        run: |
-          BASE="$FRONT"
-          mkdir -p front_assets
-          grep -oE '(src|href)="[^"]+\.(js|css)"' front_index.html | sed -E 's/^(src|href)="//;s/"$//' | sort -u > asset_urls.txt || true
-          cat asset_urls.txt || true
-          while IFS= read -r u; do
-            [ -z "$u" ] && continue
-            case "$u" in
-              http*) full="$u" ;;
-              /*) full="$BASE$u" ;;
-              *) full="$BASE/$u" ;;
-            esac
-            name=$(echo "$full" | sed -E 's#https?://##; s#[/?&=]#_#g')
-            echo "=== $full ==="
-            curl -sS -f "$full" -o "front_assets/$name" && wc -c "front_assets/$name" || echo "ECHEC TELECHARGEMENT $full"
-          done < asset_urls.txt
-
-      - name: 2b) Imprime le contenu utile des bundles dans les logs (le sandbox ne peut pas lire les artefacts binaires)
-        run: |
-          cd front_assets || exit 0
-          for f in *; do
-            [ -f "$f" ] && [ -s "$f" ] || continue
-            echo "############################################################"
-            echo "### FICHIER: $f"
-            bytes=$(wc -c < "$f")
-            echo "### TAILLE: $bytes octets"
-            case "$f" in
-              *.css)
-                echo "----- CONTENU CSS COMPLET -----"
-                cat "$f"
-                ;;
-              *.js)
-                echo "----- FRAMEWORK / MOTS-CLES DETECTES -----"
-                grep -oE '\b(React|ReactDOM|Vue|createElement|useState|svelte|__vite|webpack|<svg|createSvg|canvas|getContext\(.2d.\)|three\.js|THREE\.|pixi|Konva|d3\.|D3)\b' "$f" | sort -u || echo "(aucun)"
-                echo "----- CHAMPS DU MODELE DE DONNEES SARIA REFERENCES -----"
-                grep -oE '\b(config_key|row_start|row_end|placement_mode|odd_pattern|even_pattern|stagger_letters|stagger_px|offset_x|offset_y|rotation|block_number|block_position|seat_letter|row_number|zone_id|equipments?|visible|locked)\b' "$f" | sort | uniq -c | sort -rn || echo "(aucun)"
-                echo "----- PREMIERS 6000 CARACTERES -----"
-                head -c 6000 "$f"
-                echo
-                echo "----- 6000 CARACTERES AUTOUR DU MOT 'seat' (si trouve) -----"
-                grep -aboE '.{0,200}seat.{0,3000}' "$f" | head -c 6000 || true
-                ;;
-              *)
-                echo "(type non traité)"
-                ;;
-            esac
-            echo
-          done
-
-      - name: 3) API SARIA — health + liste des configurations existantes
+      - name: 2) API SARIA — health + liste des configurations existantes
         run: |
           echo "----- /api/health -----"
           curl -sS -f "$API/api/health" || true
@@ -89,25 +50,36 @@ jobs:
           curl -sS -f "$API/api/configurations" -o configurations.json || true
           cat configurations.json || true
 
-      - name: 4) API SARIA — détail d'une configuration (premier config_key trouvé)
+      - name: 3) API SARIA — compare une config "EXISTANT HTML" (basse confiance) et une "CONFIRMÉ/VALIDE" (haute confiance)
         run: |
-          KEY=$(node -e "try{const j=JSON.parse(require('fs').readFileSync('configurations.json','utf8'));console.log((j.data&&j.data[0]&&j.data[0].config_key)||'')}catch(e){console.log('')}")
-          echo "KEY=$KEY"
-          if [ -n "$KEY" ]; then
-            curl -sS -f "$API/api/layout?key=$KEY" -o layout_sample.json || true
-            echo "----- /api/layout?key=$KEY -----"
-            cat layout_sample.json || true
-          else
-            echo "Aucune configuration trouvée pour échantillonner /api/layout."
+          node -e "
+            const j = JSON.parse(require('fs').readFileSync('configurations.json','utf8'));
+            const rows = j.data || [];
+            const low = rows.find(r => /EXISTANT HTML/i.test(r.status||''));
+            const high = rows.find(r => /(CONFIRM|VALIDE)/i.test(r.status||''));
+            require('fs').writeFileSync('low_key.txt', (low && low.config_key) || '');
+            require('fs').writeFileSync('high_key.txt', (high && high.config_key) || '');
+            console.log('LOW (EXISTANT HTML) =', low && low.config_key, '| status=', low && low.status);
+            console.log('HIGH (CONFIRME/VALIDE) =', high && high.config_key, '| status=', high && high.status);
+          "
+          LOW=$(cat low_key.txt)
+          HIGH=$(cat high_key.txt)
+          if [ -n "$LOW" ]; then
+            echo "----- /api/layout?key=$LOW (EXISTANT HTML) -----"
+            curl -sS -f "$API/api/layout?key=$LOW" || true
+            echo
+          fi
+          if [ -n "$HIGH" ]; then
+            echo "----- /api/layout?key=$HIGH (CONFIRME/VALIDE) -----"
+            curl -sS -f "$API/api/layout?key=$HIGH" || true
+            echo
           fi
 
-      - name: 5) Upload des artefacts (page, bundles, JSON) pour inspection
+      - name: 4) Upload des artefacts (page complète, JSON) pour inspection
         uses: actions/upload-artifact@v4
         with:
           name: saria-diagnostic
           path: |
             front_index.html
-            front_assets/**
             configurations.json
-            layout_sample.json
           retention-days: 3
