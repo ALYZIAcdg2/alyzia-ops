@@ -1,0 +1,60 @@
+name: Cabin — import du lot de plans (seed)
+
+# Le sandbox de dev n'a pas d'accès réseau direct vers *.workers.dev (politique
+# d'egress), donc on relaie l'import via un run GitHub Actions (curl, non
+# restreint sur les runners hébergés) plutôt que d'appeler l'API depuis là.
+# scripts/cabin_seed.json contient les plans réels extraits du code SARIA
+# (SOURCE_LAYOUTS/EXCEL_VALIDATED_LAYOUTS), réutilisable pour tout futur lot.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      API: https://alyzia-ops.alyzia-cdg2.workers.dev
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Construit le payload {configs:[...]}
+        run: |
+          node -e "
+            const fs=require('fs');
+            const rows=JSON.parse(fs.readFileSync('scripts/cabin_seed.json','utf8'));
+            fs.writeFileSync('seed_payload.json', JSON.stringify({configs: rows}));
+            console.log('Configs a importer:', rows.length);
+          "
+
+      - name: POST /api/cabin/seed
+        run: |
+          curl -sS -f -X POST "$API/api/cabin/seed" \
+            -H "Content-Type: application/json" \
+            --data-binary @seed_payload.json | tee seed_result.json
+          echo
+          echo "----- RESULTAT -----"
+          cat seed_result.json
+
+      - name: Vérification — /api/cabin/configs (compte total)
+        run: |
+          curl -sS -f "$API/api/cabin/configs" -o all_configs.json
+          node -e "
+            const j=JSON.parse(require('fs').readFileSync('all_configs.json','utf8'));
+            console.log('Total configs en base:', j.count);
+            console.log('Echantillon TK/789:', JSON.stringify((j.configs||[]).filter(c=>c.airline==='TK'&&c.aircraft==='789')));
+          "
+
+      - name: Vérification — plan complet TK|789|300Y
+        run: |
+          curl -sS -f "$API/api/cabin/layout?key=TK%7C789%7C300Y" | node -e "
+            let data='';process.stdin.on('data',d=>data+=d);process.stdin.on('end',()=>{
+              const j=JSON.parse(data);
+              console.log('ok=',j.ok,'zones=',(j.zones||[]).length);
+              console.log(JSON.stringify(j.zones,null,2));
+            });
+          "

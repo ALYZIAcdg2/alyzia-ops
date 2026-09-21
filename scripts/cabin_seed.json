@@ -1,0 +1,1891 @@
+[
+  {
+    "configKey": "SQ|77W|264Y",
+    "airline": "SQ",
+    "aircraft": "77W",
+    "configuration": "264Y",
+    "label": "SQ 777-300ER · 264",
+    "sourceLabel": "SeatCompare 2026 · plan rangée par rangée",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "F",
+        "row_start": 1,
+        "row_end": 1,
+        "pattern": "A|CD|F",
+        "exceptions": ""
+      },
+      {
+        "class": "C",
+        "row_start": 11,
+        "row_end": 23,
+        "pattern": "A|DF|K",
+        "exceptions": "13=SKIP"
+      },
+      {
+        "class": "W",
+        "row_start": 31,
+        "row_end": 34,
+        "pattern": "AC|DEFG|HK",
+        "exceptions": "34=DEFG"
+      },
+      {
+        "class": "Y",
+        "row_start": 41,
+        "row_end": 62,
+        "pattern": "ABC|DEG|HJK",
+        "exceptions": "48=A|C|H|K\n61=ABC|H|K\n62=H|K"
+      }
+    ]
+  },
+  {
+    "configKey": "TK|32Q|190Y",
+    "airline": "TK",
+    "aircraft": "32Q",
+    "configuration": "190Y",
+    "label": "TK A321neo · 190 (16J/174Y)",
+    "sourceLabel": "SeatCompare août 2026 · 16 Business rangées 1–4, rangée 5 absente, 174 Economy rangées 6–34",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 4,
+        "pattern": "AB|EF",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 6,
+        "row_end": 34,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "TK|32Q|016C174Y",
+    "airline": "TK",
+    "aircraft": "32Q",
+    "configuration": "016C174Y",
+    "label": "TK A321neo · 190 (16J/174Y)",
+    "sourceLabel": "SeatCompare août 2026 · 16 Business rangées 1–4, rangée 5 absente, 174 Economy rangées 6–34",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 4,
+        "pattern": "AB|EF",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 6,
+        "row_end": 34,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "TK|77W|C49Y300",
+    "airline": "TK",
+    "aircraft": "77W",
+    "configuration": "C49Y300",
+    "label": "TK 777-300ER Main Fleet · 349",
+    "sourceLabel": "SeatCompare août 2026 · 49J rangées 1–7 ; 300Y rangées 11–53 avec cabines/sections et rangées partielles",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 4,
+        "pattern": "AB|DEG|JK",
+        "exceptions": ""
+      },
+      {
+        "class": "C",
+        "row_start": 5,
+        "row_end": 7,
+        "pattern": "AB|DEG|JK",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 11,
+        "row_end": 16,
+        "pattern": "ABC|DEG|HJK",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 23,
+        "row_end": 38,
+        "pattern": "ABC|DEG|HJK",
+        "exceptions": "23=DEG\n38=DEG"
+      },
+      {
+        "class": "Y",
+        "row_start": 40,
+        "row_end": 53,
+        "pattern": "ABC|DEG|HJK",
+        "exceptions": "40=ABC|HJK\n41=ABC|HJK\n51=AB|DEG|JK\n52=AB|DEG|JK\n53=AB|DEG|JK"
+      }
+    ]
+  },
+  {
+    "configKey": "TK|77W|349Y",
+    "airline": "TK",
+    "aircraft": "77W",
+    "configuration": "349Y",
+    "label": "TK 777-300ER Main Fleet · 349",
+    "sourceLabel": "SeatCompare août 2026 · export 349Y = capacité totale ; vraie cabine 49J + 300Y",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 4,
+        "pattern": "AB|DEG|JK",
+        "exceptions": ""
+      },
+      {
+        "class": "C",
+        "row_start": 5,
+        "row_end": 7,
+        "pattern": "AB|DEG|JK",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 11,
+        "row_end": 16,
+        "pattern": "ABC|DEG|HJK",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 23,
+        "row_end": 38,
+        "pattern": "ABC|DEG|HJK",
+        "exceptions": "23=DEG\n38=DEG"
+      },
+      {
+        "class": "Y",
+        "row_start": 40,
+        "row_end": 53,
+        "pattern": "ABC|DEG|HJK",
+        "exceptions": "40=ABC|HJK\n41=ABC|HJK\n51=AB|DEG|JK\n52=AB|DEG|JK\n53=AB|DEG|JK"
+      }
+    ]
+  },
+  {
+    "configKey": "SQ|359|253Y",
+    "airline": "SQ",
+    "aircraft": "359",
+    "configuration": "253Y",
+    "label": "SQ 359 · 253Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · SeatCompare",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 11,
+        "row_end": 21,
+        "pattern": "A|DF|K",
+        "exceptions": ""
+      },
+      {
+        "class": "W",
+        "row_start": 31,
+        "row_end": 33,
+        "pattern": "AC|DEFG|HK",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 41,
+        "row_end": 61,
+        "pattern": "ABC|DEF|HJK",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "TK|333|C28Y261",
+    "airline": "TK",
+    "aircraft": "333",
+    "configuration": "C28Y261",
+    "label": "TK 333 · C28Y261",
+    "sourceLabel": "Base Excel validée par l’utilisateur · SeatCompare",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 5,
+        "pattern": "AB|DE|JK",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 8,
+        "row_end": 40,
+        "pattern": "AB|DEFG|JK",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "TK|333|028C261Y",
+    "airline": "TK",
+    "aircraft": "333",
+    "configuration": "028C261Y",
+    "label": "TK 333 · 028C261Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · SeatCompare",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 5,
+        "pattern": "AB|DE|JK",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 8,
+        "row_end": 40,
+        "pattern": "AB|DEFG|JK",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "TK|333|289Y",
+    "airline": "TK",
+    "aircraft": "333",
+    "configuration": "289Y",
+    "label": "TK 333 · 289Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · SeatCompare",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 5,
+        "pattern": "AB|DE|JK",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 8,
+        "row_end": 40,
+        "pattern": "AB|DEFG|JK",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "TK|333|040C265Y",
+    "airline": "TK",
+    "aircraft": "333",
+    "configuration": "040C265Y",
+    "label": "TK 333 · 040C265Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · SeatCompare",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 7,
+        "pattern": "AB|DE|JK",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 8,
+        "row_end": 40,
+        "pattern": "AB|DEFG|JK",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "TK|333|C40Y265",
+    "airline": "TK",
+    "aircraft": "333",
+    "configuration": "C40Y265",
+    "label": "TK 333 · C40Y265",
+    "sourceLabel": "Base Excel validée par l’utilisateur · SeatCompare",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 7,
+        "pattern": "AB|DE|JK",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 8,
+        "row_end": 40,
+        "pattern": "AB|DEFG|JK",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "TK|359|329Y",
+    "airline": "TK",
+    "aircraft": "359",
+    "configuration": "329Y",
+    "label": "TK 359 · 329Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · SeatCompare",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 5,
+        "pattern": "A|D|EF|G|K",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 9,
+        "row_end": 41,
+        "pattern": "ABC|DEG|HJK",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "TK|359|C32Y297",
+    "airline": "TK",
+    "aircraft": "359",
+    "configuration": "C32Y297",
+    "label": "TK 359 · C32Y297",
+    "sourceLabel": "Base Excel validée par l’utilisateur · SeatCompare",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 8,
+        "pattern": "A|EF|K",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 20,
+        "row_end": 52,
+        "pattern": "ABC|DEF|HJK",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "TK|359|C28Y288",
+    "airline": "TK",
+    "aircraft": "359",
+    "configuration": "C28Y288",
+    "label": "TK 359 · C28Y288",
+    "sourceLabel": "Base Excel validée par l’utilisateur · SeatCompare",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 7,
+        "pattern": "A|EF|K",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 8,
+        "row_end": 23,
+        "pattern": "AC|DEFG|HK/ABC|DEF|HJK",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "TK|789|300Y",
+    "airline": "TK",
+    "aircraft": "789",
+    "configuration": "300Y",
+    "label": "TK 789 · 300Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · SeatCompare",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 8,
+        "pattern": "A|EF|K",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 10,
+        "row_end": 39,
+        "pattern": "ABC|DEF|HJK",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "NH|789|215Y",
+    "airline": "NH",
+    "aircraft": "789",
+    "configuration": "215Y",
+    "label": "NH 789 · 215Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · SeatCompare",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 12,
+        "pattern": "A|DF|H",
+        "exceptions": ""
+      },
+      {
+        "class": "W",
+        "row_start": 15,
+        "row_end": 17,
+        "pattern": "AC|DFG|HK",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 20,
+        "row_end": 35,
+        "pattern": "ABC|DFG|HJK",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "NH|788|184Y",
+    "airline": "NH",
+    "aircraft": "788",
+    "configuration": "184Y",
+    "label": "ANA 787-8 International · 184",
+    "sourceLabel": "SeatCompare août 2026 · 32J / 14W / 138Y",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 8,
+        "pattern": "A|DF|H",
+        "exceptions": ""
+      },
+      {
+        "class": "W",
+        "row_start": 15,
+        "row_end": 16,
+        "pattern": "AC|DFG|HK",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 20,
+        "row_end": 34,
+        "pattern": "ABC|DFG|HJK",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "AV|788|291Y",
+    "airline": "AV",
+    "aircraft": "788",
+    "configuration": "291Y",
+    "label": "AV 788 · 291Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · SeatCompare",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 5,
+        "pattern": "A|DE|K",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 8,
+        "row_end": 37,
+        "pattern": "ABC|DEF|GJK",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "MS|789|309Y",
+    "airline": "MS",
+    "aircraft": "789",
+    "configuration": "309Y",
+    "label": "MS 789 · 309Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · SeatCompare",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 10,
+        "row_end": 17,
+        "pattern": "A|DG|K",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 20,
+        "row_end": 50,
+        "pattern": "ABC|DFG|HJK",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "FI|7M8|160Y",
+    "airline": "FI",
+    "aircraft": "7M8",
+    "configuration": "160Y",
+    "label": "FI 7M8 · 160Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · SeatCompare",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 4,
+        "pattern": "AC|DF",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 6,
+        "row_end": 29,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "FI|76W|262Y",
+    "airline": "FI",
+    "aircraft": "76W",
+    "configuration": "262Y",
+    "label": "FI 76W · 262Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · SeatCompare",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 5,
+        "pattern": "AB|D|FG",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 6,
+        "row_end": 39,
+        "pattern": "AB|CDE|FG",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "MH|359|286Y",
+    "airline": "MH",
+    "aircraft": "359",
+    "configuration": "286Y",
+    "label": "MH 359 · 286Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · SeatCompare",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "F",
+        "row_start": 1,
+        "row_end": 1,
+        "pattern": "A|DG|K",
+        "exceptions": ""
+      },
+      {
+        "class": "C",
+        "row_start": 5,
+        "row_end": 13,
+        "pattern": "A|DG|K",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 12,
+        "row_end": 38,
+        "pattern": "ABC|DEF|HJK",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "AH|736|102Y",
+    "airline": "AH",
+    "aircraft": "736",
+    "configuration": "102Y",
+    "label": "AH 736 · 102Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · AeroLOPA",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 4,
+        "pattern": "AC|DF",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 5,
+        "row_end": 18,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "AH|738|148Y",
+    "airline": "AH",
+    "aircraft": "738",
+    "configuration": "148Y",
+    "label": "Air Algérie 737-800 · 148",
+    "sourceLabel": "AeroLOPA 2026 · 16 Business + 132 Economy · rangées 1–4 / 5–26",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 4,
+        "pattern": "AC|DF",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 5,
+        "row_end": 26,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "AH|73H|148Y",
+    "airline": "AH",
+    "aircraft": "73H",
+    "configuration": "148Y",
+    "label": "AH 73H · 148Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · AeroLOPA",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 4,
+        "pattern": "AC|DF",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 5,
+        "row_end": 26,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "AH|332|251Y",
+    "airline": "AH",
+    "aircraft": "332",
+    "configuration": "251Y",
+    "label": "AH 332 · 251Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · AeroLOPA",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 3,
+        "pattern": "AB|DE|JK",
+        "exceptions": ""
+      },
+      {
+        "class": "W",
+        "row_start": 6,
+        "row_end": 7,
+        "pattern": "AB|DEFG|JK",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 14,
+        "row_end": 40,
+        "pattern": "AB|DEFG|JK",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "A9|73W|133Y",
+    "airline": "A9",
+    "aircraft": "73W",
+    "configuration": "133Y",
+    "label": "A9 73W · 133Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · Excel utilisateur",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 3,
+        "pattern": "AC|DF",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 4,
+        "row_end": 23,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "A9|73W|135Y",
+    "airline": "A9",
+    "aircraft": "73W",
+    "configuration": "135Y",
+    "label": "A9 73W · 135Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · Excel utilisateur",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 3,
+        "pattern": "AC|DF",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 4,
+        "row_end": 24,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "A9|73H|172Y",
+    "airline": "A9",
+    "aircraft": "73H",
+    "configuration": "172Y",
+    "label": "A9 73H · 172Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · Excel utilisateur",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 4,
+        "pattern": "AC|DF",
+        "exceptions": ""
+      },
+      {
+        "class": "W",
+        "row_start": 5,
+        "row_end": 6,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 7,
+        "row_end": 30,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "A9|73H|168Y",
+    "airline": "A9",
+    "aircraft": "73H",
+    "configuration": "168Y",
+    "label": "A9 73H · 168Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · Excel utilisateur",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 5,
+        "pattern": "AC|DF",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 6,
+        "row_end": 30,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "A9|73H|170Y",
+    "airline": "A9",
+    "aircraft": "73H",
+    "configuration": "170Y",
+    "label": "A9 73H · 170Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · Excel utilisateur",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 5,
+        "pattern": "AC|DF",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 7,
+        "row_end": 31,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "AH|73H|155Y",
+    "airline": "AH",
+    "aircraft": "73H",
+    "configuration": "155Y",
+    "label": "AH 73H · 155Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · AeroLOPA / à vérifier",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 5,
+        "pattern": "AC|DF",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 6,
+        "row_end": 28,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "AH|73W|112Y",
+    "airline": "AH",
+    "aircraft": "73W",
+    "configuration": "112Y",
+    "label": "AH 73W · 112Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · AeroLOPA / à vérifier",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 4,
+        "pattern": "AC|DF",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 5,
+        "row_end": 20,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "AH|7M8|186Y",
+    "airline": "AH",
+    "aircraft": "7M8",
+    "configuration": "186Y",
+    "label": "AH 7M8 · 186Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · AeroLOPA / à vérifier · AeroLOPA affiche actuellement 186 sièges sur le 737 MAX 8 AH ; export = 189.",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "Y",
+        "row_start": 1,
+        "row_end": 31,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "AI|788|259Y",
+    "airline": "AI",
+    "aircraft": "788",
+    "configuration": "259Y",
+    "label": "AI 788 · 259Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · AeroLOPA",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 3,
+        "pattern": "AB|DF|HJ",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 11,
+        "row_end": 37,
+        "pattern": "ABC|DEF|GHJ",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "AI|789|296Y",
+    "airline": "AI",
+    "aircraft": "789",
+    "configuration": "296Y",
+    "label": "AI 789 · 296Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · Excel utilisateur",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 8,
+        "pattern": "A|E|F|K",
+        "exceptions": ""
+      },
+      {
+        "class": "W",
+        "row_start": 15,
+        "row_end": 18,
+        "pattern": "AC|DEG|HK",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 23,
+        "row_end": 48,
+        "pattern": "ABC|DEG|HJK",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "AI|789|299Y",
+    "airline": "AI",
+    "aircraft": "789",
+    "configuration": "299Y",
+    "label": "AI 789 · 299Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · Excel utilisateur",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 5,
+        "pattern": "A|D|EF|G|K",
+        "exceptions": ""
+      },
+      {
+        "class": "W",
+        "row_start": 21,
+        "row_end": 23,
+        "pattern": "AC|DEG|HK",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 31,
+        "row_end": 58,
+        "pattern": "ABC|DEG|HJK",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "AP|738|189Y",
+    "airline": "AP",
+    "aircraft": "738",
+    "configuration": "189Y",
+    "label": "AP 738 · 189Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · Excel utilisateur",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "Y",
+        "row_start": 1,
+        "row_end": 32,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "AT|73H|159Y",
+    "airline": "AT",
+    "aircraft": "73H",
+    "configuration": "159Y",
+    "label": "AT 73H · 159Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · AeroLOPA / à vérifier",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 3,
+        "pattern": "AC|DF",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 8,
+        "row_end": 32,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "AT|7M8|156Y",
+    "airline": "AT",
+    "aircraft": "7M8",
+    "configuration": "156Y",
+    "label": "AT 7M8 · 156Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · AeroLOPA / à vérifier",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 3,
+        "pattern": "AC|DF",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 8,
+        "row_end": 31,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "AT|7M8|176Y",
+    "airline": "AT",
+    "aircraft": "7M8",
+    "configuration": "176Y",
+    "label": "AT 7M8 · 176Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · AeroLOPA / à vérifier",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 2,
+        "pattern": "AC|DF",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 3,
+        "row_end": 30,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "AT|7M8|189Y",
+    "airline": "AT",
+    "aircraft": "7M8",
+    "configuration": "189Y",
+    "label": "AT 7M8 · 189Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · AeroLOPA / à vérifier",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "Y",
+        "row_start": 1,
+        "row_end": 32,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "AT|E90|096Y",
+    "airline": "AT",
+    "aircraft": "E90",
+    "configuration": "096Y",
+    "label": "AT E90 · 096Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · AeroLOPA / à vérifier",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 4,
+        "pattern": "A|DF",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 7,
+        "row_end": 27,
+        "pattern": "AC|DF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "BJ|320|177Y",
+    "airline": "BJ",
+    "aircraft": "320",
+    "configuration": "177Y",
+    "label": "BJ 320 · 177Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · Excel utilisateur",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "Y",
+        "row_start": 1,
+        "row_end": 30,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "BJ|320|180Y",
+    "airline": "BJ",
+    "aircraft": "320",
+    "configuration": "180Y",
+    "label": "BJ 320 · 180Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · Excel utilisateur",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "Y",
+        "row_start": 1,
+        "row_end": 30,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "BJ|32N|186Y",
+    "airline": "BJ",
+    "aircraft": "32N",
+    "configuration": "186Y",
+    "label": "BJ 32N · 186Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · Excel utilisateur",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "Y",
+        "row_start": 1,
+        "row_end": 31,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "C3|320|180Y",
+    "airline": "C3",
+    "aircraft": "320",
+    "configuration": "180Y",
+    "label": "C3 320 · 180Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · Excel utilisateur",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "Y",
+        "row_start": 1,
+        "row_end": 30,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "CAT|738|189Y",
+    "airline": "CAT",
+    "aircraft": "738",
+    "configuration": "189Y",
+    "label": "CAT 738 · 189Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · Excel utilisateur",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "Y",
+        "row_start": 1,
+        "row_end": 32,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "DE|320|180Y",
+    "airline": "DE",
+    "aircraft": "320",
+    "configuration": "180Y",
+    "label": "DE 320 · 180Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · AeroLOPA / à vérifier",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "Y",
+        "row_start": 1,
+        "row_end": 30,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "DE|32B|220Y",
+    "airline": "DE",
+    "aircraft": "32B",
+    "configuration": "220Y",
+    "label": "DE 32B · 220Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · AeroLOPA / à vérifier",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "Y",
+        "row_start": 1,
+        "row_end": 37,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "DE|32B|215Y",
+    "airline": "DE",
+    "aircraft": "32B",
+    "configuration": "215Y",
+    "label": "DE 32B · 215Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · AeroLOPA / à vérifier",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "Y",
+        "row_start": 1,
+        "row_end": 36,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "DE|32B|212Y",
+    "airline": "DE",
+    "aircraft": "32B",
+    "configuration": "212Y",
+    "label": "DE 32B · 212Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · Excel utilisateur",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "Y",
+        "row_start": 1,
+        "row_end": 35,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "EI|320|174Y",
+    "airline": "EI",
+    "aircraft": "320",
+    "configuration": "174Y",
+    "label": "EI 320 · 174Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · AeroLOPA / à vérifier",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "Y",
+        "row_start": 1,
+        "row_end": 29,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "EI|32Q|184Y",
+    "airline": "EI",
+    "aircraft": "32Q",
+    "configuration": "184Y",
+    "label": "EI 32Q · 184Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · AeroLOPA",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 2,
+        "row_end": 5,
+        "pattern": "A|DF|K",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 7,
+        "row_end": 34,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "EI|320|J4Y168",
+    "airline": "EI",
+    "aircraft": "320",
+    "configuration": "J4Y168",
+    "label": "EI 320 · J4Y168",
+    "sourceLabel": "Base Excel validée par l’utilisateur · AeroLOPA / à vérifier",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 1,
+        "pattern": "A|DF|K",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 2,
+        "row_end": 29,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "EI|32Q|Y168J16",
+    "airline": "EI",
+    "aircraft": "32Q",
+    "configuration": "Y168J16",
+    "label": "EI 32Q · Y168J16",
+    "sourceLabel": "Base Excel validée par l’utilisateur · AeroLOPA",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 2,
+        "row_end": 5,
+        "pattern": "A|DF|K",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 7,
+        "row_end": 34,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "ENT|73H|189Y",
+    "airline": "ENT",
+    "aircraft": "73H",
+    "configuration": "189Y",
+    "label": "ENT 73H · 189Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · Excel utilisateur",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "Y",
+        "row_start": 1,
+        "row_end": 32,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "ENT|7M8|189Y",
+    "airline": "ENT",
+    "aircraft": "7M8",
+    "configuration": "189Y",
+    "label": "ENT 7M8 · 189Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · Excel utilisateur",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "Y",
+        "row_start": 1,
+        "row_end": 32,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "FB|223|008C135M",
+    "airline": "FB",
+    "aircraft": "223",
+    "configuration": "008C135M",
+    "label": "FB 223 · 008C135M",
+    "sourceLabel": "Base Excel validée par l’utilisateur · Excel utilisateur",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 2,
+        "pattern": "AC|DF",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 3,
+        "row_end": 29,
+        "pattern": "AC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "FI|32Q|187Y",
+    "airline": "FI",
+    "aircraft": "32Q",
+    "configuration": "187Y",
+    "label": "FI 32Q · 187Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · AeroLOPA / à vérifier",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 6,
+        "pattern": "AC|DF",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 7,
+        "row_end": 34,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "FI|75W|183Y",
+    "airline": "FI",
+    "aircraft": "75W",
+    "configuration": "183Y",
+    "label": "FI 75W · 183Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · Excel utilisateur",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 6,
+        "pattern": "AC|DF",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 7,
+        "row_end": 33,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "FI|75W|184Y",
+    "airline": "FI",
+    "aircraft": "75W",
+    "configuration": "184Y",
+    "label": "FI 75W · 184Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · AeroLOPA / à vérifier",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 2,
+        "row_end": 6,
+        "pattern": "AC|DF",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 7,
+        "row_end": 33,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "FI|7M8|178Y",
+    "airline": "FI",
+    "aircraft": "7M8",
+    "configuration": "178Y",
+    "label": "FI 7M8 · 178Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · Excel utilisateur",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 4,
+        "pattern": "AC|DF",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 5,
+        "row_end": 31,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "HF|339|242Y",
+    "airline": "HF",
+    "aircraft": "339",
+    "configuration": "242Y",
+    "label": "HF 339 · 242Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · AeroLOPA / à vérifier",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "F",
+        "row_start": 1,
+        "row_end": 1,
+        "pattern": "A|DG|K",
+        "exceptions": ""
+      },
+      {
+        "class": "C",
+        "row_start": 2,
+        "row_end": 12,
+        "pattern": "A|DF|K",
+        "exceptions": ""
+      },
+      {
+        "class": "W",
+        "row_start": 14,
+        "row_end": 16,
+        "pattern": "AC|DFG|HK",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 17,
+        "row_end": 38,
+        "pattern": "AC|DEFG|HK",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "HM|333|249Y",
+    "airline": "HM",
+    "aircraft": "333",
+    "configuration": "249Y",
+    "label": "HM 333 · 249Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · Excel utilisateur",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 12,
+        "pattern": "A|DF|K",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 1,
+        "row_end": 25,
+        "pattern": "AC|DEFG|HK",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "HU|789|292Y",
+    "airline": "HU",
+    "aircraft": "789",
+    "configuration": "292Y",
+    "label": "HU 789 · 292Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · AeroLOPA / à vérifier · Plusieurs variantes Hainan 787-9 peuvent porter des capacités proches / identiques selon les sources ; ne pas forcer.",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 11,
+        "row_end": 18,
+        "pattern": "A|DG|K",
+        "exceptions": ""
+      },
+      {
+        "class": "W",
+        "row_start": 31,
+        "row_end": 34,
+        "pattern": "ABC|DEG|HJK",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 35,
+        "row_end": 59,
+        "pattern": "ABC|DEG|HJK",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "IZ|32Q|Y220",
+    "airline": "IZ",
+    "aircraft": "32Q",
+    "configuration": "Y220",
+    "label": "IZ 32Q · Y220",
+    "sourceLabel": "Base Excel validée par l’utilisateur · AeroLOPA / à vérifier",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "Y",
+        "row_start": 1,
+        "row_end": 37,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "IZ|332|256Y",
+    "airline": "IZ",
+    "aircraft": "332",
+    "configuration": "256Y",
+    "label": "IZ 332 · 256Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · AeroLOPA / à vérifier",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 3,
+        "pattern": "AC|D|EG|H|JL",
+        "exceptions": ""
+      },
+      {
+        "class": "W",
+        "row_start": 8,
+        "row_end": 9,
+        "pattern": "AC|DEG|JL",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 12,
+        "row_end": 38,
+        "pattern": "AC|DEGH|JL",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "IZ|332|287Y",
+    "airline": "IZ",
+    "aircraft": "332",
+    "configuration": "287Y",
+    "label": "IZ 332 · 287Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · AeroLOPA / à vérifier",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 2,
+        "pattern": "AC|D|EF|G|HK",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 14,
+        "row_end": 47,
+        "pattern": "AC|DEFG|HK",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "J2|320|156Y",
+    "airline": "J2",
+    "aircraft": "320",
+    "configuration": "156Y",
+    "label": "J2 320 · 156Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · AeroLOPA / à vérifier",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 3,
+        "pattern": "AC|HL",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 14,
+        "row_end": 29,
+        "pattern": "ABC|DEF|HJK",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "J2|320|174Y",
+    "airline": "J2",
+    "aircraft": "320",
+    "configuration": "174Y",
+    "label": "J2 320 · 174Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · Excel utilisateur",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "Y",
+        "row_start": 14,
+        "row_end": 32,
+        "pattern": "ABC|DEF|HJK",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "J2|320|146Y",
+    "airline": "J2",
+    "aircraft": "320",
+    "configuration": "146Y",
+    "label": "J2 320 · 146Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · Excel utilisateur",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 5,
+        "pattern": "AC|HL",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 14,
+        "row_end": 27,
+        "pattern": "ABC|DEF|HJK",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "J2|32N|150Y",
+    "airline": "J2",
+    "aircraft": "32N",
+    "configuration": "150Y",
+    "label": "J2 32N · 150Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · AeroLOPA / à vérifier",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 3,
+        "pattern": "AC|HL",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 14,
+        "row_end": 28,
+        "pattern": "ABC|DEF|HJK",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "J2|32N|156Y",
+    "airline": "J2",
+    "aircraft": "32N",
+    "configuration": "156Y",
+    "label": "J2 32N · 156Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · AeroLOPA / à vérifier",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 3,
+        "pattern": "AC|HL",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 14,
+        "row_end": 29,
+        "pattern": "ABC|DEF|HJK",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "J2|32N|186Y",
+    "airline": "J2",
+    "aircraft": "32N",
+    "configuration": "186Y",
+    "label": "J2 32N · 186Y",
+    "sourceLabel": "Base Excel validée par l’utilisateur · Excel utilisateur",
+    "quality": "summary",
+    "zones": [
+      {
+        "class": "Y",
+        "row_start": 14,
+        "row_end": 34,
+        "pattern": "ABC|DEF|HJK",
+        "exceptions": ""
+      }
+    ]
+  }
+]
