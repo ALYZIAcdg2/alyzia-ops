@@ -1,9 +1,9 @@
 name: Cabin — reconnaissance sources réelles (lot 1)
 
-# Étape 3 : les bonnes pages compagnie/avion sont trouvées (v3). On inspecte
-# maintenant leur contenu réel pour savoir si la géométrie (rangées,
-# couloirs, sorties) est disponible en texte/JSON exploitable dans le HTML,
-# avant de tenter une extraction précise. Lecture seule.
+# Étape 4 : les pages AeroLOPA embarquent le plan en SVG (3 balises <svg>
+# par page). On extrait les éléments <text> (numéros de rangée, lettres de
+# siège, repères sortie/galley/toilette) pour reconstruire la géométrie
+# réelle sans avoir à interpréter une image. Lecture seule.
 
 on:
   workflow_dispatch:
@@ -16,36 +16,31 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Pages avion cibles — taille + indices de structure (JSON/SVG/texte)
+      - name: Extrait les libellés texte des SVG (rangées, sièges, repères)
         run: |
           set +e
           declare -A PAGES=(
-            ["AeroLOPA AH-738 (AH 73H)"]="https://www.aerolopa.com/ah-738"
-            ["AeroLOPA SK-32N (SK 32N)"]="https://www.aerolopa.com/sk-32n"
-            ["AeroLOPA EI-32Q-1 (EI 32Q)"]="https://www.aerolopa.com/ei-32q-1"
-            ["AeroLOPA EI-32Q-2 (EI 32Q)"]="https://www.aerolopa.com/ei-32q-2"
-            ["SeatMaps BJ A320 (BJ 320)"]="https://seatmaps.com/airlines/bj-nouvelair/airbus-a320/"
+            ["AH738"]="https://www.aerolopa.com/ah-738"
+            ["SK32N"]="https://www.aerolopa.com/sk-32n"
+            ["EI32Q1"]="https://www.aerolopa.com/ei-32q-1"
+            ["EI32Q2"]="https://www.aerolopa.com/ei-32q-2"
           )
           for name in "${!PAGES[@]}"; do
             url="${PAGES[$name]}"
-            slug=$(echo "$name" | tr -c 'A-Za-z0-9' '_')
-            file="page_${slug}.html"
+            file="page_${name}.html"
             echo "===== $name : $url ====="
-            code=$(curl -sS -L -o "$file" -w "%{http_code}" "$url" --max-time 20)
-            echo "HTTP $code — taille: $(wc -c < "$file") octets"
-            echo "--- balises <script type=application/json> ou __NEXT_DATA__/__NUXT__ ---"
-            grep -oE '<script[^>]*id="__NEXT_DATA__"[^>]*>' "$file" | head -3
-            grep -oE '<script[^>]*type="application/json"[^>]*>' "$file" | head -3
-            echo "--- occurrences de mots clés (row|seat|exit|galley|lavatory|aisle) ---"
-            grep -oiE '"(row|seat|exit|galley|lavatory|aisle)[a-z]*"\s*:' "$file" | sort | uniq -c | sort -rn | head -20
-            echo "--- balises <svg> et <img> (nombre) ---"
-            echo "svg: $(grep -oc '<svg' "$file")  img: $(grep -oc '<img' "$file")"
+            curl -sS -L -o "$file" "$url" --max-time 20
+            echo "--- nb de balises <text> ---"
+            grep -oc '<text' "$file"
+            echo "--- contenu de tous les <text>...</text> (dans l'ordre du document) ---"
+            grep -oE '<text[^>]*>[^<]*</text>' "$file" | sed -E 's/<text[^>]*>//; s/<\/text>//' | tr '\n' '|'
+            echo
             echo
           done
 
-      - name: Upload pages brutes pour inspection détaillée
+      - name: Upload pages complètes (secours si le texte SVG ne suffit pas)
         uses: actions/upload-artifact@v4
         with:
-          name: cabin-scout-pages
+          name: cabin-scout-svg-pages
           path: page_*.html
           retention-days: 3
