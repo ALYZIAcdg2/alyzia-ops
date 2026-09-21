@@ -1,0 +1,73 @@
+name: Cabin — récupère une référence visuelle SeatMaps.com
+
+# Lecture seule. Le sandbox de dev ne peut pas joindre seatmaps.com
+# directement (politique d'egress). On récupère la page + les images de
+# plan cabine réelles (mêmes captures que pour BJ Nouvelair plus tôt), et
+# on les publie sur la branche jetable cabin-scout-assets pour examen
+# visuel côté agent (design de référence, pas pour extraire une géométrie).
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Page WB RwandAir A330-200
+        run: |
+          set +e
+          mkdir -p scout_assets
+          curl -sS -L -o wb_page.html "https://seatmaps.com/airlines/wb-rwandair/airbus-a330-200/" --max-time 20
+          echo "HTTP status + taille:"; wc -c wb_page.html
+          echo "--- images de plan cabine (frame-placeholder) ---"
+          grep -oE 'src="[^"]*screenshots/seatmaps/[^"]+"' wb_page.html -i | sort -u
+
+      - name: Télécharge les images trouvées
+        run: |
+          set +e
+          grep -oE 'src="[^"]*screenshots/seatmaps/[^"]+"' wb_page.html -i | sed -E 's/src="//; s/"$//' | sort -u > urls.txt
+          cat urls.txt
+          i=1
+          while read -r rel; do
+            url="$rel"
+            case "$url" in
+              http*) ;;
+              *) url="https://seatmaps.com$rel" ;;
+            esac
+            echo "Fetching $url"
+            curl -sS -o "scout_assets/wb_seatmap_${i}.webp" "$url" --max-time 20
+            i=$((i+1))
+          done < urls.txt
+          ls -la scout_assets/
+
+      - name: Convertit en PNG (fond blanc)
+        run: |
+          set +e
+          sudo apt-get update -qq && sudo apt-get install -y -qq webp imagemagick
+          for f in scout_assets/*.webp; do
+            [ -f "$f" ] || continue
+            dwebp "$f" -o "${f%.webp}_raw.png" 2>&1
+            if convert "${f%.webp}_raw.png" -background white -alpha remove -alpha off "${f%.webp}.png"; then
+              rm -f "${f%.webp}_raw.png" "$f"
+            else
+              mv "${f%.webp}_raw.png" "${f%.webp}.png"
+              rm -f "$f"
+            fi
+          done
+          ls -la scout_assets/
+
+      - name: Publie sur la branche jetable
+        run: |
+          git config user.name "cabin-scout-bot"
+          git config user.email "cabin-scout-bot@users.noreply.github.com"
+          git fetch origin cabin-scout-assets 2>/dev/null && git checkout cabin-scout-assets || git checkout -B cabin-scout-assets
+          git add scout_assets
+          git commit -m "Image de référence visuelle SeatMaps.com (WB RwandAir A330-200)" || echo "rien à committer"
+          git push -f origin cabin-scout-assets
