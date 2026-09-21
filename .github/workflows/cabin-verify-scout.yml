@@ -1,16 +1,9 @@
 name: Cabin — reconnaissance sources réelles (lot 1)
 
-# Étape 2 de la vérification demandée par l'utilisateur : avant d'extraire un
-# plan précis, on repère d'abord quelles pages de référence publiques
-# existent réellement pour AH 73H / BJ 320 / SK 32N / AH 320 / EI 32Q (les
-# plus utilisés dans les vols traités, cf. /api/cabin/coverage). Lecture
-# seule, aucune écriture.
-#
-# V3 : SeatGuru redirige maintenant vers TripAdvisor et bloque (403) —
-# abandonné. AeroLOPA utilise le code IATA 2 lettres comme slug de page
-# (/ah, /ei...) — on va directement dessus. SeatMaps.com liste ses
-# compagnies sous /airlines/<code-iata>-<nom>/ — on récupère l'index pour
-# trouver le bon slug avant d'aller sur la page avion.
+# Étape 3 : les bonnes pages compagnie/avion sont trouvées (v3). On inspecte
+# maintenant leur contenu réel pour savoir si la géométrie (rangées,
+# couloirs, sorties) est disponible en texte/JSON exploitable dans le HTML,
+# avant de tenter une extraction précise. Lecture seule.
 
 on:
   workflow_dispatch:
@@ -23,38 +16,36 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: AeroLOPA — pages compagnie par code IATA (/ah, /ei, /sk, /bj)
+      - name: Pages avion cibles — taille + indices de structure (JSON/SVG/texte)
         run: |
           set +e
-          for code in ah ei sk bj; do
-            url="https://www.aerolopa.com/${code}"
-            echo "===== AeroLOPA /${code} ====="
-            final=$(curl -sS -L -o "ael_${code}.html" -w "%{url_effective} | HTTP %{http_code}" "$url" --max-time 20)
-            echo "$final"
-            echo "--- titre + liens avion (hrefs internes non génériques) ---"
-            grep -oE '<title>[^<]*</title>' "ael_${code}.html" | head -1
-            grep -oE 'href="/[a-z0-9-]+"' "ael_${code}.html" -i | sort -u | grep -viE '^href="/(about|contact|cookies|aircraft|airlines|app|favicon)' | head -40
+          declare -A PAGES=(
+            ["AeroLOPA AH-738 (AH 73H)"]="https://www.aerolopa.com/ah-738"
+            ["AeroLOPA SK-32N (SK 32N)"]="https://www.aerolopa.com/sk-32n"
+            ["AeroLOPA EI-32Q-1 (EI 32Q)"]="https://www.aerolopa.com/ei-32q-1"
+            ["AeroLOPA EI-32Q-2 (EI 32Q)"]="https://www.aerolopa.com/ei-32q-2"
+            ["SeatMaps BJ A320 (BJ 320)"]="https://seatmaps.com/airlines/bj-nouvelair/airbus-a320/"
+          )
+          for name in "${!PAGES[@]}"; do
+            url="${PAGES[$name]}"
+            slug=$(echo "$name" | tr -c 'A-Za-z0-9' '_')
+            file="page_${slug}.html"
+            echo "===== $name : $url ====="
+            code=$(curl -sS -L -o "$file" -w "%{http_code}" "$url" --max-time 20)
+            echo "HTTP $code — taille: $(wc -c < "$file") octets"
+            echo "--- balises <script type=application/json> ou __NEXT_DATA__/__NUXT__ ---"
+            grep -oE '<script[^>]*id="__NEXT_DATA__"[^>]*>' "$file" | head -3
+            grep -oE '<script[^>]*type="application/json"[^>]*>' "$file" | head -3
+            echo "--- occurrences de mots clés (row|seat|exit|galley|lavatory|aisle) ---"
+            grep -oiE '"(row|seat|exit|galley|lavatory|aisle)[a-z]*"\s*:' "$file" | sort | uniq -c | sort -rn | head -20
+            echo "--- balises <svg> et <img> (nombre) ---"
+            echo "svg: $(grep -oc '<svg' "$file")  img: $(grep -oc '<img' "$file")"
             echo
           done
 
-      - name: SeatMaps.com — index des compagnies (trouver le bon slug)
-        run: |
-          set +e
-          curl -sS -L -o sm_index.html -w "%{url_effective} | HTTP %{http_code}\n" "https://seatmaps.com/airlines/" --max-time 20
-          echo "--- slugs commençant par ah- / ei- / sk- / bj- ---"
-          grep -oE 'href="/airlines/(ah|ei|sk|bj)-[a-z0-9-]+/"' sm_index.html -i | sort -u
-
-      - name: SeatMaps.com — pages compagnie (slugs trouvés ci-dessus)
-        run: |
-          set +e
-          SLUGS=$(grep -oE 'href="/airlines/(ah|ei|sk|bj)-[a-z0-9-]+/"' sm_index.html -i | sed -E 's/href="\/airlines\/(.+)\/"/\1/' | sort -u)
-          echo "Slugs retenus: $SLUGS"
-          for slug in $SLUGS; do
-            url="https://seatmaps.com/airlines/${slug}/"
-            echo "===== $url ====="
-            final=$(curl -sS -L -o "sm_${slug}.html" -w "%{url_effective} | HTTP %{http_code}" "$url" --max-time 20)
-            echo "$final"
-            echo "--- liens avion (737/738/a320/a321/neo) ---"
-            grep -oE 'href="[^"]*(737|738|a320|a321|neo)[^"]*"' "sm_${slug}.html" -i | sort -u | head -30
-            echo
-          done
+      - name: Upload pages brutes pour inspection détaillée
+        uses: actions/upload-artifact@v4
+        with:
+          name: cabin-scout-pages
+          path: page_*.html
+          retention-days: 3
