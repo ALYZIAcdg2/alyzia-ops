@@ -12912,6 +12912,39 @@ async function handleCabin(request,env,url){
     return json({ok:true,configsWritten,zonesWritten});
   }
 
+  // Couvre l'écart entre les avions réellement traités dans les vols et les
+  // plans cabine déjà en base — sert à prioriser la vérification par usage
+  // réel plutôt que de revoir les 75 configs importées en vrac.
+  if(url.pathname==="/api/cabin/coverage" && request.method==="GET"){
+    const {results:flightRows=[]}=await env.OPS_DB.prepare(`
+      SELECT airline, json_extract(data_json,'$.aircraft') AS aircraft, COUNT(*) AS n
+      FROM flights
+      WHERE json_extract(data_json,'$.aircraft') IS NOT NULL AND json_extract(data_json,'$.aircraft')!=''
+      GROUP BY airline, aircraft
+      ORDER BY n DESC
+    `).all();
+    const {results:cabinRows=[]}=await env.OPS_DB.prepare(`
+      SELECT airline, aircraft, configuration, quality FROM cabin_configs ORDER BY airline, aircraft
+    `).all();
+
+    const byAc={};
+    for(const c of cabinRows){
+      const k=c.airline+"|"+c.aircraft;
+      (byAc[k]=byAc[k]||[]).push(c);
+    }
+    const coverage=flightRows.map(f=>{
+      const k=f.airline+"|"+f.aircraft;
+      const configs=byAc[k]||[];
+      let status;
+      if(!configs.length)status="none";
+      else if(configs.every(c=>c.quality==="exact"))status="exact";
+      else status="approximate";
+      return {airline:f.airline,aircraft:f.aircraft,flightCount:f.n,status,configs};
+    });
+
+    return json({ok:true,coverage});
+  }
+
   return json({ok:false,error:"ROUTE CABIN INCONNUE"},404);
 }
 

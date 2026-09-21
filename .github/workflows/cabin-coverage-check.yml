@@ -3,8 +3,14 @@ name: Cabin — avions réellement utilisés vs plans déjà en base
 # Étape 1 de la vérification réelle demandée par l'utilisateur : au lieu de
 # revoir les 75 configs en vrac, on identifie d'abord quels couples
 # compagnie/avion apparaissent vraiment dans les vols traités (table
-# `flights`, colonne airline + data_json.aircraft), puis on les compare à
-# cabin_configs pour voir lesquels manquent ou ne sont qu'approximatifs.
+# `flights`), puis on les compare à cabin_configs pour voir lesquels
+# manquent ou ne sont qu'approximatifs.
+#
+# Le token Cloudflare de CI n'a que le droit de déployer le Worker, pas
+# d'interroger D1 via l'API REST (wrangler d1 execute --remote échoue en
+# 7403). On expose donc la comparaison via une route du Worker lui-même
+# (/api/cabin/coverage, qui utilise le binding D1 direct, pas l'API REST),
+# et on la lit ici en curl — même technique que l'import du seed.
 
 on:
   workflow_dispatch:
@@ -16,73 +22,20 @@ jobs:
   check:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    env:
+      API: https://alyzia-ops.alyzia-cdg2.workers.dev
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-
-      - name: Install dependencies
-        run: npm install --no-audit --no-fund
-
-      - name: Sanity check — wrangler + accès D1
+      - name: /api/cabin/coverage
         run: |
-          set +e
-          npx wrangler --version 2>&1
-          echo "----- COUNT(*) FROM flights -----"
-          npx wrangler d1 execute alyzia-ops-db --remote --json --command "SELECT COUNT(*) AS n FROM flights" 2>&1 | tee sanity.json
-          echo "exit code: $?"
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-
-      - name: Avions réellement vus dans les vols traités
-        run: |
-          set +e
-          npx wrangler d1 execute alyzia-ops-db --remote --json --command \
-            "SELECT airline, json_extract(data_json,'\$.aircraft') AS aircraft, COUNT(*) AS n FROM flights WHERE json_extract(data_json,'\$.aircraft') IS NOT NULL AND json_extract(data_json,'\$.aircraft')!='' GROUP BY airline, aircraft ORDER BY n DESC" \
-            2>&1 | tee flights_ac.json
-          echo "exit code: ${PIPESTATUS[0]}"
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-
-      - name: Plans cabine déjà en base
-        run: |
-          set +e
-          npx wrangler d1 execute alyzia-ops-db --remote --json --command \
-            "SELECT airline, aircraft, configuration, quality FROM cabin_configs ORDER BY airline, aircraft" \
-            2>&1 | tee cabin_configs.json
-          echo "exit code: ${PIPESTATUS[0]}"
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-
-      - name: Comparaison — manquants et approximatifs, triés par usage réel
-        run: |
+          curl -sS -f "$API/api/cabin/coverage" -o coverage.json
           node -e "
-            const fs=require('fs');
-            const flightsRes=JSON.parse(fs.readFileSync('flights_ac.json','utf8'));
-            const cabinRes=JSON.parse(fs.readFileSync('cabin_configs.json','utf8'));
-            const flights=(flightsRes[0]&&flightsRes[0].results)||[];
-            const cabin=(cabinRes[0]&&cabinRes[0].results)||[];
-            const byAc={};
-            for(const c of cabin){
-              const k=c.airline+'|'+c.aircraft;
-              if(!byAc[k])byAc[k]=[];
-              byAc[k].push(c);
-            }
+            const j=JSON.parse(require('fs').readFileSync('coverage.json','utf8'));
+            const rows=j.coverage||[];
             console.log('=== COUPLES AIRLINE/AIRCRAFT REELLEMENT VUS DANS LES VOLS (tries par frequence) ===');
-            for(const f of flights){
-              const k=f.airline+'|'+f.aircraft;
-              const configs=byAc[k]||[];
-              let status;
-              if(!configs.length) status='AUCUN PLAN';
-              else if(configs.every(c=>c.quality==='exact')) status='OK (exact)';
-              else status='APPROXIMATIF: '+configs.map(c=>c.configuration+'='+c.quality).join(', ');
-              console.log((f.n+'').padStart(4)+'x  '+k.padEnd(14)+' -> '+status);
+            for(const r of rows){
+              let status=r.status==='none'?'AUCUN PLAN'
+                :r.status==='exact'?'OK (exact)'
+                :'APPROXIMATIF: '+r.configs.map(c=>c.configuration+'='+c.quality).join(', ');
+              console.log(String(r.flightCount).padStart(4)+'x  '+(r.airline+'|'+r.aircraft).padEnd(14)+' -> '+status);
             }
           "
