@@ -89,98 +89,6 @@
     ]
   },
   {
-    "configKey": "TK|77W|C49Y300",
-    "airline": "TK",
-    "aircraft": "77W",
-    "configuration": "C49Y300",
-    "label": "TK 777-300ER Main Fleet · 349",
-    "sourceLabel": "SeatCompare août 2026 · 49J rangées 1–7 ; 300Y rangées 11–53 avec cabines/sections et rangées partielles",
-    "quality": "exact",
-    "zones": [
-      {
-        "class": "C",
-        "row_start": 1,
-        "row_end": 4,
-        "pattern": "AB|DEG|JK",
-        "exceptions": ""
-      },
-      {
-        "class": "C",
-        "row_start": 5,
-        "row_end": 7,
-        "pattern": "AB|DEG|JK",
-        "exceptions": ""
-      },
-      {
-        "class": "Y",
-        "row_start": 11,
-        "row_end": 16,
-        "pattern": "ABC|DEG|HJK",
-        "exceptions": ""
-      },
-      {
-        "class": "Y",
-        "row_start": 23,
-        "row_end": 38,
-        "pattern": "ABC|DEG|HJK",
-        "exceptions": "23=DEG\n38=DEG"
-      },
-      {
-        "class": "Y",
-        "row_start": 40,
-        "row_end": 53,
-        "pattern": "ABC|DEG|HJK",
-        "exceptions": "40=ABC|HJK\n41=ABC|HJK\n51=AB|DEG|JK\n52=AB|DEG|JK\n53=AB|DEG|JK"
-      }
-    ]
-  },
-  {
-    "configKey": "TK|77W|349Y",
-    "airline": "TK",
-    "aircraft": "77W",
-    "configuration": "349Y",
-    "label": "TK 777-300ER Main Fleet · 349",
-    "sourceLabel": "SeatCompare août 2026 · export 349Y = capacité totale ; vraie cabine 49J + 300Y",
-    "quality": "exact",
-    "zones": [
-      {
-        "class": "C",
-        "row_start": 1,
-        "row_end": 4,
-        "pattern": "AB|DEG|JK",
-        "exceptions": ""
-      },
-      {
-        "class": "C",
-        "row_start": 5,
-        "row_end": 7,
-        "pattern": "AB|DEG|JK",
-        "exceptions": ""
-      },
-      {
-        "class": "Y",
-        "row_start": 11,
-        "row_end": 16,
-        "pattern": "ABC|DEG|HJK",
-        "exceptions": ""
-      },
-      {
-        "class": "Y",
-        "row_start": 23,
-        "row_end": 38,
-        "pattern": "ABC|DEG|HJK",
-        "exceptions": "23=DEG\n38=DEG"
-      },
-      {
-        "class": "Y",
-        "row_start": 40,
-        "row_end": 53,
-        "pattern": "ABC|DEG|HJK",
-        "exceptions": "40=ABC|HJK\n41=ABC|HJK\n51=AB|DEG|JK\n52=AB|DEG|JK\n53=AB|DEG|JK"
-      }
-    ]
-  },
-  {
     "configKey": "SQ|359|253Y",
     "airline": "SQ",
     "aircraft": "359",
@@ -208,131 +116,6 @@
         "row_start": 41,
         "row_end": 61,
         "pattern": "ABC|DEF|HJK",
-        "exceptions": ""
-      }
-    ]
-  },
-  {
-    "configKey": "TK|333|C28Y261",
-    "airline": "TK",
-    "aircraft": "333",
-    "configuration": "C28Y261",
-    "label": "TK 333 · C28Y261",
-    "sourceLabel": "Base Excel validée par l’utilisateur · SeatCompare",
-    "quality": "summary",
-    "zones": [
-      {
-        "class": "C",
-        "row_start": 1,
-        "row_end": 5,
-        "pattern": "AB|DE|JK",
-        "exceptions": ""
-      },
-      {
-        "class": "Y",
-        "row_start": 8,
-        "row_end": 40,
-        "pattern": "AB|DEFG|JK",
-        "exceptions": ""
-      }
-    ]
-  },
-  {
-    "configKey": "TK|333|028C261Y",
-    "airline": "TK",
-    "aircraft": "333",
-    "configuration": "028C261Y",
-    "label": "TK 333 · 028C261Y",
-    "sourceLabel": "Base Excel validée par l’utilisateur · SeatCompare",
-    "quality": "summary",
-    "zones": [
-      {
-        "class": "C",
-        "row_start": 1,
-        "row_end": 5,
-        "pattern": "AB|DE|JK",
-        "exceptions": ""
-      },
-      {
-        "class": "Y",
-        "row_start": 8,
-        "row_end": 40,
-        "pattern": "AB|DEFG|JK",
-        "exceptions": ""
-      }
-    ]
-  },
-  {
-    "configKey": "TK|333|289Y",
-    "airline": "TK",
-    "aircraft": "333",
-    "configuration": "289Y",
-    "label": "TK 333 · 289Y",
-    "sourceLabel": "Base Excel validée par l’utilisateur · SeatCompare",
-    "quality": "summary",
-    "zones": [
-      {
-        "class": "C",
-        "row_start": 1,
-        "row_end": 5,
-        "pattern": "AB|DE|JK",
-        "exceptions": ""
-      },
-      {
-        "class": "Y",
-        "row_start": 8,
-        "row_end": 40,
-        "pattern": "AB|DEFG|JK",
-        "exceptions": ""
-      }
-    ]
-  },
-  {
-    "configKey": "TK|333|040C265Y",
-    "airline": "TK",
-    "aircraft": "333",
-    "configuration": "040C265Y",
-    "label": "TK 333 · 040C265Y",
-    "sourceLabel": "Base Excel validée par l’utilisateur · SeatCompare",
-    "quality": "summary",
-    "zones": [
-      {
-        "class": "C",
-        "row_start": 1,
-        "row_end": 7,
-        "pattern": "AB|DE|JK",
-        "exceptions": ""
-      },
-      {
-        "class": "Y",
-        "row_start": 8,
-        "row_end": 40,
-        "pattern": "AB|DEFG|JK",
-        "exceptions": ""
-      }
-    ]
-  },
-  {
-    "configKey": "TK|333|C40Y265",
-    "airline": "TK",
-    "aircraft": "333",
-    "configuration": "C40Y265",
-    "label": "TK 333 · C40Y265",
-    "sourceLabel": "Base Excel validée par l’utilisateur · SeatCompare",
-    "quality": "summary",
-    "zones": [
-      {
-        "class": "C",
-        "row_start": 1,
-        "row_end": 7,
-        "pattern": "AB|DE|JK",
-        "exceptions": ""
-      },
-      {
-        "class": "Y",
-        "row_start": 8,
-        "row_end": 40,
-        "pattern": "AB|DEFG|JK",
         "exceptions": ""
       }
     ]
@@ -408,31 +191,6 @@
         "row_start": 8,
         "row_end": 23,
         "pattern": "AC|DEFG|HK/ABC|DEF|HJK",
-        "exceptions": ""
-      }
-    ]
-  },
-  {
-    "configKey": "TK|789|300Y",
-    "airline": "TK",
-    "aircraft": "789",
-    "configuration": "300Y",
-    "label": "TK 789 · 300Y",
-    "sourceLabel": "Base Excel validée par l’utilisateur · SeatCompare",
-    "quality": "summary",
-    "zones": [
-      {
-        "class": "C",
-        "row_start": 1,
-        "row_end": 8,
-        "pattern": "A|EF|K",
-        "exceptions": ""
-      },
-      {
-        "class": "Y",
-        "row_start": 10,
-        "row_end": 39,
-        "pattern": "ABC|DEF|HJK",
         "exceptions": ""
       }
     ]
@@ -522,81 +280,6 @@
         "row_start": 8,
         "row_end": 37,
         "pattern": "ABC|DEF|GJK",
-        "exceptions": ""
-      }
-    ]
-  },
-  {
-    "configKey": "MS|789|309Y",
-    "airline": "MS",
-    "aircraft": "789",
-    "configuration": "309Y",
-    "label": "MS 789 · 309Y",
-    "sourceLabel": "Base Excel validée par l’utilisateur · SeatCompare",
-    "quality": "summary",
-    "zones": [
-      {
-        "class": "C",
-        "row_start": 10,
-        "row_end": 17,
-        "pattern": "A|DG|K",
-        "exceptions": ""
-      },
-      {
-        "class": "Y",
-        "row_start": 20,
-        "row_end": 50,
-        "pattern": "ABC|DFG|HJK",
-        "exceptions": ""
-      }
-    ]
-  },
-  {
-    "configKey": "FI|7M8|160Y",
-    "airline": "FI",
-    "aircraft": "7M8",
-    "configuration": "160Y",
-    "label": "FI 7M8 · 160Y",
-    "sourceLabel": "Base Excel validée par l’utilisateur · SeatCompare",
-    "quality": "summary",
-    "zones": [
-      {
-        "class": "C",
-        "row_start": 1,
-        "row_end": 4,
-        "pattern": "AC|DF",
-        "exceptions": ""
-      },
-      {
-        "class": "Y",
-        "row_start": 6,
-        "row_end": 29,
-        "pattern": "ABC|DEF",
-        "exceptions": ""
-      }
-    ]
-  },
-  {
-    "configKey": "FI|76W|262Y",
-    "airline": "FI",
-    "aircraft": "76W",
-    "configuration": "262Y",
-    "label": "FI 76W · 262Y",
-    "sourceLabel": "Base Excel validée par l’utilisateur · SeatCompare",
-    "quality": "summary",
-    "zones": [
-      {
-        "class": "C",
-        "row_start": 1,
-        "row_end": 5,
-        "pattern": "AB|D|FG",
-        "exceptions": ""
-      },
-      {
-        "class": "Y",
-        "row_start": 6,
-        "row_end": 39,
-        "pattern": "AB|CDE|FG",
         "exceptions": ""
       }
     ]
@@ -941,95 +624,6 @@
     ]
   },
   {
-    "configKey": "AI|788|259Y",
-    "airline": "AI",
-    "aircraft": "788",
-    "configuration": "259Y",
-    "label": "AI 788 · 259Y",
-    "sourceLabel": "Base Excel validée par l’utilisateur · AeroLOPA",
-    "quality": "summary",
-    "zones": [
-      {
-        "class": "C",
-        "row_start": 1,
-        "row_end": 3,
-        "pattern": "AB|DF|HJ",
-        "exceptions": ""
-      },
-      {
-        "class": "Y",
-        "row_start": 11,
-        "row_end": 37,
-        "pattern": "ABC|DEF|GHJ",
-        "exceptions": ""
-      }
-    ]
-  },
-  {
-    "configKey": "AI|789|296Y",
-    "airline": "AI",
-    "aircraft": "789",
-    "configuration": "296Y",
-    "label": "AI 789 · 296Y",
-    "sourceLabel": "Base Excel validée par l’utilisateur · Excel utilisateur",
-    "quality": "summary",
-    "zones": [
-      {
-        "class": "C",
-        "row_start": 1,
-        "row_end": 8,
-        "pattern": "A|E|F|K",
-        "exceptions": ""
-      },
-      {
-        "class": "W",
-        "row_start": 15,
-        "row_end": 18,
-        "pattern": "AC|DEG|HK",
-        "exceptions": ""
-      },
-      {
-        "class": "Y",
-        "row_start": 23,
-        "row_end": 48,
-        "pattern": "ABC|DEG|HJK",
-        "exceptions": ""
-      }
-    ]
-  },
-  {
-    "configKey": "AI|789|299Y",
-    "airline": "AI",
-    "aircraft": "789",
-    "configuration": "299Y",
-    "label": "AI 789 · 299Y",
-    "sourceLabel": "Base Excel validée par l’utilisateur · Excel utilisateur",
-    "quality": "summary",
-    "zones": [
-      {
-        "class": "C",
-        "row_start": 1,
-        "row_end": 5,
-        "pattern": "A|D|EF|G|K",
-        "exceptions": ""
-      },
-      {
-        "class": "W",
-        "row_start": 21,
-        "row_end": 23,
-        "pattern": "AC|DEG|HK",
-        "exceptions": ""
-      },
-      {
-        "class": "Y",
-        "row_start": 31,
-        "row_end": 58,
-        "pattern": "ABC|DEG|HJK",
-        "exceptions": ""
-      }
-    ]
-  },
-  {
     "configKey": "AP|738|189Y",
     "airline": "AP",
     "aircraft": "738",
@@ -1166,78 +760,6 @@
     ]
   },
   {
-    "configKey": "BJ|320|177Y",
-    "airline": "BJ",
-    "aircraft": "320",
-    "configuration": "177Y",
-    "label": "BJ 320 · 177Y",
-    "sourceLabel": "Base Excel validée par l’utilisateur · Excel utilisateur",
-    "quality": "summary",
-    "zones": [
-      {
-        "class": "Y",
-        "row_start": 1,
-        "row_end": 30,
-        "pattern": "ABC|DEF",
-        "exceptions": ""
-      }
-    ]
-  },
-  {
-    "configKey": "BJ|320|180Y",
-    "airline": "BJ",
-    "aircraft": "320",
-    "configuration": "180Y",
-    "label": "Nouvelair Airbus A320 · 180Y",
-    "sourceLabel": "SeatMaps.com — Nouvelair Airbus A320 (relevé direct jusqu'à la rangée 13, motif uniforme prolongé jusqu'au total confirmé de 180 sièges)",
-    "quality": "exact",
-    "zones": [
-      {
-        "class": "Y",
-        "row_start": 1,
-        "row_end": 30,
-        "pattern": "ABC|DEF",
-        "exceptions": ""
-      }
-    ]
-  },
-  {
-    "configKey": "BJ|32N|186Y",
-    "airline": "BJ",
-    "aircraft": "32N",
-    "configuration": "186Y",
-    "label": "BJ 32N · 186Y",
-    "sourceLabel": "Base Excel validée par l’utilisateur · Excel utilisateur",
-    "quality": "summary",
-    "zones": [
-      {
-        "class": "Y",
-        "row_start": 1,
-        "row_end": 31,
-        "pattern": "ABC|DEF",
-        "exceptions": ""
-      }
-    ]
-  },
-  {
-    "configKey": "C3|320|180Y",
-    "airline": "C3",
-    "aircraft": "320",
-    "configuration": "180Y",
-    "label": "C3 320 · 180Y",
-    "sourceLabel": "Base Excel validée par l’utilisateur · Excel utilisateur",
-    "quality": "summary",
-    "zones": [
-      {
-        "class": "Y",
-        "row_start": 1,
-        "row_end": 30,
-        "pattern": "ABC|DEF",
-        "exceptions": ""
-      }
-    ]
-  },
-  {
     "configKey": "CAT|738|189Y",
     "airline": "CAT",
     "aircraft": "738",
@@ -1346,31 +868,6 @@
     ]
   },
   {
-    "configKey": "EI|32Q|184Y",
-    "airline": "EI",
-    "aircraft": "32Q",
-    "configuration": "184Y",
-    "label": "Aer Lingus A321-253NX · 184Y",
-    "sourceLabel": "AeroLOPA — Aer Lingus Airbus A321-253NX (relevé direct du plan)",
-    "quality": "exact",
-    "zones": [
-      {
-        "class": "C",
-        "row_start": 2,
-        "row_end": 6,
-        "pattern": "AC|HK",
-        "exceptions": "3=A|K\n5=A|K"
-      },
-      {
-        "class": "Y",
-        "row_start": 7,
-        "row_end": 34,
-        "pattern": "ABC|DEF",
-        "exceptions": ""
-      }
-    ]
-  },
-  {
     "configKey": "EI|320|J4Y168",
     "airline": "EI",
     "aircraft": "320",
@@ -1390,31 +887,6 @@
         "class": "Y",
         "row_start": 2,
         "row_end": 29,
-        "pattern": "ABC|DEF",
-        "exceptions": ""
-      }
-    ]
-  },
-  {
-    "configKey": "EI|32Q|Y168J16",
-    "airline": "EI",
-    "aircraft": "32Q",
-    "configuration": "Y168J16",
-    "label": "Aer Lingus A321-253NY · Y168J16",
-    "sourceLabel": "AeroLOPA — Aer Lingus Airbus A321-253NY (relevé direct du plan, même géométrie que 184Y)",
-    "quality": "exact",
-    "zones": [
-      {
-        "class": "C",
-        "row_start": 2,
-        "row_end": 6,
-        "pattern": "AC|HK",
-        "exceptions": "3=A|K\n5=A|K"
-      },
-      {
-        "class": "Y",
-        "row_start": 7,
-        "row_end": 34,
         "pattern": "ABC|DEF",
         "exceptions": ""
       }
@@ -1457,131 +929,6 @@
     ]
   },
   {
-    "configKey": "FB|223|008C135M",
-    "airline": "FB",
-    "aircraft": "223",
-    "configuration": "008C135M",
-    "label": "FB 223 · 008C135M",
-    "sourceLabel": "Base Excel validée par l’utilisateur · Excel utilisateur",
-    "quality": "summary",
-    "zones": [
-      {
-        "class": "C",
-        "row_start": 1,
-        "row_end": 2,
-        "pattern": "AC|DF",
-        "exceptions": ""
-      },
-      {
-        "class": "Y",
-        "row_start": 3,
-        "row_end": 29,
-        "pattern": "AC|DEF",
-        "exceptions": ""
-      }
-    ]
-  },
-  {
-    "configKey": "FI|32Q|187Y",
-    "airline": "FI",
-    "aircraft": "32Q",
-    "configuration": "187Y",
-    "label": "FI 32Q · 187Y",
-    "sourceLabel": "Base Excel validée par l’utilisateur · AeroLOPA / à vérifier",
-    "quality": "summary",
-    "zones": [
-      {
-        "class": "C",
-        "row_start": 1,
-        "row_end": 6,
-        "pattern": "AC|DF",
-        "exceptions": ""
-      },
-      {
-        "class": "Y",
-        "row_start": 7,
-        "row_end": 34,
-        "pattern": "ABC|DEF",
-        "exceptions": ""
-      }
-    ]
-  },
-  {
-    "configKey": "FI|75W|183Y",
-    "airline": "FI",
-    "aircraft": "75W",
-    "configuration": "183Y",
-    "label": "FI 75W · 183Y",
-    "sourceLabel": "Base Excel validée par l’utilisateur · Excel utilisateur",
-    "quality": "summary",
-    "zones": [
-      {
-        "class": "C",
-        "row_start": 1,
-        "row_end": 6,
-        "pattern": "AC|DF",
-        "exceptions": ""
-      },
-      {
-        "class": "Y",
-        "row_start": 7,
-        "row_end": 33,
-        "pattern": "ABC|DEF",
-        "exceptions": ""
-      }
-    ]
-  },
-  {
-    "configKey": "FI|75W|184Y",
-    "airline": "FI",
-    "aircraft": "75W",
-    "configuration": "184Y",
-    "label": "FI 75W · 184Y",
-    "sourceLabel": "Base Excel validée par l’utilisateur · AeroLOPA / à vérifier",
-    "quality": "summary",
-    "zones": [
-      {
-        "class": "C",
-        "row_start": 2,
-        "row_end": 6,
-        "pattern": "AC|DF",
-        "exceptions": ""
-      },
-      {
-        "class": "Y",
-        "row_start": 7,
-        "row_end": 33,
-        "pattern": "ABC|DEF",
-        "exceptions": ""
-      }
-    ]
-  },
-  {
-    "configKey": "FI|7M8|178Y",
-    "airline": "FI",
-    "aircraft": "7M8",
-    "configuration": "178Y",
-    "label": "FI 7M8 · 178Y",
-    "sourceLabel": "Base Excel validée par l’utilisateur · Excel utilisateur",
-    "quality": "summary",
-    "zones": [
-      {
-        "class": "C",
-        "row_start": 1,
-        "row_end": 4,
-        "pattern": "AC|DF",
-        "exceptions": ""
-      },
-      {
-        "class": "Y",
-        "row_start": 5,
-        "row_end": 31,
-        "pattern": "ABC|DEF",
-        "exceptions": ""
-      }
-    ]
-  },
-  {
     "configKey": "HF|339|242Y",
     "airline": "HF",
     "aircraft": "339",
@@ -1616,81 +963,6 @@
         "row_start": 17,
         "row_end": 38,
         "pattern": "AC|DEFG|HK",
-        "exceptions": ""
-      }
-    ]
-  },
-  {
-    "configKey": "HM|333|249Y",
-    "airline": "HM",
-    "aircraft": "333",
-    "configuration": "249Y",
-    "label": "HM 333 · 249Y",
-    "sourceLabel": "Base Excel validée par l’utilisateur · Excel utilisateur",
-    "quality": "summary",
-    "zones": [
-      {
-        "class": "C",
-        "row_start": 1,
-        "row_end": 12,
-        "pattern": "A|DF|K",
-        "exceptions": ""
-      },
-      {
-        "class": "Y",
-        "row_start": 1,
-        "row_end": 25,
-        "pattern": "AC|DEFG|HK",
-        "exceptions": ""
-      }
-    ]
-  },
-  {
-    "configKey": "HU|789|292Y",
-    "airline": "HU",
-    "aircraft": "789",
-    "configuration": "292Y",
-    "label": "HU 789 · 292Y",
-    "sourceLabel": "Base Excel validée par l’utilisateur · AeroLOPA / à vérifier · Plusieurs variantes Hainan 787-9 peuvent porter des capacités proches / identiques selon les sources ; ne pas forcer.",
-    "quality": "summary",
-    "zones": [
-      {
-        "class": "C",
-        "row_start": 11,
-        "row_end": 18,
-        "pattern": "A|DG|K",
-        "exceptions": ""
-      },
-      {
-        "class": "W",
-        "row_start": 31,
-        "row_end": 34,
-        "pattern": "ABC|DEG|HJK",
-        "exceptions": ""
-      },
-      {
-        "class": "Y",
-        "row_start": 35,
-        "row_end": 59,
-        "pattern": "ABC|DEG|HJK",
-        "exceptions": ""
-      }
-    ]
-  },
-  {
-    "configKey": "IZ|32Q|Y220",
-    "airline": "IZ",
-    "aircraft": "32Q",
-    "configuration": "Y220",
-    "label": "IZ 32Q · Y220",
-    "sourceLabel": "Base Excel validée par l’utilisateur · AeroLOPA / à vérifier",
-    "quality": "summary",
-    "zones": [
-      {
-        "class": "Y",
-        "row_start": 1,
-        "row_end": 37,
-        "pattern": "ABC|DEF",
         "exceptions": ""
       }
     ]
@@ -1753,163 +1025,2099 @@
     ]
   },
   {
-    "configKey": "J2|320|156Y",
-    "airline": "J2",
-    "aircraft": "320",
-    "configuration": "156Y",
-    "label": "J2 320 · 156Y",
-    "sourceLabel": "Base Excel validée par l’utilisateur · AeroLOPA / à vérifier",
-    "quality": "summary",
+    "configKey": "09|738|195Y",
+    "airline": "09",
+    "aircraft": "738",
+    "configuration": "195Y",
+    "sourceLabel": "09A520 24AUG CDG-ZAD Generic Report",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "Y",
+        "row_start": 1,
+        "row_end": 33,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "A9|738|2F20C144Y",
+    "airline": "A9",
+    "aircraft": "738",
+    "configuration": "2F20C144Y",
+    "sourceLabel": "A9628 09AUG CDG-TBS Generic Report",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "F",
+        "row_start": 1,
+        "row_end": 1,
+        "pattern": "|DF",
+        "exceptions": ""
+      },
+      {
+        "class": "C",
+        "row_start": 2,
+        "row_end": 6,
+        "pattern": "AC|DF",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 7,
+        "row_end": 30,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "AH1001|738|14C165Y",
+    "airline": "AH",
+    "aircraft": "738",
+    "configuration": "14C165Y",
+    "sourceLabel": "AH1001 07AUG CDG-ALG Generic Report",
+    "quality": "exact",
     "zones": [
       {
         "class": "C",
         "row_start": 1,
         "row_end": 3,
-        "pattern": "AC|HL",
+        "pattern": "ABC|DEF",
+        "exceptions": "1=ABC|"
+      },
+      {
+        "class": "Y",
+        "row_start": 4,
+        "row_end": 33,
+        "pattern": "ABC|DEF",
+        "exceptions": "33=|DEF"
+      }
+    ]
+  },
+  {
+    "configKey": "AH1003|332|18C14W219Y",
+    "airline": "AH",
+    "aircraft": "332",
+    "configuration": "18C14W219Y",
+    "sourceLabel": "AH1003 09AUG CDG-ALG Generic Report",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 4,
+        "pattern": "AD|GK",
+        "exceptions": "5=A|K"
+      },
+      {
+        "class": "W",
+        "row_start": 6,
+        "row_end": 7,
+        "pattern": "AC|DFG|HK",
         "exceptions": ""
       },
       {
         "class": "Y",
         "row_start": 14,
-        "row_end": 29,
-        "pattern": "ABC|DEF|HJK",
-        "exceptions": ""
+        "row_end": 42,
+        "pattern": "AC|DEFG|HK",
+        "exceptions": "27=AC||HK\n42=|DEF|"
       }
     ]
   },
   {
-    "configKey": "J2|320|174Y",
-    "airline": "J2",
-    "aircraft": "320",
-    "configuration": "174Y",
-    "label": "J2 320 · 174Y",
-    "sourceLabel": "Base Excel validée par l’utilisateur · Excel utilisateur",
-    "quality": "summary",
+    "configKey": "AH1003|332|302Y",
+    "airline": "AH",
+    "aircraft": "332",
+    "configuration": "302Y",
+    "sourceLabel": "AH1003 08AUG CDG-ALG Generic Report (variante tout-Y, meme vol/appareil que la config 18C14W219Y mais date differente)",
+    "quality": "exact",
     "zones": [
       {
         "class": "Y",
-        "row_start": 14,
-        "row_end": 32,
-        "pattern": "ABC|DEF|HJK",
+        "row_start": 1,
+        "row_end": 41,
+        "pattern": "AC|DEFG|HK",
         "exceptions": ""
       }
     ]
   },
   {
-    "configKey": "J2|320|146Y",
-    "airline": "J2",
-    "aircraft": "320",
-    "configuration": "146Y",
-    "label": "J2 320 · 146Y",
-    "sourceLabel": "Base Excel validée par l’utilisateur · Excel utilisateur",
-    "quality": "summary",
+    "configKey": "AH1543|73H|20C137Y",
+    "airline": "AH",
+    "aircraft": "73H",
+    "configuration": "20C137Y",
+    "sourceLabel": "AH1543 08AUG CDG-ALG Generic Report (fichier envoye directement par l'utilisateur)",
+    "quality": "exact",
     "zones": [
       {
         "class": "C",
         "row_start": 1,
         "row_end": 5,
-        "pattern": "AC|HL",
+        "pattern": "AC|DF",
         "exceptions": ""
       },
       {
         "class": "Y",
-        "row_start": 14,
-        "row_end": 27,
-        "pattern": "ABC|DEF|HJK",
-        "exceptions": ""
-      }
-    ]
-  },
-  {
-    "configKey": "J2|32N|150Y",
-    "airline": "J2",
-    "aircraft": "32N",
-    "configuration": "150Y",
-    "label": "J2 32N · 150Y",
-    "sourceLabel": "Base Excel validée par l’utilisateur · AeroLOPA / à vérifier",
-    "quality": "summary",
-    "zones": [
-      {
-        "class": "C",
-        "row_start": 1,
-        "row_end": 3,
-        "pattern": "AC|HL",
-        "exceptions": ""
-      },
-      {
-        "class": "Y",
-        "row_start": 14,
+        "row_start": 6,
         "row_end": 28,
-        "pattern": "ABC|DEF|HJK",
-        "exceptions": ""
+        "pattern": "ABC|DEF",
+        "exceptions": "28=AB|DEF"
       }
     ]
   },
   {
-    "configKey": "J2|32N|156Y",
-    "airline": "J2",
-    "aircraft": "32N",
-    "configuration": "156Y",
-    "label": "J2 32N · 156Y",
-    "sourceLabel": "Base Excel validée par l’utilisateur · AeroLOPA / à vérifier",
-    "quality": "summary",
+    "configKey": "VF516|7M8|189Y",
+    "airline": "VF",
+    "aircraft": "7M8",
+    "configuration": "189Y",
+    "sourceLabel": "VF516 10AUG CDG-ESB Generic Report (fichier envoye directement par l'utilisateur)",
+    "quality": "exact",
     "zones": [
       {
-        "class": "C",
-        "row_start": 1,
-        "row_end": 3,
-        "pattern": "AC|HL",
-        "exceptions": ""
-      },
-      {
         "class": "Y",
-        "row_start": 14,
-        "row_end": 29,
-        "pattern": "ABC|DEF|HJK",
-        "exceptions": ""
+        "row_start": 1,
+        "row_end": 32,
+        "pattern": "ABC|DEF",
+        "exceptions": "1=ABC|"
       }
     ]
   },
   {
-    "configKey": "J2|32N|186Y",
-    "airline": "J2",
+    "configKey": "TB2641|73H|189Y",
+    "airline": "TB",
+    "aircraft": "73H",
+    "configuration": "189Y",
+    "sourceLabel": "TB2641 13AUG CDG-OUD Generic Report (fichier envoye directement par l'utilisateur)",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "Y",
+        "row_start": 1,
+        "row_end": 32,
+        "pattern": "ABC|DEF",
+        "exceptions": "1=ABC|"
+      }
+    ]
+  },
+  {
+    "configKey": "BJ511|32N|186Y",
+    "airline": "BJ",
     "aircraft": "32N",
     "configuration": "186Y",
-    "label": "J2 32N · 186Y",
-    "sourceLabel": "Base Excel validée par l’utilisateur · Excel utilisateur",
-    "quality": "summary",
+    "sourceLabel": "BJ511 10AUG CDG-TUN Generic Report (fichier envoye directement par l'utilisateur)",
+    "quality": "exact",
     "zones": [
       {
         "class": "Y",
-        "row_start": 14,
-        "row_end": 34,
-        "pattern": "ABC|DEF|HJK",
+        "row_start": 1,
+        "row_end": 31,
+        "pattern": "ABC|DEF",
         "exceptions": ""
       }
     ]
   },
   {
-    "configKey": "SK|32N|C32Y132",
-    "airline": "SK",
+    "configKey": "SM|320|180Y",
+    "airline": "SM",
+    "aircraft": "320",
+    "configuration": "180Y",
+    "sourceLabel": "SM3778 08AUG CDG-LXR et 09AUG LXR-HRG, Generic Report (fichier envoye directement par l'utilisateur, 2 etapes du meme vol/appareil)",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "Y",
+        "row_start": 1,
+        "row_end": 30,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "WB701|332|30J222Y",
+    "airline": "WB",
+    "aircraft": "332",
+    "configuration": "30J222Y",
+    "sourceLabel": "WB701 13AUG CDG-KGL Generic Report (fichier envoye directement par l'utilisateur)",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "J",
+        "row_start": 1,
+        "row_end": 5,
+        "pattern": "AC|DE|JK",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 7,
+        "row_end": 37,
+        "pattern": "AC|DEFG|JK",
+        "exceptions": "13=SKIP\n21=AC||JK\n22=|DEFG|\n32=AC|DEF|JK\n33=AC|DEF|JK\n34=AC|DEF|JK\n35=AC|DEF|JK\n36=AC|DEF|JK\n37=|DEF|"
+      }
+    ]
+  },
+  {
+    "configKey": "MS800|359|30C310Y",
+    "airline": "MS",
+    "aircraft": "359",
+    "configuration": "30C310Y",
+    "sourceLabel": "MS800 12AUG CDG-CAI Generic Report (fichier envoye directement par l'utilisateur)",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 8,
+        "row_end": 16,
+        "pattern": "A|DG|K",
+        "exceptions": "13=SKIP\n16=|DG|"
+      },
+      {
+        "class": "Y",
+        "row_start": 20,
+        "row_end": 54,
+        "pattern": "ABC|DEG|HJK",
+        "exceptions": "38=ABC||HJK\n54=AB|DEG|HJ"
+      }
+    ]
+  },
+  {
+    "configKey": "J274|32N|12C138Y",
+    "airline": "J2",
     "aircraft": "32N",
-    "configuration": "C32Y132",
-    "label": "SAS Airbus A320-251N · C32Y132",
-    "sourceLabel": "AeroLOPA — SAS Airbus A320-251N (relevé direct du plan)",
+    "configuration": "12C138Y",
+    "sourceLabel": "J274 09AUG CDG-GYD Generic Report (fichier envoye directement par l'utilisateur)",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 3,
+        "pattern": "AC|HL",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 14,
+        "row_end": 36,
+        "pattern": "ABC|HKL",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "EI523|333|30J289Y",
+    "airline": "EI",
+    "aircraft": "333",
+    "configuration": "30J289Y",
+    "sourceLabel": "EI523 08AUG CDG-DUB Generic Report (fichier envoye directement par l'utilisateur)",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "J",
+        "row_start": 1,
+        "row_end": 7,
+        "pattern": "A|DG|HK",
+        "exceptions": "1=A|DG|\n3=A|DG|K\n5=A|DG|K\n7=A|DG|K"
+      },
+      {
+        "class": "Y",
+        "row_start": 8,
+        "row_end": 46,
+        "pattern": "AC|DEFG|HK",
+        "exceptions": "8=AC|DG|HK\n27=|DEFG|\n28=|DEFG|\n29=|DEFG|\n42=AC|DEFG|H\n43=AC|DEFG|H\n44=AC|DEFG|H\n45=AC|DEFG|H\n46=|DEF|"
+      }
+    ]
+  },
+  {
+    "configKey": "AH1013|320|12C138Y",
+    "airline": "AH",
+    "aircraft": "320",
+    "configuration": "12C138Y",
+    "sourceLabel": "AH1013 11AUG CDG-ALG Generic Report (fichier envoye directement par l'utilisateur)",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 3,
+        "pattern": "AC|DF",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 4,
+        "row_end": 27,
+        "pattern": "ABC|DEF",
+        "exceptions": "13=SKIP"
+      }
+    ]
+  },
+  {
+    "configKey": "S4513|32Q|188Y",
+    "airline": "S4",
+    "aircraft": "32Q",
+    "configuration": "188Y",
+    "sourceLabel": "S4513 11AUG CDG-PDL Generic Report (fichier envoye directement par l'utilisateur)",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "Y",
+        "row_start": 1,
+        "row_end": 4,
+        "pattern": "AC|DF",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 5,
+        "row_end": 34,
+        "pattern": "ABC|DEF",
+        "exceptions": "13=SKIP\n8=BC|DEF\n22=BC|DEF"
+      }
+    ]
+  },
+  {
+    "configKey": "LO334|73H|6C180Y",
+    "airline": "LO",
+    "aircraft": "73H",
+    "configuration": "6C180Y",
+    "sourceLabel": "LO334 09AUG CDG-WAW Generic Report (fichier envoye directement par l'utilisateur)",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 1,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 2,
+        "row_end": 31,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "FB432|223|8C135M",
+    "airline": "FB",
+    "aircraft": "223",
+    "configuration": "8C135M",
+    "sourceLabel": "FB432 10AUG CDG-SOF Generic Report (fichier envoye directement par l'utilisateur)",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 2,
+        "pattern": "AC|DF",
+        "exceptions": ""
+      },
+      {
+        "class": "M",
+        "row_start": 3,
+        "row_end": 29,
+        "pattern": "AC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "IZ744|32Q|220Y",
+    "airline": "IZ",
+    "aircraft": "32Q",
+    "configuration": "220Y",
+    "sourceLabel": "IZ744 22SEP CDG-TLV Generic Report (fichier envoye directement par l'utilisateur)",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "Y",
+        "row_start": 1,
+        "row_end": 37,
+        "pattern": "ABC|DEF",
+        "exceptions": "27=BC|DE"
+      }
+    ]
+  },
+  {
+    "configKey": "SB501|339|26J21W244Y",
+    "airline": "SB",
+    "aircraft": "339",
+    "configuration": "26J21W244Y",
+    "sourceLabel": "SB501 01AUG CDG-BKK et 02AUG BKK-NOU, Generic Report (fichier envoye directement par l'utilisateur, 2 etapes identiques du meme vol/appareil)",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "J",
+        "row_start": 1,
+        "row_end": 8,
+        "pattern": "A|DE|H",
+        "exceptions": "4=SKIP\n9=SKIP\n8=|DE|"
+      },
+      {
+        "class": "W",
+        "row_start": 10,
+        "row_end": 12,
+        "pattern": "AB|DEF|GH",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 14,
+        "row_end": 44,
+        "pattern": "AB|CDEF|GH",
+        "exceptions": "13=SKIP\n41=AB|DEF|GH\n42=AB|DEF|GH\n43=AB|DEF|GH\n44=AB|DEF|GH"
+      }
+    ]
+  },
+  {
+    "configKey": "VF516|73H|189Y",
+    "airline": "VF",
+    "aircraft": "73H",
+    "configuration": "189Y",
+    "sourceLabel": "VF516 07AUG CDG-ESB Generic Report (fichier envoye directement par l'utilisateur)",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "Y",
+        "row_start": 1,
+        "row_end": 32,
+        "pattern": "ABC|DEF",
+        "exceptions": "1=ABC|"
+      }
+    ]
+  },
+  {
+    "configKey": "C3|320|180Y",
+    "airline": "C3",
+    "aircraft": "320",
+    "configuration": "180Y",
+    "sourceLabel": "C3302 06AUG CDG-TLV Generic Report (fichier envoye directement par l'utilisateur)",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "Y",
+        "row_start": 1,
+        "row_end": 31,
+        "pattern": "ABC|DEF",
+        "exceptions": "13=SKIP"
+      }
+    ]
+  },
+  {
+    "configKey": "HU758|789|30C262Y",
+    "airline": "HU",
+    "aircraft": "789",
+    "configuration": "30C262Y",
+    "sourceLabel": "HU758 10AUG CDG-SZX Generic Report (fichier envoye directement par l'utilisateur)",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 11,
+        "row_end": 19,
+        "pattern": "A|DG|K",
+        "exceptions": "13=SKIP\n14=SKIP\n20=|DG|"
+      },
+      {
+        "class": "Y",
+        "row_start": 31,
+        "row_end": 61,
+        "pattern": "ABC|DEG|HJK",
+        "exceptions": "45=ABC|DEG|\n59=A_C|_E_|H_K (approx)\n60=|_E_|\n61=|_E_|"
+      }
+    ]
+  },
+  {
+    "configKey": "PC5038|320|186Y",
+    "airline": "PC",
+    "aircraft": "320",
+    "configuration": "186Y",
+    "sourceLabel": "PC5038 09AUG CDG-AYT Generic Report (fichier envoye directement par l'utilisateur)",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "Y",
+        "row_start": 1,
+        "row_end": 34,
+        "pattern": "ABC|DEF",
+        "exceptions": "12=SKIP\n13=SKIP\n14=SKIP"
+      }
+    ]
+  },
+  {
+    "configKey": "AH1303|332|251Y",
+    "airline": "AH",
+    "aircraft": "332",
+    "configuration": "251Y",
+    "sourceLabel": "AH1303 04AUG CDG-ALG Generic Report (fichier envoye directement par l'utilisateur)",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "Y",
+        "row_start": 1,
+        "row_end": 5,
+        "pattern": "AD|GK",
+        "exceptions": "5=A|K"
+      },
+      {
+        "class": "Y",
+        "row_start": 6,
+        "row_end": 7,
+        "pattern": "AC|DFG|HK",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 14,
+        "row_end": 42,
+        "pattern": "AC|DEFG|HK",
+        "exceptions": "27=AC||HK\n38=AC|DFG|HK\n39=AC|DFG|HK\n40=AC|DFG|HK\n41=AC|DFG|HK\n42=|DFG|"
+      }
+    ]
+  },
+  {
+    "configKey": "A9628|737|12C168Y",
+    "airline": "A9",
+    "aircraft": "737",
+    "configuration": "12C168Y",
+    "sourceLabel": "A9628 07AUG CDG-TBS Generic Report (fichier envoye directement par l'utilisateur)",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 3,
+        "pattern": "AC|DF",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 4,
+        "row_end": 31,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "PC1134|321|240Y",
+    "airline": "PC",
+    "aircraft": "321",
+    "configuration": "240Y",
+    "sourceLabel": "PC1134 14AUG CDG-SAW Generic Report (fichier envoye directement par l'utilisateur)",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "Y",
+        "row_start": 1,
+        "row_end": 40,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "WB701|333|30J244Y",
+    "airline": "WB",
+    "aircraft": "333",
+    "configuration": "30J244Y",
+    "sourceLabel": "WB701 11AUG CDG-KGL Generic Report (fichier envoye directement par l'utilisateur)",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "J",
+        "row_start": 1,
+        "row_end": 8,
+        "pattern": "A|CF|H",
+        "exceptions": "8=A||H"
+      },
+      {
+        "class": "Y",
+        "row_start": 9,
+        "row_end": 11,
+        "pattern": "AB|CEF|GH",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 12,
+        "row_end": 40,
+        "pattern": "AB|CDEF|GH",
+        "exceptions": "36=AB|CEF|GH\n37=AB|CEF|GH\n38=AB|CEF|GH\n39=AB|CEF|GH\n40=|CEF|"
+      }
+    ]
+  },
+  {
+    "configKey": "FB432|319|156M",
+    "airline": "FB",
+    "aircraft": "319",
+    "configuration": "156M",
+    "sourceLabel": "FB432 22SEP CDG-SOF Generic Report (fichier envoye directement par l'utilisateur)",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "M",
+        "row_start": 1,
+        "row_end": 26,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "TW|332|18C228Y",
+    "airline": "TW",
+    "aircraft": "332",
+    "configuration": "18C228Y",
+    "sourceLabel": "T'way Air, format seatmap propre (fichier envoye directement par l'utilisateur, pas de rapport Altea)",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 3,
+        "pattern": "AB|DE|GH",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 7,
+        "row_end": 23,
+        "pattern": "ABC|DEF|GH",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 24,
+        "row_end": 36,
+        "pattern": "ABC|DEF|GH",
+        "exceptions": "24=AB||GH\n33=AB|DE|GH\n34=AB|DE|GH\n35=AB|DE|GH\n36=AB|DE|GH"
+      }
+    ]
+  },
+  {
+    "configKey": "TW|77W|59C235Y",
+    "airline": "TW",
+    "aircraft": "77W",
+    "configuration": "59C235Y",
+    "sourceLabel": "T'way Air, format seatmap propre 4 zones A/B/C/D (fichier envoye directement par l'utilisateur, pas de rapport Altea)",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 2,
+        "pattern": "A|D|K",
+        "exceptions": ""
+      },
+      {
+        "class": "C",
+        "row_start": 11,
+        "row_end": 26,
+        "pattern": "A|DG|K",
+        "exceptions": "15=A||K"
+      },
+      {
+        "class": "Y",
+        "row_start": 30,
+        "row_end": 45,
+        "pattern": "AC|DEFG|HJK",
+        "exceptions": "30=|DEFG|\n31=A_C|DEFG|\n32=A_C|DEFG|\n33=AC|DEFG|\n34=AC|DEFG|"
+      },
+      {
+        "class": "Y",
+        "row_start": 59,
+        "row_end": 72,
+        "pattern": "ABC|DEFG|HJK",
+        "exceptions": "59=ABC|||HJK\n69=ABC|DEG|HJK\n70=ABC|DEG|HJK\n71=ABC|DEG|HJK\n72=A_C|DE|"
+      }
+    ]
+  },
+  {
+    "configKey": "3O|320|174Y",
+    "airline": "3O",
+    "aircraft": "320",
+    "configuration": "174Y",
+    "sourceLabel": "3O828 22SEP CDG-RBA",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "Y",
+        "row_start": 1,
+        "row_end": 29,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "BJ|320|180Y",
+    "airline": "BJ",
+    "aircraft": "320",
+    "configuration": "180Y",
+    "sourceLabel": "BJ555 22SEP CDG-DJE",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "Y",
+        "row_start": 1,
+        "row_end": 30,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "BJ|320|177Y",
+    "airline": "BJ",
+    "aircraft": "320",
+    "configuration": "177Y",
+    "sourceLabel": "BJ795A 23AUG CDG-MIR",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "Y",
+        "row_start": 1,
+        "row_end": 30,
+        "pattern": "ABC|DEF",
+        "exceptions": "01=ABC|"
+      }
+    ]
+  },
+  {
+    "configKey": "BM|320|12C120Y",
+    "airline": "BM",
+    "aircraft": "320",
+    "configuration": "12C120Y",
+    "sourceLabel": "BM591 19SEP CDG-MJI",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 3,
+        "pattern": "AC|JL",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 30,
+        "row_end": 49,
+        "pattern": "ABC|JKL",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "FB|221|8C110M",
+    "airline": "FB",
+    "aircraft": "221",
+    "configuration": "8C110M",
+    "sourceLabel": "FB432 27AUG CDG-SOF",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 2,
+        "pattern": "AC|DEF",
+        "exceptions": "01=AC|DF\n02=AC|DE"
+      },
+      {
+        "class": "M",
+        "row_start": 3,
+        "row_end": 24,
+        "pattern": "AC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "HM|333|46J203Y",
+    "airline": "HM",
+    "aircraft": "333",
+    "configuration": "46J203Y",
+    "sourceLabel": "HM1007 07AUG CDG-SEZ",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "J",
+        "row_start": 1,
+        "row_end": 12,
+        "pattern": "A|D|G|K",
+        "exceptions": "08=A|||K"
+      },
+      {
+        "class": "Y",
+        "row_start": 45,
+        "row_end": 71,
+        "pattern": "AC|DEFG|HK",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "KK|320|180Y",
+    "airline": "KK",
+    "aircraft": "320",
+    "configuration": "180Y",
+    "sourceLabel": "KK7854 09SEP CDG-LEJ",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "Y",
+        "row_start": 1,
+        "row_end": 30,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "LO|7M8|8C174Y",
+    "airline": "LO",
+    "aircraft": "7M8",
+    "configuration": "8C174Y",
+    "sourceLabel": "LO332 22SEP CDG-WAW",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 2,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 3,
+        "row_end": 31,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "LS|73C|148Y",
+    "airline": "LS",
+    "aircraft": "73C",
+    "configuration": "148Y",
+    "sourceLabel": "LS268 21SEP CDG-LBA",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "Y",
+        "row_start": 1,
+        "row_end": 26,
+        "pattern": "ABC|DEF",
+        "exceptions": "13=SKIP\n12=BC|EF"
+      }
+    ]
+  },
+  {
+    "configKey": "MS|32N|16C126Y",
+    "airline": "MS",
+    "aircraft": "32N",
+    "configuration": "16C126Y",
+    "sourceLabel": "MS802 22SEP CDG-CAI",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 8,
+        "row_end": 11,
+        "pattern": "AC|HK",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 20,
+        "row_end": 40,
+        "pattern": "ABC|HJK",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "MS|77W|49C297Y",
+    "airline": "MS",
+    "aircraft": "77W",
+    "configuration": "49C297Y",
+    "sourceLabel": "MS800 23AUG CDG-CAI",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 8,
+        "row_end": 15,
+        "pattern": "AC|DEG|HK",
+        "exceptions": "13=SKIP"
+      },
+      {
+        "class": "Y",
+        "row_start": 20,
+        "row_end": 55,
+        "pattern": "ABC|DEG|HJK",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "MS|789|30C279Y",
+    "airline": "MS",
+    "aircraft": "789",
+    "configuration": "30C279Y",
+    "sourceLabel": "MS800 07AUG CDG-CAI",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 8,
+        "row_end": 16,
+        "pattern": "A|D|G|K",
+        "exceptions": "13=SKIP\n16=A|||K"
+      },
+      {
+        "class": "Y",
+        "row_start": 20,
+        "row_end": 52,
+        "pattern": "ABC|DEG|HJK",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "RJ|32N|11J136Y",
+    "airline": "RJ",
+    "aircraft": "32N",
+    "configuration": "11J136Y",
+    "sourceLabel": "RJ118 21SEP CDG-AMM",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "J",
+        "row_start": 1,
+        "row_end": 3,
+        "pattern": "AC|HK",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 11,
+        "row_end": 33,
+        "pattern": "ABC|HJK",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "RJ|32Q|11J175Y",
+    "airline": "RJ",
+    "aircraft": "32Q",
+    "configuration": "11J175Y",
+    "sourceLabel": "RJ118 22SEP CDG-AMM",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "J",
+        "row_start": 1,
+        "row_end": 3,
+        "pattern": "AC|HK",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 11,
+        "row_end": 40,
+        "pattern": "ABC|HJK",
+        "exceptions": "40=|HJK"
+      }
+    ]
+  },
+  {
+    "configKey": "TU|320|12C138Y",
+    "airline": "TU",
+    "aircraft": "320",
+    "configuration": "12C138Y",
+    "sourceLabel": "TU725 08AUG CDG-TUN",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 3,
+        "pattern": "AC|DF",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 6,
+        "row_end": 32,
+        "pattern": "ABC|DEF",
+        "exceptions": "04=SKIP\n05=SKIP\n11=SKIP\n12=SKIP\n13=SKIP\n14=SKIP"
+      }
+    ]
+  },
+  {
+    "configKey": "TU|320|162Y",
+    "airline": "TU",
+    "aircraft": "320",
+    "configuration": "162Y",
+    "sourceLabel": "TU655 20SEP CDG-DJE",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "Y",
+        "row_start": 1,
+        "row_end": 28,
+        "pattern": "ABC|DEF",
+        "exceptions": "13=SKIP"
+      }
+    ]
+  },
+  {
+    "configKey": "TU|332|24C242Y",
+    "airline": "TU",
+    "aircraft": "332",
+    "configuration": "24C242Y",
+    "sourceLabel": "TU723 10SEP CDG-TUN",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 4,
+        "pattern": "AB|EF|JK",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 6,
+        "row_end": 37,
+        "pattern": "AB|DEFG|JK",
+        "exceptions": "13=SKIP"
+      }
+    ]
+  },
+  {
+    "configKey": "TU|332|20C260Y",
+    "airline": "TU",
+    "aircraft": "332",
+    "configuration": "20C260Y",
+    "sourceLabel": "TU723 20SEP CDG-TUN",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 5,
+        "pattern": "AC|DEFG|HK",
+        "exceptions": "01=A|EF|K\n02=C|DG|H\n03=A|EF|K\n04=C|DG|H\n05=A|EF|K"
+      },
+      {
+        "class": "Y",
+        "row_start": 6,
+        "row_end": 41,
+        "pattern": "AC|DEFG|HK",
+        "exceptions": "13=SKIP"
+      }
+    ]
+  },
+  {
+    "configKey": "VF|32Q|211Y",
+    "airline": "VF",
+    "aircraft": "32Q",
+    "configuration": "211Y",
+    "sourceLabel": "VF12 05AUG CDG-SAW",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "Y",
+        "row_start": 1,
+        "row_end": 2,
+        "pattern": "AB|EF",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 3,
+        "row_end": 36,
+        "pattern": "ABC|DEF",
+        "exceptions": "26=ABC|DE"
+      }
+    ]
+  },
+  {
+    "configKey": "TK|33P|24C255Y",
+    "airline": "TK",
+    "aircraft": "33P",
+    "configuration": "24C255Y",
+    "sourceLabel": "TK33P 22SEP CDG-IST",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 4,
+        "pattern": "AB|DE|JK",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 5,
+        "row_end": 38,
+        "pattern": "AB|DEFG|JK",
+        "exceptions": "05=AB|DEF|JK\n06=AB|DEFG|JK\n23=|DEFG|\n24=|DEFG|\n34=AB|DEF|JK\n35=AB|DEF|JK\n36=AB|DEF|JK\n37=AB|DEF|JK\n38=AB|JK"
+      }
+    ]
+  },
+  {
+    "configKey": "TK|77K|28C372Y",
+    "airline": "TK",
+    "aircraft": "77K",
+    "configuration": "28C372Y",
+    "sourceLabel": "TK77K 22SEP CDG-IST",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 4,
+        "pattern": "AB|DEG|JK",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 11,
+        "row_end": 56,
+        "pattern": "ABC|DEGH|JK",
+        "exceptions": "11=|DEG|\n26=AB|DEG|JK\n34=AB|DEG|JK\n43=ABC||JK\n55=AB|DEG|JK\n56=AB|DEG|JK"
+      }
+    ]
+  },
+  {
+    "configKey": "TK|77B|49C300Y",
+    "airline": "TK",
+    "aircraft": "77B",
+    "configuration": "49C300Y",
+    "sourceLabel": "TK77B 22SEP CDG-IST",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 7,
+        "pattern": "AB|DEG|JK",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 11,
+        "row_end": 53,
+        "pattern": "ABC|DEGH|JK",
+        "exceptions": "23=|DEG|\n38=|DEG|\n40=ABC||JK\n41=ABC||JK\n51=AB|DEG|JK\n52=AB|DEG|JK\n53=AB|DEG|JK"
+      }
+    ]
+  },
+  {
+    "configKey": "TK|7E2|49C300Y",
+    "airline": "TK",
+    "aircraft": "7E2",
+    "configuration": "49C300Y",
+    "sourceLabel": "TK7E2 22SEP CDG-IST",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 7,
+        "pattern": "AB|DEG|JK",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 11,
+        "row_end": 53,
+        "pattern": "ABC|DEGH|JK",
+        "exceptions": "23=|DEG|\n40=ABC||JK\n51=AB|DEG|JK\n52=AB|DEG|JK\n53=AB|DEG|JK"
+      }
+    ]
+  },
+  {
+    "configKey": "TK|35E|28C288Y",
+    "airline": "TK",
+    "aircraft": "35E",
+    "configuration": "28C288Y",
+    "sourceLabel": "TK35E 22SEP CDG-IST",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 7,
+        "pattern": "A|DEFG|K",
+        "exceptions": "01=A|EF|K\n02=A|DG|K\n03=A|EF|K\n04=A|DG|K\n05=A|EF|K\n06=A|DG|K\n07=A|EF|K"
+      },
+      {
+        "class": "Y",
+        "row_start": 8,
+        "row_end": 40,
+        "pattern": "AB|DEFG|JK",
+        "exceptions": "08=AB|DEFG|JK\n09=AB|DEFG|JK\n40=|DEG|"
+      }
+    ]
+  },
+  {
+    "configKey": "TK|78D|16C135Y",
+    "airline": "TK",
+    "aircraft": "78D",
+    "configuration": "16C135Y",
+    "sourceLabel": "TK78D 22SEP CDG-IST",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 4,
+        "pattern": "AB|EF",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 5,
+        "row_end": 27,
+        "pattern": "ABC|DEF",
+        "exceptions": "27=|DEF"
+      }
+    ]
+  },
+  {
+    "configKey": "TK|M32|16C174Y",
+    "airline": "TK",
+    "aircraft": "M32",
+    "configuration": "16C174Y",
+    "sourceLabel": "TKM32 22SEP CDG-IST",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 4,
+        "pattern": "AB|EF",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 6,
+        "row_end": 34,
+        "pattern": "ABC|DEF",
+        "exceptions": "05=SKIP"
+      }
+    ]
+  },
+  {
+    "configKey": "TK|33D|28C261Y",
+    "airline": "TK",
+    "aircraft": "33D",
+    "configuration": "28C261Y",
+    "sourceLabel": "TK33D 22SEP CDG-IST",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 5,
+        "pattern": "AB|DE|JK",
+        "exceptions": "05=AB||JK"
+      },
+      {
+        "class": "Y",
+        "row_start": 8,
+        "row_end": 44,
+        "pattern": "AB|DEFG|JK",
+        "exceptions": "25=||JK\n28=AB|DEFG|JK\n40=AB|DEF|JK\n41=AB|DEF|JK\n42=AB|DEF|JK\n43=|DEF|\n44=|DEF|"
+      }
+    ]
+  },
+  {
+    "configKey": "TK|77E|49C300Y",
+    "airline": "TK",
+    "aircraft": "77E",
+    "configuration": "49C300Y",
+    "sourceLabel": "TK77E 22SEP CDG-IST",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 7,
+        "pattern": "AB|DEG|JK",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 11,
+        "row_end": 53,
+        "pattern": "ABC|DEGH|JK",
+        "exceptions": "23=|DEG|\n40=ABC||JK\n51=AB|DEG|JK\n52=AB|DEG|JK\n53=AB|DEG|JK"
+      }
+    ]
+  },
+  {
+    "configKey": "TK|332|18C232Y",
+    "airline": "TK",
+    "aircraft": "332",
+    "configuration": "18C232Y",
+    "sourceLabel": "TK332 22SEP CDG-IST",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 3,
+        "pattern": "AB|DE|JK",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 8,
+        "row_end": 41,
+        "pattern": "AB|DEFG|JK",
+        "exceptions": "23=|DEFG|\n28=AB|DEFG|JK\n38=AB|DEF|JK\n39=AB|DEF|JK\n40=AB|DEF|JK\n41=AB|DEF|JK"
+      }
+    ]
+  },
+  {
+    "configKey": "TK|33R|24C255Y",
+    "airline": "TK",
+    "aircraft": "33R",
+    "configuration": "24C255Y",
+    "sourceLabel": "TK33R 22SEP CDG-IST",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 4,
+        "pattern": "AB|DE|JK",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 8,
+        "row_end": 41,
+        "pattern": "AB|DEFG|JK",
+        "exceptions": "08=AB|DEF|JK\n26=|DEFG|\n27=|DEFG|\n28=AB|DEFG|JK\n37=AB|DEF|JK\n38=AB|DEF|JK\n39=AB|DEF|JK\n40=AB|DEF|JK\n41=AB||JK"
+      }
+    ]
+  },
+  {
+    "configKey": "TK|33M|30C222Y",
+    "airline": "TK",
+    "aircraft": "33M",
+    "configuration": "30C222Y",
+    "sourceLabel": "TK33M 22SEP CDG-IST",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 5,
+        "pattern": "AB|DE|JK",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 8,
+        "row_end": 42,
+        "pattern": "AB|DEFG|JK",
+        "exceptions": "21=AB||JK\n27=|DEFG|\n28=AB|DEFG|JK\n37=AB|DEF|JK\n38=AB|DEF|JK\n39=AB|DEF|JK\n40=AB|DEF|JK\n41=AB|DEF|JK\n42=|DEF|"
+      }
+    ]
+  },
+  {
+    "configKey": "TK|R21|16C164Y",
+    "airline": "TK",
+    "aircraft": "R21",
+    "configuration": "16C164Y",
+    "sourceLabel": "TKR21 22SEP CDG-IST",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 4,
+        "pattern": "AB|EF",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 6,
+        "row_end": 33,
+        "pattern": "ABC|DEF",
+        "exceptions": "08=|BC|DE|\n21=|BC|DE|"
+      }
+    ]
+  },
+  {
+    "configKey": "TK|333|28C261Y",
+    "airline": "TK",
+    "aircraft": "333",
+    "configuration": "28C261Y",
+    "sourceLabel": "TK333 22SEP CDG-IST",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 5,
+        "pattern": "AB|DE|JK",
+        "exceptions": "05=AB||JK"
+      },
+      {
+        "class": "Y",
+        "row_start": 8,
+        "row_end": 44,
+        "pattern": "AB|DEFG|JK",
+        "exceptions": "25=||JK\n28=AB|DEFG|JK\n40=AB|DEF|JK\n41=AB|DEF|JK\n42=AB|DEF|JK\n43=|DEF|\n44=|DEF|"
+      }
+    ]
+  },
+  {
+    "configKey": "TK|789|30C270Y",
+    "airline": "TK",
+    "aircraft": "789",
+    "configuration": "30C270Y",
+    "sourceLabel": "TK789 22SEP CDG-IST",
     "quality": "exact",
     "zones": [
       {
         "class": "C",
         "row_start": 1,
         "row_end": 8,
+        "pattern": "A|DEFG|K",
+        "exceptions": "01=A|EF|K\n02=A|DG|K\n03=A|EF|K\n04=A|DG|K\n05=A|EF|K\n06=A|DG|K\n07=A|EF|K\n08=A||K"
+      },
+      {
+        "class": "Y",
+        "row_start": 9,
+        "row_end": 40,
+        "pattern": "ABC|DEGH|JK",
+        "exceptions": "25=ABC||JK\n26=ABC||JK\n39=|DEG|\n40=|DEG|"
+      }
+    ]
+  },
+  {
+    "configKey": "TK|33S|40C265Y",
+    "airline": "TK",
+    "aircraft": "33S",
+    "configuration": "40C265Y",
+    "sourceLabel": "TK33S 22SEP CDG-IST",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 7,
+        "pattern": "AB|DE|JK",
+        "exceptions": "07=AB|DE|"
+      },
+      {
+        "class": "Y",
+        "row_start": 8,
+        "row_end": 43,
+        "pattern": "AB|DEFG|JK",
+        "exceptions": "25=AB||JK\n26=AB||JK\n27=|DEFG|\n28=AB|DEFG|JK\n39=AB|DEF|JK\n40=AB|DEF|JK\n41=AB|DEF|JK\n42=|DEF|JK\n43=|DEF|"
+      }
+    ]
+  },
+  {
+    "configKey": "TK|35D|32C297Y",
+    "airline": "TK",
+    "aircraft": "35D",
+    "configuration": "32C297Y",
+    "sourceLabel": "TK35D 22SEP CDG-IST",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 8,
+        "pattern": "A|DEFG|K",
+        "exceptions": "01=A|EF|K\n02=A|DG|K\n03=A|EF|K\n04=A|DG|K\n05=A|EF|K\n06=A|DG|K\n07=A|EF|K\n08=A|DG|K"
+      },
+      {
+        "class": "Y",
+        "row_start": 9,
+        "row_end": 43,
+        "pattern": "ABC|DEGH|JK",
+        "exceptions": "27=|DEG|\n28=|BC||HJ\n29=ABC||HJK\n43=|BC|DEG|"
+      }
+    ]
+  },
+  {
+    "configKey": "TK|N32|20C162Y",
+    "airline": "TK",
+    "aircraft": "N32",
+    "configuration": "20C162Y",
+    "sourceLabel": "TKN32 22SEP CDG-IST",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 5,
+        "pattern": "AB|EF",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 6,
+        "row_end": 32,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "AI|788|18C241Y",
+    "airline": "AI",
+    "aircraft": "788",
+    "configuration": "18C241Y",
+    "sourceLabel": "AI142 22SEP CDG-DEL",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 3,
+        "pattern": "AB|DF|HJ",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 11,
+        "row_end": 40,
+        "pattern": "ABC|DEF|GHJ",
+        "exceptions": "11=ABC||GHJ\n39=AB|DEF|HJ\n40=|DEF|"
+      }
+    ]
+  },
+  {
+    "configKey": "AI|789|30C21R248Y",
+    "airline": "AI",
+    "aircraft": "789",
+    "configuration": "30C21R248Y",
+    "sourceLabel": "AI2025 19SEP DEL-FRA",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 8,
+        "pattern": "A|EF|K",
+        "exceptions": "02=A|D|K\n04=A|D|K\n06=A|D|K\n08=A||K"
+      },
+      {
+        "class": "R",
+        "row_start": 21,
+        "row_end": 23,
+        "pattern": "AC|DEG|HK",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 31,
+        "row_end": 59,
+        "pattern": "ABC|DEG|HJK",
+        "exceptions": "43=ABC|||HJK\n57=|BC|DEG|HJ\n58=|BC|DEG|HJ\n59=|DEG|"
+      }
+    ]
+  },
+  {
+    "configKey": "FI|32Q|22C165M",
+    "airline": "FI",
+    "aircraft": "32Q",
+    "configuration": "22C165M",
+    "sourceLabel": "FI543 26SEP CDG-KEF",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 6,
+        "pattern": "AC|DF",
+        "exceptions": "01=AC|"
+      },
+      {
+        "class": "M",
+        "row_start": 7,
+        "row_end": 34,
+        "pattern": "ABC|DEF",
+        "exceptions": "34=|DE"
+      }
+    ]
+  },
+  {
+    "configKey": "FI|7M8|16C144M",
+    "airline": "FI",
+    "aircraft": "7M8",
+    "configuration": "16C144M",
+    "sourceLabel": "FI547 22SEP CDG-KEF",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 4,
+        "pattern": "AC|DF",
+        "exceptions": ""
+      },
+      {
+        "class": "M",
+        "row_start": 5,
+        "row_end": 28,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "FI|76W|25C237M",
+    "airline": "FI",
+    "aircraft": "76W",
+    "configuration": "25C237M",
+    "sourceLabel": "FI543 22SEP CDG-KEF",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 5,
+        "pattern": "AB|D|FG",
+        "exceptions": ""
+      },
+      {
+        "class": "M",
+        "row_start": 6,
+        "row_end": 41,
+        "pattern": "AB|CDE|FG",
+        "exceptions": "17=|CDE|\n18=SKIP\n41=|CDE|"
+      }
+    ]
+  },
+  {
+    "configKey": "SK|319|12C138M",
+    "airline": "SK",
+    "aircraft": "319",
+    "configuration": "12C138M",
+    "sourceLabel": "SK568 22SEP CDG-CPH",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 2,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      },
+      {
+        "class": "M",
+        "row_start": 3,
+        "row_end": 26,
+        "pattern": "ABC|DEF",
+        "exceptions": "13=SKIP"
+      }
+    ]
+  },
+  {
+    "configKey": "SK|320|24C156M",
+    "airline": "SK",
+    "aircraft": "320",
+    "configuration": "24C156M",
+    "sourceLabel": "SK560 22SEP CDG-CPH",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 4,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      },
+      {
+        "class": "M",
+        "row_start": 5,
+        "row_end": 30,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "SK|320|42C126M",
+    "airline": "SK",
+    "aircraft": "320",
+    "configuration": "42C126M",
+    "sourceLabel": "SK836 23SEP CDG-OSL",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 7,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      },
+      {
+        "class": "M",
+        "row_start": 8,
+        "row_end": 29,
+        "pattern": "ABC|DEF",
+        "exceptions": "13=SKIP"
+      }
+    ]
+  },
+  {
+    "configKey": "SK|32N|18C162M",
+    "airline": "SK",
+    "aircraft": "32N",
+    "configuration": "18C162M",
+    "sourceLabel": "SK574 22SEP CDG-ARN",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 3,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      },
+      {
+        "class": "M",
+        "row_start": 4,
+        "row_end": 31,
+        "pattern": "ABC|DEF",
+        "exceptions": "13=SKIP"
+      }
+    ]
+  },
+  {
+    "configKey": "SK|32N|42C138M",
+    "airline": "SK",
+    "aircraft": "32N",
+    "configuration": "42C138M",
+    "sourceLabel": "SK836 24SEP CDG-OSL",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 7,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      },
+      {
+        "class": "M",
+        "row_start": 8,
+        "row_end": 31,
+        "pattern": "ABC|DEF",
+        "exceptions": "13=SKIP"
+      }
+    ]
+  },
+  {
+    "configKey": "SK|32N|30C150M",
+    "airline": "SK",
+    "aircraft": "32N",
+    "configuration": "30C150M",
+    "sourceLabel": "SK566 22SEP CDG-CPH",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 5,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      },
+      {
+        "class": "M",
+        "row_start": 6,
+        "row_end": 31,
+        "pattern": "ABC|DEF",
+        "exceptions": "13=SKIP"
+      }
+    ]
+  },
+  {
+    "configKey": "SK|32N|42C138M_2",
+    "airline": "SK",
+    "aircraft": "32N",
+    "configuration": "42C138M_2",
+    "sourceLabel": "SK834 23SEP CDG-OSL",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 7,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      },
+      {
+        "class": "M",
+        "row_start": 8,
+        "row_end": 31,
+        "pattern": "ABC|DEF",
+        "exceptions": "13=SKIP"
+      }
+    ]
+  },
+  {
+    "configKey": "SK|32N|36C144M",
+    "airline": "SK",
+    "aircraft": "32N",
+    "configuration": "36C144M",
+    "sourceLabel": "SK834 22SEP CDG-OSL",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 6,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      },
+      {
+        "class": "M",
+        "row_start": 7,
+        "row_end": 31,
+        "pattern": "ABC|DEF",
+        "exceptions": "13=SKIP"
+      }
+    ]
+  },
+  {
+    "configKey": "SK|E95|18C104M",
+    "airline": "SK",
+    "aircraft": "E95",
+    "configuration": "18C104M",
+    "sourceLabel": "SK564 24SEP CDG-CPH",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 5,
+        "pattern": "AC|DF",
+        "exceptions": "01=AC|"
+      },
+      {
+        "class": "M",
+        "row_start": 6,
+        "row_end": 32,
+        "pattern": "AC|DF",
+        "exceptions": "13=SKIP"
+      }
+    ]
+  },
+  {
+    "configKey": "SK|E95|10C112M",
+    "airline": "SK",
+    "aircraft": "E95",
+    "configuration": "10C112M",
+    "sourceLabel": "SK564 25SEP CDG-CPH",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 3,
+        "pattern": "AC|DF",
+        "exceptions": "01=AC|"
+      },
+      {
+        "class": "M",
+        "row_start": 4,
+        "row_end": 32,
+        "pattern": "AC|DF",
+        "exceptions": "13=SKIP"
+      }
+    ]
+  },
+  {
+    "configKey": "SK|E95|14C100M",
+    "airline": "SK",
+    "aircraft": "E95",
+    "configuration": "14C100M",
+    "sourceLabel": "SK830 25SEP CDG-OSL",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 4,
+        "pattern": "AC|DF",
+        "exceptions": ""
+      },
+      {
+        "class": "M",
+        "row_start": 5,
+        "row_end": 30,
+        "pattern": "AC|DF",
+        "exceptions": "13=SKIP"
+      }
+    ]
+  },
+  {
+    "configKey": "SK|E95|26C88M",
+    "airline": "SK",
+    "aircraft": "E95",
+    "configuration": "26C88M",
+    "sourceLabel": "SK564 22SEP CDG-CPH",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 7,
+        "pattern": "AC|DF",
+        "exceptions": "01=AC|"
+      },
+      {
+        "class": "M",
+        "row_start": 8,
+        "row_end": 30,
+        "pattern": "AC|DF",
+        "exceptions": "13=SKIP"
+      }
+    ]
+  },
+  {
+    "configKey": "J2|320|12C144Y",
+    "airline": "J2",
+    "aircraft": "320",
+    "configuration": "12C144Y",
+    "sourceLabel": "J274 02AUG CDG-GYD",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 3,
         "pattern": "AC|DF",
         "exceptions": ""
       },
       {
         "class": "Y",
-        "row_start": 9,
+        "row_start": 14,
+        "row_end": 37,
+        "pattern": "ABC|HKL",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "MS|333|36C265Y",
+    "airline": "MS",
+    "aircraft": "333",
+    "configuration": "36C265Y",
+    "sourceLabel": "MS800 11AUG CDG-CAI",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 8,
+        "row_end": 14,
+        "pattern": "AC|DG|HK",
+        "exceptions": "13=SKIP"
+      },
+      {
+        "class": "Y",
+        "row_start": 20,
+        "row_end": 54,
+        "pattern": "AC|DEFG|HK",
+        "exceptions": "37=|E||\n50=AC|DE|G|HK\n51=AC|DE|G|HK\n52=AC|DE|G|HK\n53=A|DE|G|\n54=|DEG|"
+      }
+    ]
+  },
+  {
+    "configKey": "FI|75W|22C162M",
+    "airline": "FI",
+    "aircraft": "75W",
+    "configuration": "22C162M",
+    "sourceLabel": "FI543 13AUG CDG-KEF",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 6,
+        "pattern": "AC|DF",
+        "exceptions": "01=AC|"
+      },
+      {
+        "class": "M",
+        "row_start": 7,
+        "row_end": 34,
+        "pattern": "ABC|DEF",
+        "exceptions": "07=||DEF\n08=|C|DE"
+      }
+    ]
+  },
+  {
+    "configKey": "FI|7M9|20C156M",
+    "airline": "FI",
+    "aircraft": "7M9",
+    "configuration": "20C156M",
+    "sourceLabel": "FI432 15AUG KEF-GLA",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 5,
+        "pattern": "AC|DF",
+        "exceptions": ""
+      },
+      {
+        "class": "M",
+        "row_start": 6,
         "row_end": 31,
         "pattern": "ABC|DEF",
-        "exceptions": "13=SKIP"
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "EI|32Q|16J168Y",
+    "airline": "EI",
+    "aircraft": "32Q",
+    "configuration": "16J168Y",
+    "sourceLabel": "EI521 22SEP CDG-DUB",
+    "quality": "exact",
+    "zones": [
+      {
+        "class": "J",
+        "row_start": 2,
+        "row_end": 6,
+        "pattern": "AC|HK",
+        "exceptions": "03=A||K\n05=A||K"
+      },
+      {
+        "class": "Y",
+        "row_start": 7,
+        "row_end": 34,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
       }
     ]
   }

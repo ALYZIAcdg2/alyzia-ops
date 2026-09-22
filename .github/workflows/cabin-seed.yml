@@ -3,8 +3,12 @@ name: Cabin — import du lot de plans (seed)
 # Le sandbox de dev n'a pas d'accès réseau direct vers *.workers.dev (politique
 # d'egress), donc on relaie l'import via un run GitHub Actions (curl, non
 # restreint sur les runners hébergés) plutôt que d'appeler l'API depuis là.
-# scripts/cabin_seed.json contient les plans réels extraits du code SARIA
-# (SOURCE_LAYOUTS/EXCEL_VALIDATED_LAYOUTS), réutilisable pour tout futur lot.
+# scripts/cabin_seed.json contient tous les plans à avoir en base (upsert par
+# config_key), réutilisable pour tout futur lot. scripts/cabin_seed_delete_keys.json
+# est optionnel : les config_key qui y figurent sont supprimées avant l'import,
+# pour remplacer proprement d'anciennes configs (ex. un lot moins fiable) par
+# de nouvelles portant une config_key différente — le DELETE ignore une clé déjà
+# absente, donc ce fichier peut aussi rester vide ([]) pour un import sans purge.
 
 on:
   workflow_dispatch:
@@ -21,6 +25,23 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Supprime les anciennes config_key remplacées (si scripts/cabin_seed_delete_keys.json existe)
+        run: |
+          if [ -f scripts/cabin_seed_delete_keys.json ]; then
+            node -e "
+              const keys = JSON.parse(require('fs').readFileSync('scripts/cabin_seed_delete_keys.json','utf8'));
+              console.log('Cles a supprimer avant import:', keys.length);
+              require('fs').writeFileSync('delete_keys.txt', keys.join('\n'));
+            "
+            while IFS= read -r key; do
+              [ -z "$key" ] && continue
+              echo "DELETE $key"
+              curl -sS -X DELETE "$API/api/cabin/layout?key=$(node -e "console.log(encodeURIComponent(process.argv[1]))" "$key")" || true
+            done < delete_keys.txt
+          else
+            echo "Aucun fichier de suppression, on passe directement a l'import."
+          fi
 
       - name: Construit le payload {configs:[...]}
         run: |
@@ -46,12 +67,12 @@ jobs:
           node -e "
             const j=JSON.parse(require('fs').readFileSync('all_configs.json','utf8'));
             console.log('Total configs en base:', j.count);
-            console.log('Echantillon TK/789:', JSON.stringify((j.configs||[]).filter(c=>c.airline==='TK'&&c.aircraft==='789')));
+            console.log('Echantillon TK/33P:', JSON.stringify((j.configs||[]).filter(c=>c.airline==='TK'&&c.aircraft==='33P')));
           "
 
-      - name: Vérification — plan complet TK|789|300Y
+      - name: Vérification — plan complet EI|32Q|16J168Y
         run: |
-          curl -sS -f "$API/api/cabin/layout?key=TK%7C789%7C300Y" | node -e "
+          curl -sS -f "$API/api/cabin/layout?key=EI%7C32Q%7C16J168Y" | node -e "
             let data='';process.stdin.on('data',d=>data+=d);process.stdin.on('end',()=>{
               const j=JSON.parse(data);
               console.log('ok=',j.ok,'zones=',(j.zones||[]).length);
