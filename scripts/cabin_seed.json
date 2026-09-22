@@ -1029,8 +1029,9 @@
     "airline": "09",
     "aircraft": "738",
     "configuration": "195Y",
+    "label": "09 738 · 195Y",
     "sourceLabel": "09A520 24AUG CDG-ZAD Generic Report",
-    "quality": "exact",
+    "quality": "close",
     "zones": [
       {
         "class": "Y",
@@ -1046,6 +1047,7 @@
     "airline": "A9",
     "aircraft": "738",
     "configuration": "2F20C144Y",
+    "label": "A9 738 · 2F20C144Y",
     "sourceLabel": "A9628 09AUG CDG-TBS Generic Report",
     "quality": "exact",
     "zones": [
@@ -1077,8 +1079,9 @@
     "airline": "AH",
     "aircraft": "738",
     "configuration": "14C165Y",
+    "label": "AH 738 · 14C165Y",
     "sourceLabel": "AH1001 07AUG CDG-ALG Generic Report",
-    "quality": "exact",
+    "quality": "close",
     "zones": [
       {
         "class": "C",
@@ -1101,8 +1104,9 @@
     "airline": "AH",
     "aircraft": "332",
     "configuration": "18C14W219Y",
+    "label": "AH 332 · 18C14W219Y",
     "sourceLabel": "AH1003 09AUG CDG-ALG Generic Report",
-    "quality": "exact",
+    "quality": "close",
     "zones": [
       {
         "class": "C",
@@ -1132,8 +1136,9 @@
     "airline": "AH",
     "aircraft": "332",
     "configuration": "302Y",
+    "label": "AH 332 · 302Y",
     "sourceLabel": "AH1003 08AUG CDG-ALG Generic Report (variante tout-Y, meme vol/appareil que la config 18C14W219Y mais date differente)",
-    "quality": "exact",
+    "quality": "close",
     "zones": [
       {
         "class": "Y",
@@ -1149,6 +1154,7 @@
     "airline": "AH",
     "aircraft": "73H",
     "configuration": "20C137Y",
+    "label": "AH 73H · 20C137Y",
     "sourceLabel": "AH1543 08AUG CDG-ALG Generic Report (fichier envoye directement par l'utilisateur)",
     "quality": "exact",
     "zones": [
@@ -1173,6 +1179,7 @@
     "airline": "VF",
     "aircraft": "7M8",
     "configuration": "189Y",
+    "label": "VF 7M8 · 189Y",
     "sourceLabel": "VF516 10AUG CDG-ESB Generic Report (fichier envoye directement par l'utilisateur)",
     "quality": "exact",
     "zones": [
@@ -1190,6 +1197,7 @@
     "airline": "TB",
     "aircraft": "73H",
     "configuration": "189Y",
+    "label": "TB 73H · 189Y",
     "sourceLabel": "TB2641 13AUG CDG-OUD Generic Report (fichier envoye directement par l'utilisateur)",
     "quality": "exact",
     "zones": [
@@ -1207,6 +1215,7 @@
     "airline": "BJ",
     "aircraft": "32N",
     "configuration": "186Y",
+    "label": "BJ 32N · 186Y",
     "sourceLabel": "BJ511 10AUG CDG-TUN Generic Report (fichier envoye directement par l'utilisateur)",
     "quality": "exact",
     "zones": [
@@ -1224,6 +1233,7 @@
     "airline": "SM",
     "aircraft": "320",
     "configuration": "180Y",
+    "label": "SM 320 · 180Y",
     "sourceLabel": "SM3778 08AUG CDG-LXR et 09AUG LXR-HRG, Generic Report (fichier envoye directement par l'utilisateur, 2 etapes du meme vol/appareil)",
     "quality": "exact",
     "zones": [
@@ -1241,6 +1251,7 @@
     "airline": "WB",
     "aircraft": "332",
     "configuration": "30J222Y",
+    "label": "WB 332 · 30J222Y",
     "sourceLabel": "WB701 13AUG CDG-KGL Generic Report (fichier envoye directement par l'utilisateur)",
     "quality": "exact",
     "zones": [
@@ -1265,6 +1276,7 @@
     "airline": "MS",
     "aircraft": "359",
     "configuration": "30C310Y",
+    "label": "MS 359 · 30C310Y",
     "sourceLabel": "MS800 12AUG CDG-CAI Generic Report (fichier envoye directement par l'utilisateur)",
     "quality": "exact",
     "zones": [
@@ -1289,6 +1301,7 @@
     "airline": "J2",
     "aircraft": "32N",
     "configuration": "12C138Y",
+    "label": "J2 32N · 12C138Y",
     "sourceLabel": "J274 09AUG CDG-GYD Generic Report (fichier envoye directement par l'utilisateur)",
     "quality": "exact",
     "zones": [
@@ -1313,6 +1326,7 @@
     "airline": "EI",
     "aircraft": "333",
     "configuration": "30J289Y",
+    "label": "EI 333 · 30J289Y",
     "sourceLabel": "EI523 08AUG CDG-DUB Generic Report (fichier envoye directement par l'utilisateur)",
     "quality": "exact",
     "zones": [
@@ -1337,6 +1351,7 @@
     "airline": "AH",
     "aircraft": "320",
     "configuration": "12C138Y",
+    "label": "AH 320 · 12C138Y",
     "sourceLabel": "AH1013 11AUG CDG-ALG Generic Report (fichier envoye directement par l'utilisateur)",
     "quality": "exact",
     "zones": [
@@ -1361,6 +1376,7 @@
     "airline": "S4",
     "aircraft": "32Q",
     "configuration": "188Y",
+    "label": "S4 32Q · 188Y",
     "sourceLabel": "S4513 11AUG CDG-PDL Generic Report (fichier envoye directement par l'utilisateur)",
     "quality": "exact",
     "zones": [
@@ -1385,6 +1401,7 @@
     "airline": "LO",
     "aircraft": "73H",
     "configuration": "6C180Y",
+    "label": "LO 73H · 6C180Y",
     "sourceLabel": "LO334 09AUG CDG-WAW Generic Report (fichier envoye directement par l'utilisateur)",
     "quality": "exact",
     "zones": [
@@ -1409,6 +1426,7 @@
     "airline": "FB",
     "aircraft": "223",
     "configuration": "8C135M",
+    "label": "FB 223 · 8C135M",
     "sourceLabel": "FB432 10AUG CDG-SOF Generic Report (fichier envoye directement par l'utilisateur)",
     "quality": "exact",
     "zones": [
@@ -1433,6 +1451,7 @@
     "airline": "IZ",
     "aircraft": "32Q",
     "configuration": "220Y",
+    "label": "IZ 32Q · 220Y",
     "sourceLabel": "IZ744 22SEP CDG-TLV Generic Report (fichier envoye directement par l'utilisateur)",
     "quality": "exact",
     "zones": [
@@ -1450,6 +1469,7 @@
     "airline": "SB",
     "aircraft": "339",
     "configuration": "26J21W244Y",
+    "label": "SB 339 · 26J21W244Y",
     "sourceLabel": "SB501 01AUG CDG-BKK et 02AUG BKK-NOU, Generic Report (fichier envoye directement par l'utilisateur, 2 etapes identiques du meme vol/appareil)",
     "quality": "exact",
     "zones": [
@@ -1481,6 +1501,7 @@
     "airline": "VF",
     "aircraft": "73H",
     "configuration": "189Y",
+    "label": "VF 73H · 189Y",
     "sourceLabel": "VF516 07AUG CDG-ESB Generic Report (fichier envoye directement par l'utilisateur)",
     "quality": "exact",
     "zones": [
@@ -1498,6 +1519,7 @@
     "airline": "C3",
     "aircraft": "320",
     "configuration": "180Y",
+    "label": "C3 320 · 180Y",
     "sourceLabel": "C3302 06AUG CDG-TLV Generic Report (fichier envoye directement par l'utilisateur)",
     "quality": "exact",
     "zones": [
@@ -1515,6 +1537,7 @@
     "airline": "HU",
     "aircraft": "789",
     "configuration": "30C262Y",
+    "label": "HU 789 · 30C262Y",
     "sourceLabel": "HU758 10AUG CDG-SZX Generic Report (fichier envoye directement par l'utilisateur)",
     "quality": "exact",
     "zones": [
@@ -1539,6 +1562,7 @@
     "airline": "PC",
     "aircraft": "320",
     "configuration": "186Y",
+    "label": "PC 320 · 186Y",
     "sourceLabel": "PC5038 09AUG CDG-AYT Generic Report (fichier envoye directement par l'utilisateur)",
     "quality": "exact",
     "zones": [
@@ -1556,6 +1580,7 @@
     "airline": "AH",
     "aircraft": "332",
     "configuration": "251Y",
+    "label": "AH 332 · 251Y",
     "sourceLabel": "AH1303 04AUG CDG-ALG Generic Report (fichier envoye directement par l'utilisateur)",
     "quality": "exact",
     "zones": [
@@ -1587,6 +1612,7 @@
     "airline": "A9",
     "aircraft": "737",
     "configuration": "12C168Y",
+    "label": "A9 737 · 12C168Y",
     "sourceLabel": "A9628 07AUG CDG-TBS Generic Report (fichier envoye directement par l'utilisateur)",
     "quality": "exact",
     "zones": [
@@ -1611,8 +1637,9 @@
     "airline": "PC",
     "aircraft": "321",
     "configuration": "240Y",
+    "label": "PC 321 · 240Y",
     "sourceLabel": "PC1134 14AUG CDG-SAW Generic Report (fichier envoye directement par l'utilisateur)",
-    "quality": "exact",
+    "quality": "close",
     "zones": [
       {
         "class": "Y",
@@ -1628,8 +1655,9 @@
     "airline": "WB",
     "aircraft": "333",
     "configuration": "30J244Y",
+    "label": "WB 333 · 30J244Y",
     "sourceLabel": "WB701 11AUG CDG-KGL Generic Report (fichier envoye directement par l'utilisateur)",
-    "quality": "exact",
+    "quality": "close",
     "zones": [
       {
         "class": "J",
@@ -1659,6 +1687,7 @@
     "airline": "FB",
     "aircraft": "319",
     "configuration": "156M",
+    "label": "FB 319 · 156M",
     "sourceLabel": "FB432 22SEP CDG-SOF Generic Report (fichier envoye directement par l'utilisateur)",
     "quality": "exact",
     "zones": [
@@ -1676,6 +1705,7 @@
     "airline": "TW",
     "aircraft": "332",
     "configuration": "18C228Y",
+    "label": "TW 332 · 18C228Y",
     "sourceLabel": "T'way Air, format seatmap propre (fichier envoye directement par l'utilisateur, pas de rapport Altea)",
     "quality": "exact",
     "zones": [
@@ -1707,8 +1737,9 @@
     "airline": "TW",
     "aircraft": "77W",
     "configuration": "59C235Y",
+    "label": "TW 77W · 59C235Y",
     "sourceLabel": "T'way Air, format seatmap propre 4 zones A/B/C/D (fichier envoye directement par l'utilisateur, pas de rapport Altea)",
-    "quality": "exact",
+    "quality": "confirmed_by_source_tool",
     "zones": [
       {
         "class": "C",
@@ -1736,7 +1767,7 @@
         "row_start": 59,
         "row_end": 72,
         "pattern": "ABC|DEFG|HJK",
-        "exceptions": "59=ABC|||HJK\n69=ABC|DEG|HJK\n70=ABC|DEG|HJK\n71=ABC|DEG|HJK\n72=A_C|DE|"
+        "exceptions": "59=ABC||HJK\n69=ABC|DEG|HJK\n70=ABC|DEG|HJK\n71=ABC|DEG|HJK\n72=A_C|DE|"
       }
     ]
   },
@@ -1745,8 +1776,9 @@
     "airline": "3O",
     "aircraft": "320",
     "configuration": "174Y",
+    "label": "3O 320 · 174Y",
     "sourceLabel": "3O828 22SEP CDG-RBA",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "Y",
@@ -1762,8 +1794,9 @@
     "airline": "BJ",
     "aircraft": "320",
     "configuration": "180Y",
+    "label": "BJ 320 · 180Y",
     "sourceLabel": "BJ555 22SEP CDG-DJE",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "Y",
@@ -1779,8 +1812,9 @@
     "airline": "BJ",
     "aircraft": "320",
     "configuration": "177Y",
+    "label": "BJ 320 · 177Y",
     "sourceLabel": "BJ795A 23AUG CDG-MIR",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "Y",
@@ -1796,8 +1830,9 @@
     "airline": "BM",
     "aircraft": "320",
     "configuration": "12C120Y",
+    "label": "BM 320 · 12C120Y",
     "sourceLabel": "BM591 19SEP CDG-MJI",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "C",
@@ -1820,8 +1855,9 @@
     "airline": "FB",
     "aircraft": "221",
     "configuration": "8C110M",
+    "label": "FB 221 · 8C110M",
     "sourceLabel": "FB432 27AUG CDG-SOF",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "C",
@@ -1844,8 +1880,9 @@
     "airline": "HM",
     "aircraft": "333",
     "configuration": "46J203Y",
+    "label": "HM 333 · 46J203Y",
     "sourceLabel": "HM1007 07AUG CDG-SEZ",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "J",
@@ -1868,8 +1905,9 @@
     "airline": "KK",
     "aircraft": "320",
     "configuration": "180Y",
+    "label": "KK 320 · 180Y",
     "sourceLabel": "KK7854 09SEP CDG-LEJ",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "Y",
@@ -1885,8 +1923,9 @@
     "airline": "LO",
     "aircraft": "7M8",
     "configuration": "8C174Y",
+    "label": "LO 7M8 · 8C174Y",
     "sourceLabel": "LO332 22SEP CDG-WAW",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "C",
@@ -1909,8 +1948,9 @@
     "airline": "LS",
     "aircraft": "73C",
     "configuration": "148Y",
+    "label": "LS 73C · 148Y",
     "sourceLabel": "LS268 21SEP CDG-LBA",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "Y",
@@ -1926,8 +1966,9 @@
     "airline": "MS",
     "aircraft": "32N",
     "configuration": "16C126Y",
+    "label": "MS 32N · 16C126Y",
     "sourceLabel": "MS802 22SEP CDG-CAI",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "C",
@@ -1950,8 +1991,9 @@
     "airline": "MS",
     "aircraft": "77W",
     "configuration": "49C297Y",
+    "label": "MS 77W · 49C297Y",
     "sourceLabel": "MS800 23AUG CDG-CAI",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "C",
@@ -1974,8 +2016,9 @@
     "airline": "MS",
     "aircraft": "789",
     "configuration": "30C279Y",
+    "label": "MS 789 · 30C279Y",
     "sourceLabel": "MS800 07AUG CDG-CAI",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "C",
@@ -1998,8 +2041,9 @@
     "airline": "RJ",
     "aircraft": "32N",
     "configuration": "11J136Y",
+    "label": "RJ 32N · 11J136Y",
     "sourceLabel": "RJ118 21SEP CDG-AMM",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "J",
@@ -2022,8 +2066,9 @@
     "airline": "RJ",
     "aircraft": "32Q",
     "configuration": "11J175Y",
+    "label": "RJ 32Q · 11J175Y",
     "sourceLabel": "RJ118 22SEP CDG-AMM",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "J",
@@ -2046,8 +2091,9 @@
     "airline": "TU",
     "aircraft": "320",
     "configuration": "12C138Y",
+    "label": "TU 320 · 12C138Y",
     "sourceLabel": "TU725 08AUG CDG-TUN",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "C",
@@ -2070,8 +2116,9 @@
     "airline": "TU",
     "aircraft": "320",
     "configuration": "162Y",
+    "label": "TU 320 · 162Y",
     "sourceLabel": "TU655 20SEP CDG-DJE",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "Y",
@@ -2087,8 +2134,9 @@
     "airline": "TU",
     "aircraft": "332",
     "configuration": "24C242Y",
+    "label": "TU 332 · 24C242Y",
     "sourceLabel": "TU723 10SEP CDG-TUN",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "C",
@@ -2111,8 +2159,9 @@
     "airline": "TU",
     "aircraft": "332",
     "configuration": "20C260Y",
+    "label": "TU 332 · 20C260Y",
     "sourceLabel": "TU723 20SEP CDG-TUN",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "C",
@@ -2135,8 +2184,9 @@
     "airline": "VF",
     "aircraft": "32Q",
     "configuration": "211Y",
+    "label": "VF 32Q · 211Y",
     "sourceLabel": "VF12 05AUG CDG-SAW",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "Y",
@@ -2159,8 +2209,9 @@
     "airline": "TK",
     "aircraft": "33P",
     "configuration": "24C255Y",
+    "label": "TK 33P · 24C255Y",
     "sourceLabel": "TK33P 22SEP CDG-IST",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "C",
@@ -2174,7 +2225,7 @@
         "row_start": 5,
         "row_end": 38,
         "pattern": "AB|DEFG|JK",
-        "exceptions": "05=AB|DEF|JK\n06=AB|DEFG|JK\n23=|DEFG|\n24=|DEFG|\n34=AB|DEF|JK\n35=AB|DEF|JK\n36=AB|DEF|JK\n37=AB|DEF|JK\n38=AB|JK"
+        "exceptions": "05=AB|DEF|JK\n06=AB|DEFG|JK\n23=|DEFG|\n24=|DEFG|\n34=AB|DEF|JK\n35=AB|DEF|JK\n36=AB|DEF|JK\n37=AB|DEF|JK\n38=AB||JK"
       }
     ]
   },
@@ -2183,8 +2234,9 @@
     "airline": "TK",
     "aircraft": "77K",
     "configuration": "28C372Y",
+    "label": "TK 77K · 28C372Y",
     "sourceLabel": "TK77K 22SEP CDG-IST",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "C",
@@ -2207,8 +2259,9 @@
     "airline": "TK",
     "aircraft": "77B",
     "configuration": "49C300Y",
+    "label": "TK 77B · 49C300Y",
     "sourceLabel": "TK77B 22SEP CDG-IST",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "C",
@@ -2231,8 +2284,9 @@
     "airline": "TK",
     "aircraft": "7E2",
     "configuration": "49C300Y",
+    "label": "TK 7E2 · 49C300Y",
     "sourceLabel": "TK7E2 22SEP CDG-IST",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "C",
@@ -2255,8 +2309,9 @@
     "airline": "TK",
     "aircraft": "35E",
     "configuration": "28C288Y",
+    "label": "TK 35E · 28C288Y",
     "sourceLabel": "TK35E 22SEP CDG-IST",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "C",
@@ -2279,8 +2334,9 @@
     "airline": "TK",
     "aircraft": "78D",
     "configuration": "16C135Y",
+    "label": "TK 78D · 16C135Y",
     "sourceLabel": "TK78D 22SEP CDG-IST",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "C",
@@ -2303,8 +2359,9 @@
     "airline": "TK",
     "aircraft": "M32",
     "configuration": "16C174Y",
+    "label": "TK M32 · 16C174Y",
     "sourceLabel": "TKM32 22SEP CDG-IST",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "C",
@@ -2327,8 +2384,9 @@
     "airline": "TK",
     "aircraft": "33D",
     "configuration": "28C261Y",
+    "label": "TK 33D · 28C261Y",
     "sourceLabel": "TK33D 22SEP CDG-IST",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "C",
@@ -2351,8 +2409,9 @@
     "airline": "TK",
     "aircraft": "77E",
     "configuration": "49C300Y",
+    "label": "TK 77E · 49C300Y",
     "sourceLabel": "TK77E 22SEP CDG-IST",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "C",
@@ -2375,8 +2434,9 @@
     "airline": "TK",
     "aircraft": "332",
     "configuration": "18C232Y",
+    "label": "TK 332 · 18C232Y",
     "sourceLabel": "TK332 22SEP CDG-IST",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "C",
@@ -2399,8 +2459,9 @@
     "airline": "TK",
     "aircraft": "33R",
     "configuration": "24C255Y",
+    "label": "TK 33R · 24C255Y",
     "sourceLabel": "TK33R 22SEP CDG-IST",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "C",
@@ -2423,8 +2484,9 @@
     "airline": "TK",
     "aircraft": "33M",
     "configuration": "30C222Y",
+    "label": "TK 33M · 30C222Y",
     "sourceLabel": "TK33M 22SEP CDG-IST",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "C",
@@ -2447,8 +2509,9 @@
     "airline": "TK",
     "aircraft": "R21",
     "configuration": "16C164Y",
+    "label": "TK R21 · 16C164Y",
     "sourceLabel": "TKR21 22SEP CDG-IST",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "C",
@@ -2462,7 +2525,7 @@
         "row_start": 6,
         "row_end": 33,
         "pattern": "ABC|DEF",
-        "exceptions": "08=|BC|DE|\n21=|BC|DE|"
+        "exceptions": "08=BC|DE\n21=BC|DE"
       }
     ]
   },
@@ -2471,8 +2534,9 @@
     "airline": "TK",
     "aircraft": "333",
     "configuration": "28C261Y",
+    "label": "TK 333 · 28C261Y",
     "sourceLabel": "TK333 22SEP CDG-IST",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "C",
@@ -2495,8 +2559,9 @@
     "airline": "TK",
     "aircraft": "789",
     "configuration": "30C270Y",
+    "label": "TK 789 · 30C270Y",
     "sourceLabel": "TK789 22SEP CDG-IST",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "C",
@@ -2519,8 +2584,9 @@
     "airline": "TK",
     "aircraft": "33S",
     "configuration": "40C265Y",
+    "label": "TK 33S · 40C265Y",
     "sourceLabel": "TK33S 22SEP CDG-IST",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "C",
@@ -2543,8 +2609,9 @@
     "airline": "TK",
     "aircraft": "35D",
     "configuration": "32C297Y",
+    "label": "TK 35D · 32C297Y",
     "sourceLabel": "TK35D 22SEP CDG-IST",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "C",
@@ -2558,7 +2625,7 @@
         "row_start": 9,
         "row_end": 43,
         "pattern": "ABC|DEGH|JK",
-        "exceptions": "27=|DEG|\n28=|BC||HJ\n29=ABC||HJK\n43=|BC|DEG|"
+        "exceptions": "27=|DEG|\n28=BC|H|J\n29=ABC||HJK\n43=BC|DEG|"
       }
     ]
   },
@@ -2567,8 +2634,9 @@
     "airline": "TK",
     "aircraft": "N32",
     "configuration": "20C162Y",
+    "label": "TK N32 · 20C162Y",
     "sourceLabel": "TKN32 22SEP CDG-IST",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "C",
@@ -2591,8 +2659,9 @@
     "airline": "AI",
     "aircraft": "788",
     "configuration": "18C241Y",
+    "label": "AI 788 · 18C241Y",
     "sourceLabel": "AI142 22SEP CDG-DEL",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "C",
@@ -2615,8 +2684,9 @@
     "airline": "AI",
     "aircraft": "789",
     "configuration": "30C21R248Y",
+    "label": "AI 789 · 30C21R248Y",
     "sourceLabel": "AI2025 19SEP DEL-FRA",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "C",
@@ -2637,7 +2707,7 @@
         "row_start": 31,
         "row_end": 59,
         "pattern": "ABC|DEG|HJK",
-        "exceptions": "43=ABC|||HJK\n57=|BC|DEG|HJ\n58=|BC|DEG|HJ\n59=|DEG|"
+        "exceptions": "43=ABC||HJK\n57=AB|DEG|HJ\n58=AB|DEG|HJ\n59=|DEG|"
       }
     ]
   },
@@ -2646,8 +2716,9 @@
     "airline": "FI",
     "aircraft": "32Q",
     "configuration": "22C165M",
+    "label": "FI 32Q · 22C165M",
     "sourceLabel": "FI543 26SEP CDG-KEF",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "C",
@@ -2670,8 +2741,9 @@
     "airline": "FI",
     "aircraft": "7M8",
     "configuration": "16C144M",
+    "label": "FI 7M8 · 16C144M",
     "sourceLabel": "FI547 22SEP CDG-KEF",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "C",
@@ -2694,8 +2766,9 @@
     "airline": "FI",
     "aircraft": "76W",
     "configuration": "25C237M",
+    "label": "FI 76W · 25C237M",
     "sourceLabel": "FI543 22SEP CDG-KEF",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "C",
@@ -2718,8 +2791,9 @@
     "airline": "SK",
     "aircraft": "319",
     "configuration": "12C138M",
+    "label": "SK 319 · 12C138M",
     "sourceLabel": "SK568 22SEP CDG-CPH",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "C",
@@ -2742,8 +2816,9 @@
     "airline": "SK",
     "aircraft": "320",
     "configuration": "24C156M",
+    "label": "SK 320 · 24C156M",
     "sourceLabel": "SK560 22SEP CDG-CPH",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "C",
@@ -2766,8 +2841,9 @@
     "airline": "SK",
     "aircraft": "320",
     "configuration": "42C126M",
+    "label": "SK 320 · 42C126M",
     "sourceLabel": "SK836 23SEP CDG-OSL",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "C",
@@ -2790,8 +2866,9 @@
     "airline": "SK",
     "aircraft": "32N",
     "configuration": "18C162M",
+    "label": "SK 32N · 18C162M",
     "sourceLabel": "SK574 22SEP CDG-ARN",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "C",
@@ -2814,8 +2891,9 @@
     "airline": "SK",
     "aircraft": "32N",
     "configuration": "42C138M",
+    "label": "SK 32N · 42C138M",
     "sourceLabel": "SK836 24SEP CDG-OSL",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "C",
@@ -2838,8 +2916,9 @@
     "airline": "SK",
     "aircraft": "32N",
     "configuration": "30C150M",
+    "label": "SK 32N · 30C150M",
     "sourceLabel": "SK566 22SEP CDG-CPH",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "C",
@@ -2862,8 +2941,9 @@
     "airline": "SK",
     "aircraft": "32N",
     "configuration": "42C138M_2",
+    "label": "SK 32N · 42C138M_2",
     "sourceLabel": "SK834 23SEP CDG-OSL",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "C",
@@ -2886,8 +2966,9 @@
     "airline": "SK",
     "aircraft": "32N",
     "configuration": "36C144M",
+    "label": "SK 32N · 36C144M",
     "sourceLabel": "SK834 22SEP CDG-OSL",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "C",
@@ -2910,8 +2991,9 @@
     "airline": "SK",
     "aircraft": "E95",
     "configuration": "18C104M",
+    "label": "SK E95 · 18C104M",
     "sourceLabel": "SK564 24SEP CDG-CPH",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "C",
@@ -2934,8 +3016,9 @@
     "airline": "SK",
     "aircraft": "E95",
     "configuration": "10C112M",
+    "label": "SK E95 · 10C112M",
     "sourceLabel": "SK564 25SEP CDG-CPH",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "C",
@@ -2958,8 +3041,9 @@
     "airline": "SK",
     "aircraft": "E95",
     "configuration": "14C100M",
+    "label": "SK E95 · 14C100M",
     "sourceLabel": "SK830 25SEP CDG-OSL",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "C",
@@ -2982,8 +3066,9 @@
     "airline": "SK",
     "aircraft": "E95",
     "configuration": "26C88M",
+    "label": "SK E95 · 26C88M",
     "sourceLabel": "SK564 22SEP CDG-CPH",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "C",
@@ -3006,8 +3091,9 @@
     "airline": "J2",
     "aircraft": "320",
     "configuration": "12C144Y",
+    "label": "J2 320 · 12C144Y",
     "sourceLabel": "J274 02AUG CDG-GYD",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "C",
@@ -3030,8 +3116,9 @@
     "airline": "MS",
     "aircraft": "333",
     "configuration": "36C265Y",
+    "label": "MS 333 · 36C265Y",
     "sourceLabel": "MS800 11AUG CDG-CAI",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "C",
@@ -3045,7 +3132,7 @@
         "row_start": 20,
         "row_end": 54,
         "pattern": "AC|DEFG|HK",
-        "exceptions": "37=|E||\n50=AC|DE|G|HK\n51=AC|DE|G|HK\n52=AC|DE|G|HK\n53=A|DE|G|\n54=|DEG|"
+        "exceptions": "37=|E|\n50=AC|DEG|HK\n51=AC|DEG|HK\n52=AC|DEG|HK\n53=A|DEG|\n54=|DEG|"
       }
     ]
   },
@@ -3054,8 +3141,9 @@
     "airline": "FI",
     "aircraft": "75W",
     "configuration": "22C162M",
+    "label": "FI 75W · 22C162M",
     "sourceLabel": "FI543 13AUG CDG-KEF",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "C",
@@ -3069,7 +3157,7 @@
         "row_start": 7,
         "row_end": 34,
         "pattern": "ABC|DEF",
-        "exceptions": "07=||DEF\n08=|C|DE"
+        "exceptions": "07=|DEF\n08=C|DE"
       }
     ]
   },
@@ -3078,8 +3166,9 @@
     "airline": "FI",
     "aircraft": "7M9",
     "configuration": "20C156M",
+    "label": "FI 7M9 · 20C156M",
     "sourceLabel": "FI432 15AUG KEF-GLA",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "C",
@@ -3102,15 +3191,16 @@
     "airline": "EI",
     "aircraft": "32Q",
     "configuration": "16J168Y",
+    "label": "EI 32Q · 16J168Y",
     "sourceLabel": "EI521 22SEP CDG-DUB",
-    "quality": "exact",
+    "quality": "good",
     "zones": [
       {
         "class": "J",
         "row_start": 2,
         "row_end": 6,
         "pattern": "AC|HK",
-        "exceptions": "03=A||K\n05=A||K"
+        "exceptions": "03=A|K\n05=A|K"
       },
       {
         "class": "Y",
