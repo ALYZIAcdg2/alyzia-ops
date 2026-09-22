@@ -32,7 +32,7 @@ jobs:
             node -e "
               const keys = JSON.parse(require('fs').readFileSync('scripts/cabin_seed_delete_keys.json','utf8'));
               console.log('Cles a supprimer avant import:', keys.length);
-              require('fs').writeFileSync('delete_keys.txt', keys.join('\n'));
+              require('fs').writeFileSync('delete_keys.txt', keys.join('\n') + '\n');
             "
             while IFS= read -r key; do
               [ -z "$key" ] && continue
