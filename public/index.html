@@ -20964,25 +20964,27 @@ function cabinZoneRows(zone){
  }
  return rows;
 }
-// Grille de colonnes commune à tout l'avion (toutes classes confondues) : la
-// classe C n'a presque jamais autant de sièges par rangée que la classe Y
-// (ex. business "AC|DEG|HK" vs économique "ABC|DEG|HJK" — sans siège B ni J en
-// business). Sans référentiel commun, les sièges de chaque rangée se
-// regroupent à gauche et les classes ne sont plus centrées les unes par
-// rapport aux autres, ni alignées sur les couloirs réels. On calcule donc,
-// par index de groupe (hublot-gauche / milieu / hublot-droit…), l'union de
-// toutes les lettres utilisées par une classe quelconque de la config — la
-// grille de rendu réserve ensuite une place (siège réel ou case fantôme
-// invisible) pour CHAQUE lettre de cette union, sur CHAQUE rangée.
-function cabinMasterGroups(zones){
- const sets=[];
- (zones||[]).forEach(zone=>{
-  String(zone.pattern||'').split('|').forEach((g,i)=>{
-   if(!sets[i])sets[i]=new Set();
-   g.trim().split('').forEach(ch=>{ if(/[A-Z]/.test(ch))sets[i].add(ch); });
+// Largeur de colonne commune à tout l'avion (toutes classes confondues) : la
+// business utilise souvent des lettres différentes de l'économique pour la
+// MÊME position physique (ex. business "AC|HK" à côté d'économique "ABC|DEF"
+// — H/K ne sont pas D/E/F mais occupent le même couloir droit). Se baser sur
+// les LETTRES (comme un ancien calcul par union de caractères) place donc H et
+// K à côté de D, E ET F au lieu de les centrer sur ce même bloc, et pousse les
+// sièges business vers le hublot au lieu de les centrer comme sur le vrai plan.
+// On se base donc uniquement sur le NOMBRE de sièges à cette position (le plus
+// grand vu sur toute la config, exceptions comprises) : chaque rangée centre
+// ensuite ses propres sièges dans une case de cette largeur commune, quelle que
+// soit l'identité des lettres.
+function cabinMasterGroups(items){
+ const counts=[];
+ (items||[]).forEach(it=>{
+  if(it.type!=='seats')return;
+  (it.groups||[]).forEach((g,i)=>{
+   const n=(String(g||'').match(/[A-Z]/g)||[]).length;
+   counts[i]=Math.max(counts[i]||0,n);
   });
  });
- return sets.map(set=>[...set].sort());
+ return counts.map(n=>n||0);
 }
 const CABIN_CLASS_COLOR={F:'#7c3aed',C:'#d97706',J:'#d97706',W:'#0891b2',S:'#0891b2',Y:'#1d6fd6',M:'#1d6fd6'};
 const CABIN_EQUIPMENT_ICON={GALLEY:'🍽',LAVATORY:'🚻',TOILET:'🚻',EXIT:'🚪',STAIRS:'🪜',CREW:'👤',BAR:'🍸',OTHER:'•'};
@@ -20990,10 +20992,9 @@ function cabinPlanBodyHtml(configRow,zones,equipment){
  if(!zones.length){
   return `<div class="cabin-plan-empty">AUCUN PLAN ENREGISTRÉ POUR CETTE CONFIGURATION.<br><button class="primary" onclick="openCabinZoneEditor('${escapeHtml(configRow.config_key)}')">＋ AJOUTER UNE ZONE</button></div>`;
  }
- const masterGroups=cabinMasterGroups(zones);
-
  const items=[];
  zones.forEach(zone=>cabinZoneRows(zone).forEach(r=>items.push({row:r.row,type:'seats',...r})));
+ const masterGroups=cabinMasterGroups(items);
  // Regroupe les équipements partageant la même position (ex. galley + toilettes
  // + porte au même endroit) en UNE seule ligne plutôt que 3 bandeaux empilés.
  const equipByRow={};
@@ -21023,9 +21024,9 @@ function cabinPlanBodyHtml(configRow,zones,equipment){
   // seuls les sièges qui existent vraiment sont dessinés, resserrés au centre
   // — un siège manquant (ex. pas de B en business) ne doit pas écarter A et C
   // comme s'il y avait une allée entre eux.
-  const groupsHtml=masterGroups.map((letters,gi)=>{
+  const groupsHtml=masterGroups.map((count,gi)=>{
    const present=(it.groups[gi]||'').split('').filter(ch=>/[A-Z]/.test(ch));
-   const width=letters.length*20+Math.max(0,letters.length-1)*3;
+   const width=count*20+Math.max(0,count-1)*3;
    const seatsHtml=present.map(letter=>{
     const seatCode=String(it.row).padStart(2,'0')+letter;
     const st=(typeof seatStatus==='function')?seatStatus(seatCode):{key:'free',label:'',symbol:''};
