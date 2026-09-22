@@ -3221,13 +3221,7 @@ body{
 }
 .cabin-plan-empty button{margin-top:10px}
 .cabin-plan-meta{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px}
-.cabin-quality-badge{
- display:inline-flex;align-items:center;gap:4px;border-radius:20px;padding:4px 10px;
- font-size:9px;font-weight:950;letter-spacing:.02em;background:#fff2e0;color:#a86700;border:1px solid #f0d3a3
-}
-.cabin-quality-badge.exact{background:#effaf4;color:#08784b;border-color:#a8d7bd}
-.cabin-source{font-size:9px;font-weight:800;color:#6a7c90}
-.cabin-legend{display:flex;align-items:center;gap:10px;margin-left:auto}
+.cabin-legend{display:flex;align-items:center;gap:10px}
 .cabin-legend-item{display:inline-flex;align-items:center;gap:4px;font-size:9px;font-weight:950;color:#4b5f78}
 .cabin-legend-dot{width:8px;height:8px;border-radius:50%;flex:0 0 auto}
 .cabin-plan-scroll{
@@ -21057,8 +21051,6 @@ function cabinPlanBodyHtml(configRow,zones,equipment){
  const legend=classes.map(c=>`<span class="cabin-legend-item"><span class="cabin-legend-dot" style="background:${CABIN_CLASS_COLOR[c]||'#4b5f78'}"></span>${escapeHtml(c)}</span>`).join('');
 
  return `<div class="cabin-plan-meta">
-    <span class="cabin-quality-badge ${configRow.quality}">${configRow.quality==='exact'?'✓ PLAN CONFIRMÉ':'⚠ PLAN APPROXIMATIF'}</span>
-    ${configRow.source_label?`<span class="cabin-source">${escapeHtml(configRow.source_label)}</span>`:''}
     <div class="cabin-legend">${legend}</div>
   </div>
   <div class="cabin-plan-scroll">${rowsHtml}</div>
@@ -21081,7 +21073,7 @@ async function openCabinPlan(){
   }
   if(configs.length===1){openCabinPlanByKey(configs[0].config_key);return}
   replaceModal('PLAN CABINE',`${configs.length} CONFIGURATIONS · ${x.airline} ${aircraft}`,
-   `<div class="cabin-config-list">${configs.map(c=>`<button class="cabin-config-choice" onclick="openCabinPlanByKey('${escapeHtml(c.config_key)}')"><b>${escapeHtml(c.configuration)}</b><span>${Number(c.total||0)} SIÈGES · ${c.quality==='exact'?'CONFIRMÉ':'APPROXIMATIF'}</span></button>`).join('')}</div>`);
+   `<div class="cabin-config-list">${configs.map(c=>`<button class="cabin-config-choice" onclick="openCabinPlanByKey('${escapeHtml(c.config_key)}')"><b>${escapeHtml(c.configuration)}</b><span>${Number(c.total||0)} SIÈGES</span></button>`).join('')}</div>`);
  }catch(e){
   replaceModal('PLAN CABINE','ERREUR',`<div class="import-status error">${escapeHtml(String(e?.message||e))}</div>`);
  }
