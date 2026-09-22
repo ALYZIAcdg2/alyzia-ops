@@ -12742,6 +12742,34 @@ async function ensureCabinTables(env){
   ]);
 }
 
+// Etend un motif "AC|DEFG|HK" (+ exceptions "13=SKIP" / "38=AB||JK") en un
+// nombre reel de sieges, rangee par rangee — meme logique que cabinZoneRows
+// cote front (public/index.html), pour que classes_json/total stockes en base
+// correspondent exactement a ce que le plan affiche (jamais le calcul naif
+// largeur-du-motif x nombre-de-rangees, qui ignore les rangees reduites).
+function cabinZonesToClassCounts(zones){
+  const counts={};
+  for(const z of (zones||[])){
+    const cls=String(z.class||"").trim().toUpperCase();
+    if(!cls)continue;
+    const excMap={};
+    String(z.exceptions||"").split(/\n+/).map(s=>s.trim()).filter(Boolean).forEach(line=>{
+      const m=line.match(/^(\d+)\s*=\s*(.+)$/);
+      if(m)excMap[Number(m[1])]=m[2].trim();
+    });
+    const start=Number(z.row_start),end=Number(z.row_end);
+    for(let r=start;r<=end;r++){
+      const pat=Object.prototype.hasOwnProperty.call(excMap,r)?excMap[r]:z.pattern;
+      if(pat==="SKIP")continue;
+      const groups=String(pat||"").split("|");
+      let n=0;
+      for(const g of groups)n+=(g.match(/[A-Z]/g)||[]).length;
+      counts[cls]=(counts[cls]||0)+n;
+    }
+  }
+  return counts;
+}
+
 async function handleCabin(request,env,url){
   if(!url.pathname.startsWith("/api/cabin"))return null;
   await ensureCabinTables(env);
@@ -12876,13 +12904,8 @@ async function handleCabin(request,env,url){
       const zones=Array.isArray(row?.zones)?row.zones:[];
       if(!airline||!aircraft||!configuration||!zones.length)continue;
 
-      const total=zones.reduce((s,z)=>{
-        const groups=String(z.pattern||"").split("|").map(g=>g.trim()).filter(Boolean);
-        const perRow=groups.reduce((n,g)=>n+g.length,0)||0;
-        const rows2=Math.max(0,Number(z.row_end||0)-Number(z.row_start||0)+1);
-        return s+perRow*rows2;
-      },0);
-      const classesSet=[...new Set(zones.map(z=>String(z.class||"").toUpperCase()).filter(Boolean))];
+      const classCounts=cabinZonesToClassCounts(zones);
+      const total=Object.values(classCounts).reduce((a,b)=>a+b,0);
 
       await env.OPS_DB.prepare(`
         INSERT INTO cabin_configs (config_key,airline,aircraft,configuration,total,classes_json,quality,source_label,updated_at)
@@ -12891,7 +12914,7 @@ async function handleCabin(request,env,url){
           airline=excluded.airline, aircraft=excluded.aircraft, configuration=excluded.configuration,
           total=excluded.total, classes_json=excluded.classes_json, quality=excluded.quality,
           source_label=excluded.source_label, updated_at=CURRENT_TIMESTAMP
-      `).bind(configKey,airline,aircraft,configuration,total,JSON.stringify(classesSet),String(row?.quality||"summary"),row?.sourceLabel?String(row.sourceLabel):null).run();
+      `).bind(configKey,airline,aircraft,configuration,total,JSON.stringify(classCounts),String(row?.quality||"summary"),row?.sourceLabel?String(row.sourceLabel):null).run();
       configsWritten++;
 
       await env.OPS_DB.prepare(`DELETE FROM cabin_zones WHERE config_key=?`).bind(configKey).run();
@@ -12910,6 +12933,34 @@ async function handleCabin(request,env,url){
     }
 
     return json({ok:true,configsWritten,zonesWritten});
+  }
+
+  // Corrige apres-coup classes_json/total pour les configs deja en base :
+  // avant ce correctif, /api/cabin/seed calculait le total en multipliant
+  // betement largeur-du-motif x nombre-de-rangees, sans jamais retirer les
+  // rangees reduites listees en exception (ex. rangee sans galley/porte) —
+  // le total stocke pouvait donc etre superieur au vrai compte verifie.
+  // Recalcule chaque config_key a partir de ses zones actuelles, sans avoir
+  // a renvoyer tout le payload d'import.
+  if(url.pathname==="/api/cabin/recompute-classes" && request.method==="POST"){
+    const {results:configRows=[]}=await env.OPS_DB.prepare(`SELECT config_key FROM cabin_configs`).all();
+    let updated=0;
+    const changes=[];
+    for(const row of configRows){
+      const configKey=row.config_key;
+      const {results:zones=[]}=await env.OPS_DB.prepare(`SELECT class,row_start,row_end,pattern,exceptions FROM cabin_zones WHERE config_key=?`).bind(configKey).all();
+      if(!zones.length)continue;
+      const classCounts=cabinZonesToClassCounts(zones);
+      const total=Object.values(classCounts).reduce((a,b)=>a+b,0);
+      const before=await env.OPS_DB.prepare(`SELECT total,classes_json FROM cabin_configs WHERE config_key=?`).bind(configKey).first();
+      await env.OPS_DB.prepare(`UPDATE cabin_configs SET total=?,classes_json=?,updated_at=CURRENT_TIMESTAMP WHERE config_key=?`)
+        .bind(total,JSON.stringify(classCounts),configKey).run();
+      updated++;
+      if(Number(before?.total)!==total||String(before?.classes_json)!==JSON.stringify(classCounts)){
+        changes.push({configKey,before:{total:before?.total,classes_json:before?.classes_json},after:{total,classes_json:classCounts}});
+      }
+    }
+    return json({ok:true,updated,changed:changes.length,changes});
   }
 
   // Couvre l'écart entre les avions réellement traités dans les vols et les

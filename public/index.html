@@ -19171,18 +19171,32 @@ async function sariaFetchJson(primaryUrl,directUrl,timeout=1800){
  }finally{clearTimeout(timer)}
 }
 
+// Un config_key ALYZIA (ex. "TK|33P|24C255Y") vient de /api/cabin/configs ;
+// classes_json y est un objet {classe:nb_sieges} (ex. {"C":24,"Y":255}),
+// pas juste la liste des lettres de classe — sariaClassObject() attend des
+// paires [classe,nb] comme entry.classes.
+function cabinEntryFromApi(c){
+ let classesObj={};
+ try{classesObj=typeof c.classes_json==='string'?JSON.parse(c.classes_json):(c.classes_json||{})}catch(e){classesObj={}}
+ const classes=Array.isArray(classesObj)?[]:Object.entries(classesObj).map(([k,v])=>[sariaNorm(k),Number(v)||0]);
+ return {
+  cie:sariaNorm(c.airline),ac:sariaNorm(c.aircraft),config:sariaNorm(c.configuration),
+  classes,total:Number(c.total)||0,freq:0,config_key:c.config_key
+ };
+}
 async function loadSariaCatalog(force=false){
  if(SARIA_CATALOG_LOADED&&!force)return SARIA_CATALOG;
  try{
-  const j=await sariaFetchJson(SARIA_API.configurations,SARIA_DIRECT_API.configurations,1800);
-  if(j&&j.ok&&Array.isArray(j.data)){
-   const api=j.data.map(sariaEntryFromApi);
+  const r=await fetch(opsApiUrl('/api/cabin/configs'),{cache:'no-store',headers:{Accept:'application/json'}});
+  const j=await r.json();
+  if(j&&j.ok&&Array.isArray(j.configs)){
+   const api=j.configs.map(cabinEntryFromApi);
    const map=new Map(SARIA_FALLBACK_CATALOG.map(e=>[sariaConfigKey(e),{...e}]));
-   api.forEach(e=>map.set(sariaConfigKey(e),{...(map.get(sariaConfigKey(e))||{}),...e}));
+   api.forEach(e=>map.set(sariaConfigKey(e),e));
    SARIA_CATALOG=[...map.values()];
   }
  }catch(e){
-  console.warn('SARIA catalogue : base embarquée utilisée',e?.name||e);
+  console.warn('Catalogue cabine ALYZIA : base embarquée utilisée',e?.name||e);
  }
  SARIA_CATALOG_LOADED=true;
  return SARIA_CATALOG;
@@ -19246,13 +19260,13 @@ async function openSariaCabinChooser(){
  loadSariaCatalog().catch(()=>{});
  const configs=sariaConfigsFor(x.airline,x.aircraft);
  const current=sariaSelectedEntry(x);
- showModal('VERSION CABINE SARIA',`${x.flight} · ${x.airline} · ${x.aircraft}`,`
+ showModal('VERSION CABINE',`${x.flight} · ${x.airline} · ${x.aircraft}`,`
   <div class="saria-picker">
    <div class="saria-picker-head">
     <div><small>COMPAGNIE</small><b>${x.airline}</b></div>
     <div><small>TYPE A/C</small><b>${x.aircraft||'—'}</b></div>
    </div>
-   ${configs.length?`<div class="saria-config-list">${configs.map(e=>`<button class="saria-config-option ${current&&sariaConfigKey(current)===sariaConfigKey(e)?'selected':''}" onclick="selectSariaCabin('${encodeURIComponent(sariaConfigKey(e))}')"><div class="saria-config-main"><b>${e.config}</b><span>${Object.entries(sariaClassObject(e)).map(([k,v])=>k+' '+v).join(' · ')||'CONFIGURATION SARIA'}${e.d1?' · D1':''}</span></div><div class="saria-config-total">${e.total||sum(sariaClassObject(e))} PAX</div></button>`).join('')}</div>`:`<div class="saria-state-note warn">AUCUNE VERSION CABINE SARIA TROUVÉE POUR <b>${x.airline} · ${x.aircraft}</b>.<br>Le SeatMap pourra uniquement utiliser un plan générique basé sur la CONFIG du vol.</div>`}
+   ${configs.length?`<div class="saria-config-list">${configs.map(e=>`<button class="saria-config-option ${current&&sariaConfigKey(current)===sariaConfigKey(e)?'selected':''}" onclick="selectSariaCabin('${encodeURIComponent(sariaConfigKey(e))}')"><div class="saria-config-main"><b>${e.config}</b><span>${Object.entries(sariaClassObject(e)).map(([k,v])=>k+' '+v).join(' · ')||'CONFIGURATION'}</span></div><div class="saria-config-total">${e.total||sum(sariaClassObject(e))} PAX</div></button>`).join('')}</div>`:`<div class="saria-state-note warn">AUCUNE VERSION CABINE SARIA TROUVÉE POUR <b>${x.airline} · ${x.aircraft}</b>.<br>Le SeatMap pourra uniquement utiliser un plan générique basé sur la CONFIG du vol.</div>`}
    <div class="saria-picker-actions">
     <button onclick="modalBack()">ANNULER</button>
     ${current?`<button class="primary" onclick="closeModal();openSeatmap()">OUVRIR LE SEATMAP</button>`:''}
@@ -19275,8 +19289,8 @@ function selectSariaCabin(encodedKey){
  try{localStorage.setItem(`alyzia_saria_config|${x.flight}|${x.activeDate||x.date||''}`,JSON.stringify({key:x.sariaConfigKey,config:x.sariaCabinConfig,ac:x.aircraft}))}catch(e){}
  // Retour immédiat à la fiche vol; préchargement SARIA après le rendu.
  normalizeSqOperationalClasses(x);
- markManualFields(x,'config','Version cabine SARIA sélectionnée');
- persistFlightAction('CONFIGURATION SARIA');
+ markManualFields(x,'config','Version cabine sélectionnée');
+ persistFlightAction('CONFIGURATION CABINE');
  closeModal();render();
  setTimeout(()=>prefetchSariaLayout(entry,x).catch(()=>{}),50);
 }
@@ -19321,7 +19335,7 @@ function sariaGenericLayout(entry,x){
   zones.push({class:cls,row_start:row,row_end:row+rows-1,pattern:groups.map(g=>g.join('')).join('|'),capacity:cap});
   row+=rows;
  });
- return {configuration:{config_key:entry?sariaConfigKey(entry):'GENERIC',source:'SARIA GENERIQUE'},zones,equipment:[],generic:true};
+ return {configuration:{config_key:entry?sariaConfigKey(entry):'GENERIC',source:'PLAN GENERIQUE'},zones,equipment:[],generic:true};
 }
 function immediateSariaLayout(entry,x=f()){
  const key=entry?sariaConfigKey(entry):'';
@@ -19342,12 +19356,11 @@ async function loadSariaLayout(entry,x=f()){
   }
  }
 
- // 2. Bridge ALYZIA -> SARIA ; secours direct uniquement si le bridge n'est pas disponible.
+ // 2. /api/cabin/layout (notre table cabin_zones, plus du tout SARIA).
  if(key){
   try{
-   const primary=`${SARIA_API.layout}?key=${encodeURIComponent(key)}`;
-   const direct=`${SARIA_DIRECT_API.layout}?key=${encodeURIComponent(key)}`;
-   const j=await sariaFetchJson(primary,direct,1800);
+   const primary=opsApiUrl(`/api/cabin/layout?key=${encodeURIComponent(key)}`);
+   const j=await sariaFetchJson(primary,primary,1800);
    if(j?.configuration&&Array.isArray(j.zones)&&j.zones.length){
     const layout={
       ...j,
@@ -19500,11 +19513,11 @@ function sariaStats(layout,entry,x=f()){
  return s;
 }
 function sariaSeatmapBody(layout,entry,x=f()){
- const stats=sariaStats(layout,entry,x),src=layout.generic?'SARIA · PLAN GÉNÉRIQUE':'SARIA D1 · PLAN CABINE';
+ const stats=sariaStats(layout,entry,x),src=layout.generic?'PLAN GÉNÉRIQUE':'PLAN CABINE ALYZIA';
  return `<div class="saria-seat-shell">
   <div class="saria-seat-top">
    <div class="saria-seat-id"><b>${x.flight} · ${x.aircraft} · ${entry?.config||x.sariaCabinConfig||'CONFIG VOL'}</b><span>${x.reg||'IMMAT —'} · ${x.dep} → ${x.dest}</span></div>
-   <div><span class="saria-source ${layout.generic?'fallback':''}">${layout.generic?'⚠':'✓'} ${src}</span>${layout.generic?`<div id="sariaUpgradeState" class="saria-upgrade-state"><span class="saria-upgrade-dot"></span>PLAN AFFICHÉ · RECHERCHE DU LAYOUT D1 EN ARRIÈRE-PLAN</div>`:''}</div>
+   <div><span class="saria-source ${layout.generic?'fallback':''}">${layout.generic?'⚠':'✓'} ${src}</span>${layout.generic?`<div id="sariaUpgradeState" class="saria-upgrade-state"><span class="saria-upgrade-dot"></span>PLAN AFFICHÉ · RECHERCHE DU PLAN DÉTAILLÉ EN ARRIÈRE-PLAN</div>`:''}</div>
    <div class="saria-orient"><button class="${SARIA_SEAT_STATE.orientation==='v'?'active':''}" onclick="setSariaOrientation('v')">VERTICAL</button><button class="${SARIA_SEAT_STATE.orientation==='h'?'active':''}" onclick="setSariaOrientation('h')">HORIZONTAL</button></div>
   </div>
   <div class="saria-seat-kpis"><span class="saria-seat-kpi">BOOKED <b>${stats.occupied}</b></span><span class="saria-seat-kpi">LIBRES <b>${stats.free}</b></span><span class="saria-seat-kpi">INOP <b>${stats.inop}</b></span><span class="saria-seat-kpi">SSR <b>${stats.special}</b></span><span class="saria-seat-kpi">STAFF <b>${stats.staff}</b></span></div>
@@ -19522,7 +19535,7 @@ async function openSeatmap(){
  // Ouvre TOUJOURS le modal immédiatement : aucune génération de plan
  // ni aucun appel réseau ne peut empêcher l'ouverture visuelle.
  showModal(
-   'SEATMAP SARIA',
+   'SEATMAP',
    x.flight,
    `<div id="sariaSeatmapBoot" class="saria-state-note">
       OUVERTURE DU PLAN CABINE…
@@ -19596,12 +19609,12 @@ async function openSeatmap(){
      const source=document.querySelector('.saria-source');
      if(source){
        source.classList.remove('fallback');
-       source.innerHTML='✓ SARIA D1 · PLAN CABINE';
+       source.innerHTML='✓ PLAN CABINE ALYZIA';
      }
      const upgrade=document.getElementById('sariaUpgradeState');
      if(upgrade){
        upgrade.className='saria-upgrade-state ok';
-       upgrade.innerHTML='<span class="saria-upgrade-dot"></span>LAYOUT D1 CHARGÉ';
+       upgrade.innerHTML='<span class="saria-upgrade-dot"></span>PLAN DÉTAILLÉ CHARGÉ';
      }
      setTimeout(applySariaSeatFilter,10);
    }).catch(err=>{
@@ -21135,7 +21148,7 @@ async function v5008OpenAircraftChooser(){
  if(cur&&!opts.includes(cur)) opts.unshift(cur);
  showModal('TYPE A/C',`${x.flight} · ${x.airline}`,`
    <div class="v5008-aircraft-list">
-    ${opts.length?opts.map(a=>`<button class="${a===cur?'selected':''}" onclick="v5008ChooseAircraft('${encodeURIComponent(a)}')"><b>${escapeHtml(a)}</b><span>${a===cur?'ACTUEL':'CHOISIR'}</span></button>`).join(''):'<div class="import-status">AUCUN TYPE A/C SARIA POUR CETTE COMPAGNIE.</div>'}
+    ${opts.length?opts.map(a=>`<button class="${a===cur?'selected':''}" onclick="v5008ChooseAircraft('${encodeURIComponent(a)}')"><b>${escapeHtml(a)}</b><span>${a===cur?'ACTUEL':'CHOISIR'}</span></button>`).join(''):'<div class="import-status">AUCUN TYPE A/C DISPONIBLE POUR CETTE COMPAGNIE.</div>'}
    </div>`);
 }
 async function v5008ChooseAircraft(enc){
