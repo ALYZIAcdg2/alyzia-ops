@@ -77,6 +77,11 @@ jobs:
             const j=JSON.parse(require('fs').readFileSync('all_configs.json','utf8'));
             console.log('Total configs en base:', j.count);
             console.log('Echantillon TK/33P:', JSON.stringify((j.configs||[]).filter(c=>c.airline==='TK'&&c.aircraft==='33P')));
+            const rows=JSON.parse(require('fs').readFileSync('scripts/cabin_seed.json','utf8'));
+            const expected=new Set(rows.map(r=>r.configKey));
+            const extra=(j.configs||[]).filter(c=>!expected.has(c.config_key));
+            console.log('Configs en base absentes du fichier seed (orphelines):', extra.length);
+            if (extra.length) console.log(JSON.stringify(extra,null,2));
           "
 
       - name: Vérification — plan complet EI|32Q|16J168Y
