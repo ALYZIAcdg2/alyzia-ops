@@ -61,6 +61,15 @@ jobs:
           echo "----- RESULTAT -----"
           cat seed_result.json
 
+      - name: POST /api/cabin/recompute-classes (normalise classes_json/total sur TOUTE la base)
+        run: |
+          curl -sS -f -X POST "$API/api/cabin/recompute-classes" | tee recompute_result.json
+          echo
+          node -e "
+            const j=JSON.parse(require('fs').readFileSync('recompute_result.json','utf8'));
+            console.log('Configs recalculees:', j.updated, '/ modifiees:', j.changed);
+          "
+
       - name: Vérification — /api/cabin/configs (compte total)
         run: |
           curl -sS -f "$API/api/cabin/configs" -o all_configs.json
