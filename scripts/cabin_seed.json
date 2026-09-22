@@ -2185,5 +2185,76 @@
         "exceptions": ""
       }
     ]
+  },
+  {
+    "configKey": "SQ|359|42J24S187Y",
+    "airline": "SQ",
+    "aircraft": "359",
+    "configuration": "42J24S187Y",
+    "label": "SQ 359 · 42J24S187Y",
+    "sourceLabel": "SQ337 23SEP CDG-SIN",
+    "quality": "good",
+    "zones": [
+      {
+        "class": "J",
+        "row_start": 11,
+        "row_end": 22,
+        "pattern": "A|DF|K",
+        "exceptions": "13=SKIP\n18=|DF|"
+      },
+      {
+        "class": "S",
+        "row_start": 31,
+        "row_end": 33,
+        "pattern": "AC|DEFG|HK",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 41,
+        "row_end": 62,
+        "pattern": "ABC|DEG|HJK",
+        "exceptions": "46=ABC||HJK\n47=BC|DEG|HJ\n62=|DEG|"
+      }
+    ]
+  },
+  {
+    "configKey": "SQ|77W|4F48J28S184Y",
+    "airline": "SQ",
+    "aircraft": "77W",
+    "configuration": "4F48J28S184Y",
+    "label": "SQ 77W · 4F48J28S184Y",
+    "sourceLabel": "SQ335 24SEP CDG-SIN",
+    "quality": "good",
+    "zones": [
+      {
+        "class": "F",
+        "row_start": 1,
+        "row_end": 1,
+        "pattern": "A|C|D|F",
+        "exceptions": ""
+      },
+      {
+        "class": "J",
+        "row_start": 11,
+        "row_end": 23,
+        "pattern": "A|DF|K",
+        "exceptions": "13=SKIP"
+      },
+      {
+        "class": "S",
+        "row_start": 31,
+        "row_end": 34,
+        "pattern": "AC|DEFG|HK",
+        "exceptions": "34=|DEFG|"
+      },
+      {
+        "class": "Y",
+        "row_start": 41,
+        "row_end": 62,
+        "pattern": "ABC|DEG|HJK",
+        "exceptions": "48=AB||HK\n61=AB|DEG|HK\n62=||HK"
+      }
+    ]
   }
 ]
