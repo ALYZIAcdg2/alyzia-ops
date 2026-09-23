@@ -10888,6 +10888,34 @@ async function handleLot5(request,env,url){
         Number(url.searchParams.get('limit')||3)
       ));
     }
+    if(url.pathname==='/api/autopilot/flight-import-history'&&request.method==='GET'){
+      /*
+       * Lecture seule : la fiche vol finale (flights.data_json) ne garde
+       * "imports" que si lot3MergeFlightData a tourné dessus depuis
+       * l'introduction de ce champ — une fiche ancienne/jamais retouchée
+       * peut avoir booked/web renseignés sans "imports" du tout, ce qui ne
+       * dit pas si un document nominatif a un jour été reçu pour ce vol.
+       * Cette route interroge directement les tables sources
+       * (import_job_results / flight_import_cards / flight_import_injections)
+       * par identité, indépendamment de ce qui a survécu dans la fiche.
+       */
+      const airline=String(url.searchParams.get('airline')||'').trim().toUpperCase();
+      const flightNumber=String(url.searchParams.get('flightNumber')||'').trim().toUpperCase();
+      const flightDate=String(url.searchParams.get('flightDate')||'').trim();
+      if(!airline||!flightNumber||!flightDate)return json({ok:false,error:'PARAMÈTRES MANQUANTS (airline, flightNumber, flightDate=AAAA-MM-JJ)'},400);
+      const identity=[flightDate,airline,flightNumber].join('|');
+      const [jobResults,cards,injections]=await Promise.all([
+        env.OPS_DB.prepare(`SELECT job_id,version_id,file_id,card_key,list_name,parser_mode,document_type,passenger_count,class_counts_json,status,created_at,updated_at FROM import_job_results WHERE airline=? AND flight_number=? AND flight_date=? ORDER BY created_at DESC LIMIT 50`).bind(airline,flightNumber,flightDate).all(),
+        env.OPS_DB.prepare(`SELECT id,card_key,list_name,source_status,passenger_count,class_counts_json,job_id,created_at,updated_at FROM flight_import_cards WHERE identity=? ORDER BY updated_at DESC LIMIT 50`).bind(identity).all(),
+        env.OPS_DB.prepare(`SELECT result_job_id,status,created_at,updated_at FROM flight_import_injections WHERE identity=? ORDER BY updated_at DESC LIMIT 50`).bind(identity).all()
+      ]);
+      return json({
+        ok:true,identity,
+        importJobResults:jobResults.results||[],
+        flightImportCards:cards.results||[],
+        flightImportInjections:injections.results||[]
+      });
+    }
     if(url.pathname==='/api/autopilot/requeue-airline'&&(request.method==='POST'||request.method==='GET')){
       // GET accepté (en plus de POST) pour permettre un simple lien cliquable
       // depuis un téléphone, sans terminal ni page intermédiaire : la CSP des
