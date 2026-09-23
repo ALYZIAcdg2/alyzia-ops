@@ -18730,34 +18730,12 @@ function openSaria(){
  return openSariaApp();
 }
 
+// Le bouton SEATMAP d'Outils ne doit jamais ouvrir directement le seatmap
+// du vol en cours (ca, c'est le bouton dedie dans la fiche de vol) : il
+// doit toujours passer par cartes compagnies -> versions cabine -> plan
+// cabine reel, comme SEATMAP · COMPAGNIES.
 function openToolsSeatmap(){
- if(currentView==='detail'&&f()){
-   openSeatmap();
-   return;
- }
-
- const date=HOME_DATE||selectedDate||localISO(new Date());
- const rows=FLIGHTS.map((flight,index)=>({flight,index}))
-   .filter(({flight})=>!flight.date||flight.date===date)
-   .sort((a,b)=>String(a.flight.std||'').localeCompare(String(b.flight.std||'')));
-
- showModal('SEATMAP','CHOISIR LE VOL',rows.length
-   ?`<div class="saria-config-list">${rows.map(({flight,index})=>`
-      <button class="saria-config-option" onclick="openToolsSeatmapFlight(${index})">
-       <div class="saria-config-main">
-        <b>${escapeHtml(flight.flight||'VOL —')}</b>
-        <span>${escapeHtml(flight.std||'—')} · ${escapeHtml(flight.dep||'CDG')} → ${escapeHtml(flight.dest||'—')} · ${escapeHtml(flight.aircraft||'TYPE A/C —')}</span>
-       </div>
-       <div class="saria-config-total">OUVRIR</div>
-      </button>`).join('')}</div>`
-   :`<div class="saria-state-note warn">AUCUN VOL DISPONIBLE POUR LE ${escapeHtml(formatDateLong(date))}.</div>`);
-}
-
-function openToolsSeatmapFlight(index){
- const next=Number(index);
- if(!Number.isInteger(next)||!FLIGHTS[next])return;
- selected=next;
- openSeatmap();
+ openSeatmapCoverage();
 }
 
 function openCreateFlight(){

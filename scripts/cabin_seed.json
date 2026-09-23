@@ -372,31 +372,6 @@
     ]
   },
   {
-    "configKey": "LO334|73H|6C180Y",
-    "airline": "LO",
-    "aircraft": "73H",
-    "configuration": "6C180Y",
-    "label": "LO 73H · 6C180Y",
-    "sourceLabel": "LO334 09AUG CDG-WAW Generic Report (fichier envoye directement par l'utilisateur)",
-    "quality": "exact",
-    "zones": [
-      {
-        "class": "C",
-        "row_start": 1,
-        "row_end": 1,
-        "pattern": "ABC|DEF",
-        "exceptions": ""
-      },
-      {
-        "class": "Y",
-        "row_start": 2,
-        "row_end": 31,
-        "pattern": "ABC|DEF",
-        "exceptions": ""
-      }
-    ]
-  },
-  {
     "configKey": "FB432|223|8C135M",
     "airline": "FB",
     "aircraft": "223",
@@ -2263,8 +2238,8 @@
     "aircraft": "73H",
     "configuration": "6C180Y",
     "label": "LO 73H · 6C180Y",
-    "sourceLabel": "LO334 09AUG CDG-WAW",
-    "quality": "good",
+    "sourceLabel": "LO334 09AUG CDG-WAW Generic Report (fichier envoye directement par l'utilisateur)",
+    "quality": "exact",
     "zones": [
       {
         "class": "C",
