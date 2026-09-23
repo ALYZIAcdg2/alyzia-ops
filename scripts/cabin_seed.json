@@ -2253,7 +2253,7 @@
         "row_start": 41,
         "row_end": 62,
         "pattern": "ABC|DEG|HJK",
-        "exceptions": "48=AB||HK\n61=AB|DEG|HK\n62=||HK"
+        "exceptions": "48=AC||HK\n61=AC|DEG|HK\n62=||HK"
       }
     ]
   }
