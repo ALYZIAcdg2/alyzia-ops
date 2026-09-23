@@ -1635,15 +1635,15 @@
     "aircraft": "789",
     "configuration": "30C21R248Y",
     "label": "AI 789 · 30C21R248Y",
-    "sourceLabel": "AI2025 19SEP DEL-FRA",
-    "quality": "good",
+    "sourceLabel": "AI2025 19SEP DEL-FRA Generic Report (fichier envoye par l'utilisateur, verifie position par position — business en sieges alternes A/EF/K et A/DG/K, typique du produit staggered)",
+    "quality": "exact",
     "zones": [
       {
         "class": "C",
         "row_start": 1,
         "row_end": 8,
-        "pattern": "A|EF|K",
-        "exceptions": "02=A|D|K\n04=A|D|K\n06=A|D|K\n08=A||K"
+        "pattern": "A|DEFG|K",
+        "exceptions": "01=A|EF|K\n02=A|DG|K\n03=A|EF|K\n04=A|DG|K\n05=A|EF|K\n06=A|DG|K\n07=A|EF|K\n08=A||K"
       },
       {
         "class": "R",
@@ -1657,7 +1657,7 @@
         "row_start": 31,
         "row_end": 59,
         "pattern": "ABC|DEG|HJK",
-        "exceptions": "43=ABC||HJK\n57=AB|DEG|HJ\n58=AB|DEG|HJ\n59=|DEG|"
+        "exceptions": "43=ABC||HJK\n57=BC|DEG|HJ\n58=BC|DEG|HJ\n59=|DEG|"
       }
     ]
   },
@@ -1992,15 +1992,15 @@
     "aircraft": "E95",
     "configuration": "14C100M",
     "label": "SK E95 · 14C100M",
-    "sourceLabel": "SK830 25SEP CDG-OSL",
-    "quality": "good",
+    "sourceLabel": "SK830 25SEP CDG-OSL Generic Report v3 (fichier envoye par l'utilisateur, verifie position par position)",
+    "quality": "exact",
     "zones": [
       {
         "class": "C",
         "row_start": 1,
         "row_end": 4,
         "pattern": "AC|DF",
-        "exceptions": ""
+        "exceptions": "01=AC|"
       },
       {
         "class": "M",
