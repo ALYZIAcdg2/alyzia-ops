@@ -2363,5 +2363,105 @@
         "exceptions": "20=|DEFG|HK\n31=AC|DFG|HK\n32=AC|DFG|HK\n33=AC|DFG|HK\n34=|DFG|HK\n35=|DFG|"
       }
     ]
+  },
+  {
+    "configKey": "TS|333|12J353Y",
+    "airline": "TS",
+    "aircraft": "333",
+    "configuration": "12J353Y",
+    "label": "TS 333 · 12J353Y",
+    "sourceLabel": "TS111 24SEP CDG-YUL",
+    "quality": "good",
+    "zones": [
+      {
+        "class": "J",
+        "row_start": 1,
+        "row_end": 2,
+        "pattern": "AC|DG|HK",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 4,
+        "row_end": 52,
+        "pattern": "ABC|DFG|HJK",
+        "exceptions": "11=AC||HK\n12=SKIP\n13=SKIP\n14=SKIP\n15=ABC||HJK\n32=AC|DFG|HK\n33=SKIP\n34=SKIP\n35=SKIP\n45=AC|DFG|HK\n46=AC|DFG|HK\n47=AC|DFG|HK\n48=AC|DFG|HK\n49=AC|DFG|HK\n50=AC|DFG|HK\n51=|DFG|\n52=|DFG|"
+      }
+    ]
+  },
+  {
+    "configKey": "TS|332|12J321Y",
+    "airline": "TS",
+    "aircraft": "332",
+    "configuration": "12J321Y",
+    "label": "TS 332 · 12J321Y",
+    "sourceLabel": "TS189 27SEP CDG-YYZ",
+    "quality": "good",
+    "zones": [
+      {
+        "class": "J",
+        "row_start": 1,
+        "row_end": 2,
+        "pattern": "AC|DG|HK",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 4,
+        "row_end": 51,
+        "pattern": "ABC|DFG|HJK",
+        "exceptions": "04=ABC||HJK\n09=|DFG|\n10=|DFG|\n11=SKIP\n12=|DFG|\n13=|DFG|\n30=|DFG|\n31=SKIP\n32=SKIP\n33=SKIP\n34=SKIP\n35=SKIP\n44=AC|DFG|HK\n45=AC|DFG|HK\n46=AC|DFG|HK\n47=AC|DFG|HK\n48=AC|DFG|HK\n49=AC|DFG|HK\n50=|DFG|\n51=|DFG|"
+      }
+    ]
+  },
+  {
+    "configKey": "TS|32Q|12J187Y",
+    "airline": "TS",
+    "aircraft": "32Q",
+    "configuration": "12J187Y",
+    "label": "TS 32Q · 12J187Y",
+    "sourceLabel": "TS117 27SEP CDG-YQB",
+    "quality": "good",
+    "zones": [
+      {
+        "class": "J",
+        "row_start": 1,
+        "row_end": 3,
+        "pattern": "AC|HK",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 4,
+        "row_end": 36,
+        "pattern": "ABC|HJK",
+        "exceptions": "25=SKIP\n26=BC|HJ\n36=ABC|"
+      }
+    ]
+  },
+  {
+    "configKey": "TS|330|12J320Y",
+    "airline": "TS",
+    "aircraft": "330",
+    "configuration": "12J320Y",
+    "label": "TS 330 · 12J320Y",
+    "sourceLabel": "TS111 27SEP CDG-YUL",
+    "quality": "good",
+    "zones": [
+      {
+        "class": "J",
+        "row_start": 1,
+        "row_end": 2,
+        "pattern": "AC|DG|HK",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 4,
+        "row_end": 50,
+        "pattern": "ABC|DFG|HJK",
+        "exceptions": "04=ABC||HJK\n09=|DFG|\n10=|DFG|\n11=SKIP\n12=|DFG|\n13=|DFG|\n29=AC|DFG|HK\n30=AC|DFG|HK\n31=SKIP\n32=SKIP\n33=SKIP\n34=SKIP\n35=SKIP\n44=AC|DFG|HK\n45=AC|DFG|HK\n46=AC|DFG|HK\n47=AC|DFG|HK\n48=AC|DFG|HK\n49=AC|DFG|HK\n50=|DFG|"
+      }
+    ]
   }
 ]
