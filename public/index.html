@@ -3235,9 +3235,9 @@ body{
 .cabin-row-seats{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .cabin-seat-group{display:flex;align-items:center;justify-content:center;gap:3px;flex:0 0 auto}
 .cabin-seat{
- width:20px;height:20px;border-radius:5px;display:flex;align-items:center;justify-content:center;
- font-size:8px;font-weight:950;color:#fff;background:var(--seat-color,#4b5f78);flex:0 0 auto;
- position:relative;cursor:pointer
+ width:34px;height:22px;border-radius:5px;display:flex;align-items:center;justify-content:center;
+ font-size:7.5px;font-weight:950;color:#fff;background:var(--seat-color,#4b5f78);flex:0 0 auto;
+ position:relative;cursor:pointer;font-variant-numeric:tabular-nums
 }
 .cabin-seat:hover{filter:brightness(1.12);transform:translateY(-1px)}
 .cabin-seat.occupied{box-shadow:inset 0 0 0 2px rgba(255,255,255,.85)}
@@ -3252,6 +3252,12 @@ body{
  box-shadow:0 0 0 1px rgba(0,0,0,.15)
 }
 .cabin-aisle{width:14px;flex:0 0 14px}
+.cabin-zone-separator{
+ display:flex;align-items:center;gap:6px;margin:10px 0 6px;padding:5px 2px;
+ font-size:9px;font-weight:950;letter-spacing:.04em;color:#17243a;border-top:2px solid #e1e7ee
+}
+.cabin-zone-separator:first-child{margin-top:0;border-top:none}
+.cabin-zone-dot{width:8px;height:8px;border-radius:50%;flex:0 0 auto}
 .cabin-divider{
  display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin:5px 0;padding:4px 8px;border-radius:6px;
  background:#f1f5f9
@@ -20989,13 +20995,25 @@ function cabinMasterGroups(items){
 }
 const CABIN_CLASS_COLOR={F:'#7c3aed',C:'#d97706',J:'#d97706',W:'#0891b2',S:'#0891b2',Y:'#1d6fd6',M:'#1d6fd6'};
 const CABIN_EQUIPMENT_ICON={GALLEY:'🍽',LAVATORY:'🚻',TOILET:'🚻',EXIT:'🚪',STAIRS:'🪜',CREW:'👤',BAR:'🍸',OTHER:'•'};
+const CABIN_SEAT_W=34;
 function cabinPlanBodyHtml(configRow,zones,equipment){
  if(!zones.length){
   return `<div class="cabin-plan-empty">AUCUN PLAN ENREGISTRÉ POUR CETTE CONFIGURATION.<br><button class="primary" onclick="openCabinZoneEditor('${escapeHtml(configRow.config_key)}')">＋ AJOUTER UNE ZONE</button></div>`;
  }
- const items=[];
- zones.forEach(zone=>cabinZoneRows(zone).forEach(r=>items.push({row:r.row,type:'seats',...r})));
- const masterGroups=cabinMasterGroups(items);
+ const seatItems=[];
+ zones.forEach(zone=>cabinZoneRows(zone).forEach(r=>seatItems.push({row:r.row,type:'seats',...r})));
+ seatItems.sort((a,b)=>a.row-b.row);
+ const masterGroups=cabinMasterGroups(seatItems);
+ const items=[...seatItems];
+ // Séparation visuelle entre classes (ex. fin de la Business, début de l'Éco) :
+ // un repère à la frontière, dès que la classe change entre deux rangées triées.
+ let prevCls=null,prevRow=null;
+ seatItems.forEach(it=>{
+  if(prevCls!==null&&it.cls!==prevCls){
+   items.push({row:(prevRow+it.row)/2-0.2,type:'zone',cls:it.cls});
+  }
+  prevCls=it.cls;prevRow=it.row;
+ });
  // Regroupe les équipements partageant la même position (ex. galley + toilettes
  // + porte au même endroit) en UNE seule ligne plutôt que 3 bandeaux empilés.
  const equipByRow={};
@@ -21009,6 +21027,11 @@ function cabinPlanBodyHtml(configRow,zones,equipment){
  items.sort((a,b)=>a.row-b.row);
 
  const rowsHtml=items.map(it=>{
+  if(it.type==='zone'){
+   const cls=it.cls;
+   const name=(typeof sariaClassName==='function')?sariaClassName(cls):cls;
+   return `<div class="cabin-zone-separator"><span class="cabin-zone-dot" style="background:${CABIN_CLASS_COLOR[cls]||'#4b5f78'}"></span>${escapeHtml(name)} · ${escapeHtml(cls)}</div>`;
+  }
   if(it.type==='divider'){
    const hasExit=it.list.some(eq=>String(eq.type||'').toUpperCase()==='EXIT');
    const chips=it.list.map(eq=>{
@@ -21031,16 +21054,16 @@ function cabinPlanBodyHtml(configRow,zones,equipment){
   const groupsHtml=masterGroups.map((outerCount,gi)=>{
    const canonical=String((it.baseGroups&&it.baseGroups[gi])||'').split('').filter(ch=>/[A-Z]/.test(ch));
    const presentSet=new Set((it.groups[gi]||'').split('').filter(ch=>/[A-Z]/.test(ch)));
-   const outerWidth=outerCount*20+Math.max(0,outerCount-1)*3;
-   const innerWidth=canonical.length*20+Math.max(0,canonical.length-1)*3;
+   const outerWidth=outerCount*CABIN_SEAT_W+Math.max(0,outerCount-1)*3;
+   const innerWidth=canonical.length*CABIN_SEAT_W+Math.max(0,canonical.length-1)*3;
    const cellsHtml=canonical.map(letter=>{
     if(!presentSet.has(letter)){
-     return `<div style="width:20px;height:20px;flex:0 0 auto;visibility:hidden"></div>`;
+     return `<div style="width:${CABIN_SEAT_W}px;height:22px;flex:0 0 auto;visibility:hidden"></div>`;
     }
     const seatCode=String(it.row).padStart(2,'0')+letter;
     const st=(typeof seatStatus==='function')?seatStatus(seatCode):{key:'free',label:'',symbol:''};
     const title=`${seatCode} · ${it.cls}${st.label?' · '+st.label:''}${st.p?.name?' · '+st.p.name:''}`;
-    return `<div class="cabin-seat ${st.key||'free'}" style="--seat-color:${color}" title="${escapeHtml(title)}" onclick="openSeatInfo('${seatCode}','${it.cls}')">${letter}${st.symbol?`<span class="cabin-seat-symbol">${st.symbol}</span>`:''}</div>`;
+    return `<div class="cabin-seat ${st.key||'free'}" style="--seat-color:${color}" title="${escapeHtml(title)}" onclick="openSeatInfo('${seatCode}','${it.cls}')">${seatCode}${st.symbol?`<span class="cabin-seat-symbol">${st.symbol}</span>`:''}</div>`;
    }).join('');
    return `<div class="cabin-seat-group" style="width:${outerWidth}px"><div style="width:${innerWidth}px;display:flex;gap:3px">${cellsHtml}</div></div>`;
   }).join('<div class="cabin-aisle"></div>');
