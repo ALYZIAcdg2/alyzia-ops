@@ -80,29 +80,29 @@
     "aircraft": "332",
     "configuration": "18C14W219Y",
     "label": "AH 332 · 18C14W219Y",
-    "sourceLabel": "AH1003 09AUG CDG-ALG Generic Report",
-    "quality": "close",
+    "sourceLabel": "AH1003 09AUG CDG-ALG Generic Report v4 (fichier envoye par l'utilisateur, verifie position par position — W et Y ont la meme largeur de siege dans ce document, la frontiere est le separateur de section entre les rangees 7 et 14)",
+    "quality": "exact",
     "zones": [
       {
         "class": "C",
         "row_start": 1,
-        "row_end": 4,
-        "pattern": "AD|GK",
-        "exceptions": "5=A|K"
+        "row_end": 5,
+        "pattern": "A|DG|K",
+        "exceptions": "05=A||K"
       },
       {
         "class": "W",
         "row_start": 6,
         "row_end": 7,
-        "pattern": "AC|DFG|HK",
-        "exceptions": ""
+        "pattern": "AC|DEFG|HK",
+        "exceptions": "06=AC|DFG|HK\n07=AC|DFG|HK"
       },
       {
         "class": "Y",
         "row_start": 14,
         "row_end": 42,
         "pattern": "AC|DEFG|HK",
-        "exceptions": "27=AC||HK\n42=|DEF|"
+        "exceptions": "27=AC||HK\n38=AC|DFG|HK\n39=AC|DFG|HK\n40=AC|DFG|HK\n41=AC|DFG|HK\n42=|DFG|"
       }
     ]
   },
@@ -488,13 +488,13 @@
     "aircraft": "789",
     "configuration": "30C262Y",
     "label": "HU 789 · 30C262Y",
-    "sourceLabel": "HU758 10AUG CDG-SZX Generic Report (fichier envoye directement par l'utilisateur)",
+    "sourceLabel": "HU758 10AUG CDG-SZX Generic Report (fichier envoye par l'utilisateur, verifie position par position)",
     "quality": "exact",
     "zones": [
       {
         "class": "C",
         "row_start": 11,
-        "row_end": 19,
+        "row_end": 20,
         "pattern": "A|DG|K",
         "exceptions": "13=SKIP\n14=SKIP\n20=|DG|"
       },
@@ -503,7 +503,7 @@
         "row_start": 31,
         "row_end": 61,
         "pattern": "ABC|DEG|HJK",
-        "exceptions": "45=ABC|DEG|\n59=A_C|_E_|H_K (approx)\n60=|_E_|\n61=|_E_|"
+        "exceptions": "45=ABC||HJK\n59=AC|DEG|HK\n60=|DEG|\n61=|DEG|"
       }
     ]
   },
@@ -1667,8 +1667,8 @@
     "aircraft": "32Q",
     "configuration": "22C165M",
     "label": "FI 32Q · 22C165M",
-    "sourceLabel": "FI543 26SEP CDG-KEF",
-    "quality": "good",
+    "sourceLabel": "FI543 26SEP CDG-KEF Generic Report (fichier envoye par l'utilisateur, verifie position par position)",
+    "quality": "exact",
     "zones": [
       {
         "class": "C",
@@ -1682,7 +1682,7 @@
         "row_start": 7,
         "row_end": 34,
         "pattern": "ABC|DEF",
-        "exceptions": "34=|DE"
+        "exceptions": "34=|DEF"
       }
     ]
   },
@@ -2067,8 +2067,8 @@
     "aircraft": "333",
     "configuration": "36C265Y",
     "label": "MS 333 · 36C265Y",
-    "sourceLabel": "MS800 11AUG CDG-CAI",
-    "quality": "good",
+    "sourceLabel": "MS800 11AUG CDG-CAI Generic Report (fichier envoye par l'utilisateur, verifie position par position)",
+    "quality": "exact",
     "zones": [
       {
         "class": "C",
@@ -2082,7 +2082,7 @@
         "row_start": 20,
         "row_end": 54,
         "pattern": "AC|DEFG|HK",
-        "exceptions": "37=|E|\n50=AC|DEG|HK\n51=AC|DEG|HK\n52=AC|DEG|HK\n53=A|DEG|\n54=|DEG|"
+        "exceptions": "37=|DEFG|\n50=AC|DEG|HK\n51=AC|DEG|HK\n52=AC|DEG|HK\n53=AC|DEG|\n54=|DEG|"
       }
     ]
   },
