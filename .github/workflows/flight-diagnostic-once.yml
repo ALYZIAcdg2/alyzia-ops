@@ -69,4 +69,10 @@ jobs:
             const noSeat = (f.passengers||[]).filter(p => !p.seat);
             console.log('total sans siege:', noSeat.length, '/', (f.passengers||[]).length);
             noSeat.slice(0,15).forEach(p => console.log(JSON.stringify(p)));
+            console.log();
+            console.log('----- IMPORTS / CARDS TRAITEES POUR CE VOL -----');
+            console.log(JSON.stringify(f.imports||null, null, 2));
+            console.log();
+            console.log('----- CLES RACINE DU VOL (pour reperer d\''autres champs) -----');
+            console.log(Object.keys(f).sort().join(', '));
           "
