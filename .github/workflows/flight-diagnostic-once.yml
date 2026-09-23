@@ -1,0 +1,52 @@
+name: Diagnostic vol (lecture seule, ponctuel)
+
+# Investigation demandee par l'utilisateur : sur TK1830 du 16SEP, les
+# passagers web/reserves n'apparaissent pas sur le SEATMAP. Lit
+# /api/flights?identity=... pour un vol precis (lecture seule, aucune
+# ecriture) via relais GitHub Actions, le sandbox n'ayant pas d'acces
+# reseau direct vers *.workers.dev.
+
+on:
+  workflow_dispatch:
+    inputs:
+      identity:
+        description: "Identite du vol : YYYY-MM-DD|AIRLINE|FLIGHT (ex. 2026-09-16|TK|1830)"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      API: https://alyzia-ops.alyzia-cdg2.workers.dev
+    steps:
+      - name: /api/flights?identity=...
+        run: |
+          IDENTITY="${{ github.event.inputs.identity }}"
+          curl -sS -f -G "$API/api/flights" --data-urlencode "identity=$IDENTITY" -o flight.json
+          echo "----- RESUME -----"
+          node -e "
+            const j = JSON.parse(require('fs').readFileSync('flight.json','utf8'));
+            const f = j.flight || {};
+            console.log('ok=', j.ok);
+            console.log('flight=', f.flight, 'airline=', f.airline, 'date=', f.date, 'aircraft=', f.aircraft);
+            console.log('sariaConfigKey=', f.sariaConfigKey, 'sariaCabinConfig=', f.sariaCabinConfig);
+            console.log('config (C/Y counts)=', JSON.stringify(f.config));
+            console.log('booked=', JSON.stringify(f.booked));
+            console.log('web=', JSON.stringify(f.web));
+            console.log('passengers count=', (f.passengers||[]).length);
+            console.log('inopSeats count=', (f.inopSeats||[]).length);
+            console.log();
+            console.log('----- ECHANTILLON PASSAGERS (20 premiers) -----');
+            (f.passengers||[]).slice(0,20).forEach(p => {
+              console.log(JSON.stringify({name:p.name, seat:p.seat, class:p.class, status:p.status, type:p.type, source:p.source, checkedIn:p.checkedIn, web:p.web}));
+            });
+            console.log();
+            console.log('----- PASSAGERS SANS SIEGE (seat vide) -----');
+            const noSeat = (f.passengers||[]).filter(p => !p.seat);
+            console.log('total sans siege:', noSeat.length, '/', (f.passengers||[]).length);
+            noSeat.slice(0,15).forEach(p => console.log(JSON.stringify(p)));
+          "
