@@ -3280,6 +3280,26 @@ body{
 .cabin-config-choice:hover{border-color:#80b7ee;background:#f9fcff}
 .cabin-config-choice b{font-size:12px;color:#13263c}
 .cabin-config-choice span{font-size:9px;color:#6a7c90;font-weight:800}
+.cabin-airline-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;max-height:60vh;overflow:auto;padding-right:3px}
+.cabin-airline-card{
+ display:flex;flex-direction:column;gap:4px;text-align:left;border:1px solid #d8e2eb;background:#fff;
+ border-radius:10px;padding:12px 11px;cursor:pointer
+}
+.cabin-airline-card:hover{border-color:#80b7ee;background:#f9fcff}
+.cabin-airline-card b{font-size:14px;color:#13263c;letter-spacing:.02em}
+.cabin-airline-card span{font-size:8.5px;color:#6a7c90;font-weight:800;line-height:1.4}
+.cabin-report-badge{
+ display:block;width:100%;margin-bottom:10px;border:1px solid #f0d3a3;background:#fff2e0;color:#a86700;
+ border-radius:8px;padding:8px 10px;font-size:9px;font-weight:950;cursor:pointer;text-align:center
+}
+.cabin-report-list{display:grid;gap:8px;max-height:60vh;overflow:auto;padding-right:3px}
+.cabin-report-item{
+ display:flex;flex-direction:column;gap:3px;border:1px solid #d8e2eb;background:#fff;border-radius:9px;padding:10px 11px
+}
+.cabin-report-item b{font-size:11px;color:#13263c}
+.cabin-report-item span{font-size:10px;color:#374559;font-weight:700}
+.cabin-report-item small{font-size:8px;color:#8fa0b3;font-weight:800}
+.cabin-report-item button{align-self:flex-start;margin-top:4px;border:1px solid #cfdbe6;background:#fff;border-radius:7px;padding:6px 10px;font-size:8.5px;font-weight:950;cursor:pointer}
 .cabin-zone-list{display:grid;gap:6px}
 .cabin-zone-row{
  display:flex;align-items:center;gap:9px;border:1px solid #e1e7ee;border-radius:8px;padding:8px 10px
@@ -18679,6 +18699,7 @@ async function openTools(){
    <button class="tool-card" onclick="openCreateFlight()"><span class="tool-icon">＋</span><b>CRÉATION DE VOLS</b><span>AJOUTER MANUELLEMENT UN VOL ABSENT DE L'IMPORT, AVEC DATE, COMPAGNIE, NUMÉRO, ROUTE ET HORAIRES.</span></button>
    <button class="tool-card company-config-tool" onclick="openCompanyConfig()"><span class="tool-icon">⚙</span><b>CONFIG COMPAGNIE</b><span>CONFIGURER LES CLASSES PAR NUMÉRO DE VOL ET LES BLOCS VISIBLES SUR LA FICHE. TK / SQ.</span></button>
    <button class="tool-card" onclick="openToolsSeatmap()"><span class="tool-icon">▦</span><b>SEATMAP</b><span>OUVRIR LE PLAN CABINE DU VOL ACTUEL.</span></button>
+   <button class="tool-card" onclick="openSeatmapCoverage()"><span class="tool-icon">🗂</span><b>SEATMAP · COMPAGNIES</b><span>VÉRIFIER TOUTES LES CONFIGURATIONS PAR COMPAGNIE, VOIR LE PLAN, SIGNALER UN BUG.</span></button>
    <button class="tool-card" onclick="openSariaApp()"><span class="tool-icon">✈</span><b>SARIA</b><span>OUVRIR DIRECTEMENT L’OUTIL SARIA CABIN / SEATMAP.</span></button>
    <div class="ops-cloud-card">
      ${(()=>{const st=opsCloudStatusMarkup();return `<div id="opsCloudStatusBox" class="ops-cloud-status ${st.cls}">${st.text}</div>`})()}
@@ -21061,8 +21082,87 @@ function cabinPlanBodyHtml(configRow,zones,equipment){
   </div>
   <div class="cabin-plan-scroll">${rowsHtml}</div>
   <div class="cabin-plan-actions">
+    <button onclick="openCabinBugReport('${escapeHtml(configRow.config_key)}')">⚠ SIGNALER UN BUG</button>
     <button onclick="openCabinZoneEditor('${escapeHtml(configRow.config_key)}')">✎ MODIFIER LES ZONES</button>
   </div>`;
+}
+function openCabinBugReport(configKey){
+ showModal('SIGNALER UN BUG',configKey,`
+  <div class="editform">
+   <label>DÉCRIS LE PROBLÈME (ex. rangée mal alignée, siège manquant, mauvais total…)<textarea id="cabinReportMsg" rows="4" placeholder="Ex. rangée 12, le siège C n'est pas à la bonne position"></textarea></label>
+   <button class="save" onclick="submitCabinBugReport('${escapeHtml(configKey)}')">ENVOYER LE SIGNALEMENT</button>
+  </div>`);
+}
+async function submitCabinBugReport(configKey){
+ const msg=String(document.getElementById('cabinReportMsg')?.value||'').trim();
+ if(!msg){alert('DÉCRIS LE PROBLÈME AVANT D\'ENVOYER.');return}
+ try{
+  const r=await fetch(opsApiUrl('/api/cabin/report'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({configKey,message:msg})});
+  const j=await r.json();
+  if(!j?.ok)throw new Error(j?.error||'ENVOI ÉCHOUÉ');
+  showModal('SIGNALEMENT ENVOYÉ',configKey,`<div class="saria-state-note">✓ Signalement enregistré. Renvoie le PDF ou le mail correspondant dans la conversation pour que ce soit corrigé.</div>`);
+ }catch(e){
+  alert('ERREUR : '+String(e?.message||e));
+ }
+}
+
+// Ecran Outils > SEATMAP : cartes compagnies -> versions cabine -> plan reel,
+// pour verifier compagnie par compagnie ce qui est couvert (et signaler un
+// bug directement sur le plan concerne). Lit uniquement /api/cabin/configs —
+// jamais le catalogue de secours ni SARIA.
+async function openSeatmapCoverage(){
+ showModal('SEATMAP · COMPAGNIES','GESTION DES PLANS CABINE','<div class="import-status">CHARGEMENT…</div>');
+ try{
+  const [configsJson,reportsJson]=await Promise.all([
+   fetch(opsApiUrl('/api/cabin/configs'),{cache:'no-store',headers:{Accept:'application/json'}}).then(r=>r.json()),
+   fetch(opsApiUrl('/api/cabin/report?resolved=0'),{cache:'no-store',headers:{Accept:'application/json'}}).then(r=>r.json()).catch(()=>({reports:[]}))
+  ]);
+  const configs=configsJson?.configs||[];
+  const reports=reportsJson?.reports||[];
+  const byAirline={};
+  configs.forEach(c=>{(byAirline[c.airline]=byAirline[c.airline]||[]).push(c)});
+  const airlines=Object.keys(byAirline).sort();
+  const reportBadge=reports.length?`<button class="cabin-report-badge" onclick="openCabinReportsList()">⚠ ${reports.length} SIGNALEMENT${reports.length>1?'S':''} EN ATTENTE</button>`:'';
+  const cardsHtml=airlines.map(a=>{
+   const list=byAirline[a];
+   const aircraftCount=new Set(list.map(c=>c.aircraft)).size;
+   return `<button class="cabin-airline-card" onclick="openSeatmapCoverageAirline('${escapeHtml(a)}')"><b>${escapeHtml(a)}</b><span>${aircraftCount} type${aircraftCount>1?'s':''} A/C · ${list.length} config${list.length>1?'s':''}</span></button>`;
+  }).join('');
+  replaceModal('SEATMAP · COMPAGNIES',`${airlines.length} COMPAGNIES · ${configs.length} CONFIGS`,`
+   ${reportBadge}
+   <div class="cabin-airline-grid">${cardsHtml||'<div class="cabin-plan-empty">AUCUNE CONFIGURATION EN BASE.</div>'}</div>
+  `);
+ }catch(e){
+  replaceModal('SEATMAP · COMPAGNIES','ERREUR',`<div class="import-status error">${escapeHtml(String(e?.message||e))}</div>`);
+ }
+}
+async function openSeatmapCoverageAirline(airline){
+ showModal(`SEATMAP · ${airline}`,'CHARGEMENT…','<div class="import-status">CHARGEMENT…</div>');
+ try{
+  const r=await fetch(opsApiUrl(`/api/cabin/configs?airline=${encodeURIComponent(airline)}`),{cache:'no-store',headers:{Accept:'application/json'}});
+  const j=await r.json();
+  const configs=j?.configs||[];
+  replaceModal(`SEATMAP · ${escapeHtml(airline)}`,`${configs.length} CONFIGURATION${configs.length>1?'S':''}`,`
+   <div class="cabin-config-list">${configs.map(c=>`<button class="cabin-config-choice" onclick="openCabinPlanByKey('${escapeHtml(c.config_key)}')"><b>${escapeHtml(c.aircraft)} · ${escapeHtml(c.configuration)}</b><span>${Number(c.total||0)} SIÈGES · ${escapeHtml(c.quality||'')}</span></button>`).join('')}</div>
+   <div class="saria-picker-actions" style="margin-top:12px"><button onclick="openSeatmapCoverage()">‹ RETOUR AUX COMPAGNIES</button></div>
+  `);
+ }catch(e){
+  replaceModal(`SEATMAP · ${escapeHtml(airline)}`,'ERREUR',`<div class="import-status error">${escapeHtml(String(e?.message||e))}</div>`);
+ }
+}
+async function openCabinReportsList(){
+ showModal('SIGNALEMENTS','PLANS CABINE À CORRIGER','<div class="import-status">CHARGEMENT…</div>');
+ try{
+  const r=await fetch(opsApiUrl('/api/cabin/report?resolved=0'),{cache:'no-store',headers:{Accept:'application/json'}});
+  const j=await r.json();
+  const reports=j?.reports||[];
+  replaceModal('SIGNALEMENTS',`${reports.length} EN ATTENTE`,
+   reports.length?`<div class="cabin-report-list">${reports.map(rep=>`<div class="cabin-report-item"><b>${escapeHtml(rep.config_key)}</b><span>${escapeHtml(rep.message)}</span><small>${escapeHtml(rep.created_at||'')}</small><button onclick="openCabinPlanByKey('${escapeHtml(rep.config_key)}')">VOIR LE PLAN</button></div>`).join('')}</div>`
+    :'<div class="cabin-plan-empty">AUCUN SIGNALEMENT EN ATTENTE.</div>'
+  );
+ }catch(e){
+  replaceModal('SIGNALEMENTS','ERREUR',`<div class="import-status error">${escapeHtml(String(e?.message||e))}</div>`);
+ }
 }
 async function openCabinPlan(){
  const x=f();if(!x)return;
@@ -21203,6 +21303,7 @@ async function openTools(){
     <button class="tool-card" onclick="openCreateFlight()"><span class="tool-icon">＋</span><b>CRÉER VOL</b><span>Ajout manuel</span></button>
     <button class="tool-card company-config-tool" onclick="openCompanyConfig()"><span class="tool-icon">⚙</span><b>CONFIG COMPAGNIE</b><span>Classes et modules</span></button>
     <button class="tool-card" onclick="openToolsSeatmap()"><span class="tool-icon">▦</span><b>SEATMAP</b><span>Plan cabine</span></button>
+    <button class="tool-card" onclick="openSeatmapCoverage()"><span class="tool-icon">🗂</span><b>SEATMAP · COMPAGNIES</b><span>Vérifier toutes les configs</span></button>
     <button class="tool-card" onclick="openSariaApp()"><span class="tool-icon">✈</span><b>SARIA</b><span>Cabin / Seatmap</span></button>
     <div class="ops-cloud-card">${(()=>{const st=opsCloudStatusMarkup();return `<div id="opsCloudStatusBox" class="ops-cloud-status ${st.cls}">${st.text}</div>`})()}<div class="ops-cloud-help"><b style="color:#087749">V50.15 · IMPORT BACKGROUND + PREPA MULTI-COMPAGNIES</b></div><button class="live-refresh" onclick="manualCloudRefresh()">↻ SYNCHRONISER</button></div>
     <div class="adb-usage-card"><div id="adbUsageBox"><button class="live-refresh" onclick="loadAeroUsage()">AERODATABOX</button></div></div>

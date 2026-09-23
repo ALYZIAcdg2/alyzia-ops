@@ -12736,9 +12736,19 @@ async function ensureCabinTables(env){
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `),
+    env.OPS_DB.prepare(`
+      CREATE TABLE IF NOT EXISTS cabin_reports (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        config_key TEXT NOT NULL,
+        message TEXT NOT NULL,
+        resolved INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `),
     env.OPS_DB.prepare(`CREATE INDEX IF NOT EXISTS idx_cabin_configs_ac ON cabin_configs(airline, aircraft)`),
     env.OPS_DB.prepare(`CREATE INDEX IF NOT EXISTS idx_cabin_zones_key ON cabin_zones(config_key)`),
-    env.OPS_DB.prepare(`CREATE INDEX IF NOT EXISTS idx_cabin_equipment_key ON cabin_equipment(config_key)`)
+    env.OPS_DB.prepare(`CREATE INDEX IF NOT EXISTS idx_cabin_equipment_key ON cabin_equipment(config_key)`),
+    env.OPS_DB.prepare(`CREATE INDEX IF NOT EXISTS idx_cabin_reports_resolved ON cabin_reports(resolved)`)
   ]);
 }
 
@@ -13007,6 +13017,34 @@ async function handleCabin(request,env,url){
     });
 
     return json({ok:true,coverage});
+  }
+
+  // Signalement d'un bug sur un plan cabine depuis l'ecran Outils > SEATMAP —
+  // l'utilisateur decrit le probleme, on le retrouve ensuite dans la liste
+  // pour le corriger (au besoin en lui redemandant le PDF/mail source).
+  if(url.pathname==="/api/cabin/report" && request.method==="POST"){
+    const body=await request.json().catch(()=>null);
+    const configKey=String(body?.configKey||"").trim();
+    const message=String(body?.message||"").trim();
+    if(!configKey||!message)return json({ok:false,error:"CONFIG ET MESSAGE REQUIS"},400);
+    await env.OPS_DB.prepare(`INSERT INTO cabin_reports (config_key,message) VALUES (?,?)`).bind(configKey,message).run();
+    return json({ok:true});
+  }
+  if(url.pathname==="/api/cabin/report" && request.method==="GET"){
+    const resolved=url.searchParams.get("resolved");
+    const query=resolved===null
+      ? `SELECT * FROM cabin_reports ORDER BY resolved ASC, created_at DESC`
+      : `SELECT * FROM cabin_reports WHERE resolved=? ORDER BY created_at DESC`;
+    const stmt=resolved===null?env.OPS_DB.prepare(query):env.OPS_DB.prepare(query).bind(Number(resolved)?1:0);
+    const {results=[]}=await stmt.all();
+    return json({ok:true,reports:results});
+  }
+  if(url.pathname==="/api/cabin/report" && request.method==="PATCH"){
+    const body=await request.json().catch(()=>null);
+    const id=Number(body?.id);
+    if(!Number.isFinite(id))return json({ok:false,error:"ID REQUIS"},400);
+    await env.OPS_DB.prepare(`UPDATE cabin_reports SET resolved=1 WHERE id=?`).bind(id).run();
+    return json({ok:true});
   }
 
   return json({ok:false,error:"ROUTE CABIN INCONNUE"},404);
