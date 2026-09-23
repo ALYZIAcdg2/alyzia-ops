@@ -872,9 +872,9 @@
     "configKey": "LO|7M8|8C174Y",
     "airline": "LO",
     "aircraft": "7M8",
-    "configuration": "8C174Y",
-    "label": "LO 7M8 · 8C174Y",
-    "sourceLabel": "LO332 22SEP CDG-WAW Generic Report (rangees 1-2 : A et C absents, seuls B/D/E/F sont de vrais sieges)",
+    "configuration": "12C174Y",
+    "label": "LO 7M8 · 12C174Y",
+    "sourceLabel": "LO332 22SEP CDG-WAW Generic Report — 12 sieges business confirmes (physique reel, pas le 8C du header)",
     "quality": "exact",
     "zones": [
       {
@@ -882,7 +882,7 @@
         "row_start": 1,
         "row_end": 2,
         "pattern": "ABC|DEF",
-        "exceptions": "01=B|DEF\n02=B|DEF"
+        "exceptions": ""
       },
       {
         "class": "Y",
