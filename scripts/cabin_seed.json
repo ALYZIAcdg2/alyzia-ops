@@ -686,10 +686,10 @@
     "configKey": "TW|77W|59C235Y",
     "airline": "TW",
     "aircraft": "77W",
-    "configuration": "59C235Y",
-    "label": "TW 77W · 59C235Y",
-    "sourceLabel": "T'way Air, format seatmap propre 4 zones A/B/C/D (fichier envoye directement par l'utilisateur, pas de rapport Altea)",
-    "quality": "confirmed_by_source_tool",
+    "configuration": "60C226Y",
+    "label": "TW 77W · 60C226Y",
+    "sourceLabel": "T'way Air, seatmap propre 4 zones A(First,1-2)/B(Business,11-26)/C(30-45)/D(Economy,59-72) envoyee directement par l'utilisateur, comptee siege par siege — Zone A+B = C (60), Zone C+D = Y (226), confirme par l'utilisateur",
+    "quality": "exact",
     "zones": [
       {
         "class": "C",
@@ -703,21 +703,21 @@
         "row_start": 11,
         "row_end": 26,
         "pattern": "A|DG|K",
-        "exceptions": "15=A||K"
+        "exceptions": "13=SKIP\n14=SKIP\n15=A||K"
       },
       {
         "class": "Y",
         "row_start": 30,
         "row_end": 45,
-        "pattern": "AC|DEFG|HJK",
-        "exceptions": "30=|DEFG|\n31=A_C|DEFG|\n32=A_C|DEFG|\n33=AC|DEFG|\n34=AC|DEFG|"
+        "pattern": "ABC|DEFG|HJK",
+        "exceptions": "30=|DEFG|\n31=AC|DEFG|\n32=AC|DEFG|\n33=AC|DEFG|HK\n34=AC|DEFG|HK\n35=SKIP\n36=SKIP\n37=SKIP\n38=SKIP"
       },
       {
         "class": "Y",
         "row_start": 59,
         "row_end": 72,
         "pattern": "ABC|DEFG|HJK",
-        "exceptions": "59=ABC||HJK\n69=ABC|DEG|HJK\n70=ABC|DEG|HJK\n71=ABC|DEG|HJK\n72=A_C|DE|"
+        "exceptions": "59=||HJK\n69=ABC|DEG|HJK\n70=ABC|DEG|HJK\n71=ABC|DEG|HJK\n72=AC|DE|"
       }
     ]
   },
