@@ -1235,8 +1235,8 @@
     "aircraft": "7E2",
     "configuration": "49C300Y",
     "label": "TK 7E2 · 49C300Y",
-    "sourceLabel": "TK7E2 22SEP CDG-IST",
-    "quality": "good",
+    "sourceLabel": "TK7E2 22SEP CDG-IST, plan texte envoye par l'utilisateur (colonnes J/K corrigees) — total reel 49C+300Y=349, exactement le libelle d'origine",
+    "quality": "exact",
     "zones": [
       {
         "class": "C",
@@ -1249,8 +1249,8 @@
         "class": "Y",
         "row_start": 11,
         "row_end": 53,
-        "pattern": "ABC|DEGH|JK",
-        "exceptions": "23=|DEG|\n40=ABC||JK\n51=AB|DEG|JK\n52=AB|DEG|JK\n53=AB|DEG|JK"
+        "pattern": "ABC|DEG|HJK",
+        "exceptions": "17=SKIP\n18=SKIP\n19=SKIP\n20=SKIP\n21=SKIP\n22=SKIP\n23=|DEG|\n38=SKIP\n39=SKIP\n40=ABC||HJK\n51=AB|DEG|JK\n52=AB|DEG|JK\n53=AB|DEG|JK"
       }
     ]
   },
