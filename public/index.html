@@ -3246,6 +3246,7 @@ body{
 .cabin-seat.crew{box-shadow:0 0 0 2px #397dbb}
 .cabin-seat.inop{background:#c62734!important;box-shadow:none}
 .cabin-seat.inopok{background:#8fa0b3!important;box-shadow:none}
+.cabin-seat.filtered{opacity:.10;pointer-events:none}
 .cabin-seat-symbol{
  position:absolute;top:-4px;right:-4px;width:10px;height:10px;border-radius:50%;
  background:#fff;color:#17243a;font-size:7px;font-weight:950;line-height:10px;text-align:center;
@@ -19391,23 +19392,31 @@ function prefetchSariaLayout(entry,x=f()){
  if(cached){SARIA_LAYOUT_CACHE[key]=cached;return Promise.resolve(cached)}
  return loadSariaLayout(entry,x).catch(()=>null);
 }
-function sariaLayoutSeats(layout,entry,x=f()){
- const cfg=entry?sariaClassObject(entry):{...(x.config||{})},usedByClass={},out=[];
- for(const z of layout?.zones||[]){
-  const cls=sariaClassFamily(z.class),groups=sariaPatternGroups(z.pattern).length?sariaPatternGroups(z.pattern):sariaDefaultPattern(x.aircraft,cls);
-  const cap=Number(z.capacity||cfg[cls]||Infinity);usedByClass[cls]=usedByClass[cls]||0;
-  const startRow=Number(z.row_start)||1;
-  const endRow=Math.min(Number(z.row_end||z.row_start)||startRow,startRow+150);
-  for(let r=startRow;r<=endRow;r++){
-   for(const group of groups){
-    for(const letter of group){
-     if(usedByClass[cls]>=cap)continue;
-     out.push({seat:String(r).padStart(2,'0')+letter,row:r,letter,class:cls,zone:z,groups});
-     usedByClass[cls]++;
-    }
-   }
-  }
- }
+// Vraie liste des sieges d'une config, EXCEPTIONS COMPRISES (meme moteur que
+// Plan Cabine via cabinZoneRows) — remplace l'ancienne sariaLayoutSeats qui
+// ignorait completement les exceptions et remplissait bêtement le motif de
+// base rangee par rangee jusqu'a la capacite de la classe, produisant un plan
+// different (et souvent faux, ex. rangees reduites TK 789) de celui affiche
+// par Plan Cabine pour la meme config. Le cap par classe ne sert plus que pour
+// le plan GENERIQUE (sariaGenericLayout, quand aucune config reelle n'existe
+// encore), dont les zones portent un champ capacity explicite.
+function cabinExpandSeats(zones){
+ const used={},out=[];
+ (zones||[]).forEach(zone=>{
+  const cls=String(zone.class||'').trim().toUpperCase();
+  const cap=Number.isFinite(Number(zone.capacity))?Number(zone.capacity):Infinity;
+  used[cls]=used[cls]||0;
+  cabinZoneRows(zone).forEach(r=>{
+   r.groups.forEach(g=>{
+    String(g||'').split('').forEach(ch=>{
+     if(!/[A-Z]/.test(ch))return;
+     if(used[cls]>=cap)return;
+     out.push({seat:String(r.row).padStart(2,'0')+ch,row:r.row,letter:ch,class:cls});
+     used[cls]++;
+    });
+   });
+  });
+ });
  return out;
 }
 function passengerBySeat(seat){
@@ -19439,95 +19448,30 @@ function sariaSeatTip(seat,cls,st){
  const p=st.p,ssr=paxSSRText(p);
  return `<span class="saria-seat-tip"><b>${seat} · ${cls}</b><div class="status">${st.label}</div>${p?`<div>${p.name||'PASSAGER'}</div><div>SSR : ${ssr||'—'}</div><div>ETKT : ${p.etkt||'—'}</div>`:'<div>SIÈGE DISPONIBLE</div>'}${st.io?`<div>INOP : ${st.io.status}</div>`:''}</span>`;
 }
-function sariaSeatButton(seatObj){
- const st=seatStatus(seatObj.seat),p=st.p;
- const ssr=paxSSRText(p);
- const search=`${seatObj.seat} ${p?.name||''} ${ssr}`.toUpperCase();
- const title=[
-   `${seatObj.seat} · ${seatObj.class}`,
-   st.label,
-   p?.name||'',
-   ssr?`SSR ${ssr}`:'',
-   st.io?`INOP ${st.io.status}`:''
- ].filter(Boolean).join(' · ');
- return `<button class="saria-seat ${st.key}" data-saria-status="${st.key}" data-saria-search="${search.replace(/"/g,'&quot;')}" title="${title.replace(/"/g,'&quot;')}" onclick="openSeatInfo('${seatObj.seat}','${seatObj.class}')">${seatObj.letter}${st.symbol?`<span class="saria-seat-symbol">${st.symbol}</span>`:''}</button>`;
-}
-function sariaEquipmentLabel(layout,row){
- const all=Array.isArray(layout?.equipment)?layout.equipment:(Array.isArray(layout?.equipments)?layout.equipments:[]);
- const eq=all.filter(e=>Number(e.row||e.row_number||e.at_row||e.row_reference||0)===Number(row));
- if(!eq.length)return'';
- const labels=[...new Set(eq.map(e=>String(e.type||e.label||e.name||'').toUpperCase()).filter(Boolean))];
- return labels.join(' · ');
-}
-function renderSariaVertical(layout,entry,x=f()){
- const seats=sariaLayoutSeats(layout,entry,x),zones=layout.zones||[];
- let html='<div class="saria-v-fuselage"><div class="saria-v-nose"></div>';
- zones.forEach((z,zi)=>{
-  const cls=sariaClassFamily(z.class),groups=sariaPatternGroups(z.pattern).length?sariaPatternGroups(z.pattern):sariaDefaultPattern(x.aircraft,cls);
-  const zSeats=seats.filter(s=>s.zone===z);
-  html+=`<div class="saria-class-head"><span class="saria-class-dot" style="background:var(--saria-${cls})"></span><b>${sariaClassName(cls)} · ${cls}</b><span>${zSeats.length} SIÈGES</span></div>`;
-  const startRow=Number(z.row_start)||1;
-  const endRow=Math.min(Number(z.row_end||z.row_start)||startRow,startRow+150);
-  for(let r=startRow;r<=endRow;r++){
-   const rowSeats=zSeats.filter(s=>s.row===r);
-   if(!rowSeats.length)continue;
-   html+=`<div class="saria-v-row"><span class="saria-rownum">${String(r).padStart(2,'0')}</span>`;
-   groups.forEach((g,gi)=>{
-    html+='<div class="saria-seatblock">';
-    g.forEach(l=>{const so=rowSeats.find(s=>s.letter===l);if(so)html+=sariaSeatButton(so);else html+='<span style="width:28px;height:25px"></span>'});
-    html+='</div>';
-    if(gi<groups.length-1)html+='<div class="saria-aisle-v"></div>';
-   });
-   html+='</div>';
-   const eql=sariaEquipmentLabel(layout,r);if(eql)html+=`<div class="saria-divider ${/EXIT|DOOR/.test(eql)?'exit':''}">${eql}</div>`;
-  }
-  if(zi<zones.length-1)html+='<div class="saria-divider">CABIN SEPARATION</div>';
- });
- return html+'<div class="saria-v-tail"></div></div>';
-}
-function renderSariaHorizontal(layout,entry,x=f()){
- const seats=sariaLayoutSeats(layout,entry,x),zones=layout.zones||[];
- let html='<div class="saria-h-fuselage">';
- zones.forEach(z=>{
-  const cls=sariaClassFamily(z.class),groups=sariaPatternGroups(z.pattern).length?sariaPatternGroups(z.pattern):sariaDefaultPattern(x.aircraft,cls);
-  const zSeats=seats.filter(s=>s.zone===z);
-  html+=`<div class="saria-h-class"><div class="saria-h-label"><span class="saria-class-dot" style="background:var(--saria-${cls})"></span>${sariaClassName(cls)} · ${cls} · ${zSeats.length}</div>`;
-  const startRow=Number(z.row_start)||1;
-  const endRow=Math.min(Number(z.row_end||z.row_start)||startRow,startRow+150);
-  for(let r=startRow;r<=endRow;r++){
-   const rowSeats=zSeats.filter(s=>s.row===r);if(!rowSeats.length)continue;
-   html+=`<div class="saria-h-col"><div class="saria-h-colnum">${String(r).padStart(2,'0')}</div>`;
-   [...groups].reverse().forEach((g,gi)=>{
-    html+='<div class="saria-h-stack">';
-    [...g].reverse().forEach(l=>{const so=rowSeats.find(s=>s.letter===l);if(so)html+=sariaSeatButton(so);else html+='<span style="width:28px;height:25px"></span>'});
-    html+='</div>';
-    if(gi<groups.length-1)html+='<div class="saria-aisle-h"></div>';
-   });
-   html+='</div>';
-  }
-  html+='</div>';
- });
- return html+'</div>';
-}
 function sariaStats(layout,entry,x=f()){
- const seats=sariaLayoutSeats(layout,entry,x),s={total:seats.length,free:0,occupied:0,inop:0,special:0,staff:0,crew:0};
+ const seats=cabinExpandSeats(layout?.zones||[]),s={total:seats.length,free:0,occupied:0,inop:0,special:0,staff:0,crew:0};
  seats.forEach(o=>{const st=seatStatus(o.seat);if(st.key==='free'||st.key==='inopok')s.free++;else if(st.key==='inop')s.inop++;else{s.occupied++;if(st.key==='special')s.special++;if(st.key==='staff')s.staff++;if(st.key==='crew')s.crew++}});
  return s;
 }
+// Le plan visuel de SEATMAP est desormais EXACTEMENT celui de Plan Cabine
+// (meme fonction cabinPlanBodyHtml) — plus question d'avoir deux rendus
+// differents pour la meme config. La barre BOOKED/LIBRES/INOP/SSR/STAFF et
+// la recherche/filtre restent propres a cet ecran, appliquees par-dessus
+// via data-cabin-status/data-cabin-search sur chaque siege.
 function sariaSeatmapBody(layout,entry,x=f()){
  const stats=sariaStats(layout,entry,x),src=layout.generic?'PLAN GÉNÉRIQUE':'PLAN CABINE ALYZIA';
+ const configRow=layout.configuration||{config_key:entry?sariaConfigKey(entry):'GENERIC',quality:layout.generic?'summary':'good'};
  return `<div class="saria-seat-shell">
   <div class="saria-seat-top">
    <div class="saria-seat-id"><b>${x.flight} · ${x.aircraft} · ${entry?.config||x.sariaCabinConfig||'CONFIG VOL'}</b><span>${x.reg||'IMMAT —'} · ${x.dep} → ${x.dest}</span></div>
    <div><span class="saria-source ${layout.generic?'fallback':''}">${layout.generic?'⚠':'✓'} ${src}</span>${layout.generic?`<div id="sariaUpgradeState" class="saria-upgrade-state"><span class="saria-upgrade-dot"></span>PLAN AFFICHÉ · RECHERCHE DU PLAN DÉTAILLÉ EN ARRIÈRE-PLAN</div>`:''}</div>
-   <div class="saria-orient"><button class="${SARIA_SEAT_STATE.orientation==='v'?'active':''}" onclick="setSariaOrientation('v')">VERTICAL</button><button class="${SARIA_SEAT_STATE.orientation==='h'?'active':''}" onclick="setSariaOrientation('h')">HORIZONTAL</button></div>
   </div>
   <div class="saria-seat-kpis"><span class="saria-seat-kpi">BOOKED <b>${stats.occupied}</b></span><span class="saria-seat-kpi">LIBRES <b>${stats.free}</b></span><span class="saria-seat-kpi">INOP <b>${stats.inop}</b></span><span class="saria-seat-kpi">SSR <b>${stats.special}</b></span><span class="saria-seat-kpi">STAFF <b>${stats.staff}</b></span></div>
   <div class="saria-seat-controls">
    <input id="sariaSeatSearch" class="saria-seat-search" placeholder="RECHERCHER NOM OU SIÈGE" value="${SARIA_SEAT_STATE.query||''}" oninput="SARIA_SEAT_STATE.query=this.value;applySariaSeatFilter()">
    <div class="saria-seat-filters">${[['all','TOUS'],['free','LIBRES'],['occupied','BOOKED'],['inop','INOP'],['special','SSR'],['staff','STAFF']].map(([k,l])=>`<button class="saria-seat-filter ${SARIA_SEAT_STATE.filter===k?'active':''}" onclick="setSariaSeatFilter('${k}')">${l}</button>`).join('')}</div>
   </div>
-  <div class="saria-plane-stage"><div class="saria-plane" id="sariaPlane">${SARIA_SEAT_STATE.orientation==='v'?renderSariaVertical(layout,entry,x):renderSariaHorizontal(layout,entry,x)}</div></div>
+  <div class="saria-plane-stage"><div class="saria-plane" id="sariaPlane">${cabinPlanBodyHtml(configRow,layout.zones||[],layout.equipment||[])}</div></div>
  </div>`;
 }
 async function openSeatmap(){
@@ -19605,9 +19549,8 @@ async function openSeatmap(){
      window.__SARIA_ACTIVE_LAYOUT=layout;
      const plane=document.getElementById('sariaPlane');
      if(plane){
-       plane.innerHTML=SARIA_SEAT_STATE.orientation==='v'
-         ? renderSariaVertical(layout,entry,x)
-         : renderSariaHorizontal(layout,entry,x);
+       const configRow=layout.configuration||{config_key:sariaConfigKey(entry),quality:'good'};
+       plane.innerHTML=cabinPlanBodyHtml(configRow,layout.zones||[],layout.equipment||[]);
      }
 
      const source=document.querySelector('.saria-source');
@@ -19642,12 +19585,6 @@ async function openSeatmap(){
    }
  }
 }
-function setSariaOrientation(o){
- SARIA_SEAT_STATE.orientation=o;
- const plane=document.getElementById('sariaPlane'),layout=window.__SARIA_ACTIVE_LAYOUT,entry=window.__SARIA_ACTIVE_ENTRY;
- if(plane&&layout){plane.innerHTML=o==='v'?renderSariaVertical(layout,entry):renderSariaHorizontal(layout,entry);applySariaSeatFilter()}
- document.querySelectorAll('.saria-orient button').forEach((b,i)=>b.classList.toggle('active',(o==='v'&&i===0)||(o==='h'&&i===1)));
-}
 function setSariaSeatFilter(k){
  SARIA_SEAT_STATE.filter=k;
  document.querySelectorAll('.saria-seat-filter').forEach(b=>b.classList.toggle('active',b.textContent.trim()===({all:'TOUS',free:'LIBRES',occupied:'BOOKED',inop:'INOP',special:'SSR',staff:'STAFF'})[k]));
@@ -19655,8 +19592,8 @@ function setSariaSeatFilter(k){
 }
 function applySariaSeatFilter(){
  const q=String(document.getElementById('sariaSeatSearch')?.value||SARIA_SEAT_STATE.query||'').trim().toUpperCase(),filter=SARIA_SEAT_STATE.filter;
- document.querySelectorAll('.saria-seat').forEach(el=>{
-  const st=el.dataset.sariaStatus,txt=el.dataset.sariaSearch||'';
+ document.querySelectorAll('#sariaPlane .cabin-seat').forEach(el=>{
+  const st=el.dataset.cabinStatus,txt=el.dataset.cabinSearch||'';
   const filterOk=filter==='all'||(filter==='occupied'&&['occupied','special','staff'].includes(st))||(filter==='free'&&['free','inopok'].includes(st))||st===filter;
   const queryOk=!q||txt.includes(q);el.classList.toggle('filtered',!(filterOk&&queryOk));
  });
@@ -21067,7 +21004,8 @@ function cabinPlanBodyHtml(configRow,zones,equipment){
     const seatCode=String(it.row).padStart(2,'0')+letter;
     const st=(typeof seatStatus==='function')?seatStatus(seatCode):{key:'free',label:'',symbol:''};
     const title=`${seatCode} · ${it.cls}${st.label?' · '+st.label:''}${st.p?.name?' · '+st.p.name:''}`;
-    return `<div class="cabin-seat ${st.key||'free'}" style="--seat-color:${color}" title="${escapeHtml(title)}" onclick="openSeatInfo('${seatCode}','${it.cls}')">${seatCode}${st.symbol?`<span class="cabin-seat-symbol">${st.symbol}</span>`:''}</div>`;
+    const searchTxt=`${seatCode} ${st.p?.name||''}`.toUpperCase();
+    return `<div class="cabin-seat ${st.key||'free'}" style="--seat-color:${color}" title="${escapeHtml(title)}" data-cabin-status="${st.key||'free'}" data-cabin-search="${escapeHtml(searchTxt)}" onclick="openSeatInfo('${seatCode}','${it.cls}')">${seatCode}${st.symbol?`<span class="cabin-seat-symbol">${st.symbol}</span>`:''}</div>`;
    }).join('');
    return `<div class="cabin-seat-group" style="width:${outerWidth}px"><div style="width:${innerWidth}px;display:flex;gap:3px">${cellsHtml}</div></div>`;
   }).join('<div class="cabin-aisle"></div>');
