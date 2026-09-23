@@ -686,13 +686,13 @@
     "configKey": "TW|77W|59C235Y",
     "airline": "TW",
     "aircraft": "77W",
-    "configuration": "60C226Y",
-    "label": "TW 77W · 60C226Y",
-    "sourceLabel": "T'way Air, seatmap propre 4 zones A(First,1-2)/B(Business,11-26)/C(30-45)/D(Economy,59-72) envoyee directement par l'utilisateur, comptee siege par siege — Zone A+B = C (60), Zone C+D = Y (226), confirme par l'utilisateur",
+    "configuration": "6F53C34W201Y",
+    "label": "TW 77W · 6F53C34W201Y",
+    "sourceLabel": "T'way Air 777-300ER, seatmaps.com (reference officielle : 294 sieges, 6 First / 53 Business / 34 Premium Economy / 201 Economy) — chaque rangee confirmee siege par siege avec l'utilisateur sur les captures d'ecran reelles (rangees 47-58 n'existent pas sur cet avion, confirme)",
     "quality": "exact",
     "zones": [
       {
-        "class": "C",
+        "class": "F",
         "row_start": 1,
         "row_end": 2,
         "pattern": "A|D|K",
@@ -703,21 +703,21 @@
         "row_start": 11,
         "row_end": 26,
         "pattern": "A|DG|K",
-        "exceptions": "13=SKIP\n14=SKIP\n15=A||K"
+        "exceptions": "13=SKIP\n14=SKIP\n15=A||"
       },
       {
-        "class": "Y",
+        "class": "W",
         "row_start": 30,
-        "row_end": 45,
-        "pattern": "ABC|DEFG|HJK",
-        "exceptions": "30=|DEFG|\n31=AC|DEFG|\n32=AC|DEFG|\n33=AC|DEFG|HK\n34=AC|DEFG|HK\n35=SKIP\n36=SKIP\n37=SKIP\n38=SKIP"
+        "row_end": 34,
+        "pattern": "AC|DEFG|HK",
+        "exceptions": "30=|DEFG|\n31=AC|DEFG|"
       },
       {
         "class": "Y",
-        "row_start": 59,
+        "row_start": 39,
         "row_end": 72,
         "pattern": "ABC|DEFG|HJK",
-        "exceptions": "59=||HJK\n69=ABC|DEG|HJK\n70=ABC|DEG|HJK\n71=ABC|DEG|HJK\n72=AC|DE|"
+        "exceptions": "39=AC|DEFG|\n46=|DEFG|HJK\n47=SKIP\n48=SKIP\n49=SKIP\n50=SKIP\n51=SKIP\n52=SKIP\n53=SKIP\n54=SKIP\n55=SKIP\n56=SKIP\n57=SKIP\n58=SKIP\n59=ABC||HJK\n69=ABC|DEG|HJK\n70=ABC|DEG|HJK\n71=ABC|DEG|HJK\n72=AC|DEG|"
       }
     ]
   },
