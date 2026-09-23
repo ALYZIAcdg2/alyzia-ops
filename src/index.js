@@ -12895,7 +12895,7 @@ async function handleCabin(request,env,url){
     const rows=Array.isArray(body?.configs)?body.configs:[];
     if(!rows.length)return json({ok:false,error:"AUCUNE CONFIG A IMPORTER"},400);
 
-    let configsWritten=0,zonesWritten=0;
+    let configsWritten=0,zonesWritten=0,equipmentWritten=0;
     for(const row of rows){
       const airline=String(row?.airline||"").trim().toUpperCase();
       const aircraft=String(row?.aircraft||"").trim().toUpperCase();
@@ -12930,9 +12930,22 @@ async function handleCabin(request,env,url){
         `).bind(configKey,cls,rowStart,rowEnd,pattern,"ALIGNE",String(z?.exceptions||"")).run();
         zonesWritten++;
       }
+
+      const equipmentRows=Array.isArray(row?.equipment)?row.equipment:[];
+      await env.OPS_DB.prepare(`DELETE FROM cabin_equipment WHERE config_key=?`).bind(configKey).run();
+      for(const eq of equipmentRows){
+        const type=String(eq?.type||"").trim().toUpperCase();
+        const rowReference=Number(eq?.row_reference);
+        if(!type||!Number.isFinite(rowReference))continue;
+        await env.OPS_DB.prepare(`
+          INSERT INTO cabin_equipment (config_key,type,row_reference,side,label,created_at)
+          VALUES (?,?,?,?,?,CURRENT_TIMESTAMP)
+        `).bind(configKey,type,rowReference,eq?.side?String(eq.side):null,eq?.label?String(eq.label):null).run();
+        equipmentWritten++;
+      }
     }
 
-    return json({ok:true,configsWritten,zonesWritten});
+    return json({ok:true,configsWritten,zonesWritten,equipmentWritten});
   }
 
   // Corrige apres-coup classes_json/total pour les configs deja en base :
