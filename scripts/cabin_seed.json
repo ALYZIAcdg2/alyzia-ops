@@ -1185,8 +1185,8 @@
     "aircraft": "77K",
     "configuration": "28C372Y",
     "label": "TK 77K · 28C372Y",
-    "sourceLabel": "TK77K 22SEP CDG-IST",
-    "quality": "good",
+    "sourceLabel": "TK77K 22SEP CDG-IST, plan texte envoye par l'utilisateur (colonnes J/K corrigees) — total reel 28C+372Y=400, exactement le libelle d'origine",
+    "quality": "exact",
     "zones": [
       {
         "class": "C",
@@ -1199,8 +1199,8 @@
         "class": "Y",
         "row_start": 11,
         "row_end": 56,
-        "pattern": "ABC|DEGH|JK",
-        "exceptions": "11=|DEG|\n26=AB|DEG|JK\n34=AB|DEG|JK\n43=ABC||JK\n55=AB|DEG|JK\n56=AB|DEG|JK"
+        "pattern": "ABC|DEG|HJK",
+        "exceptions": "11=|DEG|\n26=AB|DEG|JK\n27=SKIP\n28=SKIP\n42=SKIP\n43=ABC||HJK\n55=AB|DEG|JK\n56=AB|DEG|JK"
       }
     ]
   },
