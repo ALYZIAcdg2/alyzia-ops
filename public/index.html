@@ -19191,7 +19191,15 @@ async function loadSariaCatalog(force=false){
   const j=await r.json();
   if(j&&j.ok&&Array.isArray(j.configs)){
    const api=j.configs.map(cabinEntryFromApi);
-   const map=new Map(SARIA_FALLBACK_CATALOG.map(e=>[sariaConfigKey(e),{...e}]));
+   // Toute paire compagnie/avion couverte par au moins une config REELLE (verifiee
+   // siege par siege cette session) ne doit plus jamais montrer en plus les anciennes
+   // estimations generiques du catalogue embarque, meme si leur chaine de config ne
+   // correspond pas mot pour mot (ex. code avion legerement different) — sinon les
+   // deux cohabitent comme des "doublons" et le SeatMap affiche un plan different
+   // de celui du Plan Cabine pour le meme vol.
+   const realPairs=new Set(api.map(e=>`${sariaNorm(e.cie)}|${sariaNorm(e.ac)}`));
+   const fallbackFiltered=SARIA_FALLBACK_CATALOG.filter(e=>!realPairs.has(`${sariaNorm(e.cie)}|${sariaNorm(e.ac)}`));
+   const map=new Map(fallbackFiltered.map(e=>[sariaConfigKey(e),{...e}]));
    api.forEach(e=>map.set(sariaConfigKey(e),e));
    SARIA_CATALOG=[...map.values()];
   }

@@ -1550,7 +1550,7 @@
         "row_start": 9,
         "row_end": 40,
         "pattern": "ABC|DEGH|JK",
-        "exceptions": "25=ABC||JK\n26=ABC||JK\n39=|DEG|\n40=|DEG|"
+        "exceptions": "25=ABC||JK\n26=ABC||JK\n39=|DEGH|\n40=|DEGH|"
       }
     ]
   },
@@ -2254,6 +2254,31 @@
         "row_end": 62,
         "pattern": "ABC|DEG|HJK",
         "exceptions": "48=AC||HK\n61=AC|DEG|HK\n62=||HK"
+      }
+    ]
+  },
+  {
+    "configKey": "LO|73H|6C180Y",
+    "airline": "LO",
+    "aircraft": "73H",
+    "configuration": "6C180Y",
+    "label": "LO 73H · 6C180Y",
+    "sourceLabel": "LO334 09AUG CDG-WAW",
+    "quality": "good",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 1,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 2,
+        "row_end": 31,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
       }
     ]
   }
