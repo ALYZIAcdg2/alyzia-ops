@@ -53,24 +53,24 @@
     "configKey": "AH1001|738|14C165Y",
     "airline": "AH",
     "aircraft": "738",
-    "configuration": "14C165Y",
-    "label": "AH 738 · 14C165Y",
-    "sourceLabel": "AH1001 07AUG CDG-ALG Generic Report",
-    "quality": "close",
+    "configuration": "21C165Y",
+    "label": "AH 738 · 21C165Y",
+    "sourceLabel": "AH1001 07AUG CDG-ALG Generic Report (fichier envoye par l'utilisateur, verifie position par position — aucune largeur de siege differente entre business et eco dans ce document, frontiere business=rangees1-4/eco=rangees5-33 confirmee directement par l'utilisateur ; le 165Y colle exactement, le 14C etait faux, 21 sieges reels)",
+    "quality": "exact",
     "zones": [
       {
         "class": "C",
         "row_start": 1,
-        "row_end": 3,
+        "row_end": 4,
         "pattern": "ABC|DEF",
-        "exceptions": "1=ABC|"
+        "exceptions": "01=ABC|"
       },
       {
         "class": "Y",
-        "row_start": 4,
+        "row_start": 5,
         "row_end": 33,
         "pattern": "ABC|DEF",
-        "exceptions": "33=|DEF"
+        "exceptions": "13=SKIP\n33=|DEF"
       }
     ]
   },
