@@ -874,15 +874,15 @@
     "aircraft": "7M8",
     "configuration": "8C174Y",
     "label": "LO 7M8 · 8C174Y",
-    "sourceLabel": "LO332 22SEP CDG-WAW",
-    "quality": "good",
+    "sourceLabel": "LO332 22SEP CDG-WAW Generic Report (rangees 1-2 : A et C absents, seuls B/D/E/F sont de vrais sieges)",
+    "quality": "exact",
     "zones": [
       {
         "class": "C",
         "row_start": 1,
         "row_end": 2,
         "pattern": "ABC|DEF",
-        "exceptions": ""
+        "exceptions": "01=B|DEF\n02=B|DEF"
       },
       {
         "class": "Y",
