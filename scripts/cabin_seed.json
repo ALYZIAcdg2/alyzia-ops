@@ -1260,8 +1260,8 @@
     "aircraft": "35E",
     "configuration": "28C288Y",
     "label": "TK 35E · 28C288Y",
-    "sourceLabel": "TK35E 22SEP CDG-IST",
-    "quality": "good",
+    "sourceLabel": "TK35E 22SEP CDG-IST, plan texte envoye par l'utilisateur (business en sieges alternes) — total reel 28C+288Y=316, exactement le libelle d'origine",
+    "quality": "exact",
     "zones": [
       {
         "class": "C",
@@ -1273,9 +1273,16 @@
       {
         "class": "Y",
         "row_start": 8,
-        "row_end": 40,
+        "row_end": 10,
         "pattern": "AB|DEFG|JK",
-        "exceptions": "08=AB|DEFG|JK\n09=AB|DEFG|JK\n40=|DEG|"
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 11,
+        "row_end": 40,
+        "pattern": "ABC|DEG|HJK",
+        "exceptions": "40=|DEG|"
       }
     ]
   },
@@ -1335,8 +1342,8 @@
     "aircraft": "33D",
     "configuration": "28C261Y",
     "label": "TK 33D · 28C261Y",
-    "sourceLabel": "TK33D 22SEP CDG-IST",
-    "quality": "good",
+    "sourceLabel": "TK33D 22SEP CDG-IST, plan texte envoye par l'utilisateur — total reel 28C+261Y=289, exactement le libelle d'origine",
+    "quality": "exact",
     "zones": [
       {
         "class": "C",
@@ -1350,7 +1357,7 @@
         "row_start": 8,
         "row_end": 44,
         "pattern": "AB|DEFG|JK",
-        "exceptions": "25=||JK\n28=AB|DEFG|JK\n40=AB|DEF|JK\n41=AB|DEF|JK\n42=AB|DEF|JK\n43=|DEF|\n44=|DEF|"
+        "exceptions": "25=||JK\n26=SKIP\n27=SKIP\n40=AB|DEF|JK\n41=AB|DEF|JK\n42=AB|DEF|JK\n43=|DEF|\n44=|DEF|"
       }
     ]
   },
@@ -1385,8 +1392,8 @@
     "aircraft": "332",
     "configuration": "18C232Y",
     "label": "TK 332 · 18C232Y",
-    "sourceLabel": "TK332 22SEP CDG-IST",
-    "quality": "good",
+    "sourceLabel": "TK332 22SEP CDG-IST, plan texte envoye par l'utilisateur — total reel 18C+232Y=250, exactement le libelle d'origine",
+    "quality": "exact",
     "zones": [
       {
         "class": "C",
@@ -1400,7 +1407,7 @@
         "row_start": 8,
         "row_end": 41,
         "pattern": "AB|DEFG|JK",
-        "exceptions": "23=|DEFG|\n28=AB|DEFG|JK\n38=AB|DEF|JK\n39=AB|DEF|JK\n40=AB|DEF|JK\n41=AB|DEF|JK"
+        "exceptions": "23=|DEFG|\n24=SKIP\n25=SKIP\n26=SKIP\n27=SKIP\n38=AB|DEF|JK\n39=AB|DEF|JK\n40=AB|DEF|JK\n41=AB|DEF|JK"
       }
     ]
   },
@@ -1435,8 +1442,8 @@
     "aircraft": "33M",
     "configuration": "30C222Y",
     "label": "TK 33M · 30C222Y",
-    "sourceLabel": "TK33M 22SEP CDG-IST",
-    "quality": "good",
+    "sourceLabel": "TK33M 22SEP CDG-IST, plan texte envoye par l'utilisateur — total reel 30C+222Y=252, exactement le libelle d'origine",
+    "quality": "exact",
     "zones": [
       {
         "class": "C",
@@ -1450,7 +1457,7 @@
         "row_start": 8,
         "row_end": 42,
         "pattern": "AB|DEFG|JK",
-        "exceptions": "21=AB||JK\n27=|DEFG|\n28=AB|DEFG|JK\n37=AB|DEF|JK\n38=AB|DEF|JK\n39=AB|DEF|JK\n40=AB|DEF|JK\n41=AB|DEF|JK\n42=|DEF|"
+        "exceptions": "21=AB||JK\n22=SKIP\n23=SKIP\n24=SKIP\n25=SKIP\n26=SKIP\n27=|DEFG|\n37=AB|DEF|JK\n38=AB|DEF|JK\n39=AB|DEF|JK\n40=AB|DEF|JK\n41=AB|DEF|JK\n42=|DEF|"
       }
     ]
   },
@@ -1485,8 +1492,8 @@
     "aircraft": "333",
     "configuration": "28C261Y",
     "label": "TK 333 · 28C261Y",
-    "sourceLabel": "TK333 22SEP CDG-IST",
-    "quality": "good",
+    "sourceLabel": "TK333 22SEP CDG-IST, plan texte identique a TK 33D — total reel 28C+261Y=289, exactement le libelle d'origine",
+    "quality": "exact",
     "zones": [
       {
         "class": "C",
@@ -1500,7 +1507,7 @@
         "row_start": 8,
         "row_end": 44,
         "pattern": "AB|DEFG|JK",
-        "exceptions": "25=||JK\n28=AB|DEFG|JK\n40=AB|DEF|JK\n41=AB|DEF|JK\n42=AB|DEF|JK\n43=|DEF|\n44=|DEF|"
+        "exceptions": "25=||JK\n26=SKIP\n27=SKIP\n40=AB|DEF|JK\n41=AB|DEF|JK\n42=AB|DEF|JK\n43=|DEF|\n44=|DEF|"
       }
     ]
   },
