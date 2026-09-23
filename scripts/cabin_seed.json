@@ -110,17 +110,17 @@
     "configKey": "AH1003|332|302Y",
     "airline": "AH",
     "aircraft": "332",
-    "configuration": "302Y",
-    "label": "AH 332 · 302Y",
-    "sourceLabel": "AH1003 08AUG CDG-ALG Generic Report (variante tout-Y, meme vol/appareil que la config 18C14W219Y mais date differente)",
-    "quality": "close",
+    "configuration": "293Y",
+    "label": "AH 332 · 293Y",
+    "sourceLabel": "AH1003 08AUG CDG-ALG Generic Report (fichier envoye par l'utilisateur, verifie position par position — le header disait 302Y mais 293 sieges reels comptes)",
+    "quality": "exact",
     "zones": [
       {
         "class": "Y",
         "row_start": 1,
         "row_end": 41,
         "pattern": "AC|DEFG|HK",
-        "exceptions": ""
+        "exceptions": "01=AC|DFG|HK\n09=AC|DG|HK\n10=AC||HK\n13=AC||HK\n14=C|DEFG|HK\n15=C|DEFG|HK\n16=C|DEFG|HK\n17=C|DEFG|HK\n18=C|DEFG|HK\n19=C|DEFG|HK\n20=C|DEFG|HK\n21=C|DEFG|HK\n22=C|DEFG|HK\n23=C|DEFG|HK\n24=C|DEFG|HK\n25=C|DEFG|HK\n26=C||HK\n27=A|DEFG|K\n37=AC|DFG|HK\n38=AC|DFG|HK\n39=AC|DFG|HK\n40=AC|DFG|HK\n41=AC|DFG|HK"
       }
     ]
   },
@@ -942,8 +942,8 @@
     "aircraft": "77W",
     "configuration": "49C297Y",
     "label": "MS 77W · 49C297Y",
-    "sourceLabel": "MS800 23AUG CDG-CAI",
-    "quality": "good",
+    "sourceLabel": "MS800 23AUG CDG-CAI Generic Report (fichier envoye par l'utilisateur, verifie position par position)",
+    "quality": "exact",
     "zones": [
       {
         "class": "C",
@@ -957,7 +957,7 @@
         "row_start": 20,
         "row_end": 55,
         "pattern": "ABC|DEG|HJK",
-        "exceptions": ""
+        "exceptions": "26=|DEG|HJK\n27=|DEG|\n41=|DEG|\n53=AC|DEG|HK\n54=AC||HK\n55=AC||HK"
       }
     ]
   },
@@ -967,22 +967,22 @@
     "aircraft": "789",
     "configuration": "30C279Y",
     "label": "MS 789 · 30C279Y",
-    "sourceLabel": "MS800 07AUG CDG-CAI",
-    "quality": "good",
+    "sourceLabel": "MS800 07AUG CDG-CAI Generic Report (fichier envoye par l'utilisateur, verifie position par position)",
+    "quality": "exact",
     "zones": [
       {
         "class": "C",
         "row_start": 8,
         "row_end": 16,
-        "pattern": "A|D|G|K",
-        "exceptions": "13=SKIP\n16=A|||K"
+        "pattern": "A|DG|K",
+        "exceptions": "13=SKIP\n16=A||K"
       },
       {
         "class": "Y",
         "row_start": 20,
         "row_end": 52,
         "pattern": "ABC|DEG|HJK",
-        "exceptions": ""
+        "exceptions": "20=|DEG|\n37=|DEG|\n52=|DEG|"
       }
     ]
   },
@@ -1110,8 +1110,8 @@
     "aircraft": "332",
     "configuration": "20C260Y",
     "label": "TU 332 · 20C260Y",
-    "sourceLabel": "TU723 20SEP CDG-TUN",
-    "quality": "good",
+    "sourceLabel": "TU723 20SEP CDG-TUN Generic Report (fichier envoye par l'utilisateur, verifie position par position)",
+    "quality": "exact",
     "zones": [
       {
         "class": "C",
@@ -1125,7 +1125,7 @@
         "row_start": 6,
         "row_end": 41,
         "pattern": "AC|DEFG|HK",
-        "exceptions": "13=SKIP"
+        "exceptions": "06=AC||HK\n07=AC||HK\n13=SKIP\n36=AC|DEG|HK\n37=AC|DEG|HK\n38=AC|DEG|HK\n39=AC|DEG|HK\n40=|DEG|HK\n41=|DEG|"
       }
     ]
   },
@@ -1183,8 +1183,8 @@
     "configKey": "TK|77K|28C372Y",
     "airline": "TK",
     "aircraft": "77K",
-    "configuration": "28C372Y",
-    "label": "TK 77K · 28C372Y",
+    "configuration": "28C396Y",
+    "label": "TK 77K · 28C396Y",
     "sourceLabel": "TK77K 22SEP CDG-IST",
     "quality": "good",
     "zones": [
@@ -1208,8 +1208,8 @@
     "configKey": "TK|77B|49C300Y",
     "airline": "TK",
     "aircraft": "77B",
-    "configuration": "49C300Y",
-    "label": "TK 77B · 49C300Y",
+    "configuration": "49C361Y",
+    "label": "TK 77B · 49C361Y",
     "sourceLabel": "TK77B 22SEP CDG-IST",
     "quality": "good",
     "zones": [
@@ -1233,8 +1233,8 @@
     "configKey": "TK|7E2|49C300Y",
     "airline": "TK",
     "aircraft": "7E2",
-    "configuration": "49C300Y",
-    "label": "TK 7E2 · 49C300Y",
+    "configuration": "49C371Y",
+    "label": "TK 7E2 · 49C371Y",
     "sourceLabel": "TK7E2 22SEP CDG-IST",
     "quality": "good",
     "zones": [
@@ -1258,8 +1258,8 @@
     "configKey": "TK|35E|28C288Y",
     "airline": "TK",
     "aircraft": "35E",
-    "configuration": "28C288Y",
-    "label": "TK 35E · 28C288Y",
+    "configuration": "28C259Y",
+    "label": "TK 35E · 28C259Y",
     "sourceLabel": "TK35E 22SEP CDG-IST",
     "quality": "good",
     "zones": [
@@ -1333,8 +1333,8 @@
     "configKey": "TK|33D|28C261Y",
     "airline": "TK",
     "aircraft": "33D",
-    "configuration": "28C261Y",
-    "label": "TK 33D · 28C261Y",
+    "configuration": "28C277Y",
+    "label": "TK 33D · 28C277Y",
     "sourceLabel": "TK33D 22SEP CDG-IST",
     "quality": "good",
     "zones": [
@@ -1358,8 +1358,8 @@
     "configKey": "TK|77E|49C300Y",
     "airline": "TK",
     "aircraft": "77E",
-    "configuration": "49C300Y",
-    "label": "TK 77E · 49C300Y",
+    "configuration": "49C371Y",
+    "label": "TK 77E · 49C371Y",
     "sourceLabel": "TK77E 22SEP CDG-IST",
     "quality": "good",
     "zones": [
@@ -1383,8 +1383,8 @@
     "configKey": "TK|332|18C232Y",
     "airline": "TK",
     "aircraft": "332",
-    "configuration": "18C232Y",
-    "label": "TK 332 · 18C232Y",
+    "configuration": "18C264Y",
+    "label": "TK 332 · 18C264Y",
     "sourceLabel": "TK332 22SEP CDG-IST",
     "quality": "good",
     "zones": [
@@ -1433,8 +1433,8 @@
     "configKey": "TK|33M|30C222Y",
     "airline": "TK",
     "aircraft": "33M",
-    "configuration": "30C222Y",
-    "label": "TK 33M · 30C222Y",
+    "configuration": "30C262Y",
+    "label": "TK 33M · 30C262Y",
     "sourceLabel": "TK33M 22SEP CDG-IST",
     "quality": "good",
     "zones": [
@@ -1483,8 +1483,8 @@
     "configKey": "TK|333|28C261Y",
     "airline": "TK",
     "aircraft": "333",
-    "configuration": "28C261Y",
-    "label": "TK 333 · 28C261Y",
+    "configuration": "28C277Y",
+    "label": "TK 333 · 28C277Y",
     "sourceLabel": "TK333 22SEP CDG-IST",
     "quality": "good",
     "zones": [
@@ -1610,8 +1610,8 @@
     "aircraft": "788",
     "configuration": "18C241Y",
     "label": "AI 788 · 18C241Y",
-    "sourceLabel": "AI142 22SEP CDG-DEL",
-    "quality": "good",
+    "sourceLabel": "AI142 22SEP CDG-DEL Generic Report (fichier envoye par l'utilisateur, verifie position par position)",
+    "quality": "exact",
     "zones": [
       {
         "class": "C",
@@ -1625,7 +1625,7 @@
         "row_start": 11,
         "row_end": 40,
         "pattern": "ABC|DEF|GHJ",
-        "exceptions": "11=ABC||GHJ\n39=AB|DEF|HJ\n40=|DEF|"
+        "exceptions": "11=ABC||GHJ\n13=SKIP\n29=SKIP\n39=AB|DEF|HJ\n40=|DEF|"
       }
     ]
   },
