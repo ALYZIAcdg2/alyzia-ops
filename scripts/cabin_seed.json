@@ -2463,5 +2463,23 @@
         "exceptions": "04=ABC||HJK\n09=|DFG|\n10=|DFG|\n11=SKIP\n12=|DFG|\n13=|DFG|\n29=AC|DFG|HK\n30=AC|DFG|HK\n31=SKIP\n32=SKIP\n33=SKIP\n34=SKIP\n35=SKIP\n44=AC|DFG|HK\n45=AC|DFG|HK\n46=AC|DFG|HK\n47=AC|DFG|HK\n48=AC|DFG|HK\n49=AC|DFG|HK\n50=|DFG|"
       }
     ]
+  },
+  {
+    "configKey": "DE|32Q|234M",
+    "airline": "DE",
+    "aircraft": "32Q",
+    "configuration": "234M",
+    "label": "DE 32Q · 234M",
+    "sourceLabel": "DE1594/1580/1498/1772 22-23SEP FRA (4 releves identiques)",
+    "quality": "good",
+    "zones": [
+      {
+        "class": "M",
+        "row_start": 1,
+        "row_end": 39,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
   }
 ]
