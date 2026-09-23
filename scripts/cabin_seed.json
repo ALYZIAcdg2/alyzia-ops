@@ -2231,7 +2231,7 @@
         "class": "F",
         "row_start": 1,
         "row_end": 1,
-        "pattern": "A|C|D|F",
+        "pattern": "A|CD|F",
         "exceptions": ""
       },
       {
