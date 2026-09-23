@@ -1210,8 +1210,8 @@
     "aircraft": "77B",
     "configuration": "49C300Y",
     "label": "TK 77B · 49C300Y",
-    "sourceLabel": "TK77B 22SEP CDG-IST",
-    "quality": "good",
+    "sourceLabel": "TK77B 22SEP CDG-IST, plan reenvoye par l'utilisateur avec correction des colonnes J/K decalees (erreur de ma zone initiale) — total reel 49C+300Y=349, confirme au libelle d'origine",
+    "quality": "exact",
     "zones": [
       {
         "class": "C",
@@ -1224,8 +1224,8 @@
         "class": "Y",
         "row_start": 11,
         "row_end": 53,
-        "pattern": "ABC|DEGH|JK",
-        "exceptions": "23=|DEG|\n38=|DEG|\n40=ABC||JK\n41=ABC||JK\n51=AB|DEG|JK\n52=AB|DEG|JK\n53=AB|DEG|JK"
+        "pattern": "ABC|DEG|HJK",
+        "exceptions": "17=SKIP\n18=SKIP\n19=SKIP\n20=SKIP\n21=SKIP\n22=SKIP\n23=|DEG|\n38=|DEG|\n39=SKIP\n40=ABC||HJK\n41=ABC||HJK\n51=AB|DEG|JK\n52=AB|DEG|JK\n53=AB|DEG|JK"
       }
     ]
   },
