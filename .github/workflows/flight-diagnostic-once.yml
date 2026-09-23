@@ -76,3 +76,9 @@ jobs:
             console.log('----- CLES RACINE DU VOL (pour reperer les autres champs) -----');
             console.log(Object.keys(f).sort().join(', '));
           "
+      - name: /api/autopilot/flight-import-history (tables sources brutes)
+        run: |
+          AIRLINE="${{ github.event.inputs.airline }}"
+          FLIGHT="${{ github.event.inputs.flight }}"
+          curl -sS -f "$API/api/autopilot/flight-import-history?airline=$AIRLINE&flightNumber=$AIRLINE$FLIGHT&flightDate=2026-09-16" -o history.json || curl -sS -f "$API/api/autopilot/flight-import-history?airline=$AIRLINE&flightNumber=$FLIGHT&flightDate=2026-09-16" -o history.json
+          node -e "console.log(JSON.stringify(JSON.parse(require('fs').readFileSync('history.json','utf8')), null, 2))"
