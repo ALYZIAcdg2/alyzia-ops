@@ -831,22 +831,22 @@
     "aircraft": "333",
     "configuration": "46J203Y",
     "label": "HM 333 · 46J203Y",
-    "sourceLabel": "HM1007 07AUG CDG-SEZ",
-    "quality": "good",
+    "sourceLabel": "HM1007 07AUG CDG-SEZ Generic Report (fichier envoye par l'utilisateur, verifie position par position)",
+    "quality": "exact",
     "zones": [
       {
         "class": "J",
         "row_start": 1,
         "row_end": 12,
-        "pattern": "A|D|G|K",
-        "exceptions": "08=A|||K"
+        "pattern": "A|DG|K",
+        "exceptions": "08=A||K"
       },
       {
         "class": "Y",
         "row_start": 45,
         "row_end": 71,
         "pattern": "AC|DEFG|HK",
-        "exceptions": ""
+        "exceptions": "54=AC||HK\n67=AC|DFG|HK\n68=AC|DFG|HK\n69=AC|DFG|HK\n70=AC|DFG|HK\n71=|DFG|"
       }
     ]
   },
@@ -990,10 +990,10 @@
     "configKey": "RJ|32N|11J136Y",
     "airline": "RJ",
     "aircraft": "32N",
-    "configuration": "11J136Y",
-    "label": "RJ 32N · 11J136Y",
-    "sourceLabel": "RJ118 21SEP CDG-AMM",
-    "quality": "good",
+    "configuration": "12J138Y",
+    "label": "RJ 32N · 12J138Y",
+    "sourceLabel": "RJ118 21SEP CDG-AMM Generic Report (fichier envoye par l'utilisateur, verifie position par position — header disait 11J136Y, 12J138Y reels)",
+    "quality": "exact",
     "zones": [
       {
         "class": "J",
@@ -1015,10 +1015,10 @@
     "configKey": "RJ|32Q|11J175Y",
     "airline": "RJ",
     "aircraft": "32Q",
-    "configuration": "11J175Y",
-    "label": "RJ 32Q · 11J175Y",
-    "sourceLabel": "RJ118 22SEP CDG-AMM",
-    "quality": "good",
+    "configuration": "12J177Y",
+    "label": "RJ 32Q · 12J177Y",
+    "sourceLabel": "RJ118 22SEP CDG-AMM Generic Report (fichier envoye par l'utilisateur, verifie position par position — header disait 11J175Y, 12J177Y reels)",
+    "quality": "exact",
     "zones": [
       {
         "class": "J",
@@ -1085,8 +1085,8 @@
     "aircraft": "332",
     "configuration": "24C242Y",
     "label": "TU 332 · 24C242Y",
-    "sourceLabel": "TU723 10SEP CDG-TUN",
-    "quality": "good",
+    "sourceLabel": "TU723 10SEP CDG-TUN Generic Report v1 (fichier envoye par l'utilisateur, verifie position par position)",
+    "quality": "exact",
     "zones": [
       {
         "class": "C",
@@ -1100,7 +1100,7 @@
         "row_start": 6,
         "row_end": 37,
         "pattern": "AB|DEFG|JK",
-        "exceptions": "13=SKIP"
+        "exceptions": "06=AB|DEFG|\n13=SKIP\n34=AB|DEF|JK\n35=AB|DEF|JK\n36=AB|DEF|JK\n37=AB|DEF|JK"
       }
     ]
   },
