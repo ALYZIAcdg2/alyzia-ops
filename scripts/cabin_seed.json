@@ -110,9 +110,9 @@
     "configKey": "AH1003|332|302Y",
     "airline": "AH",
     "aircraft": "332",
-    "configuration": "293Y",
-    "label": "AH 332 · 293Y",
-    "sourceLabel": "AH1003 08AUG CDG-ALG Generic Report (fichier envoye par l'utilisateur, verifie position par position — le header disait 302Y mais 293 sieges reels comptes)",
+    "configuration": "306Y",
+    "label": "AH 332 · 306Y",
+    "sourceLabel": "AH1003 08AUG CDG-ALG Generic Report (fichier envoye 2x par l'utilisateur, verifie position par position ET visuellement page rendue — bug de parsing '(...' corrige, 306 sieges reels confirmes, quel que soit le 302Y affiche par le systeme Altea)",
     "quality": "exact",
     "zones": [
       {
@@ -120,7 +120,7 @@
         "row_start": 1,
         "row_end": 41,
         "pattern": "AC|DEFG|HK",
-        "exceptions": "01=AC|DFG|HK\n09=AC|DG|HK\n10=AC||HK\n13=AC||HK\n14=C|DEFG|HK\n15=C|DEFG|HK\n16=C|DEFG|HK\n17=C|DEFG|HK\n18=C|DEFG|HK\n19=C|DEFG|HK\n20=C|DEFG|HK\n21=C|DEFG|HK\n22=C|DEFG|HK\n23=C|DEFG|HK\n24=C|DEFG|HK\n25=C|DEFG|HK\n26=C||HK\n27=A|DEFG|K\n37=AC|DFG|HK\n38=AC|DFG|HK\n39=AC|DFG|HK\n40=AC|DFG|HK\n41=AC|DFG|HK"
+        "exceptions": "01=AC|DFG|HK\n09=AC|DG|HK\n10=AC||HK\n13=AC||HK\n26=AC||HK\n27=A|DEFG|K\n37=AC|DFG|HK\n38=AC|DFG|HK\n39=AC|DFG|HK\n40=AC|DFG|HK\n41=AC|DFG|HK"
       }
     ]
   },
@@ -1183,8 +1183,8 @@
     "configKey": "TK|77K|28C372Y",
     "airline": "TK",
     "aircraft": "77K",
-    "configuration": "28C396Y",
-    "label": "TK 77K · 28C396Y",
+    "configuration": "28C372Y",
+    "label": "TK 77K · 28C372Y",
     "sourceLabel": "TK77K 22SEP CDG-IST",
     "quality": "good",
     "zones": [
@@ -1208,8 +1208,8 @@
     "configKey": "TK|77B|49C300Y",
     "airline": "TK",
     "aircraft": "77B",
-    "configuration": "49C361Y",
-    "label": "TK 77B · 49C361Y",
+    "configuration": "49C300Y",
+    "label": "TK 77B · 49C300Y",
     "sourceLabel": "TK77B 22SEP CDG-IST",
     "quality": "good",
     "zones": [
@@ -1233,8 +1233,8 @@
     "configKey": "TK|7E2|49C300Y",
     "airline": "TK",
     "aircraft": "7E2",
-    "configuration": "49C371Y",
-    "label": "TK 7E2 · 49C371Y",
+    "configuration": "49C300Y",
+    "label": "TK 7E2 · 49C300Y",
     "sourceLabel": "TK7E2 22SEP CDG-IST",
     "quality": "good",
     "zones": [
@@ -1258,8 +1258,8 @@
     "configKey": "TK|35E|28C288Y",
     "airline": "TK",
     "aircraft": "35E",
-    "configuration": "28C259Y",
-    "label": "TK 35E · 28C259Y",
+    "configuration": "28C288Y",
+    "label": "TK 35E · 28C288Y",
     "sourceLabel": "TK35E 22SEP CDG-IST",
     "quality": "good",
     "zones": [
@@ -1333,8 +1333,8 @@
     "configKey": "TK|33D|28C261Y",
     "airline": "TK",
     "aircraft": "33D",
-    "configuration": "28C277Y",
-    "label": "TK 33D · 28C277Y",
+    "configuration": "28C261Y",
+    "label": "TK 33D · 28C261Y",
     "sourceLabel": "TK33D 22SEP CDG-IST",
     "quality": "good",
     "zones": [
@@ -1358,8 +1358,8 @@
     "configKey": "TK|77E|49C300Y",
     "airline": "TK",
     "aircraft": "77E",
-    "configuration": "49C371Y",
-    "label": "TK 77E · 49C371Y",
+    "configuration": "49C300Y",
+    "label": "TK 77E · 49C300Y",
     "sourceLabel": "TK77E 22SEP CDG-IST",
     "quality": "good",
     "zones": [
@@ -1383,8 +1383,8 @@
     "configKey": "TK|332|18C232Y",
     "airline": "TK",
     "aircraft": "332",
-    "configuration": "18C264Y",
-    "label": "TK 332 · 18C264Y",
+    "configuration": "18C232Y",
+    "label": "TK 332 · 18C232Y",
     "sourceLabel": "TK332 22SEP CDG-IST",
     "quality": "good",
     "zones": [
@@ -1433,8 +1433,8 @@
     "configKey": "TK|33M|30C222Y",
     "airline": "TK",
     "aircraft": "33M",
-    "configuration": "30C262Y",
-    "label": "TK 33M · 30C262Y",
+    "configuration": "30C222Y",
+    "label": "TK 33M · 30C222Y",
     "sourceLabel": "TK33M 22SEP CDG-IST",
     "quality": "good",
     "zones": [
@@ -1483,8 +1483,8 @@
     "configKey": "TK|333|28C261Y",
     "airline": "TK",
     "aircraft": "333",
-    "configuration": "28C277Y",
-    "label": "TK 333 · 28C277Y",
+    "configuration": "28C261Y",
+    "label": "TK 333 · 28C261Y",
     "sourceLabel": "TK333 22SEP CDG-IST",
     "quality": "good",
     "zones": [
