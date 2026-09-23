@@ -9,8 +9,14 @@ name: Diagnostic vol (lecture seule, ponctuel)
 on:
   workflow_dispatch:
     inputs:
-      identity:
-        description: "Identite du vol : YYYY-MM-DD|AIRLINE|FLIGHT (ex. 2026-09-16|TK|1830)"
+      airline:
+        description: "Code compagnie (ex. TK)"
+        required: true
+      flight:
+        description: "Numero de vol (ex. 1830)"
+        required: true
+      dateContains:
+        description: "Fragment de date (ex. 09-16)"
         required: true
 
 permissions:
@@ -23,10 +29,24 @@ jobs:
     env:
       API: https://alyzia-ops.alyzia-cdg2.workers.dev
     steps:
-      - name: /api/flights?identity=...
+      - name: /api/flights (liste complete, filtree en local)
         run: |
-          IDENTITY="${{ github.event.inputs.identity }}"
-          curl -sS -f -G "$API/api/flights" --data-urlencode "identity=$IDENTITY" -o flight.json
+          curl -sS -f "$API/api/flights" -o all_flights.json
+          node -e "
+            const j = JSON.parse(require('fs').readFileSync('all_flights.json','utf8'));
+            console.log('total flights en base:', j.count);
+            const airline='${{ github.event.inputs.airline }}'.toUpperCase();
+            const flightNum='${{ github.event.inputs.flight }}';
+            const dateFrag='${{ github.event.inputs.dateContains }}';
+            const matches=(j.flights||[]).filter(f =>
+              String(f.airline||'').toUpperCase()===airline &&
+              String(f.flight||'').includes(flightNum) &&
+              String(f.date||'').includes(dateFrag)
+            );
+            console.log('matches:', matches.length);
+            matches.forEach(f => console.log('->', f.date, f.airline, f.flight, 'identity attendue'));
+            require('fs').writeFileSync('flight.json', JSON.stringify({ok:true, flight: matches[0]||null}));
+          "
           echo "----- RESUME -----"
           node -e "
             const j = JSON.parse(require('fs').readFileSync('flight.json','utf8'));
