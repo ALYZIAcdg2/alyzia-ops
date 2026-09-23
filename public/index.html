@@ -19217,9 +19217,39 @@ function sariaClassObject(entry){
  });
  return o;
 }
+// Le texte de configuration tape a la main (ex. "8C174Y") peut etre errone
+// par rapport aux sieges reellement presents dans les zones (verifies,
+// recalcules cote serveur dans classes_json/total a chaque seed) — c'est
+// exactement le cas trouve pour LO 7M8 (le libelle disait 8C, les zones
+// donnent 12C reels). Pour ne plus jamais afficher un chiffre qui ne
+// correspond pas aux sieges du plan, TOUT libelle visible a l'utilisateur
+// est reconstruit depuis les classes reelles (jamais depuis le texte tape).
+function cabinOrderedClassKeys(keys){
+ const rank=cls=>{
+   const c=String(cls||'').toUpperCase();
+   if(c==='F')return 10;
+   if(c==='J'||c==='C')return 20;
+   if(c==='S'||c==='W')return 30;
+   if(c==='Y'||c==='M')return 999;
+   return 100;
+ };
+ return [...keys].sort((a,b)=>{const d=rank(a)-rank(b);return d!==0?d:String(a).localeCompare(String(b))});
+}
+function cabinLabelFromClassesObj(cfg){
+ const keys=cabinOrderedClassKeys(Object.keys(cfg||{}));
+ return keys.map(k=>`${cfg[k]}${k}`).join('')||'—';
+}
+function cabinRealLabelFromRow(row){
+ let cfg={};
+ try{cfg=typeof row?.classes_json==='string'?JSON.parse(row.classes_json):(row?.classes_json||{})}catch(e){cfg={}}
+ return cabinLabelFromClassesObj(cfg);
+}
+function sariaRealConfigLabel(e){
+ return cabinLabelFromClassesObj(sariaClassObject(e));
+}
 function sariaCabinLabel(x=f()){
  const e=sariaSelectedEntry(x);
- return e?`${e.config} · ${e.total||sum(sariaClassObject(e))} PAX`:'VERSION CABINE À CHOISIR';
+ return e?`${sariaRealConfigLabel(e)} · ${e.total||sum(sariaClassObject(e))} PAX`:'VERSION CABINE À CHOISIR';
 }
 function sariaAircraftSelectHtml(x){
  const opts=sariaAircraftTypesForAirline(x.airline);
@@ -19231,7 +19261,18 @@ function sariaAircraftSelectHtml(x){
 async function onSariaAircraftChange(value){
  const x=f();if(!x)return;
  x.aircraft=sariaNorm(value);x.sariaConfigKey='';x.sariaCabinConfig='';
+ // La version cabine precedente ne correspond plus au nouveau type d'avion :
+ // on vide CONFIGURATION / CAPACITY plutot que de laisser les anciens
+ // chiffres affiches comme si ils etaient encore valables.
+ x.config={};
  markManualFields(x,'aircraft','Type A/C sélectionné');
+ // Sans cette sauvegarde immediate, le prochain tick de l'auto-refresh
+ // (syncSelectedFlightFast, toutes les 1.5s) relit l'ancienne valeur cote
+ // serveur et l'ecrase par-dessus le changement local avant meme que
+ // l'utilisateur ait choisi une version — d'ou l'impression que le
+ // changement de type A/C "ne prend pas".
+ persistFlightAction('TYPE A/C MODIFIÉ');
+ render();
  await loadSariaCatalog();
  openSariaCabinChooser();
 }
@@ -19247,7 +19288,7 @@ async function openSariaCabinChooser(){
     <div><small>COMPAGNIE</small><b>${x.airline}</b></div>
     <div><small>TYPE A/C</small><b>${x.aircraft||'—'}</b></div>
    </div>
-   ${configs.length?`<div class="saria-config-list">${configs.map(e=>`<button class="saria-config-option ${current&&sariaConfigKey(current)===sariaConfigKey(e)?'selected':''}" onclick="selectSariaCabin('${encodeURIComponent(sariaConfigKey(e))}')"><div class="saria-config-main"><b>${e.config}</b><span>${Object.entries(sariaClassObject(e)).map(([k,v])=>k+' '+v).join(' · ')||'CONFIGURATION'}</span></div><div class="saria-config-total">${e.total||sum(sariaClassObject(e))} PAX</div></button>`).join('')}</div>`:`<div class="saria-state-note warn">AUCUNE VERSION CABINE TROUVÉE POUR <b>${x.airline} · ${x.aircraft}</b>.<br>Cette configuration n'a pas encore été traitée — envoie le PDF SEAT MAP ou le mail correspondant pour l'ajouter.</div>`}
+   ${configs.length?`<div class="saria-config-list">${configs.map(e=>`<button class="saria-config-option ${current&&sariaConfigKey(current)===sariaConfigKey(e)?'selected':''}" onclick="selectSariaCabin('${encodeURIComponent(sariaConfigKey(e))}')"><div class="saria-config-main"><b>${sariaRealConfigLabel(e)}</b><span>${Object.entries(sariaClassObject(e)).map(([k,v])=>k+' '+v).join(' · ')||'CONFIGURATION'}</span></div><div class="saria-config-total">${e.total||sum(sariaClassObject(e))} PAX</div></button>`).join('')}</div>`:`<div class="saria-state-note warn">AUCUNE VERSION CABINE TROUVÉE POUR <b>${x.airline} · ${x.aircraft}</b>.<br>Cette configuration n'a pas encore été traitée — envoie le PDF SEAT MAP ou le mail correspondant pour l'ajouter.</div>`}
    <div class="saria-picker-actions">
     <button onclick="modalBack()">ANNULER</button>
     ${current?`<button class="primary" onclick="closeModal();openSeatmap()">OUVRIR LE SEATMAP</button>`:''}
@@ -21059,7 +21100,7 @@ async function openSeatmapCoverageAirline(airline){
   const j=await r.json();
   const configs=j?.configs||[];
   replaceModal(`SEATMAP · ${escapeHtml(airline)}`,`${configs.length} CONFIGURATION${configs.length>1?'S':''}`,`
-   <div class="cabin-config-list">${configs.map(c=>`<button class="cabin-config-choice" onclick="openCabinPlanByKey('${escapeHtml(c.config_key)}')"><b>${escapeHtml(c.aircraft)} · ${escapeHtml(c.configuration)}</b><span>${Number(c.total||0)} SIÈGES · ${escapeHtml(c.quality||'')}</span></button>`).join('')}</div>
+   <div class="cabin-config-list">${configs.map(c=>`<button class="cabin-config-choice" onclick="openCabinPlanByKey('${escapeHtml(c.config_key)}')"><b>${escapeHtml(c.aircraft)} · ${escapeHtml(cabinRealLabelFromRow(c))}</b><span>${Number(c.total||0)} SIÈGES · ${escapeHtml(c.quality||'')}</span></button>`).join('')}</div>
    <div class="saria-picker-actions" style="margin-top:12px"><button onclick="openSeatmapCoverage()">‹ RETOUR AUX COMPAGNIES</button></div>
   `);
  }catch(e){
@@ -21095,7 +21136,7 @@ async function openCabinPlan(){
   }
   if(configs.length===1){openCabinPlanByKey(configs[0].config_key);return}
   replaceModal('PLAN CABINE',`${configs.length} CONFIGURATIONS · ${x.airline} ${aircraft}`,
-   `<div class="cabin-config-list">${configs.map(c=>`<button class="cabin-config-choice" onclick="openCabinPlanByKey('${escapeHtml(c.config_key)}')"><b>${escapeHtml(c.configuration)}</b><span>${Number(c.total||0)} SIÈGES</span></button>`).join('')}</div>`);
+   `<div class="cabin-config-list">${configs.map(c=>`<button class="cabin-config-choice" onclick="openCabinPlanByKey('${escapeHtml(c.config_key)}')"><b>${escapeHtml(cabinRealLabelFromRow(c))}</b><span>${Number(c.total||0)} SIÈGES</span></button>`).join('')}</div>`);
  }catch(e){
   replaceModal('PLAN CABINE','ERREUR',`<div class="import-status error">${escapeHtml(String(e?.message||e))}</div>`);
  }
@@ -21107,7 +21148,7 @@ async function openCabinPlanByKey(key){
   const r=await fetch(opsApiUrl(`/api/cabin/layout?key=${encodeURIComponent(key)}`),{cache:'no-store',headers:{Accept:'application/json'}});
   const j=await r.json();
   if(!j?.ok||!j.configuration)throw new Error(j?.error||'PLAN INTROUVABLE');
-  replaceModal('PLAN CABINE',`${j.configuration.airline} ${j.configuration.aircraft} · ${j.configuration.configuration}`,cabinPlanBodyHtml(j.configuration,j.zones||[],j.equipment||[]));
+  replaceModal('PLAN CABINE',`${j.configuration.airline} ${j.configuration.aircraft} · ${cabinRealLabelFromRow(j.configuration)}`,cabinPlanBodyHtml(j.configuration,j.zones||[],j.equipment||[]));
  }catch(e){
   replaceModal('PLAN CABINE','ERREUR',`<div class="import-status error">${escapeHtml(String(e?.message||e))}</div>`);
  }
