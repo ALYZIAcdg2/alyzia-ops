@@ -2853,5 +2853,230 @@
         "exceptions": ""
       }
     ]
+  },
+  {
+    "configKey": "DE4187|32N|6C174M",
+    "airline": "DE",
+    "aircraft": "32N",
+    "configuration": "6C174M",
+    "label": "DE4187 32N · 6C174M",
+    "sourceLabel": "DE4187 22SEP FRA-FCO",
+    "quality": "good",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 1,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      },
+      {
+        "class": "M",
+        "row_start": 2,
+        "row_end": 30,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "DE4419|32N|30C150M",
+    "airline": "DE",
+    "aircraft": "32N",
+    "configuration": "30C150M",
+    "label": "DE4419 32N · 30C150M",
+    "sourceLabel": "DE4419 22SEP FRA-FCO",
+    "quality": "good",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 5,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      },
+      {
+        "class": "M",
+        "row_start": 6,
+        "row_end": 30,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "DE4264|320|12C168M",
+    "airline": "DE",
+    "aircraft": "320",
+    "configuration": "12C168M",
+    "label": "DE4264 320 · 12C168M",
+    "sourceLabel": "DE4264 23SEP CDG-FRA",
+    "quality": "good",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 2,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      },
+      {
+        "class": "M",
+        "row_start": 3,
+        "row_end": 30,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "DE4179|320|12C168M",
+    "airline": "DE",
+    "aircraft": "320",
+    "configuration": "12C168M",
+    "label": "DE4179 320 · 12C168M",
+    "sourceLabel": "DE4179 22SEP FRA-HAM",
+    "quality": "good",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 2,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      },
+      {
+        "class": "M",
+        "row_start": 3,
+        "row_end": 30,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "DE4214|320|6C174M",
+    "airline": "DE",
+    "aircraft": "320",
+    "configuration": "6C174M",
+    "label": "DE4214 320 · 6C174M",
+    "sourceLabel": "DE4214 14SEP CDG-FRA",
+    "quality": "good",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 1,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      },
+      {
+        "class": "M",
+        "row_start": 2,
+        "row_end": 30,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "DE4292|32B|24C193M",
+    "airline": "DE",
+    "aircraft": "32B",
+    "configuration": "24C193M",
+    "label": "DE4292 32B (26SEP) · 24C193M",
+    "sourceLabel": "DE4292 26SEP CDG-FRA",
+    "quality": "good",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 4,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      },
+      {
+        "class": "M",
+        "row_start": 5,
+        "row_end": 39,
+        "pattern": "ABC|DEF",
+        "exceptions": "11=BC|DE\n13=SKIP\n17=SKIP\n39=ABC|"
+      }
+    ]
+  },
+  {
+    "configKey": "DE4214|32B|6C211M",
+    "airline": "DE",
+    "aircraft": "32B",
+    "configuration": "6C211M",
+    "label": "DE4214 32B · 6C211M",
+    "sourceLabel": "DE4214 25SEP CDG-FRA",
+    "quality": "good",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 1,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      },
+      {
+        "class": "M",
+        "row_start": 2,
+        "row_end": 39,
+        "pattern": "ABC|DEF",
+        "exceptions": "11=BC|DE\n13=SKIP\n17=SKIP\n39=ABC|"
+      }
+    ]
+  },
+  {
+    "configKey": "DE4292|32B|12C205M",
+    "airline": "DE",
+    "aircraft": "32B",
+    "configuration": "12C205M",
+    "label": "DE4292 32B (25SEP) · 12C205M",
+    "sourceLabel": "DE4292 25SEP CDG-FRA",
+    "quality": "good",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 2,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      },
+      {
+        "class": "M",
+        "row_start": 3,
+        "row_end": 39,
+        "pattern": "ABC|DEF",
+        "exceptions": "11=BC|DE\n13=SKIP\n17=SKIP\n39=ABC|"
+      }
+    ]
+  },
+  {
+    "configKey": "DE4292|32B|18C199M",
+    "airline": "DE",
+    "aircraft": "32B",
+    "configuration": "18C199M",
+    "label": "DE4292 32B (14SEP) · 18C199M",
+    "sourceLabel": "DE4292 14SEP CDG-FRA",
+    "quality": "good",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 3,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      },
+      {
+        "class": "M",
+        "row_start": 4,
+        "row_end": 39,
+        "pattern": "ABC|DEF",
+        "exceptions": "11=BC|DE\n13=SKIP\n17=SKIP\n39=ABC|"
+      }
+    ]
   }
 ]
