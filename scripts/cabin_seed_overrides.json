@@ -138,6 +138,38 @@
           "exceptions": "8=BC|DE\n21=BC|DE"
         }
       ]
+    },
+    {
+      "configKey": "EY|351|44J327Y",
+      "airline": "EY",
+      "aircraft": "351",
+      "configuration": "44J327Y",
+      "label": "EY 351 · 44J327Y",
+      "sourceLabel": "EY A350-1000 seatmap",
+      "quality": "good",
+      "zones": [
+        {
+          "class": "J",
+          "row_start": 5,
+          "row_end": 15,
+          "pattern": "A|DG|K",
+          "exceptions": ""
+        },
+        {
+          "class": "Y",
+          "row_start": 20,
+          "row_end": 24,
+          "pattern": "ABC|DEG|HJK",
+          "exceptions": ""
+        },
+        {
+          "class": "Y",
+          "row_start": 25,
+          "row_end": 57,
+          "pattern": "ABC|DEG|HJK",
+          "exceptions": "37=ABC||HJK\n38=|DEG|\n57=|DEG|"
+        }
+      ]
     }
   ]
 }
