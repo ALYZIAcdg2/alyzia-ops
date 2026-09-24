@@ -3327,5 +3327,41 @@
     "exceptions": "35=ABC||JKL\n47=ABC||JKL\n60=BC|DEH|JK\n61=|DEH|"
    }
   ]
+ },
+ {
+  "configKey": "ENT|738|189Y",
+  "airline": "ENT",
+  "aircraft": "738",
+  "configuration": "189Y",
+  "label": "ENT 738 · 189Y",
+  "sourceLabel": "ENT 738 seatmap",
+  "quality": "good",
+  "zones": [
+   {
+    "class": "Y",
+    "row_start": 1,
+    "row_end": 32,
+    "pattern": "ABC|DEF",
+    "exceptions": "1=ABC|"
+   }
+  ]
+ },
+ {
+  "configKey": "ENT|7M8|189Y",
+  "airline": "ENT",
+  "aircraft": "7M8",
+  "configuration": "189Y",
+  "label": "ENT 7M8 · 189Y",
+  "sourceLabel": "ENT 7M8 seatmap",
+  "quality": "good",
+  "zones": [
+   {
+    "class": "Y",
+    "row_start": 1,
+    "row_end": 32,
+    "pattern": "ABC|DEF",
+    "exceptions": "1=ABC|"
+   }
+  ]
  }
 ]
