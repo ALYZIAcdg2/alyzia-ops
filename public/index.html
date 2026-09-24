@@ -1416,14 +1416,17 @@ body{
   text-overflow:ellipsis;
 }
 
-/* tablette paysage */
+/* tablette paysage (y compris fenêtre iPad non plein écran, plus étroite que 901-1300px de large) */
 @media (min-width:901px) and (max-width:1300px){
   .home-head,
   .flight-home-row{
-    grid-template-columns:78px minmax(190px,1.45fr) minmax(130px,1fr) minmax(100px,.8fr) 65px minmax(145px,1fr) 65px 40px;
+    grid-template-columns:52px minmax(110px,1.3fr) minmax(80px,1fr) minmax(64px,.8fr) 42px minmax(84px,1fr) 42px 30px;
+    gap:6px;
   }
-  .home-flight-cell{gap:6px}
-  .home-flight{font-size:18px}
+  .home-flight-cell{gap:5px}
+  .home-flight{font-size:16px}
+  .home-route{font-size:11px}
+  .home-sub{font-size:9px}
   .prepa-list-btn{font-size:6.5px;padding:4px 5px}
   .prepa-ok-badge{font-size:6.5px!important}
 }
