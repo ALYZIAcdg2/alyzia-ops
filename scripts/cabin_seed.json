@@ -3137,9 +3137,9 @@
    {
     "class": "M",
     "row_start": 17,
-    "row_end": 38,
+    "row_end": 39,
     "pattern": "AC|DEFG|HK",
-    "exceptions": "23=A|DEFG|"
+    "exceptions": "23=|DEFG|\n35=AC|DFG|HK\n36=AC|DFG|HK\n37=AC|DFG|HK\n38=AC|DFG|HK\n39=AC|DFG|"
    }
   ]
  }
