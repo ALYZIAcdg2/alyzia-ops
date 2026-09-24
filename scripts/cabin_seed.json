@@ -3424,5 +3424,30 @@
     "exceptions": "27=ABC||JKL\n28=SKIP\n29=SKIP\n43=BC|DEG|JK\n44=|DEG|"
    }
   ]
+ },
+ {
+  "configKey": "NO|789|28W327Y",
+  "airline": "NO",
+  "aircraft": "789",
+  "configuration": "28W327Y",
+  "label": "NO 789 v2 · 28W327Y",
+  "sourceLabel": "NO 789 v2 787-9 seatmap (variante physique distincte de v1 28W331Y)",
+  "quality": "good",
+  "zones": [
+   {
+    "class": "W",
+    "row_start": 1,
+    "row_end": 4,
+    "pattern": "AC|DEG|JL",
+    "exceptions": ""
+   },
+   {
+    "class": "Y",
+    "row_start": 5,
+    "row_end": 45,
+    "pattern": "ABC|DEG|JKL",
+    "exceptions": "10=ABC||\n11=ABC||\n13=SKIP\n17=SKIP\n44=|DEG|\n45=|DEG|"
+   }
+  ]
  }
 ]
