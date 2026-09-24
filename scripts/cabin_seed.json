@@ -3317,7 +3317,7 @@
     "row_start": 31,
     "row_end": 34,
     "pattern": "ABC|DEH|JKL",
-    "exceptions": "31=AC|DEH|JL"
+    "exceptions": "31=AB|DEH|KL"
    },
    {
     "class": "Y",
