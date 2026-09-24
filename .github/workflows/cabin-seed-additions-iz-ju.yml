@@ -1,0 +1,92 @@
+name: Cabin — seed IZ et JU
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "scripts/cabin_seed_additions_iz_ju.json"
+      - ".github/workflows/cabin-seed-additions-iz-ju.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      API: https://alyzia-ops.alyzia-cdg2.workers.dev
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Construit le payload
+        run: |
+          node -e "
+            const fs=require('fs');
+            const o=JSON.parse(fs.readFileSync('scripts/cabin_seed_additions_iz_ju.json','utf8'));
+            fs.writeFileSync('seed_payload.json',JSON.stringify({configs:o.configs||[]}));
+            console.log('Configs a importer:',(o.configs||[]).length);
+          "
+
+      - name: POST /api/cabin/seed
+        run: |
+          curl -sS -f -X POST "$API/api/cabin/seed" \
+            -H "Content-Type: application/json" \
+            --data-binary @seed_payload.json | tee seed_result.json
+          echo
+          cat seed_result.json
+
+      - name: Recalcule classes_json et total
+        run: |
+          curl -sS -f -X POST "$API/api/cabin/recompute-classes" | tee recompute_result.json
+          echo
+          cat recompute_result.json
+
+      - name: Réapplique les tris classes opérationnels
+        run: |
+          node -e "
+            const fs=require('fs');
+            const o=JSON.parse(fs.readFileSync('scripts/cabin_seed_additions_iz_ju.json','utf8'));
+            const rows=(o.configs||[]).filter(r=>r.operationalClasses && Object.keys(r.operationalClasses).length);
+            const payloads=rows.map(r=>JSON.stringify({
+              configKey:r.configKey,
+              airline:r.airline,
+              aircraft:r.aircraft,
+              configuration:r.configuration,
+              total:Number(r.operationalTotal||Object.values(r.operationalClasses).reduce((a,b)=>a+Number(b||0),0)),
+              classes:r.operationalClasses,
+              quality:r.quality||'good',
+              sourceLabel:r.sourceLabel||null
+            }));
+            fs.writeFileSync('operational_configs.ndjson',payloads.join('\n')+(payloads.length?'\n':''));
+          "
+          while IFS= read -r payload; do
+            [ -z "$payload" ] && continue
+            curl -sS -f -X POST "$API/api/cabin/config" \
+              -H "Content-Type: application/json" \
+              --data "$payload"
+            echo
+          done < operational_configs.ndjson
+
+      - name: Vérifie les tris classes
+        run: |
+          curl -sS -f "$API/api/cabin/configs" -o all_configs.json
+          node -e "
+            const fs=require('fs');
+            const all=JSON.parse(fs.readFileSync('all_configs.json','utf8')).configs||[];
+            const o=JSON.parse(fs.readFileSync('scripts/cabin_seed_additions_iz_ju.json','utf8'));
+            for(const row of (o.configs||[])){
+              const found=all.find(c=>c.config_key===row.configKey);
+              if(!found){console.error('Config absente:',row.configKey);process.exit(1)}
+              let classes={};try{classes=JSON.parse(found.classes_json||'{}')}catch(e){}
+              const wanted=row.operationalClasses||{};
+              const total=Number(row.operationalTotal||Object.values(wanted).reduce((a,b)=>a+Number(b||0),0));
+              console.log(row.configKey,'classes=',JSON.stringify(classes),'total=',found.total);
+              if(Number(found.total)!==total || JSON.stringify(classes)!==JSON.stringify(wanted)){
+                console.error('Tri classes incorrect:',row.configKey);process.exit(1);
+              }
+            }
+          "
