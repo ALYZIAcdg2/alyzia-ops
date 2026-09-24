@@ -2753,5 +2753,30 @@
         "exceptions": "13=SKIP\n33=|DEF|"
       }
     ]
+  },
+  {
+    "configKey": "AV|788|20C271Y",
+    "airline": "AV",
+    "aircraft": "788",
+    "configuration": "20C271Y",
+    "label": "AV 788 · 20C271Y",
+    "sourceLabel": "AV55 23SEP CDG-BOG",
+    "quality": "good",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 5,
+        "pattern": "A|DE|K",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 8,
+        "row_end": 41,
+        "pattern": "ABC|DEF|GJK",
+        "exceptions": "13=SKIP\n26=ABC||GJK\n27=ABC||GJK\n28=|DEF|\n39=BC|DEF|GJ\n40=|DEF|\n41=|DEF|"
+      }
+    ]
   }
 ]
