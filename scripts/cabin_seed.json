@@ -3238,5 +3238,30 @@
     "exceptions": "29=||HJK\n30=||HJK\n31=SKIP\n32=SKIP\n33=SKIP\n34=SKIP\n35=ABC||HJK\n36=ABC||HJK\n49=|DFG|\n50=|DFG|"
    }
   ]
+ },
+ {
+  "configKey": "LY|739|16C159Y",
+  "airline": "LY",
+  "aircraft": "739",
+  "configuration": "16C159Y",
+  "label": "LY 739 · 16C159Y",
+  "sourceLabel": "LY 737-900 seatmap",
+  "quality": "good",
+  "zones": [
+   {
+    "class": "C",
+    "row_start": 1,
+    "row_end": 4,
+    "pattern": "AC|HK",
+    "exceptions": ""
+   },
+   {
+    "class": "Y",
+    "row_start": 21,
+    "row_end": 52,
+    "pattern": "ABC|HJK",
+    "exceptions": "21=|HJK\n29=SKIP\n30=SKIP\n31=SKIP\n32=SKIP\n33=SKIP"
+   }
+  ]
  }
 ]
