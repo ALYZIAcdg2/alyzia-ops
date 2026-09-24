@@ -3144,11 +3144,11 @@
   ]
  },
  {
-  "configKey": "MH|359|4F35J256Y",
+  "configKey": "MH|359|4F35J247Y",
   "airline": "MH",
   "aircraft": "359",
-  "configuration": "4F35J256Y",
-  "label": "MH 359 · 4F35J256Y",
+  "configuration": "4F35J247Y",
+  "label": "MH 359 · 4F35J247Y",
   "sourceLabel": "MH359 A350-900 seatmap aeroLOPA",
   "quality": "good",
   "zones": [
@@ -3171,7 +3171,7 @@
     "row_start": 12,
     "row_end": 41,
     "pattern": "ABC|DFG|HJK",
-    "exceptions": "16=|DFG|\n26=AC|DFG|HK\n41=|DFG|"
+    "exceptions": "13=SKIP\n16=|DFG|\n26=AC|DFG|HK\n41=|DFG|"
    }
   ]
  }
