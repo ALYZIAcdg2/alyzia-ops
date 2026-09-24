@@ -3,7 +3,8 @@ name: Retrofit ponctuel - codes appareil deja en base
 # Les vols deja importes AVANT les correctifs de conversion de code appareil
 # gardent l'ancien code tant qu'ils ne sont pas patches individuellement.
 # Ce workflow convertit les anciens codes vers les codes internes utilises par
-# les configs cabine, ce qui declenche aussi l'auto-injection de config cabine.
+# les configs cabine, puis reevalue les TK 32R pour remplacer une ancienne
+# config TK|321 ou une config manquante par TK|32R|16C164Y.
 
 on:
   workflow_dispatch:
@@ -59,6 +60,32 @@ jobs:
           "
           [ -s patch_commands.sh ] && bash patch_commands.sh || true
 
+      - name: Force la reevaluation de la config cabine TK 32R
+        run: |
+          curl -sS -f "$API/api/flights" -o tk32r_before.json
+          node -e "
+            const j=JSON.parse(require('fs').readFileSync('tk32r_before.json','utf8'));
+            const desired='TK|32R|16C164Y';
+            const targets=(j.flights||[]).filter(f=>
+              String(f.airline||'').toUpperCase()==='TK' &&
+              String(f.aircraft||'').toUpperCase()==='32R' &&
+              String(f.sariaConfigKey||'')!==desired
+            );
+            console.log('TK 32R a reevaluer:',targets.length);
+            targets.forEach(f=>console.log('->',f.date,f.flight,'ancienne config=',f.sariaConfigKey||'AUCUNE'));
+            require('fs').writeFileSync('tk32r_targets.json',JSON.stringify(targets.map(f=>({identity:[f.date,f.airline,f.flight].join('|')}))));
+          "
+          node -e "
+            const targets=JSON.parse(require('fs').readFileSync('tk32r_targets.json','utf8'));
+            const lines=[];
+            for(const t of targets){
+              lines.push('curl -sS -f -X PATCH \"$API/api/flights\" -H \"Content-Type: application/json\" --data-binary '+JSON.stringify(JSON.stringify({identity:t.identity,patch:{sariaConfigKey:'',sariaCabinConfig:''}}))+' -o /dev/null');
+              lines.push('curl -sS -f -X PATCH \"$API/api/flights\" -H \"Content-Type: application/json\" --data-binary '+JSON.stringify(JSON.stringify({identity:t.identity,patch:{aircraft:'32R'}}))+' -o /dev/null -w \"'+t.identity+' reevalue [%{http_code}]\\n\"');
+            }
+            require('fs').writeFileSync('tk32r_reassign.sh',lines.join('\n'));
+          "
+          [ -s tk32r_reassign.sh ] && bash tk32r_reassign.sh || true
+
       - name: Verification finale
         run: |
           curl -sS -f "$API/api/flights" -o all_flights_after.json
@@ -76,10 +103,11 @@ jobs:
             });
             console.log('anciens codes restants:', remaining.length);
             remaining.forEach(f => console.log('->', f.date, f.airline, f.flight, f.aircraft));
+            const desired='TK|32R|16C164Y';
             const tk32r=(j.flights||[]).filter(f=>String(f.airline||'').toUpperCase()==='TK'&&String(f.aircraft||'').toUpperCase()==='32R');
             console.log('vols TK 32R:',tk32r.length);
             tk32r.forEach(f=>console.log('TK32R',f.date,f.flight,'config=',f.sariaConfigKey||'AUCUNE'));
-            const missing=tk32r.filter(f=>!String(f.sariaConfigKey||'').trim());
-            console.log('TK 32R sans config:',missing.length);
-            if(remaining.length||missing.length)process.exitCode=1;
+            const wrong=tk32r.filter(f=>String(f.sariaConfigKey||'')!==desired);
+            console.log('TK 32R avec config incorrecte/manquante:',wrong.length);
+            if(remaining.length||wrong.length)process.exitCode=1;
           "
