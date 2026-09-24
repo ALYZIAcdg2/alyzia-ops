@@ -2538,7 +2538,7 @@
   },
   {
     "configKey": "AT771|788|22J215Y",
-    "airline": "AT771",
+    "airline": "AT",
     "aircraft": "788",
     "configuration": "22J215Y",
     "label": "AT771 788 · 22J215Y",
@@ -2563,7 +2563,7 @@
   },
   {
     "configKey": "AT765|788|18J256Y",
-    "airline": "AT765",
+    "airline": "AT",
     "aircraft": "788",
     "configuration": "18J256Y",
     "label": "AT765 788 · 18J256Y",
@@ -2588,7 +2588,7 @@
   },
   {
     "configKey": "AT765|789|16J304Y",
-    "airline": "AT765",
+    "airline": "AT",
     "aircraft": "789",
     "configuration": "16J304Y",
     "label": "AT765 789 · 16J304Y",
@@ -2613,7 +2613,7 @@
   },
   {
     "configKey": "AT771|789|26J276Y",
-    "airline": "AT771",
+    "airline": "AT",
     "aircraft": "789",
     "configuration": "26J276Y",
     "label": "AT771 789 · 26J276Y",
@@ -2663,7 +2663,7 @@
   },
   {
     "configKey": "AT789|7M8|12J144Y",
-    "airline": "AT789",
+    "airline": "AT",
     "aircraft": "7M8",
     "configuration": "12J144Y",
     "label": "AT789 7M8 · 12J144Y",
@@ -2688,7 +2688,7 @@
   },
   {
     "configKey": "AT789|7M8|8J168Y",
-    "airline": "AT789",
+    "airline": "AT",
     "aircraft": "7M8",
     "configuration": "8J168Y",
     "label": "AT789 7M8 · 8J168Y",
@@ -2713,7 +2713,7 @@
   },
   {
     "configKey": "AT653|7M8|189Y",
-    "airline": "AT653",
+    "airline": "AT",
     "aircraft": "7M8",
     "configuration": "189Y",
     "label": "AT653 7M8 · 189Y",
@@ -2731,7 +2731,7 @@
   },
   {
     "configKey": "AT639|73H|12J147Y",
-    "airline": "AT639",
+    "airline": "AT",
     "aircraft": "73H",
     "configuration": "12J147Y",
     "label": "AT639 73H · 12J147Y",
