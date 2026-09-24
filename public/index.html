@@ -15578,6 +15578,7 @@ function render(){
  updateMobileNav();
  const x=f();
  seedEnrichmentSources(x);
+ if(typeof ensureSariaConfigSynced==='function' && ensureSariaConfigSynced(x))persistFlightAction('CONFIGURATION CABINE (SYNC AUTO)');
  const sc=schedule(x);
  const configuredClasses=companyClassesForFlight(x);
  applyCompanyClassRuleToFlight(x,configuredClasses,{removeOthers:false});
@@ -19217,13 +19218,18 @@ function sariaSelectedEntry(x=f()){
 }
 function sariaClassObject(entry){
  const o={},airline=sariaNorm(entry?.cie||entry?.airline||'');
+ // Ne jamais convertir les lettres de classe entre compagnies : chaque
+ // compagnie garde sa vraie lettre (ex. TK/TW/TS utilisent "J" pour la
+ // business, jamais "C"). Seule SQ a un mapping dedie deja en place ici,
+ // conserve tel quel. L'ancien "sinon J->C" generique masquait la vraie
+ // lettre de TOUTES les autres compagnies utilisant J.
  (entry?.classes||[]).forEach(([c,n])=>{
    let k=sariaNorm(c);
    if(k==='M'||k==='E')k='Y';
    if(airline==='SQ'){
      if(k==='C')k='J';
      if(k==='W')k='S';
-   }else if(k==='J')k='C';
+   }
    o[k]=(o[k]||0)+(Number(n)||0);
  });
  return o;
@@ -19305,6 +19311,28 @@ async function openSariaCabinChooser(){
     ${current?`<button class="primary" onclick="closeModal();openSeatmap()">OUVRIR LE SEATMAP</button>`:''}
    </div>
   </div>`);
+}
+// Repare x.config quand une version cabine est selectionnee (sariaConfigKey
+// resolu vers un vrai plan) mais que CONFIGURATION/CAPACITY n'a pas toutes
+// ses classes — ex. restoreSariaFlightSelections() restaure la selection
+// depuis le localStorage sans jamais toucher x.config, ou un changement de
+// Type A/C a vide x.config avant que l'utilisateur n'ait fini de choisir une
+// version. Sans ca, une classe entiere (souvent la business) pouvait rester
+// invisible dans CONFIGURATION/CAPACITY malgre un plan cabine correctement
+// selectionne. N'ecrase jamais une classe deja presente (edition manuelle).
+function ensureSariaConfigSynced(x){
+ try{
+  const entry=sariaSelectedEntry(x);
+  if(!entry)return false;
+  const cfg=sariaClassObject(entry);
+  const keys=Object.keys(cfg);
+  if(!keys.length)return false;
+  x.config=(x.config&&typeof x.config==='object')?x.config:{};
+  const missing=keys.filter(k=>!(k in x.config));
+  if(!missing.length)return false;
+  missing.forEach(k=>{x.config[k]=Number(cfg[k]||0)});
+  return true;
+ }catch(e){return false}
 }
 function selectSariaCabin(encodedKey){
  const key=decodeURIComponent(encodedKey),x=f(),entry=SARIA_CATALOG.find(e=>sariaConfigKey(e)===key);
@@ -20594,8 +20622,12 @@ openPrepaEditing=function(flightIndex,departureDate){const x=FLIGHTS[Number(flig
 const v5007_prepareGeneric_base=prepareGenericImportManifest;
 prepareGenericImportManifest=function(rawOriginal,airline){const m=v5007_prepareGeneric_base(rawOriginal,airline);if(isGenericAirlineV50(airline)&&!m?.hasMasterList){m.booked={};m.bookedTotal=0;}return m};
 
-// Type A/C: ne pas rerender la fiche pendant que l'utilisateur choisit l'appareil.
-onSariaAircraftChange=async function(value){const x=f();if(!x)return;x.aircraft=sariaNorm(value);x.sariaConfigKey='';x.sariaCabinConfig='';markManualFields(x,'aircraft','Type A/C sélectionné');await loadSariaCatalog();openSariaCabinChooser();};
+// Ancien doublon de onSariaAircraftChange supprime ici : il ecrasait la
+// vraie definition (plus haut dans le fichier) qui vide x.config et
+// sauvegarde immediatement le changement de Type A/C — sans quoi
+// CONFIGURATION/CAPACITY gardait les anciennes classes (ex. "Y" seul,
+// sans la business) apres un changement d'avion, et l'auto-refresh
+// pouvait ecraser le changement avant meme le choix d'une version.
 
 // Notes de vol éditables, générales ou rattachées à une classe.
 function v5007FlightNotes(x=f()){x.flightNotes=Array.isArray(x.flightNotes)?x.flightNotes:[];return x.flightNotes}
