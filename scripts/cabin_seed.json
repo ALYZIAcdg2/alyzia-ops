@@ -3174,5 +3174,37 @@
     "exceptions": "13=SKIP\n16=|DFG|\n26=AC|DFG|HK\n41=|DFG|"
    }
   ]
+ },
+ {
+  "configKey": "LY|788|20J35W183Y",
+  "airline": "LY",
+  "aircraft": "788",
+  "configuration": "20J35W183Y",
+  "label": "LY 788 · 20J35W183Y",
+  "sourceLabel": "LY 787-8 seatmap",
+  "quality": "good",
+  "zones": [
+   {
+    "class": "J",
+    "row_start": 1,
+    "row_end": 5,
+    "pattern": "A|DG|K",
+    "exceptions": ""
+   },
+   {
+    "class": "W",
+    "row_start": 10,
+    "row_end": 14,
+    "pattern": "AC|DFG|HK",
+    "exceptions": ""
+   },
+   {
+    "class": "Y",
+    "row_start": 21,
+    "row_end": 46,
+    "pattern": "ABC|DFG|HJK",
+    "exceptions": "30=ABC||HJK\n31=SKIP\n32=SKIP\n33=SKIP\n34=SKIP\n45=|DFG|\n46=|DFG|"
+   }
+  ]
  }
 ]
