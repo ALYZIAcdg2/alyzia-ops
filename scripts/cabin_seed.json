@@ -3078,5 +3078,30 @@
         "exceptions": "11=BC|DE\n13=SKIP\n17=SKIP\n39=ABC|"
       }
     ]
+  },
+  {
+    "configKey": "EI|320|4J168Y",
+    "airline": "EI",
+    "aircraft": "320",
+    "configuration": "4J168Y",
+    "label": "EI 320 · 4J168Y",
+    "sourceLabel": "EI529 24SEP CDG-DUB",
+    "quality": "good",
+    "zones": [
+      {
+        "class": "J",
+        "row_start": 1,
+        "row_end": 1,
+        "pattern": "AC|DF",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 2,
+        "row_end": 29,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
   }
 ]
