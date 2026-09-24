@@ -170,6 +170,82 @@
           "exceptions": "37=ABC||HJK\n38=|DEG|\n57=|DEG|"
         }
       ]
+    },
+    {
+      "configKey": "EY011|388|11F70J405Y",
+      "airline": "EY",
+      "aircraft": "388",
+      "configuration": "11F70J405Y",
+      "label": "EY 388 V1 · 11F70J405Y",
+      "sourceLabel": "EY A380-800 V1 seatmap",
+      "quality": "good",
+      "operationalClasses": {
+        "F": 11,
+        "J": 70,
+        "Y": 405
+      },
+      "operationalTotal": 486,
+      "zones": [
+        {
+          "class": "F",
+          "row_start": 1,
+          "row_end": 5,
+          "pattern": "A||K",
+          "exceptions": "2=C||H\n4=C||H"
+        },
+        {
+          "class": "J",
+          "row_start": 8,
+          "row_end": 26,
+          "pattern": "A|DG|K",
+          "exceptions": "8=A||K\n9=C|EF|H\n11=C|EF|H\n13=SKIP\n14=C|EF|H\n16=C|EF|H\n18=C|EF|H\n20=C|EF|H\n22=C|EF|H\n24=C|EF|H\n26=C||H"
+        },
+        {
+          "class": "Y",
+          "row_start": 40,
+          "row_end": 88,
+          "pattern": "ABC|DEFG|HJK",
+          "exceptions": "40=|DEFG|\n53=ABC||HJK\n54=|DEFG|\n67=ABC||HJK\n68=|DEFG|\n80=ABC||HJK\n81=|DEFG|\n87=AC|DEFG|HK\n88=AC|DEFG|HK"
+        }
+      ]
+    },
+    {
+      "configKey": "EY019|388|11F70J415Y",
+      "airline": "EY",
+      "aircraft": "388",
+      "configuration": "11F70J415Y",
+      "label": "EY 388 V2 · 11F70J415Y",
+      "sourceLabel": "EY A380-800 V2 seatmap",
+      "quality": "good",
+      "operationalClasses": {
+        "F": 11,
+        "J": 70,
+        "Y": 415
+      },
+      "operationalTotal": 496,
+      "zones": [
+        {
+          "class": "F",
+          "row_start": 1,
+          "row_end": 5,
+          "pattern": "A||K",
+          "exceptions": "2=C||H\n4=C||H"
+        },
+        {
+          "class": "J",
+          "row_start": 8,
+          "row_end": 26,
+          "pattern": "A|DG|K",
+          "exceptions": "8=A||K\n9=C|EF|H\n11=C|EF|H\n13=SKIP\n14=C|EF|H\n16=C|EF|H\n18=C|EF|H\n20=C|EF|H\n22=C|EF|H\n24=C|EF|H\n26=C||H"
+        },
+        {
+          "class": "Y",
+          "row_start": 40,
+          "row_end": 88,
+          "pattern": "ABC|DEFG|HJK",
+          "exceptions": "40=|DEFG|\n53=ABC||HJK\n54=|DEFG|\n67=ABC||HJK\n68=|DEFG|\n80=ABC||HJK\n81=|DEFG|\n87=AC|DEFG|HK\n88=AC|DEFG|HK"
+        }
+      ]
     }
   ]
 }
