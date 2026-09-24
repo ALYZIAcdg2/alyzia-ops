@@ -2535,5 +2535,130 @@
         "exceptions": "11=BC|DE\n13=SKIP\n17=SKIP\n39=ABC|"
       }
     ]
+  },
+  {
+    "configKey": "AT771|788|22J215Y",
+    "airline": "AT771",
+    "aircraft": "788",
+    "configuration": "22J215Y",
+    "label": "AT771 788 · 22J215Y",
+    "sourceLabel": "AT771 26SEP ORY-CMN",
+    "quality": "good",
+    "zones": [
+      {
+        "class": "J",
+        "row_start": 1,
+        "row_end": 13,
+        "pattern": "AC|DH|JL",
+        "exceptions": "01=A|DH|L\n02=SKIP\n03=SKIP\n04=SKIP\n05=SKIP\n06=SKIP\n07=SKIP\n08=SKIP\n09=SKIP\n10=SKIP"
+      },
+      {
+        "class": "Y",
+        "row_start": 41,
+        "row_end": 65,
+        "pattern": "ABC|DEH|JKL",
+        "exceptions": "64=BC|DEH|\n65=|DEH|"
+      }
+    ]
+  },
+  {
+    "configKey": "AT765|788|18J256Y",
+    "airline": "AT765",
+    "aircraft": "788",
+    "configuration": "18J256Y",
+    "label": "AT765 788 · 18J256Y",
+    "sourceLabel": "AT765 23SEP ORY-CMN",
+    "quality": "good",
+    "zones": [
+      {
+        "class": "J",
+        "row_start": 1,
+        "row_end": 3,
+        "pattern": "AC|DF|HK",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 10,
+        "row_end": 40,
+        "pattern": "ABC|DEF|HJK",
+        "exceptions": "13=SKIP\n28=|DEF|\n39=AC|DEF|HK\n40=|DEF|"
+      }
+    ]
+  },
+  {
+    "configKey": "AT765|789|16J304Y",
+    "airline": "AT765",
+    "aircraft": "789",
+    "configuration": "16J304Y",
+    "label": "AT765 789 · 16J304Y",
+    "sourceLabel": "AT765 26SEP ORY-CMN",
+    "quality": "good",
+    "zones": [
+      {
+        "class": "J",
+        "row_start": 1,
+        "row_end": 4,
+        "pattern": "A|DF|K",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 5,
+        "row_end": 40,
+        "pattern": "ABC|DEF|HJK",
+        "exceptions": "05=AC|DEF|HK\n06=AC|DEF|HK\n07=AC|DEF|HK\n08=AC|DEF|HK\n25=|DEF|\n40=|DEF|"
+      }
+    ]
+  },
+  {
+    "configKey": "AT771|789|26J276Y",
+    "airline": "AT771",
+    "aircraft": "789",
+    "configuration": "26J276Y",
+    "label": "AT771 789 · 26J276Y",
+    "sourceLabel": "AT771 24SEP ORY-CMN",
+    "quality": "good",
+    "zones": [
+      {
+        "class": "J",
+        "row_start": 1,
+        "row_end": 7,
+        "pattern": "A|DF|K",
+        "exceptions": "07=A||K"
+      },
+      {
+        "class": "Y",
+        "row_start": 10,
+        "row_end": 43,
+        "pattern": "ABC|DEF|HJK",
+        "exceptions": "13=SKIP\n27=SKIP\n28=|DEF|\n42=AC|DEF|HK\n43=AC|DEF|"
+      }
+    ]
+  },
+  {
+    "configKey": "AT|E90|12J84Y",
+    "airline": "AT",
+    "aircraft": "E90",
+    "configuration": "12J84Y",
+    "label": "AT E90 · 12J84Y",
+    "sourceLabel": "AT1611 24SEP CDG-TTU",
+    "quality": "good",
+    "zones": [
+      {
+        "class": "J",
+        "row_start": 1,
+        "row_end": 4,
+        "pattern": "A|DF",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 7,
+        "row_end": 28,
+        "pattern": "AC|DF",
+        "exceptions": "13=SKIP"
+      }
+    ]
   }
 ]
