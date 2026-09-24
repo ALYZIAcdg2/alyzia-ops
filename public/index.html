@@ -25704,19 +25704,13 @@ window.openImport139Advanced=function(c,key){
 window.renderTools=async function(){
   currentView='tools'; updateMobileNav();
   await fetchRecentPrepaImports().catch(()=>{});
-  const g=impGlobal(),m=b139Metrics(g);
   document.getElementById('app').innerHTML=`
   <section class="prepa-page">
    <div class="prepa-hero">
     <div><h1>OUTILS</h1><p>ALYZIA OPS · IMPORTS, VOLS, CONFIGURATION COMPAGNIE ET PLANS CABINE.</p></div>
    </div>
    <div class="tools-grid">
-    <div class="import139-card">
-      <div class="import139-head"><div class="import139-title"><div class="import139-icon">⇩</div><div><h3>IMPORT GMAIL</h3><p>AUTO PILOT · COLLECTE, ANALYSE ET INJECTION AUTOMATIQUE</p></div></div><span class="import139-live">${g.errors?'À CONTRÔLER':'ACTIF'}</span></div>
-      <div class="import139-stats"><div class="import139-stat"><b>${m.files}</b><span>DOCUMENTS</span></div><div class="import139-stat"><b>${m.flights}</b><span>VOLS DÉTECTÉS</span></div><div class="import139-stat"><b>${m.injected}</b><span>VOLS INJECTÉS</span></div><div class="import139-stat"><b>${m.todo}</b><span>À CONTRÔLER</span></div></div>
-      <div class="import139-format">CORPS MAIL · JFE SCREEN COPY · PDF · TXT · EML</div>
-      <button class="import139-primary" onclick="openImportsDashboard()">OUVRIR LE CENTRE IMPORT GMAIL</button>
-    </div>
+    <button class="tool-card" onclick="openImportsDashboard()"><span class="tool-icon">⇩</span><b>IMPORT GMAIL</b><span>AUTO PILOT · COLLECTE, ANALYSE, INJECTION</span></button>
     <button class="tool-card" onclick="openFlightImport()"><span class="tool-icon">⇩</span><b>IMPORTER VOLS</b><span>EXCEL XLS / XLSX</span></button>
     <button class="tool-card" onclick="openCreateFlight()"><span class="tool-icon">＋</span><b>CRÉER VOL</b><span>AJOUT MANUEL</span></button>
     <button class="tool-card company-config-tool" onclick="openCompanyConfig()"><span class="tool-icon">⚙</span><b>CONFIG COMPAGNIE</b><span>CLASSES ET MODULES</span></button>
