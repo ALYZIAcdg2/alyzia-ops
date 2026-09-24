@@ -73,8 +73,97 @@ async function getFlightsResponse(env){
   });
 }
 
+/*
+ * Injection automatique de la configuration cabine (CONFIG/BOOKING) à partir
+ * du seul type A/C déjà connu à l'import — évite d'avoir à ouvrir chaque vol
+ * pour choisir "VERSION CABINE" manuellement (cf. sariaConfigsFor/sariaClassObject
+ * côté frontend, dont la logique de normalisation des lettres de classe est
+ * reproduite ici à l'identique). Ne s'applique jamais si une version cabine
+ * est déjà sélectionnée (manuelle ou déjà auto-assignée) : on ne réécrit
+ * jamais une sélection existante.
+ *
+ * Ordre de préférence quand plusieurs plans existent pour la même compagnie+
+ * appareil : (1) config_key préfixée par le numéro de vol exact (le cas le
+ * plus précis, ex. "AT771|788|..." pour le vol AT771), (2) config_key
+ * générique (préfixe = code compagnie seul, ex. "AT|788|..."), (3) à défaut
+ * un des variants existants (alphabétique, déterministe) — à corriger
+ * manuellement si besoin via VERSION CABINE, marqué cabinConfigAuto:true.
+ */
+async function findAutoCabinConfig(env,airline,aircraft,flightNumber){
+  const al=String(airline||"").trim().toUpperCase();
+  const ac=String(aircraft||"").trim().toUpperCase();
+  const fn=String(flightNumber||"").trim().toUpperCase();
+  if(!al||!ac)return null;
+
+  let results=[];
+  try{
+    const r=await env.OPS_DB.prepare(`
+      SELECT config_key,airline,aircraft,configuration,total,classes_json,quality
+      FROM cabin_configs WHERE airline=? AND aircraft=?
+    `).bind(al,ac).all();
+    results=r?.results||[];
+  }catch(e){
+    return null; // table cabine pas encore prête : pas d'auto-injection, pas d'erreur
+  }
+  if(!results.length)return null;
+
+  const prefixOf=r=>String(r.config_key||"").split("|")[0].toUpperCase();
+
+  if(fn){
+    const exact=results.find(r=>prefixOf(r)===fn);
+    if(exact)return exact;
+  }
+  const generic=results.find(r=>prefixOf(r)===al);
+  if(generic)return generic;
+
+  const sorted=[...results].sort((a,b)=>String(a.config_key).localeCompare(String(b.config_key)));
+  return sorted[0];
+}
+
+function normalizedAutoCabinClasses(row){
+  let obj={};
+  try{obj=typeof row.classes_json==="string"?JSON.parse(row.classes_json):(row.classes_json||{})}catch(e){obj={}}
+  const airline=String(row.airline||"").trim().toUpperCase();
+  const out={};
+  for(const [c,n] of Object.entries(obj||{})){
+    let k=String(c||"").trim().toUpperCase();
+    if(k==="E")k="Y";
+    if(airline==="SQ"){
+      if(k==="C")k="J";
+      if(k==="W")k="S";
+    }
+    out[k]=(out[k]||0)+(Number(n)||0);
+  }
+  return out;
+}
+
+async function applyAutoCabinConfig(env,x){
+  try{
+    if(!x||typeof x!=="object")return x;
+    if(x.sariaConfigKey)return x; // deja choisi (manuel ou auto) : jamais ecrase
+    const aircraft=String(x.aircraft||"").trim();
+    if(!aircraft)return x;
+    const match=await findAutoCabinConfig(env,x.airline,aircraft,x.flight);
+    if(!match)return x;
+
+    x.sariaConfigKey=match.config_key;
+    x.sariaCabinConfig=String(match.configuration||"").trim().toUpperCase();
+    const classes=normalizedAutoCabinClasses(match);
+    x.config=(x.config&&typeof x.config==="object")?{...x.config}:{};
+    for(const [k,v] of Object.entries(classes)){
+      if(!x.config[k])x.config[k]=v; // ne jamais ecraser une classe deja saisie
+    }
+    x.cabinConfigAuto=true;
+  }catch(e){
+    console.warn("AUTO CABIN CONFIG",e);
+  }
+  return x;
+}
+
 async function upsertFlight(env,x){
   if(!validFlight(x))return false;
+
+  x=await applyAutoCabinConfig(env,x);
 
   const identity=flightIdentity(x);
   await env.OPS_DB.prepare(`
@@ -165,6 +254,24 @@ async function syncFlights(env,flights){
     if(seen.has(id))continue;
     seen.add(id);
     clean.push(x);
+  }
+
+  // L'import (fichier XLS) écrase tout le vol, pas seulement les champs qu'il
+  // connaît : sans ceci, resynchroniser un jour déjà traité effacerait une
+  // config cabine déjà choisie (manuelle ou auto) puisque le fichier importé
+  // ne transporte jamais sariaConfigKey. On récupère donc la config existante
+  // avant d'écraser, puis on auto-assigne seulement les vols qui n'en ont
+  // toujours pas (vol nouveau, ou type A/C qui vient d'apparaître).
+  for(const x of clean){
+    const identity=flightIdentity(x);
+    const existing=await getFlightByIdentity(env,identity).catch(()=>null);
+    if(existing?.sariaConfigKey){
+      x.sariaConfigKey=existing.sariaConfigKey;
+      x.sariaCabinConfig=existing.sariaCabinConfig;
+      x.config=existing.config;
+      x.cabinConfigAuto=existing.cabinConfigAuto;
+    }
+    await applyAutoCabinConfig(env,x);
   }
 
   // Batch par blocs pour rester robuste même avec un mois complet.

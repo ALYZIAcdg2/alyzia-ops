@@ -4861,6 +4861,7 @@ html,body{
  display:grid;grid-template-columns:54px minmax(0,1fr);align-items:center;gap:4px
 }
 .home-config-booking small{font-size:6px;font-weight:1000;color:#718398}
+.home-config-auto{display:inline-block;margin-left:3px;padding:1px 4px;border-radius:5px;background:#fff2d9;color:#9a6500;font-size:6px;font-weight:1000;letter-spacing:.02em;vertical-align:middle}
 .home-config-booking b{font-size:8px;color:#20354c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .home-row-actions{display:flex;align-items:center;justify-content:flex-end;gap:4px}
 .home-avail-value{display:block;font-size:16px;font-weight:1000;line-height:1;color:#20354c;white-space:nowrap}
@@ -8596,7 +8597,7 @@ function renderHome(){
         <div class="home-mini home-aircraft"><small>A/C</small><b>${x.aircraft||'—'}</b></div>
         <div class="home-mini home-gate"><small>GATE</small><b>${x.gate&&x.gate!=='—'?x.gate:'—'}</b></div>
         <div class="home-config-booking">
-          <div><small>CONFIG</small><b>${classes.map(k=>`${k}${Number(x.config?.[k]||0)}`).join(' · ')||'—'}</b></div>
+          <div><small>CONFIG${x.cabinConfigAuto?' <span class="home-config-auto" title="Config cabine injectée automatiquement à partir du type A/C — à vérifier / modifier si besoin">AUTO</span>':''}</small><b>${classes.map(k=>`${k}${Number(x.config?.[k]||0)}`).join(' · ')||'—'}</b></div>
           <div><small>BOOKING</small><b>${classes.map(k=>`${k}${Number(x.booked?.[k]||0)}`).join(' · ')||'—'}</b></div>
           <div class="home-load"><div class="gauge"><span style="width:${Math.min(100,pct)}%"></span></div><b>${pct}%</b></div>
         </div>
@@ -19390,6 +19391,7 @@ function selectSariaCabin(encodedKey){
  x.sariaConfigKey=sariaConfigKey(entry);
  x.sariaCabinConfig=entry.config;
  x.aircraft=entry.ac;
+ x.cabinConfigAuto=false; // choix manuel explicite : le badge AUTO disparait
  const cfg=sariaClassObject(entry);
  if(Object.keys(cfg).length){
   const previousBooked=x.booked||{},previousWeb=x.web||{},previousMeals=x.meals||{};
