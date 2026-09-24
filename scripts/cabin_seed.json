@@ -3142,5 +3142,37 @@
     "exceptions": "23=|DEFG|\n35=AC|DFG|HK\n36=AC|DFG|HK\n37=AC|DFG|HK\n38=AC|DFG|HK\n39=AC|DFG|"
    }
   ]
+ },
+ {
+  "configKey": "MH|359|4F35J256Y",
+  "airline": "MH",
+  "aircraft": "359",
+  "configuration": "4F35J256Y",
+  "label": "MH 359 · 4F35J256Y",
+  "sourceLabel": "MH359 A350-900 seatmap aeroLOPA",
+  "quality": "good",
+  "zones": [
+   {
+    "class": "F",
+    "row_start": 1,
+    "row_end": 1,
+    "pattern": "A|DG|K",
+    "exceptions": ""
+   },
+   {
+    "class": "J",
+    "row_start": 2,
+    "row_end": 11,
+    "pattern": "A|DG|K",
+    "exceptions": "04=SKIP\n08=A|DG|"
+   },
+   {
+    "class": "Y",
+    "row_start": 12,
+    "row_end": 41,
+    "pattern": "ABC|DFG|HJK",
+    "exceptions": "16=|DFG|\n26=AC|DFG|HK\n41=|DFG|"
+   }
+  ]
  }
 ]
