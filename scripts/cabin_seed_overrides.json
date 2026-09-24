@@ -34,6 +34,85 @@
           "exceptions": "21=|DEFG|\n34=AC|DEFG|HJK\n35=ABC||HJK\n44=AC|DEFG|HK\n45=AC|DEFG|HK\n46=AC|DEFG|HK\n47=AC|DEFG|HK\n48=AC||"
         }
       ]
+    },
+    {
+      "configKey": "PC|320|180Y",
+      "airline": "PC",
+      "aircraft": "320",
+      "configuration": "180Y",
+      "label": "PC 320 · 180Y",
+      "sourceLabel": "PC 320 seatmap",
+      "quality": "good",
+      "zones": [
+        {
+          "class": "Y",
+          "row_start": 1,
+          "row_end": 30,
+          "pattern": "ABC|DEF",
+          "exceptions": ""
+        }
+      ]
+    },
+    {
+      "configKey": "PC|32N|186Y",
+      "airline": "PC",
+      "aircraft": "32N",
+      "configuration": "186Y",
+      "label": "PC 32N · 186Y",
+      "sourceLabel": "PC 32N seatmap",
+      "quality": "good",
+      "zones": [
+        {
+          "class": "Y",
+          "row_start": 1,
+          "row_end": 11,
+          "pattern": "ABC|DEF",
+          "exceptions": ""
+        },
+        {
+          "class": "Y",
+          "row_start": 15,
+          "row_end": 34,
+          "pattern": "ABC|DEF",
+          "exceptions": ""
+        }
+      ]
+    },
+    {
+      "configKey": "PC|32Q|239Y",
+      "airline": "PC",
+      "aircraft": "32Q",
+      "configuration": "239Y",
+      "label": "PC 32Q · 239Y",
+      "sourceLabel": "PC 32Q seatmap",
+      "quality": "good",
+      "zones": [
+        {
+          "class": "Y",
+          "row_start": 1,
+          "row_end": 40,
+          "pattern": "ABC|DEF",
+          "exceptions": "28=ABC|DE"
+        }
+      ]
+    },
+    {
+      "configKey": "PC|738|189Y",
+      "airline": "PC",
+      "aircraft": "738",
+      "configuration": "189Y",
+      "label": "PC 738 · 189Y",
+      "sourceLabel": "PC 738 seatmap",
+      "quality": "good",
+      "zones": [
+        {
+          "class": "Y",
+          "row_start": 1,
+          "row_end": 32,
+          "pattern": "ABC|DEF",
+          "exceptions": "1=ABC|"
+        }
+      ]
     }
   ]
 }
