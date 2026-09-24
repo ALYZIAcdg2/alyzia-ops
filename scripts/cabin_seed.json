@@ -3363,5 +3363,41 @@
     "exceptions": "1=ABC|"
    }
   ]
+ },
+ {
+  "configKey": "NO|738|186Y",
+  "airline": "NO",
+  "aircraft": "738",
+  "configuration": "186Y",
+  "label": "NO 738 · 186Y",
+  "sourceLabel": "NO 738 seatmap",
+  "quality": "good",
+  "zones": [
+   {
+    "class": "Y",
+    "row_start": 1,
+    "row_end": 33,
+    "pattern": "ABC|DEF",
+    "exceptions": "13=SKIP\n14=SKIP"
+   }
+  ]
+ },
+ {
+  "configKey": "NO|7M8|186Y",
+  "airline": "NO",
+  "aircraft": "7M8",
+  "configuration": "186Y",
+  "label": "NO 7M8 · 186Y",
+  "sourceLabel": "NO 7M8 seatmap",
+  "quality": "good",
+  "zones": [
+   {
+    "class": "Y",
+    "row_start": 1,
+    "row_end": 33,
+    "pattern": "ABC|DEF",
+    "exceptions": "13=SKIP\n14=SKIP"
+   }
+  ]
  }
 ]
