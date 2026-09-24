@@ -1,0 +1,41 @@
+name: Vol - patch ponctuel (declenche l'auto-assignation config cabine)
+
+# Verification/reparation ponctuelle : appelle PATCH /api/flights avec un
+# patch vide sur un vol precis pour forcer upsertFlight (et donc
+# applyAutoCabinConfig) a s'executer sur ce vol, sans rien changer d'autre.
+# Utilise pour confirmer que l'injection auto de config cabine fonctionne
+# apres correction du timeout de syncFlights, sans attendre un nouvel
+# import Excel complet.
+
+on:
+  workflow_dispatch:
+    inputs:
+      identity:
+        description: "Identite exacte du vol (date|AIRLINE|FLIGHT, ex. 2026-09-26|RJ|RJ120)"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      API: https://alyzia-ops.alyzia-cdg2.workers.dev
+    steps:
+      - name: PATCH /api/flights (patch vide, force upsertFlight)
+        run: |
+          IDENTITY="${{ github.event.inputs.identity }}"
+          curl -sS -f -X PATCH "$API/api/flights" \
+            -H "Content-Type: application/json" \
+            --data-binary "$(node -e "console.log(JSON.stringify({identity: process.argv[1], patch: {}}))" "$IDENTITY")" \
+            -o patch_result.json
+          node -e "
+            const j = JSON.parse(require('fs').readFileSync('patch_result.json','utf8'));
+            const f = j.flight || {};
+            console.log('ok=', j.ok);
+            console.log('flight=', f.flight, 'airline=', f.airline, 'date=', f.date, 'aircraft=', f.aircraft);
+            console.log('sariaConfigKey=', f.sariaConfigKey, 'sariaCabinConfig=', f.sariaCabinConfig, 'cabinConfigAuto=', f.cabinConfigAuto);
+            console.log('config=', JSON.stringify(f.config));
+          "
