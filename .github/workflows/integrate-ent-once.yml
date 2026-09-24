@@ -1,0 +1,72 @@
+name: Intégration ponctuelle ENT
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/integrate-ent-once.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  integrate-ent:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Ajoute ENT à la configuration compagnie
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const p='public/index.html';
+          let s=fs.readFileSync(p,'utf8');
+
+          const genericOld="'3O','4H','A9','AH','AI','AT','BM','DE','EI','FB','HM','IZ','J2','JU','LO','MS','NH','NO','OZ','PVG','RJ','S4','SB','SK','TO','TS','VF','WB'";
+          const genericNew="'3O','4H','A9','AH','AI','AT','BM','DE','EI','ENT','FB','HM','IZ','J2','JU','LO','MS','NH','NO','OZ','PVG','RJ','S4','SB','SK','TO','TS','VF','WB'";
+          if(!s.includes(genericNew)){
+            if(!s.includes(genericOld))throw new Error('Liste GENERIC_COMPANY_AIRLINE_CODES attendue introuvable');
+            s=s.replace(genericOld,genericNew);
+          }
+
+          const nameAnchor="AT:'ROYAL AIR MAROC',BM:'MEDSKY AIRWAYS',DE:'CONDOR',EI:'AER LINGUS',";
+          const nameWithEnt="AT:'ROYAL AIR MAROC',BM:'MEDSKY AIRWAYS',DE:'CONDOR',EI:'AER LINGUS',ENT:'ENTER AIR',";
+          if(!s.includes("ENT:'ENTER AIR'")){
+            if(!s.includes(nameAnchor))throw new Error('Ancre airlineDisplayName introuvable');
+            s=s.replace(nameAnchor,nameWithEnt);
+          }
+
+          fs.writeFileSync(p,s);
+          NODE
+
+      - name: Vérifie ENT et ses deux plans cabine
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const html=fs.readFileSync('public/index.html','utf8');
+          if(!html.includes("'EI','ENT','FB'"))throw new Error('ENT absent de GENERIC_COMPANY_AIRLINE_CODES');
+          if(!html.includes("ENT:'ENTER AIR'"))throw new Error('Nom ENTER AIR absent');
+          if(!html.includes("ENT:'T3'"))throw new Error('Terminal T3 ENT absent');
+          const rows=JSON.parse(fs.readFileSync('scripts/cabin_seed.json','utf8'));
+          for(const ac of ['738','7M8']){
+            const x=rows.find(r=>String(r.airline||'').toUpperCase()==='ENT'&&String(r.aircraft||'').toUpperCase()===ac);
+            if(!x)throw new Error('Config cabine ENT '+ac+' absente');
+            console.log('ENT',ac,x.configuration||x.configKey||'OK');
+          }
+          NODE
+
+      - name: Commit de l’intégration ENT
+        run: |
+          git config user.name "ALYZIA OPS Bot"
+          git config user.email "alyzia.cdg2@gmail.com"
+          git add public/index.html
+          if git diff --cached --quiet; then
+            echo "Aucun changement à committer."
+            exit 0
+          fi
+          git commit -m "Intègre ENT (Enter Air) comme compagnie ALYZIA OPS"
+          git push
