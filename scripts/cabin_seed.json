@@ -3449,5 +3449,30 @@
     "exceptions": "10=ABC||\n11=ABC||\n13=SKIP\n17=SKIP\n44=|DEG|\n45=|DEG|"
    }
   ]
+ },
+ {
+  "configKey": "AH|736|16C86Y",
+  "airline": "AH",
+  "aircraft": "736",
+  "configuration": "16C86Y",
+  "label": "AH 736 · 16C86Y",
+  "sourceLabel": "AH 737-600 seatmap",
+  "quality": "good",
+  "zones": [
+   {
+    "class": "C",
+    "row_start": 1,
+    "row_end": 4,
+    "pattern": "AB|EF",
+    "exceptions": ""
+   },
+   {
+    "class": "Y",
+    "row_start": 5,
+    "row_end": 19,
+    "pattern": "ABC|DEF",
+    "exceptions": "19=|DE"
+   }
+  ]
  }
 ]
