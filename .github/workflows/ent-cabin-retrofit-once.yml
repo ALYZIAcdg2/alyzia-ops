@@ -1,0 +1,57 @@
+name: ENT — applique la config cabine aux vols existants
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/ent-cabin-retrofit-once.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  retrofit-ent:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      API: https://alyzia-ops.alyzia-cdg2.workers.dev
+    steps:
+      - name: Reessaie l'auto-config sur les vols ENT 738/7M8 sans config
+        run: |
+          curl -sS -f "$API/api/flights" -o all_flights.json
+          node -e "
+            const fs=require('fs');
+            const j=JSON.parse(fs.readFileSync('all_flights.json','utf8'));
+            const targets=(j.flights||[]).filter(f=>
+              String(f.airline||'').toUpperCase()==='ENT' &&
+              ['738','7M8'].includes(String(f.aircraft||'').toUpperCase()) &&
+              !String(f.sariaConfigKey||'').trim()
+            );
+            console.log('Vols ENT sans config a traiter:',targets.length);
+            fs.writeFileSync('targets.json',JSON.stringify(targets.map(f=>({identity:[f.date,f.airline,f.flight].join('|')}))));
+          "
+          node -e "
+            const fs=require('fs');
+            const targets=JSON.parse(fs.readFileSync('targets.json','utf8'));
+            fs.writeFileSync('patch.sh',targets.map(t=>
+              'curl -sS -f -X PATCH \"$API/api/flights\" -H \"Content-Type: application/json\" --data-binary '+
+              JSON.stringify(JSON.stringify({identity:t.identity,patch:{}}))+
+              ' -o /dev/null -w \"'+t.identity+' [%{http_code}]\\n\"'
+            ).join('\n'));
+          "
+          [ -s patch.sh ] && bash patch.sh || true
+
+      - name: Verification ENT
+        run: |
+          curl -sS -f "$API/api/flights" -o all_flights_after.json
+          node -e "
+            const j=JSON.parse(require('fs').readFileSync('all_flights_after.json','utf8'));
+            const ent=(j.flights||[]).filter(f=>String(f.airline||'').toUpperCase()==='ENT');
+            console.log('Vols ENT en base:',ent.length);
+            ent.forEach(f=>console.log(f.date,f.flight,'A/C',f.aircraft||'-','CONFIG',f.sariaConfigKey||'-',f.sariaCabinConfig||'-'));
+            const missing=ent.filter(f=>['738','7M8'].includes(String(f.aircraft||'').toUpperCase())&&!String(f.sariaConfigKey||'').trim());
+            console.log('ENT 738/7M8 encore sans config:',missing.length);
+            if(missing.length)process.exitCode=1;
+          "
