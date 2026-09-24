@@ -29,7 +29,7 @@ jobs:
           node -e "
             const j = JSON.parse(require('fs').readFileSync('all_flights.json','utf8'));
             const MAP = {
-              'TK|32Q':'N32', 'TK|359':'35D', 'TK|77W':'77B',
+              'TK|32Q':'N32', 'TK|359':'35D', 'TK|77W':'77B', 'TK|321':'32R',
               'TU|32A':'320',
               'LY|772':'777',
               'ENT|73H':'738'
@@ -65,7 +65,7 @@ jobs:
           node -e "
             const j = JSON.parse(require('fs').readFileSync('all_flights_after.json','utf8'));
             const MAP = {
-              'TK|32Q':'N32', 'TK|359':'35D', 'TK|77W':'77B',
+              'TK|32Q':'N32', 'TK|359':'35D', 'TK|77W':'77B', 'TK|321':'32R',
               'TU|32A':'320',
               'LY|772':'777',
               'ENT|73H':'738'
@@ -76,10 +76,10 @@ jobs:
             });
             console.log('anciens codes restants:', remaining.length);
             remaining.forEach(f => console.log('->', f.date, f.airline, f.flight, f.aircraft));
-            const ent=(j.flights||[]).filter(f=>String(f.airline||'').toUpperCase()==='ENT');
-            console.log('vols ENT:',ent.length);
-            ent.forEach(f=>console.log('ENT',f.date,f.flight,'A/C',f.aircraft||'-','config=',f.sariaConfigKey||'AUCUNE'));
-            const missing=ent.filter(f=>['738','7M8'].includes(String(f.aircraft||'').toUpperCase())&&!String(f.sariaConfigKey||'').trim());
-            console.log('ENT 738/7M8 sans config:',missing.length);
+            const tk32r=(j.flights||[]).filter(f=>String(f.airline||'').toUpperCase()==='TK'&&String(f.aircraft||'').toUpperCase()==='32R');
+            console.log('vols TK 32R:',tk32r.length);
+            tk32r.forEach(f=>console.log('TK32R',f.date,f.flight,'config=',f.sariaConfigKey||'AUCUNE'));
+            const missing=tk32r.filter(f=>!String(f.sariaConfigKey||'').trim());
+            console.log('TK 32R sans config:',missing.length);
             if(remaining.length||missing.length)process.exitCode=1;
           "
