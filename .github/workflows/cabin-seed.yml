@@ -1,19 +1,18 @@
 name: Cabin — import du lot de plans (seed)
 
-# Le sandbox de dev n'a pas d'accès réseau direct vers *.workers.dev (politique
-# d'egress), donc on relaie l'import via un run GitHub Actions (curl, non
-# restreint sur les runners hébergés) plutôt que d'appeler l'API depuis là.
-# scripts/cabin_seed.json contient tous les plans à avoir en base (upsert par
-# config_key), réutilisable pour tout futur lot. scripts/cabin_seed_delete_keys.json
-# est optionnel : les config_key qui y figurent sont supprimées avant l'import,
-# pour remplacer proprement d'anciennes configs (ex. un lot moins fiable) par
-# de nouvelles portant une config_key différente — le DELETE ignore une clé déjà
-# absente, donc ce fichier peut aussi rester vide ([]) pour un import sans purge.
-# scripts/cabin_seed_overrides.json est optionnel : il permet de remplacer une
-# entrée du gros fichier seed sans devoir réécrire celui-ci en entier.
+# Importe automatiquement la base cabine quand les fichiers seed changent.
+# Le lancement manuel reste disponible pour un rejeu ponctuel.
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "scripts/cabin_seed.json"
+      - "scripts/cabin_seed_delete_keys.json"
+      - "scripts/cabin_seed_overrides.json"
+      - ".github/workflows/cabin-seed.yml"
 
 permissions:
   contents: read
@@ -28,24 +27,29 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Supprime les anciennes config_key remplacées (si scripts/cabin_seed_delete_keys.json existe)
+      - name: Prépare les suppressions de config_key
         run: |
-          if [ -f scripts/cabin_seed_delete_keys.json ]; then
-            node -e "
-              const keys = JSON.parse(require('fs').readFileSync('scripts/cabin_seed_delete_keys.json','utf8'));
-              console.log('Cles a supprimer avant import:', keys.length);
-              require('fs').writeFileSync('delete_keys.txt', keys.join('\n') + '\n');
-            "
-            while IFS= read -r key; do
-              [ -z "$key" ] && continue
-              echo "DELETE $key"
-              curl -sS -X DELETE "$API/api/cabin/layout?key=$(node -e "console.log(encodeURIComponent(process.argv[1]))" "$key")" || true
-            done < delete_keys.txt
-          else
-            echo "Aucun fichier de suppression, on passe directement a l'import."
-          fi
+          node -e "
+            const fs=require('fs');
+            const keys=[];
+            if (fs.existsSync('scripts/cabin_seed_delete_keys.json')) {
+              keys.push(...JSON.parse(fs.readFileSync('scripts/cabin_seed_delete_keys.json','utf8')));
+            }
+            if (fs.existsSync('scripts/cabin_seed_overrides.json')) {
+              const o=JSON.parse(fs.readFileSync('scripts/cabin_seed_overrides.json','utf8'));
+              keys.push(...(o.deleteKeys||[]));
+            }
+            const unique=[...new Set(keys.filter(Boolean))];
+            console.log('Cles a supprimer avant import:', unique.length);
+            require('fs').writeFileSync('delete_keys.txt', unique.join('\n') + (unique.length?'\n':''));
+          "
+          while IFS= read -r key; do
+            [ -z "$key" ] && continue
+            echo "DELETE $key"
+            curl -sS -f -X DELETE "$API/api/cabin/layout?key=$(node -e "console.log(encodeURIComponent(process.argv[1]))" "$key")"
+          done < delete_keys.txt
 
-      - name: Construit le payload {configs:[...]}
+      - name: Construit le payload effectif {configs:[...]}
         run: |
           node -e "
             const fs=require('fs');
@@ -54,7 +58,9 @@ jobs:
               const overrides=JSON.parse(fs.readFileSync('scripts/cabin_seed_overrides.json','utf8'));
               const deleteKeys=new Set(overrides.deleteKeys||[]);
               rows=rows.filter(r=>!deleteKeys.has(r.configKey));
-              rows.push(...(overrides.configs||[]));
+              const byKey=new Map(rows.map(r=>[r.configKey,r]));
+              for (const row of (overrides.configs||[])) byKey.set(row.configKey,row);
+              rows=[...byKey.values()];
               console.log('Overrides appliques:', (overrides.configs||[]).length, '/ suppressions logiques:', deleteKeys.size);
             }
             fs.writeFileSync('seed_payload.json', JSON.stringify({configs: rows}));
@@ -67,10 +73,9 @@ jobs:
             -H "Content-Type: application/json" \
             --data-binary @seed_payload.json | tee seed_result.json
           echo
-          echo "----- RESULTAT -----"
           cat seed_result.json
 
-      - name: POST /api/cabin/recompute-classes (normalise classes_json/total sur TOUTE la base)
+      - name: Recalcule classes_json et total
         run: |
           curl -sS -f -X POST "$API/api/cabin/recompute-classes" | tee recompute_result.json
           echo
@@ -79,31 +84,25 @@ jobs:
             console.log('Configs recalculees:', j.updated, '/ modifiees:', j.changed);
           "
 
-      - name: Vérification — /api/cabin/configs (compte total)
+      - name: Vérifie LY 777 et la disparition de LY 772
         run: |
           curl -sS -f "$API/api/cabin/configs" -o all_configs.json
           node -e "
             const j=JSON.parse(require('fs').readFileSync('all_configs.json','utf8'));
-            console.log('Total configs en base:', j.count);
-            console.log('Echantillon LY/777:', JSON.stringify((j.configs||[]).filter(c=>c.airline==='LY'&&c.aircraft==='777')));
-            let rows=JSON.parse(require('fs').readFileSync('scripts/cabin_seed.json','utf8'));
-            if (require('fs').existsSync('scripts/cabin_seed_overrides.json')) {
-              const o=JSON.parse(require('fs').readFileSync('scripts/cabin_seed_overrides.json','utf8'));
-              const del=new Set(o.deleteKeys||[]);
-              rows=rows.filter(r=>!del.has(r.configKey)).concat(o.configs||[]);
-            }
-            const expected=new Set(rows.map(r=>r.configKey));
-            const extra=(j.configs||[]).filter(c=>!expected.has(c.config_key));
-            console.log('Configs en base absentes du seed effectif (orphelines):', extra.length);
-            if (extra.length) console.log(JSON.stringify(extra,null,2));
+            const configs=j.configs||[];
+            const ly777=configs.filter(c=>c.config_key==='LY|777|28C32W253Y');
+            const ly772=configs.filter(c=>c.config_key==='LY|772|28C32W253Y');
+            console.log('LY 777:', JSON.stringify(ly777));
+            console.log('LY 772 restant:', ly772.length);
+            if (ly777.length!==1 || ly772.length!==0) process.exit(1);
           "
 
-      - name: Vérification — plan complet EI|32Q|16J168Y
+      - name: Vérifie le plan LY 777 complet
         run: |
-          curl -sS -f "$API/api/cabin/layout?key=EI%7C32Q%7C16J168Y" | node -e "
+          curl -sS -f "$API/api/cabin/layout?key=LY%7C777%7C28C32W253Y" | node -e "
             let data='';process.stdin.on('data',d=>data+=d);process.stdin.on('end',()=>{
               const j=JSON.parse(data);
               console.log('ok=',j.ok,'zones=',(j.zones||[]).length);
-              console.log(JSON.stringify(j.zones,null,2));
+              if(!j.ok || (j.zones||[]).length!==3) process.exit(1);
             });
           "
