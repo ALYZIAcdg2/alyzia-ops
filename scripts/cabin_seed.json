@@ -2778,5 +2778,80 @@
         "exceptions": "13=SKIP\n26=ABC||GJK\n27=ABC||GJK\n28=|DEF|\n39=BC|DEF|GJ\n40=|DEF|\n41=|DEF|"
       }
     ]
+  },
+  {
+    "configKey": "DE1594|32Q|24C210M",
+    "airline": "DE",
+    "aircraft": "32Q",
+    "configuration": "24C210M",
+    "label": "DE1594 32Q · 24C210M",
+    "sourceLabel": "DE1594 22SEP FRA-RHO",
+    "quality": "good",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 4,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      },
+      {
+        "class": "M",
+        "row_start": 5,
+        "row_end": 39,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "DE1580|32Q|12C222M",
+    "airline": "DE",
+    "aircraft": "32Q",
+    "configuration": "12C222M",
+    "label": "DE1580 32Q · 12C222M",
+    "sourceLabel": "DE1580 22SEP FRA-CFU",
+    "quality": "good",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 2,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      },
+      {
+        "class": "M",
+        "row_start": 3,
+        "row_end": 39,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "DE1498|32Q|6C228M",
+    "airline": "DE",
+    "aircraft": "32Q",
+    "configuration": "6C228M",
+    "label": "DE1498 32Q · 6C228M",
+    "sourceLabel": "DE1498 22SEP FRA-PMI",
+    "quality": "good",
+    "zones": [
+      {
+        "class": "C",
+        "row_start": 1,
+        "row_end": 1,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      },
+      {
+        "class": "M",
+        "row_start": 2,
+        "row_end": 39,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
   }
 ]
