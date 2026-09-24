@@ -2517,5 +2517,23 @@
         "exceptions": ""
       }
     ]
+  },
+  {
+    "configKey": "DE|32B|217M",
+    "airline": "DE",
+    "aircraft": "32B",
+    "configuration": "217M",
+    "label": "DE 32B · 217M",
+    "sourceLabel": "DE4292/4214 14-26SEP CDG-FRA (4 releves identiques)",
+    "quality": "good",
+    "zones": [
+      {
+        "class": "M",
+        "row_start": 1,
+        "row_end": 39,
+        "pattern": "ABC|DEF",
+        "exceptions": "11=BC|DE\n13=SKIP\n17=SKIP\n39=ABC|"
+      }
+    ]
   }
 ]
