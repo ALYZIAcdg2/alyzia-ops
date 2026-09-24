@@ -2481,5 +2481,41 @@
         "exceptions": ""
       }
     ]
+  },
+  {
+    "configKey": "DE|32N|180M",
+    "airline": "DE",
+    "aircraft": "32N",
+    "configuration": "180M",
+    "label": "DE 32N · 180M",
+    "sourceLabel": "DE4187/4419 22SEP FRA-FCO (2 releves identiques)",
+    "quality": "good",
+    "zones": [
+      {
+        "class": "M",
+        "row_start": 1,
+        "row_end": 30,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
+  },
+  {
+    "configKey": "DE|320|180M",
+    "airline": "DE",
+    "aircraft": "320",
+    "configuration": "180M",
+    "label": "DE 320 · 180M",
+    "sourceLabel": "DE4264/4179/4214 14-23SEP CDG/FRA (3 releves identiques)",
+    "quality": "good",
+    "zones": [
+      {
+        "class": "M",
+        "row_start": 1,
+        "row_end": 30,
+        "pattern": "ABC|DEF",
+        "exceptions": ""
+      }
+    ]
   }
 ]
