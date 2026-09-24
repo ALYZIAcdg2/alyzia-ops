@@ -31,7 +31,8 @@ jobs:
             const MAP = {
               'TK|32Q':'N32', 'TK|359':'35D', 'TK|77W':'77B',
               'TU|32A':'320',
-              'LY|772':'777'
+              'LY|772':'777',
+              'ENT|73H':'738'
             };
             const targets = (j.flights||[]).filter(f => {
               const key = String(f.airline||'').toUpperCase()+'|'+String(f.aircraft||'').toUpperCase();
@@ -56,7 +57,7 @@ jobs:
               ' -o /dev/null -w \"' + t.identity + ' -> ' + t.to + ' [%{http_code}]\\\\n\"'
             ).join('\n'));
           "
-          bash patch_commands.sh
+          [ -s patch_commands.sh ] && bash patch_commands.sh || true
 
       - name: Verification finale
         run: |
@@ -66,7 +67,8 @@ jobs:
             const MAP = {
               'TK|32Q':'N32', 'TK|359':'35D', 'TK|77W':'77B',
               'TU|32A':'320',
-              'LY|772':'777'
+              'LY|772':'777',
+              'ENT|73H':'738'
             };
             const remaining = (j.flights||[]).filter(f => {
               const key = String(f.airline||'').toUpperCase()+'|'+String(f.aircraft||'').toUpperCase();
@@ -74,7 +76,10 @@ jobs:
             });
             console.log('anciens codes restants:', remaining.length);
             remaining.forEach(f => console.log('->', f.date, f.airline, f.flight, f.aircraft));
-            const ly777=(j.flights||[]).filter(f=>String(f.airline||'').toUpperCase()==='LY'&&String(f.aircraft||'').toUpperCase()==='777');
-            console.log('vols LY 777:', ly777.length);
-            ly777.forEach(f=>console.log('LY777',f.date,f.flight,'config=',f.sariaConfigKey||'AUCUNE'));
+            const ent=(j.flights||[]).filter(f=>String(f.airline||'').toUpperCase()==='ENT');
+            console.log('vols ENT:',ent.length);
+            ent.forEach(f=>console.log('ENT',f.date,f.flight,'A/C',f.aircraft||'-','config=',f.sariaConfigKey||'AUCUNE'));
+            const missing=ent.filter(f=>['738','7M8'].includes(String(f.aircraft||'').toUpperCase())&&!String(f.sariaConfigKey||'').trim());
+            console.log('ENT 738/7M8 sans config:',missing.length);
+            if(remaining.length||missing.length)process.exitCode=1;
           "
