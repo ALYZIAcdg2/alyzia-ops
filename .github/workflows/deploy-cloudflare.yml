@@ -21,6 +21,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Normalise le code appareil LY 772 vers 777 dans l'import Excel
+        run: |
+          node - <<'NODE'
+          const fs=require('fs');
+          const p='public/index.html';
+          let s=fs.readFileSync(p,'utf8');
+          const from="'TU|32A':'320'";
+          const to="'TU|32A':'320','LY|772':'777'";
+          if(!s.includes("'LY|772':'777'")){
+            if(!s.includes(from)) throw new Error('IMPORT_AIRCRAFT_CODE_MAP introuvable');
+            s=s.replace(from,to);
+            fs.writeFileSync(p,s);
+          }
+          console.log('Mapping import actif: LY 772 -> 777');
+          NODE
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
