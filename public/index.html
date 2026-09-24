@@ -250,6 +250,15 @@ tr:last-child td{border-bottom:0}
 .home-load b{font-size:11px}
 .home-avail.neg{color:#ef1f2e}
 .home-open{border:0;background:#eef6ff;color:#075fd3;border-radius:8px;height:32px;font-size:18px;font-weight:900}
+/* Filet de securite : si la fenetre est trop etroite pour toutes les
+   colonnes (ex. navigateur tablette non plein ecran, entre deux paliers
+   media-query), on fait defiler le tableau horizontalement au lieu de
+   perdre silencieusement AVAILABLE/etoile/fleche sous overflow-x:hidden
+   (regle globale sur body, voir plus bas). N'a aucun effet quand les
+   colonnes tiennent deja (overflow:auto ne scrolle que si necessaire),
+   donc ne touche pas aux paliers mobile/tablette-portrait existants.
+   Sur mobile (<=720px) .home-head passe deja a display:none. */
+.home-table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .home-head{display:grid;grid-template-columns:95px 115px 1.2fr 135px 105px 150px 130px 44px;gap:10px;padding:0 13px 6px;color:#74859a;font-size:9px;font-weight:900}
 @media(max-width:1000px){
  .flight-home-row,.home-head{grid-template-columns:80px 95px 1fr 110px 100px 115px 42px}
@@ -8551,6 +8560,7 @@ function renderHome(){
      <button type="button" class="terminal-filter-btn tall ${TERMINAL_FILTER==='ALL'?'active':''}" onclick="setTerminalFilter('ALL')">ALL</button>
    </div>
    <div class="home-flight-search"><span>⌕</span><input autocomplete="off" placeholder="RECHERCHER : SQ · SQ335 · 335..." value="${HOME_FLIGHT_QUERY}" oninput="filterFlightHomeRows(this.value)"></div>
+   <div class="home-table-scroll">
    <div class="home-head"><span>DÉPART</span><span>VOL</span><span>ROUTE</span><span>APPAREIL</span><span>GATE</span><span>CONFIG / BOOKING</span><span>AVAILABLE</span><span></span></div>
    <div class="flight-home-list">
     ${rows.map(x=>{
@@ -8594,6 +8604,7 @@ function renderHome(){
         </div>
       </div>`;
     }).join('')}
+   </div>
    </div>
  </section>`;
  updateClocks();
