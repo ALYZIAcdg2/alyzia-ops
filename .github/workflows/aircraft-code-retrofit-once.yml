@@ -1,0 +1,74 @@
+name: Retrofit ponctuel - code appareil TK/TU deja en base
+
+# Les vols TK/TU deja importes AVANT le correctif de conversion de code
+# appareil (32Q->N32, 359->35D, 77W->77B pour TK ; 32A->320 pour TU) gardent
+# l'ancien code tant qu'ils ne sont pas patches individuellement — un
+# reimport en mode CONSERVER ne les touche pas (par design, pour ne jamais
+# ecraser des donnees operationnelles deja saisies). Ce run ponctuel liste
+# tous les vols TK/TU dont le type A/C correspond a un ancien code, et les
+# PATCH un par un vers le nouveau code — ce qui declenche aussi
+# l'auto-injection de config cabine (upsertFlight -> applyAutoCabinConfig)
+# au passage.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  retrofit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      API: https://alyzia-ops.alyzia-cdg2.workers.dev
+    steps:
+      - name: Liste + patch des vols TK/TU avec un ancien code appareil
+        run: |
+          curl -sS -f "$API/api/flights" -o all_flights.json
+          node -e "
+            const j = JSON.parse(require('fs').readFileSync('all_flights.json','utf8'));
+            const MAP = {
+              'TK|32Q':'N32', 'TK|359':'35D', 'TK|77W':'77B',
+              'TU|32A':'320'
+            };
+            const targets = (j.flights||[]).filter(f => {
+              const key = String(f.airline||'').toUpperCase()+'|'+String(f.aircraft||'').toUpperCase();
+              return MAP[key];
+            });
+            console.log('total flights en base:', j.count);
+            console.log('vols TK/TU a corriger:', targets.length);
+            require('fs').writeFileSync('targets.json', JSON.stringify(targets.map(f => ({
+              identity: [f.date, f.airline, f.flight].join('|'),
+              from: f.aircraft,
+              to: MAP[String(f.airline).toUpperCase()+'|'+String(f.aircraft).toUpperCase()]
+            }))));
+          "
+          echo "----- CIBLES -----"
+          cat targets.json | node -e "const t=JSON.parse(require('fs').readFileSync(0,'utf8'));t.forEach(x=>console.log(x.identity, x.from,'->',x.to))"
+          echo "----- PATCH -----"
+          node -e "
+            const targets = JSON.parse(require('fs').readFileSync('targets.json','utf8'));
+            require('fs').writeFileSync('patch_commands.sh', targets.map(t =>
+              'curl -sS -f -X PATCH \"$API/api/flights\" -H \"Content-Type: application/json\" --data-binary ' +
+              JSON.stringify(JSON.stringify({identity: t.identity, patch: {aircraft: t.to}})) +
+              ' -o /dev/null -w \"' + t.identity + ' -> ' + t.to + ' [%{http_code}]\\\\n\"'
+            ).join('\n'));
+          "
+          bash patch_commands.sh
+      - name: Verification finale — recompte des anciens codes restants
+        run: |
+          curl -sS -f "$API/api/flights" -o all_flights_after.json
+          node -e "
+            const j = JSON.parse(require('fs').readFileSync('all_flights_after.json','utf8'));
+            const MAP = {
+              'TK|32Q':'N32', 'TK|359':'35D', 'TK|77W':'77B',
+              'TU|32A':'320'
+            };
+            const remaining = (j.flights||[]).filter(f => {
+              const key = String(f.airline||'').toUpperCase()+'|'+String(f.aircraft||'').toUpperCase();
+              return MAP[key];
+            });
+            console.log('vols TK/TU avec ancien code restants:', remaining.length);
+            remaining.forEach(f => console.log('->', f.date, f.airline, f.flight, f.aircraft));
+          "
