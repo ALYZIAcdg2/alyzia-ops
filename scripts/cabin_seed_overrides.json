@@ -113,6 +113,31 @@
           "exceptions": "1=ABC|"
         }
       ]
+    },
+    {
+      "configKey": "TK|32R|16C164Y",
+      "airline": "TK",
+      "aircraft": "32R",
+      "configuration": "16C164Y",
+      "label": "TK 32R · 16C164Y",
+      "sourceLabel": "TK 32R seatmap",
+      "quality": "good",
+      "zones": [
+        {
+          "class": "C",
+          "row_start": 1,
+          "row_end": 4,
+          "pattern": "AB|EF",
+          "exceptions": ""
+        },
+        {
+          "class": "Y",
+          "row_start": 6,
+          "row_end": 33,
+          "pattern": "ABC|DEF",
+          "exceptions": "8=BC|DE\n21=BC|DE"
+        }
+      ]
     }
   ]
 }
