@@ -2660,5 +2660,98 @@
         "exceptions": "13=SKIP"
       }
     ]
+  },
+  {
+    "configKey": "AT789|7M8|12J144Y",
+    "airline": "AT789",
+    "aircraft": "7M8",
+    "configuration": "12J144Y",
+    "label": "AT789 7M8 · 12J144Y",
+    "sourceLabel": "AT789 26SEP CDG-CMN",
+    "quality": "good",
+    "zones": [
+      {
+        "class": "J",
+        "row_start": 1,
+        "row_end": 3,
+        "pattern": "AC|DF",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 8,
+        "row_end": 32,
+        "pattern": "ABC|DEF",
+        "exceptions": "13=SKIP"
+      }
+    ]
+  },
+  {
+    "configKey": "AT789|7M8|8J168Y",
+    "airline": "AT789",
+    "aircraft": "7M8",
+    "configuration": "8J168Y",
+    "label": "AT789 7M8 · 8J168Y",
+    "sourceLabel": "AT789 24SEP CDG-CMN",
+    "quality": "good",
+    "zones": [
+      {
+        "class": "J",
+        "row_start": 1,
+        "row_end": 2,
+        "pattern": "AC|DF",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 3,
+        "row_end": 31,
+        "pattern": "ABC|DEF",
+        "exceptions": "13=SKIP"
+      }
+    ]
+  },
+  {
+    "configKey": "AT653|7M8|189Y",
+    "airline": "AT653",
+    "aircraft": "7M8",
+    "configuration": "189Y",
+    "label": "AT653 7M8 · 189Y",
+    "sourceLabel": "AT653 21SEP ORY-FEZ",
+    "quality": "good",
+    "zones": [
+      {
+        "class": "Y",
+        "row_start": 1,
+        "row_end": 32,
+        "pattern": "ABC|DEF",
+        "exceptions": "01=ABC|"
+      }
+    ]
+  },
+  {
+    "configKey": "AT639|73H|12J147Y",
+    "airline": "AT639",
+    "aircraft": "73H",
+    "configuration": "12J147Y",
+    "label": "AT639 73H · 12J147Y",
+    "sourceLabel": "AT639 26SEP CDG-RAK",
+    "quality": "good",
+    "zones": [
+      {
+        "class": "J",
+        "row_start": 1,
+        "row_end": 3,
+        "pattern": "AC|DF",
+        "exceptions": ""
+      },
+      {
+        "class": "Y",
+        "row_start": 8,
+        "row_end": 33,
+        "pattern": "ABC|DEF",
+        "exceptions": "13=SKIP\n33=|DEF|"
+      }
+    ]
   }
 ]
