@@ -84,6 +84,57 @@ jobs:
             console.log('Configs recalculees:', j.updated, '/ modifiees:', j.changed);
           "
 
+      - name: Réapplique les tris classes opérationnels déclarés
+        run: |
+          node -e "
+            const fs=require('fs');
+            if(!fs.existsSync('scripts/cabin_seed_overrides.json'))process.exit(0);
+            const o=JSON.parse(fs.readFileSync('scripts/cabin_seed_overrides.json','utf8'));
+            const rows=(o.configs||[]).filter(r=>r.operationalClasses && Object.keys(r.operationalClasses).length);
+            const payloads=rows.map(r=>JSON.stringify({
+              configKey:r.configKey,
+              airline:r.airline,
+              aircraft:r.aircraft,
+              configuration:r.configuration,
+              total:Number(r.operationalTotal||Object.values(r.operationalClasses).reduce((a,b)=>a+Number(b||0),0)),
+              classes:r.operationalClasses,
+              quality:r.quality||'good',
+              sourceLabel:r.sourceLabel||null
+            }));
+            fs.writeFileSync('operational_configs.ndjson',payloads.join('\n')+(payloads.length?'\n':''));
+            console.log('Tris classes operationnels a appliquer:',payloads.length);
+          "
+          while IFS= read -r payload; do
+            [ -z "$payload" ] && continue
+            echo "$payload"
+            curl -sS -f -X POST "$API/api/cabin/config" \
+              -H "Content-Type: application/json" \
+              --data "$payload"
+            echo
+          done < operational_configs.ndjson
+
+      - name: Vérifie les tris classes opérationnels déclarés
+        run: |
+          curl -sS -f "$API/api/cabin/configs" -o all_configs.json
+          node -e "
+            const fs=require('fs');
+            const all=JSON.parse(fs.readFileSync('all_configs.json','utf8')).configs||[];
+            const o=JSON.parse(fs.readFileSync('scripts/cabin_seed_overrides.json','utf8'));
+            const expected=(o.configs||[]).filter(r=>r.operationalClasses && Object.keys(r.operationalClasses).length);
+            for(const row of expected){
+              const found=all.find(c=>c.config_key===row.configKey);
+              if(!found){console.error('Config operationnelle absente:',row.configKey);process.exit(1)}
+              let classes={};try{classes=JSON.parse(found.classes_json||'{}')}catch(e){}
+              const wanted=row.operationalClasses;
+              const total=Number(row.operationalTotal||Object.values(wanted).reduce((a,b)=>a+Number(b||0),0));
+              console.log(row.configKey,'classes=',JSON.stringify(classes),'total=',found.total);
+              if(Number(found.total)!==total || JSON.stringify(classes)!==JSON.stringify(wanted)){
+                console.error('Tri classes incorrect:',row.configKey,'attendu=',JSON.stringify(wanted),total);
+                process.exit(1);
+              }
+            }
+          "
+
       - name: Vérifie LY 777 et la disparition de LY 772
         run: |
           curl -sS -f "$API/api/cabin/configs" -o all_configs.json
