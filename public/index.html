@@ -8251,7 +8251,21 @@ function classesByValue(obj,x=f()){
 }
 
 function orderedClasses(x=f()){
- const keys=Object.keys(x?.config||{});
+ // Union avec les vraies classes du plan cabine selectionne (jamais
+ // seulement x.config) : sinon, si CONFIGURATION/CAPACITY n'a pas encore
+ // ete synchronise avec la version cabine choisie (ex. selection restauree
+ // depuis le localStorage, ou fiche pas encore rafraichie), une classe
+ // entiere (souvent la business) reste invisible meme si le plan cabine
+ // est correctement selectionne. sariaSelectedEntry/sariaClassObject sont
+ // definies plus bas dans ce fichier mais hissees (function declaration),
+ // donc toujours disponibles au moment ou orderedClasses tourne vraiment.
+ const keys=new Set(Object.keys(x?.config||{}));
+ try{
+  if(typeof sariaSelectedEntry==='function'){
+   const entry=sariaSelectedEntry(x);
+   if(entry)Object.keys(sariaClassObject(entry)).forEach(k=>keys.add(k));
+  }
+ }catch(e){}
  const rank=cls=>{
    const c=String(cls||'').toUpperCase();
    if(c==='F')return 10;            // First
@@ -19225,7 +19239,11 @@ function sariaClassObject(entry){
  // lettre de TOUTES les autres compagnies utilisant J.
  (entry?.classes||[]).forEach(([c,n])=>{
    let k=sariaNorm(c);
-   if(k==='M'||k==='E')k='Y';
+   // "M" est la vraie lettre economie de plusieurs compagnies (DE, SK, FI,
+   // certains TK) — la convertir en "Y" masquait la vraie lettre partout
+   // (liste VERSION CABINE, CONFIGURATION/CAPACITY...), meme bug que
+   // l'ancien J->C juste au-dessus.
+   if(k==='E')k='Y';
    if(airline==='SQ'){
      if(k==='C')k='J';
      if(k==='W')k='S';
