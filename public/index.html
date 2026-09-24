@@ -15269,6 +15269,23 @@ function companyRuleForFlight(x){
 }
 
 function companyClassesForFlight(x){
+ // Le plan cabine reellement selectionne pour CE vol (verifie siege par
+ // siege) est TOUJOURS prioritaire sur une regle compagnie statique —
+ // sinon un vieux defaut generique (souvent classes:['Y'] seul, ou
+ // ['C','Y'] fixe, poses il y a longtemps avant que le vrai plan cabine
+ // n'existe pour cette compagnie) masque en permanence la business/
+ // premium reelle, quoi que orderedClasses() renvoie par ailleurs (ex.
+ // constate sur AH/TS/WB/FB/RJ : Type A/C affiche la bonne version mais
+ // CONFIGURATION/CAPACITY n'affichait que Y a cause de cette regle).
+ try{
+  if(typeof sariaSelectedEntry==='function'){
+   const entry=sariaSelectedEntry(x);
+   if(entry){
+    const real=Object.keys(sariaClassObject(entry));
+    if(real.length)return cabinOrderedClassKeys(real);
+   }
+  }
+ }catch(e){}
  const rule=companyRuleForFlight(x);
  if(rule?.classes?.length)return rule.classes.map(c=>String(c).toUpperCase());
  return orderedClasses(x);
