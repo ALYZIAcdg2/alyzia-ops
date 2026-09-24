@@ -3306,10 +3306,18 @@ body{
 .cabin-report-item button{align-self:flex-start;margin-top:4px;border:1px solid #cfdbe6;background:#fff;border-radius:7px;padding:6px 10px;font-size:8.5px;font-weight:950;cursor:pointer}
 .cabin-zone-list{display:grid;gap:6px}
 .cabin-zone-row{
- display:flex;align-items:center;gap:9px;border:1px solid #e1e7ee;border-radius:8px;padding:8px 10px
+ display:flex;align-items:center;gap:9px;border:1px solid #e1e7ee;border-radius:8px;padding:8px 10px;
+ cursor:pointer
 }
+.cabin-zone-row:hover{border-color:#9fb4c7;background:#f8fafc}
 .cabin-zone-row b{font-size:11px;color:#13263c;flex:0 0 auto}
 .cabin-zone-row span{font-size:9px;color:#6a7c90;font-weight:800;flex:1 1 auto}
+.cabin-zone-order{display:flex;flex-direction:column;gap:2px;flex:0 0 auto}
+.cabin-zone-order-btn{
+ width:20px;height:16px;border:1px solid #cfdbe6;background:#fff;border-radius:4px;
+ font-size:8px;line-height:1;cursor:pointer;color:#4b5f78;padding:0
+}
+.cabin-zone-order-btn:disabled{opacity:.25;cursor:default}
 
 
 /* V46.3 — ouverture SeatMap non bloquante */
@@ -21170,6 +21178,7 @@ async function saveCabinConfigCreate(airline,aircraft){
  await fetch(opsApiUrl('/api/cabin/config'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({airline,aircraft,configuration,quality:'manuel'})});
  openCabinZoneEditor(configKey);
 }
+let CABIN_ZONE_EDITOR_ZONES=[];
 function openCabinZoneEditor(configKey){
  showModal('ZONES DU PLAN',configKey,`
   <div id="cabinZoneEditorBody" class="import-status">CHARGEMENT…</div>
@@ -21183,7 +21192,15 @@ async function refreshCabinZoneEditor(configKey){
   const r=await fetch(opsApiUrl(`/api/cabin/layout?key=${encodeURIComponent(configKey)}`),{cache:'no-store',headers:{Accept:'application/json'}});
   const j=await r.json();
   const zones=j?.zones||[];
-  body.innerHTML=zones.length?`<div class="cabin-zone-list">${zones.map(z=>`<div class="cabin-zone-row"><b>${escapeHtml(z.class)}</b><span>RANGÉES ${z.row_start}–${z.row_end} · ${escapeHtml(z.pattern)}</span><button class="part-minus" onclick="deleteCabinZone(${z.id},'${escapeHtml(configKey)}')" title="Supprimer">−</button></div>`).join('')}</div>`
+  CABIN_ZONE_EDITOR_ZONES=zones;
+  body.innerHTML=zones.length?`<div class="cabin-zone-list">${zones.map((z,i)=>`<div class="cabin-zone-row" onclick="openCabinZoneEdit(${z.id},'${escapeHtml(configKey)}')">
+    <div class="cabin-zone-order">
+     <button class="cabin-zone-order-btn" onclick="event.stopPropagation();moveCabinZone(${z.id},'${escapeHtml(configKey)}','up')" ${i===0?'disabled':''} title="Monter (avant la précédente)">▲</button>
+     <button class="cabin-zone-order-btn" onclick="event.stopPropagation();moveCabinZone(${z.id},'${escapeHtml(configKey)}','down')" ${i===zones.length-1?'disabled':''} title="Descendre (après la suivante)">▼</button>
+    </div>
+    <b>${escapeHtml(z.class)}</b><span>RANGÉES ${z.row_start}–${z.row_end} · ${escapeHtml(z.pattern)}</span>
+    <button class="part-minus" onclick="event.stopPropagation();deleteCabinZone(${z.id},'${escapeHtml(configKey)}')" title="Supprimer">−</button>
+   </div>`).join('')}</div>`
    :'<div class="import-status">AUCUNE ZONE. AJOUTEZ-EN UNE.</div>';
  }catch(e){body.innerHTML=`<div class="import-status error">${escapeHtml(String(e?.message||e))}</div>`}
 }
@@ -21207,6 +21224,34 @@ async function saveCabinZoneAdd(configKey){
  if(!cls||!rowStart||!rowEnd||!pattern){alert('CLASSE, RANGÉES ET MOTIF SONT OBLIGATOIRES.');return}
  await fetch(opsApiUrl('/api/cabin/zone'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({configKey,class:cls,rowStart,rowEnd,pattern,exceptions})});
  modalBack();
+ refreshCabinZoneEditor(configKey);
+}
+function openCabinZoneEdit(id,configKey){
+ const z=CABIN_ZONE_EDITOR_ZONES.find(zz=>zz.id===id);
+ if(!z)return;
+ showModal('MODIFIER LA ZONE',configKey,`
+  <div class="editform">
+   <label>CLASSE<input id="cabinZoneEditClass" maxlength="2" value="${escapeHtml(z.class)}"></label>
+   <label>RANGÉE DÉBUT<input id="cabinZoneEditRowStart" type="number" value="${z.row_start}"></label>
+   <label>RANGÉE FIN<input id="cabinZoneEditRowEnd" type="number" value="${z.row_end}"></label>
+   <label>MOTIF (SÉPARÉ PAR DES COULOIRS "|")<input id="cabinZoneEditPattern" value="${escapeHtml(z.pattern)}"></label>
+   <label>EXCEPTIONS (OPTIONNEL, UNE PAR LIGNE : 13=SKIP OU 34=DEFG)<textarea id="cabinZoneEditExceptions" rows="3">${escapeHtml(z.exceptions||'')}</textarea></label>
+   <button class="save" onclick="saveCabinZoneEdit(${id},'${escapeHtml(configKey)}')">ENREGISTRER LES MODIFICATIONS</button>
+  </div>`);
+}
+async function saveCabinZoneEdit(id,configKey){
+ const cls=String(document.getElementById('cabinZoneEditClass')?.value||'').trim().toUpperCase();
+ const rowStart=Number(document.getElementById('cabinZoneEditRowStart')?.value||0);
+ const rowEnd=Number(document.getElementById('cabinZoneEditRowEnd')?.value||0);
+ const pattern=String(document.getElementById('cabinZoneEditPattern')?.value||'').trim().toUpperCase();
+ const exceptions=String(document.getElementById('cabinZoneEditExceptions')?.value||'').trim();
+ if(!cls||!rowStart||!rowEnd||!pattern){alert('CLASSE, RANGÉES ET MOTIF SONT OBLIGATOIRES.');return}
+ await fetch(opsApiUrl('/api/cabin/zone'),{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,class:cls,rowStart,rowEnd,pattern,exceptions})});
+ modalBack();
+ refreshCabinZoneEditor(configKey);
+}
+async function moveCabinZone(id,configKey,direction){
+ await fetch(opsApiUrl('/api/cabin/zone/move'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,configKey,direction})});
  refreshCabinZoneEditor(configKey);
 }
 async function deleteCabinZone(id,configKey){

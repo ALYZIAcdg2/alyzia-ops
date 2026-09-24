@@ -12778,6 +12778,15 @@ async function ensureCabinTables(env){
     env.OPS_DB.prepare(`CREATE INDEX IF NOT EXISTS idx_cabin_equipment_key ON cabin_equipment(config_key)`),
     env.OPS_DB.prepare(`CREATE INDEX IF NOT EXISTS idx_cabin_reports_resolved ON cabin_reports(resolved)`)
   ]);
+  /*
+   * Ajout après coup (ordre manuel des zones dans l'éditeur "ZONES DU
+   * PLAN" — permet ex. de placer une zone C avant une zone M même si
+   * leurs plages de rangées se chevauchent). ALTER TABLE ADD COLUMN
+   * échoue si la colonne existe déjà : on l'exécute hors du batch
+   * (qui est transactionnel — une erreur y annulerait tout) et on
+   * avale l'erreur, comme une migration idempotente classique.
+   */
+  await env.OPS_DB.prepare(`ALTER TABLE cabin_zones ADD COLUMN sort_order INTEGER`).run().catch(()=>{});
 }
 
 // Etend un motif "AC|DEFG|HK" (+ exceptions "13=SKIP" / "38=AB||JK") en un
@@ -12831,7 +12840,12 @@ async function handleCabin(request,env,url){
     if(!key)return json({ok:false,error:"KEY MANQUANTE"},400);
 
     const configuration=await env.OPS_DB.prepare(`SELECT * FROM cabin_configs WHERE config_key=? LIMIT 1`).bind(key).first();
-    const zones=await env.OPS_DB.prepare(`SELECT * FROM cabin_zones WHERE config_key=? ORDER BY row_start,id`).bind(key).all();
+    // Tant qu'aucune zone n'a jamais été réordonnée manuellement, sort_order
+    // reste NULL pour toutes et on retombe sur l'ordre naturel (rangée, id).
+    // Dès qu'un réordonnancement a eu lieu (voir /api/cabin/zone/move), les
+    // sort_order de TOUTES les zones de la config sont renseignées d'un coup,
+    // donc on les priorise dès qu'elles existent.
+    const zones=await env.OPS_DB.prepare(`SELECT * FROM cabin_zones WHERE config_key=? ORDER BY (sort_order IS NULL),sort_order,row_start,id`).bind(key).all();
     const equipment=await env.OPS_DB.prepare(`SELECT * FROM cabin_equipment WHERE config_key=? ORDER BY row_reference,id`).bind(key).all();
 
     return json({ok:true,key,configuration:configuration||null,zones:zones.results||[],equipment:equipment.results||[]});
@@ -12887,6 +12901,68 @@ async function handleCabin(request,env,url){
     if(!id)return json({ok:false,error:"ID MANQUANT"},400);
     await env.OPS_DB.prepare(`DELETE FROM cabin_zones WHERE id=?`).bind(id).run();
     return json({ok:true});
+  }
+
+  // Modifier une zone existante EN PLACE (au lieu de supprimer + recréer,
+  // qui perdait l'historique et forçait à tout retaper) — demande explicite
+  // utilisateur sur l'éditeur "ZONES DU PLAN".
+  if(url.pathname==="/api/cabin/zone" && request.method==="PATCH"){
+    const body=await request.json().catch(()=>null);
+    const id=Number(body?.id);
+    if(!id)return json({ok:false,error:"ID MANQUANT"},400);
+    const cls=String(body?.class||"").trim().toUpperCase();
+    const rowStart=Number(body?.rowStart);
+    const rowEnd=Number(body?.rowEnd);
+    const pattern=String(body?.pattern||"").trim().toUpperCase();
+    if(!cls||!Number.isFinite(rowStart)||!Number.isFinite(rowEnd)||!pattern){
+      return json({ok:false,error:"ZONE INVALIDE (class/rowStart/rowEnd/pattern requis)"},400);
+    }
+    await env.OPS_DB.prepare(`
+      UPDATE cabin_zones SET class=?,row_start=?,row_end=?,pattern=?,placement_mode=?,exceptions=? WHERE id=?
+    `).bind(cls,rowStart,rowEnd,pattern,String(body?.placementMode||"ALIGNE"),String(body?.exceptions||""),id).run();
+    return json({ok:true,id});
+  }
+
+  // Déplace une zone avant/après sa voisine dans l'ordre d'affichage de
+  // l'éditeur (ex. mettre C avant M même si les deux commencent à la même
+  // rangée). Au premier déplacement sur une config, on fige l'ordre courant
+  // de TOUTES ses zones dans sort_order (jusque-là NULL), puis on échange
+  // simplement la valeur de la zone déplacée avec celle de sa voisine.
+  if(url.pathname==="/api/cabin/zone/move" && request.method==="POST"){
+    const body=await request.json().catch(()=>null);
+    const id=Number(body?.id);
+    const configKey=String(body?.configKey||"").trim();
+    const direction=String(body?.direction||"").trim();
+    if(!id||!configKey||(direction!=="up"&&direction!=="down")){
+      return json({ok:false,error:"id/configKey/direction(up|down) requis"},400);
+    }
+    const {results:zones=[]}=await env.OPS_DB.prepare(
+      `SELECT id,sort_order FROM cabin_zones WHERE config_key=? ORDER BY (sort_order IS NULL),sort_order,row_start,id`
+    ).bind(configKey).all();
+    const needsBackfill=zones.some(z=>z.sort_order==null);
+    const ordered=needsBackfill?zones.map((z,i)=>({...z,sort_order:(i+1)*10})):zones;
+    const idx=ordered.findIndex(z=>z.id===id);
+    if(idx<0)return json({ok:false,error:"ZONE INTROUVABLE DANS CETTE CONFIG"},404);
+    const swapIdx=direction==="up"?idx-1:idx+1;
+    if(swapIdx<0||swapIdx>=ordered.length){
+      // Déjà en première/dernière position : si un backfill était nécessaire
+      // (première utilisation du réordonnancement sur cette config), on
+      // l'écrit quand même pour que l'ordre actuel devienne l'ordre stocké.
+      if(needsBackfill){
+        await env.OPS_DB.batch(ordered.map(z=>env.OPS_DB.prepare(`UPDATE cabin_zones SET sort_order=? WHERE id=?`).bind(z.sort_order,z.id)));
+      }
+      return json({ok:true,moved:false});
+    }
+    const a=ordered[idx],b=ordered[swapIdx];
+    const aOrder=a.sort_order,bOrder=b.sort_order;
+    const stmts=ordered
+      .filter(z=>needsBackfill||z.id===a.id||z.id===b.id)
+      .map(z=>{
+        const order=z.id===a.id?bOrder:z.id===b.id?aOrder:z.sort_order;
+        return env.OPS_DB.prepare(`UPDATE cabin_zones SET sort_order=? WHERE id=?`).bind(order,z.id);
+      });
+    await env.OPS_DB.batch(stmts);
+    return json({ok:true,moved:true});
   }
 
   if(url.pathname==="/api/cabin/equipment" && request.method==="POST"){
