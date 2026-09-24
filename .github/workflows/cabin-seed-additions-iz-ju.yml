@@ -90,3 +90,40 @@ jobs:
               }
             }
           "
+
+      - name: Injection directe CONFIG sur les vols IZ et JU déjà en base
+        run: |
+          curl -sS -f "$API/api/flights" -o all_flights.json
+          node -e "
+            const fs=require('fs');
+            const j=JSON.parse(fs.readFileSync('all_flights.json','utf8'));
+            const airlines=new Set(['IZ','JU']);
+            const targets=(j.flights||[]).filter(f=>
+              airlines.has(String(f.airline||'').toUpperCase()) &&
+              String(f.aircraft||'').trim() &&
+              !String(f.sariaConfigKey||'').trim()
+            );
+            console.log('Vols IZ/JU a reevaluer pour injection directe CONFIG:',targets.length);
+            targets.forEach(f=>console.log('->',f.date,f.airline,f.flight,f.aircraft));
+            fs.writeFileSync('retrofit_targets.ndjson',targets.map(f=>JSON.stringify({identity:[f.date,f.airline,f.flight].join('|'),patch:{}})).join('\n')+(targets.length?'\n':''));
+          "
+          while IFS= read -r payload; do
+            [ -z "$payload" ] && continue
+            curl -sS -f -X PATCH "$API/api/flights" \
+              -H "Content-Type: application/json" \
+              --data "$payload" -o /dev/null
+          done < retrofit_targets.ndjson
+
+      - name: Vérifie l'injection directe IZ et JU
+        run: |
+          curl -sS -f "$API/api/flights" -o all_flights_after.json
+          node -e "
+            const j=JSON.parse(require('fs').readFileSync('all_flights_after.json','utf8'));
+            const airlines=new Set(['IZ','JU']);
+            const eligible=(j.flights||[]).filter(f=>airlines.has(String(f.airline||'').toUpperCase())&&String(f.aircraft||'').trim());
+            const missing=eligible.filter(f=>!String(f.sariaConfigKey||'').trim());
+            console.log('Vols IZ/JU avec type A/C:',eligible.length);
+            console.log('Sans CONFIG après injection directe:',missing.length);
+            missing.forEach(f=>console.log('MANQUANT',f.date,f.airline,f.flight,f.aircraft));
+            if(missing.length)process.exit(1);
+          "
