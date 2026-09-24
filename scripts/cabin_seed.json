@@ -3206,5 +3206,37 @@
     "exceptions": "30=ABC||HJK\n31=SKIP\n32=SKIP\n33=SKIP\n34=SKIP\n45=|DFG|\n46=|DFG|"
    }
   ]
+ },
+ {
+  "configKey": "LY|789|32C35W204Y",
+  "airline": "LY",
+  "aircraft": "789",
+  "configuration": "32C35W204Y",
+  "label": "LY 789 · 32C35W204Y",
+  "sourceLabel": "LY789 v1 787-9 seatmap",
+  "quality": "good",
+  "zones": [
+   {
+    "class": "C",
+    "row_start": 1,
+    "row_end": 8,
+    "pattern": "A|DG|K",
+    "exceptions": ""
+   },
+   {
+    "class": "W",
+    "row_start": 10,
+    "row_end": 14,
+    "pattern": "AC|DFG|HK",
+    "exceptions": ""
+   },
+   {
+    "class": "Y",
+    "row_start": 21,
+    "row_end": 50,
+    "pattern": "ABC|DFG|HJK",
+    "exceptions": "29=||HJK\n30=||HJK\n31=SKIP\n32=SKIP\n33=SKIP\n34=SKIP\n35=ABC||HJK\n36=ABC||HJK\n49=|DFG|\n50=|DFG|"
+   }
+  ]
  }
 ]
