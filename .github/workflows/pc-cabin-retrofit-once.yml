@@ -1,0 +1,70 @@
+name: PC — applique automatiquement les configs cabine
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/pc-cabin-retrofit-once.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  retrofit-pc:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      API: https://alyzia-ops.alyzia-cdg2.workers.dev
+    steps:
+      - name: Diagnostique et corrige les vols PC
+        run: |
+          curl -sS -f "$API/api/flights" -o all_flights.json
+          node - <<'NODE'
+          const fs=require('fs');
+          const j=JSON.parse(fs.readFileSync('all_flights.json','utf8'));
+          const MAP={'32A':'320','73H':'738'};
+          const pc=(j.flights||[]).filter(f=>String(f.airline||'').toUpperCase()==='PC');
+          console.log('Vols PC en base:',pc.length);
+          const byAc={};
+          pc.forEach(f=>{const ac=String(f.aircraft||'').toUpperCase();byAc[ac]=(byAc[ac]||0)+1;});
+          console.log('Types A/C PC:',JSON.stringify(byAc));
+          const targets=pc.filter(f=>{
+            const ac=String(f.aircraft||'').toUpperCase();
+            return ['320','32N','32Q','738','32A','73H'].includes(ac) && !String(f.sariaConfigKey||'').trim();
+          }).map(f=>({
+            identity:[f.date,f.airline,f.flight].join('|'),
+            from:String(f.aircraft||'').toUpperCase(),
+            to:MAP[String(f.aircraft||'').toUpperCase()]||String(f.aircraft||'').toUpperCase()
+          }));
+          console.log('Vols PC a traiter:',targets.length);
+          targets.forEach(t=>console.log(t.identity,t.from,'->',t.to));
+          fs.writeFileSync('targets.json',JSON.stringify(targets));
+          NODE
+
+          node - <<'NODE'
+          const fs=require('fs');
+          const targets=JSON.parse(fs.readFileSync('targets.json','utf8'));
+          fs.writeFileSync('patch.sh',targets.map(t=>
+            'curl -sS -f -X PATCH "$API/api/flights" -H "Content-Type: application/json" --data-binary '+
+            JSON.stringify(JSON.stringify({identity:t.identity,patch:t.from===t.to?{}:{aircraft:t.to}}))+
+            ' -o /dev/null -w "'+t.identity+' '+t.from+'->'+t.to+' [%{http_code}]\\n"'
+          ).join('\n'));
+          NODE
+          [ -s patch.sh ] && bash patch.sh || true
+
+      - name: Verification finale PC
+        run: |
+          curl -sS -f "$API/api/flights" -o all_flights_after.json
+          node - <<'NODE'
+          const j=JSON.parse(require('fs').readFileSync('all_flights_after.json','utf8'));
+          const pc=(j.flights||[]).filter(f=>String(f.airline||'').toUpperCase()==='PC');
+          console.log('Vols PC apres traitement:',pc.length);
+          pc.forEach(f=>console.log(f.date,f.flight,'A/C',f.aircraft||'-','CONFIG',f.sariaConfigKey||'-',f.sariaCabinConfig||'-'));
+          const old=pc.filter(f=>['32A','73H'].includes(String(f.aircraft||'').toUpperCase()));
+          const missing=pc.filter(f=>['320','32N','32Q','738'].includes(String(f.aircraft||'').toUpperCase())&&!String(f.sariaConfigKey||'').trim());
+          console.log('Anciens codes PC restants:',old.length);
+          console.log('PC 320/32N/32Q/738 encore sans config:',missing.length);
+          if(old.length||missing.length) process.exitCode=1;
+          NODE
