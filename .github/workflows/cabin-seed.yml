@@ -9,6 +9,8 @@ name: Cabin — import du lot de plans (seed)
 # pour remplacer proprement d'anciennes configs (ex. un lot moins fiable) par
 # de nouvelles portant une config_key différente — le DELETE ignore une clé déjà
 # absente, donc ce fichier peut aussi rester vide ([]) pour un import sans purge.
+# scripts/cabin_seed_overrides.json est optionnel : il permet de remplacer une
+# entrée du gros fichier seed sans devoir réécrire celui-ci en entier.
 
 on:
   workflow_dispatch:
@@ -47,7 +49,14 @@ jobs:
         run: |
           node -e "
             const fs=require('fs');
-            const rows=JSON.parse(fs.readFileSync('scripts/cabin_seed.json','utf8'));
+            let rows=JSON.parse(fs.readFileSync('scripts/cabin_seed.json','utf8'));
+            if (fs.existsSync('scripts/cabin_seed_overrides.json')) {
+              const overrides=JSON.parse(fs.readFileSync('scripts/cabin_seed_overrides.json','utf8'));
+              const deleteKeys=new Set(overrides.deleteKeys||[]);
+              rows=rows.filter(r=>!deleteKeys.has(r.configKey));
+              rows.push(...(overrides.configs||[]));
+              console.log('Overrides appliques:', (overrides.configs||[]).length, '/ suppressions logiques:', deleteKeys.size);
+            }
             fs.writeFileSync('seed_payload.json', JSON.stringify({configs: rows}));
             console.log('Configs a importer:', rows.length);
           "
@@ -76,11 +85,16 @@ jobs:
           node -e "
             const j=JSON.parse(require('fs').readFileSync('all_configs.json','utf8'));
             console.log('Total configs en base:', j.count);
-            console.log('Echantillon TK/33P:', JSON.stringify((j.configs||[]).filter(c=>c.airline==='TK'&&c.aircraft==='33P')));
-            const rows=JSON.parse(require('fs').readFileSync('scripts/cabin_seed.json','utf8'));
+            console.log('Echantillon LY/777:', JSON.stringify((j.configs||[]).filter(c=>c.airline==='LY'&&c.aircraft==='777')));
+            let rows=JSON.parse(require('fs').readFileSync('scripts/cabin_seed.json','utf8'));
+            if (require('fs').existsSync('scripts/cabin_seed_overrides.json')) {
+              const o=JSON.parse(require('fs').readFileSync('scripts/cabin_seed_overrides.json','utf8'));
+              const del=new Set(o.deleteKeys||[]);
+              rows=rows.filter(r=>!del.has(r.configKey)).concat(o.configs||[]);
+            }
             const expected=new Set(rows.map(r=>r.configKey));
             const extra=(j.configs||[]).filter(c=>!expected.has(c.config_key));
-            console.log('Configs en base absentes du fichier seed (orphelines):', extra.length);
+            console.log('Configs en base absentes du seed effectif (orphelines):', extra.length);
             if (extra.length) console.log(JSON.stringify(extra,null,2));
           "
 
