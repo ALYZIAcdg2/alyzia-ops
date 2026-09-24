@@ -1,0 +1,89 @@
+name: Retrofit ponctuel - reessaie l'auto-config cabine sur tous les vols
+
+# Les vols deja en base au moment ou une nouvelle config cabine est
+# ajoutee (ex. LY aujourd'hui) ne sont jamais reevalues automatiquement :
+# applyAutoCabinConfig() ne tourne qu'a l'ecriture (import, PATCH...), pas
+# en tache de fond. Ce run ponctuel liste tous les vols qui ont un type
+# A/C connu mais pas encore de config cabine selectionnee (sariaConfigKey
+# vide), et les PATCH un par un avec un patch vide pour forcer
+# upsertFlight -> applyAutoCabinConfig a reessayer avec les configs
+# cabine actuellement en base. Sans effet sur les vols qui ont deja une
+# config (manuelle ou auto) : jamais ecrasee.
+
+on:
+  workflow_dispatch:
+    inputs:
+      airlineFilter:
+        description: "Code compagnie a cibler (vide = toutes les compagnies)"
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  retrofit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      API: https://alyzia-ops.alyzia-cdg2.workers.dev
+    steps:
+      - name: Liste des vols sans config cabine (type A/C connu)
+        run: |
+          curl -sS -f "$API/api/flights" -o all_flights.json
+          node -e "
+            const j = JSON.parse(require('fs').readFileSync('all_flights.json','utf8'));
+            const filter = '${{ github.event.inputs.airlineFilter }}'.trim().toUpperCase();
+            const targets = (j.flights||[]).filter(f => {
+              if (f.sariaConfigKey) return false;
+              const ac = String(f.aircraft||'').trim();
+              if (!ac || ac==='NON RENSEIGNÉ') return false;
+              if (filter && String(f.airline||'').toUpperCase()!==filter) return false;
+              return true;
+            });
+            console.log('total flights en base:', j.count);
+            console.log('vols cibles (sans config, type A/C connu):', targets.length);
+            require('fs').writeFileSync('targets.json', JSON.stringify(targets.map(f => ({
+              identity: [f.date, f.airline, f.flight].join('|'),
+              airline: f.airline, aircraft: f.aircraft
+            }))));
+          "
+          echo "----- CIBLES (echantillon) -----"
+          cat targets.json | node -e "const t=JSON.parse(require('fs').readFileSync(0,'utf8'));t.slice(0,30).forEach(x=>console.log(x.identity, x.airline, x.aircraft));if(t.length>30)console.log('... +'+(t.length-30)+' autres')"
+      - name: PATCH vide sur chaque vol cible (force applyAutoCabinConfig)
+        run: |
+          node -e "
+            const targets = JSON.parse(require('fs').readFileSync('targets.json','utf8'));
+            const lines = targets.map(t => JSON.stringify({identity: t.identity, patch: {}}));
+            require('fs').writeFileSync('patch_payloads.txt', lines.join('\n')+'\n');
+          "
+          echo "ok=0 nomatch=0 fail=0" > counts.txt
+          ok=0; nomatch=0; fail=0
+          while IFS= read -r payload; do
+            [ -z "$payload" ] && continue
+            resp=$(curl -sS -X PATCH "$API/api/flights" -H "Content-Type: application/json" --data-binary "$payload")
+            key=$(echo "$resp" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const j=JSON.parse(d);console.log(j.flight&&j.flight.sariaConfigKey||'')}catch(e){console.log('__ERR__')}})")
+            if [ "$key" = "__ERR__" ]; then fail=$((fail+1));
+            elif [ -n "$key" ]; then ok=$((ok+1));
+            else nomatch=$((nomatch+1)); fi
+          done < patch_payloads.txt
+          echo "config trouvee et assignee: $ok"
+          echo "type A/C connu mais aucune config correspondante: $nomatch"
+          echo "erreurs de requete: $fail"
+      - name: Verification finale — recompte des vols encore sans config
+        run: |
+          curl -sS -f "$API/api/flights" -o all_flights_after.json
+          node -e "
+            const j = JSON.parse(require('fs').readFileSync('all_flights_after.json','utf8'));
+            const filter = '${{ github.event.inputs.airlineFilter }}'.trim().toUpperCase();
+            const remaining = (j.flights||[]).filter(f => {
+              if (f.sariaConfigKey) return false;
+              const ac = String(f.aircraft||'').trim();
+              if (!ac || ac==='NON RENSEIGNÉ') return false;
+              if (filter && String(f.airline||'').toUpperCase()!==filter) return false;
+              return true;
+            });
+            console.log('vols encore sans config (type A/C connu, aucune config trouvee en base):', remaining.length);
+            const byAcAirline = {};
+            remaining.forEach(f => { const k=f.airline+'|'+f.aircraft; byAcAirline[k]=(byAcAirline[k]||0)+1; });
+            Object.entries(byAcAirline).sort((a,b)=>b[1]-a[1]).forEach(([k,n])=>console.log(k, 'x'+n));
+          "
