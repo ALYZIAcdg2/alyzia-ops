@@ -18916,6 +18916,20 @@ function normalizeFlightCode(cie,num){
  if(/^\d+$/.test(n))return c+n;
  return n;
 }
+// Le fichier Excel d'import donne un code appareil generique (ex. "32Q"),
+// mais les configs cabine deja en base pour certaines compagnies utilisent
+// leur propre code de flotte interne (ex. TK "N32") — sans cette conversion
+// a l'import, l'injection automatique de config cabine (CONFIGURATION.md)
+// ne peut jamais matcher pour ces compagnies. Un seul mapping par cle
+// "AIRLINE|CODE_BRUT" evite d'avoir a toucher au reste du parsing Excel.
+const IMPORT_AIRCRAFT_CODE_MAP={
+ 'TK|32Q':'N32','TK|359':'35D','TK|77W':'77B',
+ 'TU|32A':'320'
+};
+function normalizeImportAircraftCode(airline,aircraft){
+ const key=`${sariaNorm(airline)}|${sariaNorm(aircraft)}`;
+ return IMPORT_AIRCRAFT_CODE_MAP[key]||aircraft;
+}
 function defaultFlightObject(row){
  const [aircraft,airline,flight,dest,std,reg,parking,date]=row;
  const base=baseClassesForFlight({airline,flight});
@@ -18961,10 +18975,11 @@ async function handleFlightExcel(file){
   let ignoredInvalid=0;
 
   for(const r of rows){
-   const aircraft=String(r[10]??'').trim().toUpperCase();
+   let aircraft=String(r[10]??'').trim().toUpperCase();
    let airline=String(r[11]??'').trim().toUpperCase().replace(/\s+/g,'');
    const flight=normalizeFlightCode(airline,r[12]);
    if(!airline && flight)airline=(flight.match(/^[A-Z]+/)||[''])[0]||flight.slice(0,2);
+   aircraft=normalizeImportAircraftCode(airline,aircraft);
 
    const dest=String(r[13]??'').trim().toUpperCase().replace(/\s+/g,'');
    const std=excelTimeToHHMM(r[14]);
