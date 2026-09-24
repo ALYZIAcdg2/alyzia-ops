@@ -89,10 +89,52 @@ async function getFlightsResponse(env){
  * un des variants existants (alphabétique, déterministe) — à corriger
  * manuellement si besoin via VERSION CABINE, marqué cabinConfigAuto:true.
  */
-async function findAutoCabinConfig(env,airline,aircraft,flightNumber){
+// Logique de choix pure (pas de requête) : réutilisée telle quelle par la
+// version qui interroge cabin_configs vol par vol (findAutoCabinConfig, OK
+// pour un seul vol : upsertFlight/patchFlight) et par la version batch qui
+// pré-charge cabin_configs une seule fois (syncFlights, import Excel avec
+// potentiellement des milliers de vols en mémoire côté client — interroger
+// la table une fois par vol y provoquait des timeouts/écritures silencieusement
+// abandonnées, cf. bug "l'import ne renseigne plus TYPE A/C ni CONFIG/CAPACITY").
+function pickAutoCabinConfigFromRows(rows,airline,aircraft,flightNumber){
   const al=String(airline||"").trim().toUpperCase();
   const ac=String(aircraft||"").trim().toUpperCase();
   const fn=String(flightNumber||"").trim().toUpperCase();
+  if(!al||!ac)return null;
+
+  const candidates=(rows||[]).filter(r=>
+    String(r.airline||"").toUpperCase()===al && String(r.aircraft||"").toUpperCase()===ac
+  );
+  if(!candidates.length)return null;
+
+  const prefixOf=r=>String(r.config_key||"").split("|")[0].toUpperCase();
+
+  if(fn){
+    const exact=candidates.find(r=>prefixOf(r)===fn);
+    if(exact)return exact;
+  }
+  const generic=candidates.find(r=>prefixOf(r)===al);
+  if(generic)return generic;
+
+  const sorted=[...candidates].sort((a,b)=>String(a.config_key).localeCompare(String(b.config_key)));
+  return sorted[0];
+}
+
+async function fetchAllCabinConfigRows(env){
+  try{
+    const r=await env.OPS_DB.prepare(`
+      SELECT config_key,airline,aircraft,configuration,total,classes_json,quality
+      FROM cabin_configs
+    `).all();
+    return r?.results||[];
+  }catch(e){
+    return []; // table cabine pas encore prête : pas d'auto-injection, pas d'erreur
+  }
+}
+
+async function findAutoCabinConfig(env,airline,aircraft,flightNumber){
+  const al=String(airline||"").trim().toUpperCase();
+  const ac=String(aircraft||"").trim().toUpperCase();
   if(!al||!ac)return null;
 
   let results=[];
@@ -105,19 +147,7 @@ async function findAutoCabinConfig(env,airline,aircraft,flightNumber){
   }catch(e){
     return null; // table cabine pas encore prête : pas d'auto-injection, pas d'erreur
   }
-  if(!results.length)return null;
-
-  const prefixOf=r=>String(r.config_key||"").split("|")[0].toUpperCase();
-
-  if(fn){
-    const exact=results.find(r=>prefixOf(r)===fn);
-    if(exact)return exact;
-  }
-  const generic=results.find(r=>prefixOf(r)===al);
-  if(generic)return generic;
-
-  const sorted=[...results].sort((a,b)=>String(a.config_key).localeCompare(String(b.config_key)));
-  return sorted[0];
+  return pickAutoCabinConfigFromRows(results,airline,aircraft,flightNumber);
 }
 
 function normalizedAutoCabinClasses(row){
@@ -137,6 +167,20 @@ function normalizedAutoCabinClasses(row){
   return out;
 }
 
+function assignAutoCabinConfigToFlight(x,match){
+  x.sariaConfigKey=match.config_key;
+  x.sariaCabinConfig=String(match.configuration||"").trim().toUpperCase();
+  const classes=normalizedAutoCabinClasses(match);
+  x.config=(x.config&&typeof x.config==="object")?{...x.config}:{};
+  for(const [k,v] of Object.entries(classes)){
+    if(!x.config[k])x.config[k]=v; // ne jamais ecraser une classe deja saisie
+  }
+  x.cabinConfigAuto=true;
+  return x;
+}
+
+// Version "un seul vol" (POST/PATCH /api/flights, injection LOT3) : interroge
+// cabin_configs directement, cout negligeable pour un vol a la fois.
 async function applyAutoCabinConfig(env,x){
   try{
     if(!x||typeof x!=="object")return x;
@@ -145,17 +189,26 @@ async function applyAutoCabinConfig(env,x){
     if(!aircraft)return x;
     const match=await findAutoCabinConfig(env,x.airline,aircraft,x.flight);
     if(!match)return x;
-
-    x.sariaConfigKey=match.config_key;
-    x.sariaCabinConfig=String(match.configuration||"").trim().toUpperCase();
-    const classes=normalizedAutoCabinClasses(match);
-    x.config=(x.config&&typeof x.config==="object")?{...x.config}:{};
-    for(const [k,v] of Object.entries(classes)){
-      if(!x.config[k])x.config[k]=v; // ne jamais ecraser une classe deja saisie
-    }
-    x.cabinConfigAuto=true;
+    assignAutoCabinConfigToFlight(x,match);
   }catch(e){
     console.warn("AUTO CABIN CONFIG",e);
+  }
+  return x;
+}
+
+// Version batch (syncFlights, import Excel) : cabinConfigRows est deja charge
+// une seule fois pour tout l'import, aucune requete DB supplementaire ici.
+function applyAutoCabinConfigFromRows(x,cabinConfigRows){
+  try{
+    if(!x||typeof x!=="object")return x;
+    if(x.sariaConfigKey)return x;
+    const aircraft=String(x.aircraft||"").trim();
+    if(!aircraft)return x;
+    const match=pickAutoCabinConfigFromRows(cabinConfigRows,x.airline,aircraft,x.flight);
+    if(!match)return x;
+    assignAutoCabinConfigToFlight(x,match);
+  }catch(e){
+    console.warn("AUTO CABIN CONFIG BATCH",e);
   }
   return x;
 }
@@ -256,23 +309,21 @@ async function syncFlights(env,flights){
     clean.push(x);
   }
 
-  // L'import (fichier XLS) écrase tout le vol, pas seulement les champs qu'il
-  // connaît : sans ceci, resynchroniser un jour déjà traité effacerait une
-  // config cabine déjà choisie (manuelle ou auto) puisque le fichier importé
-  // ne transporte jamais sariaConfigKey. On récupère donc la config existante
-  // avant d'écraser, puis on auto-assigne seulement les vols qui n'en ont
-  // toujours pas (vol nouveau, ou type A/C qui vient d'apparaître).
-  for(const x of clean){
-    const identity=flightIdentity(x);
-    const existing=await getFlightByIdentity(env,identity).catch(()=>null);
-    if(existing?.sariaConfigKey){
-      x.sariaConfigKey=existing.sariaConfigKey;
-      x.sariaCabinConfig=existing.sariaCabinConfig;
-      x.config=existing.config;
-      x.cabinConfigAuto=existing.cabinConfigAuto;
-    }
-    await applyAutoCabinConfig(env,x);
-  }
+  // Auto-assignation de la config cabine (type A/C -> VERSION CABINE) pour les
+  // vols qui n'en ont pas encore — jamais de requête cabin_configs par vol ici
+  // (clean peut contenir des milliers de vols, tout le tableau FLIGHTS côté
+  // client à chaque import Excel) : une seule lecture de cabin_configs pour
+  // tout le batch, puis un filtrage en mémoire par vol. La première version
+  // faisait une requête par vol (+ une lecture de l'ancien enregistrement) et
+  // provoquait un timeout silencieux de la synchronisation sur un gros
+  // import — plus aucun champ n'était alors écrit, TYPE A/C compris malgré
+  // sa présence dans le fichier, puisque toute la requête échouait avant
+  // d'atteindre l'écriture en base.
+  // (mergeImportedRowIntoExisting côté client ne touche jamais sariaConfigKey/
+  // config sur un vol déjà existant, donc aucune relecture n'est nécessaire
+  // ici pour préserver une config déjà choisie.)
+  const cabinConfigRows=await fetchAllCabinConfigRows(env);
+  for(const x of clean)applyAutoCabinConfigFromRows(x,cabinConfigRows);
 
   // Batch par blocs pour rester robuste même avec un mois complet.
   const CHUNK=40;
