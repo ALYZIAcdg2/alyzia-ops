@@ -7282,7 +7282,7 @@ const ALYZIA_APP_BUILD='2026-08-31-129';
  <div class="brand"><div class="brand-logo">✈</div><span>ALYZIA OPS</span><span class="app-version-badge brand-version">V50.27</span></div>
  <nav class="nav">
    <button class="home-nav" onclick="renderHome()" title="Accueil vols">⌂</button>
-   <button onclick="renderHome()">VOLS</button><button onclick="openFlightSearch()">RECHERCHE</button><button onclick="renderPrepa()">PRÉPA</button><button onclick="openTools()">OUTILS</button><button>ADMIN</button>
+   <button onclick="renderHome()">VOLS</button><button onclick="openFlightSearch()">RECHERCHE</button><button onclick="renderPrepa()">PRÉPA</button><button onclick="renderTools()">OUTILS</button><button>ADMIN</button>
  </nav>
  <div class="top-right"><span class="clock">◷ <span id="topClock">--:--:--</span></span><button id="topSyncBtn" class="top-sync-btn" onclick="manualCloudRefreshTop()" title="Actualiser sans changer de page">↻</button><span>🔔</span><span class="avatar">●</span><span>OPS CDG⌄</span></div>
 </header>
@@ -18522,8 +18522,9 @@ function renderCurrentViewPreserved(){
    return;
  }
  if(currentView==='prepa'){renderPrepa();return}
+ if(currentView==='tools'){renderTools();return}
  if(currentView==='home'){renderHome();return}
- // Outils/recherche/admin : ne pas fermer ni reconstruire leur modal.
+ // Recherche/admin restent des modales : ne pas les fermer ni les reconstruire.
 }
 
 async function cacheCloudFlightsLocally(list){
@@ -19749,7 +19750,7 @@ function closeAllModals(){
 
 function updateMobileNav(){
  document.querySelectorAll('[data-mobile-nav]').forEach(b=>b.classList.remove('active'));
- const key=currentView==='prepa'?'prepa':'home';
+ const key=currentView==='prepa'?'prepa':currentView==='tools'?'tools':'home';
  const btn=document.querySelector(`[data-mobile-nav="${key}"]`);
  if(btn)btn.classList.add('active');
 }
@@ -23912,7 +23913,7 @@ try{
   <button onclick="renderHome()" data-mobile-nav="home"><span>⌂</span><small>VOLS</small></button>
   <button onclick="openFlightSearch()" data-mobile-nav="search"><span>⌕</span><small>RECHERCHE</small></button>
   <button onclick="renderPrepa()" data-mobile-nav="prepa"><span>✓</span><small>PRÉPA</small></button>
-  <button onclick="openTools()" data-mobile-nav="tools"><span>⚙</span><small>OUTILS</small></button>
+  <button onclick="renderTools()" data-mobile-nav="tools"><span>⚙</span><small>OUTILS</small></button>
   <button data-mobile-nav="admin"><span>●</span><small>ADMIN</small></button>
 </nav>
 
@@ -25696,10 +25697,20 @@ window.openImport139Advanced=function(c,key){
     <button class="import139-mini danger" onclick="v5011AskDelete('${c}','${row.key}')">SUPPRIMER DRIVE + DB</button>
   </div>`);
 };
-openTools=async function(){
+// OUTILS est une vraie page (comme PRÉPA), plus une modale — demande
+// utilisateur : la modale perdait la position de scroll et se refermait
+// au refresh live. openTools reste comme alias pour les rares appels
+// externes/legacy, mais delegue entierement a renderTools().
+async function renderTools(){
+  currentView='tools'; updateMobileNav();
   await fetchRecentPrepaImports().catch(()=>{});
   const g=impGlobal(),m=b139Metrics(g);
-  showModal('OUTILS','ALYZIA OPS',`<div class="tools-grid">
+  document.getElementById('app').innerHTML=`
+  <section class="prepa-page">
+   <div class="prepa-hero">
+    <div><h1>OUTILS</h1><p>ALYZIA OPS · IMPORTS, VOLS, CONFIGURATION COMPAGNIE ET PLANS CABINE.</p></div>
+   </div>
+   <div class="tools-grid">
     <div class="import139-card">
       <div class="import139-head"><div class="import139-title"><div class="import139-icon">⇩</div><div><h3>IMPORT GMAIL</h3><p>AUTO PILOT · COLLECTE, ANALYSE ET INJECTION AUTOMATIQUE</p></div></div><span class="import139-live">${g.errors?'À CONTRÔLER':'ACTIF'}</span></div>
       <div class="import139-stats"><div class="import139-stat"><b>${m.files}</b><span>DOCUMENTS</span></div><div class="import139-stat"><b>${m.flights}</b><span>VOLS DÉTECTÉS</span></div><div class="import139-stat"><b>${m.injected}</b><span>VOLS INJECTÉS</span></div><div class="import139-stat"><b>${m.todo}</b><span>À CONTRÔLER</span></div></div>
@@ -25711,8 +25722,11 @@ openTools=async function(){
     <button class="tool-card company-config-tool" onclick="openCompanyConfig()"><span class="tool-icon">⚙</span><b>CONFIG COMPAGNIE</b><span>CLASSES ET MODULES</span></button>
     <button class="tool-card" onclick="openToolsSeatmap()"><span class="tool-icon">▦</span><b>SEATMAP</b><span>PLAN CABINE</span></button>
     <button class="tool-card" onclick="openSariaApp()"><span class="tool-icon">✈</span><b>SARIA</b><span>CABIN / SEATMAP</span></button>${opsCloudToolCardHtml()}
-  </div>`);
-};
+   </div>
+  </section>`;
+  updateClocks();
+}
+openTools=renderTools;
 openImportsDashboard=async function(){
   await fetchRecentPrepaImports().catch(()=>{});
   const g=impGlobal(),m=b139Metrics(g);
