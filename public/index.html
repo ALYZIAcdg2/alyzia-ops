@@ -25701,7 +25701,7 @@ window.openImport139Advanced=function(c,key){
 // utilisateur : la modale perdait la position de scroll et se refermait
 // au refresh live. openTools reste comme alias pour les rares appels
 // externes/legacy, mais delegue entierement a renderTools().
-async function renderTools(){
+window.renderTools=async function(){
   currentView='tools'; updateMobileNav();
   await fetchRecentPrepaImports().catch(()=>{});
   const g=impGlobal(),m=b139Metrics(g);
