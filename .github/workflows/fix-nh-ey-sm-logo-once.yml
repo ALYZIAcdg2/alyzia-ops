@@ -1,0 +1,93 @@
+name: Fix NH E/Y and SM logo once
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/fix-nh-ey-sm-logo-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      API: https://alyzia-ops.alyzia-cdg2.workers.dev
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Preserve NH E class and use stable SM logo
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const p='public/index.html';
+          let s=fs.readFileSync(p,'utf8');
+
+          const oldEY="if(k==='E')k='Y';";
+          const newEY="if(k==='E' && airline!=='NH')k='Y';";
+          if(s.includes(oldEY)) s=s.replace(oldEY,newEY);
+          if(!s.includes(newEY)) throw new Error('NH E/Y patch not applied');
+
+          const stable='https://upload.wikimedia.org/wikipedia/commons/6/60/Air_Cairo_logo.svg';
+          s=s.replace(/https:\/\/thumb\.wikimedia\.org\/wikipedia\/commons\/thumb\/6\/60\/Air_Cairo_logo\.svg\/[^'\"\s)]+/g,stable);
+
+          const start=s.indexOf('/* USER_AIRLINE_LOGOS_START */');
+          const end=s.indexOf('/* USER_AIRLINE_LOGOS_END */');
+          if(start<0||end<0||end<=start)throw new Error('Airline logo block not found');
+          let block=s.slice(start,end);
+          if(/\bSM\s*:\s*['\"]/m.test(block)){
+            block=block.replace(/SM\s*:\s*['\"][^'\"]*['\"]/m,`SM:'${stable}'`);
+          }else{
+            const close=block.lastIndexOf('});');
+            if(close<0)throw new Error('AIRLINE_LOGOS block close not found');
+            block=block.slice(0,close)+` SM:'${stable}',\n`+block.slice(close);
+          }
+          s=s.slice(0,start)+block+s.slice(end);
+          fs.writeFileSync(p,s);
+          NODE
+
+      - name: Verify source patch
+        run: |
+          node <<'NODE'
+          const s=require('fs').readFileSync('public/index.html','utf8');
+          if(!s.includes("if(k==='E' && airline!=='NH')k='Y';"))throw new Error('NH E still merged into Y');
+          if(!/SM\s*:\s*['\"]https:\/\/upload\.wikimedia\.org\/wikipedia\/commons\/6\/60\/Air_Cairo_logo\.svg['\"]/.test(s))throw new Error('SM logo missing');
+          console.log('Source OK: NH keeps E; SM logo uses stable SVG');
+          NODE
+
+      - name: Commit source fix
+        run: |
+          git config user.name "ALYZIA OPS Bot"
+          git config user.email "alyzia.cdg2@gmail.com"
+          git add public/index.html
+          if ! git diff --cached --quiet; then
+            git commit -m "Separe E de Y pour NH et corrige le logo SM"
+            git push
+          fi
+
+      - name: Restore NH 789 flight data exactly
+        run: |
+          node <<'NODE'
+          async function main(){
+            const r=await fetch(process.env.API+'/api/flights');
+            if(!r.ok)throw new Error('GET flights '+r.status);
+            const j=await r.json();
+            const rows=(j.flights||[]).filter(f=>String(f.airline||'').toUpperCase()==='NH'&&String(f.aircraft||'').toUpperCase()==='789');
+            for(const f of rows){
+              const identity=[f.date,f.airline,f.flight].join('|');
+              const patch={
+                sariaConfigKey:'NH|789|48C21E160Y',
+                sariaCabinConfig:'48C21E160Y',
+                cabinConfigAuto:true,
+                config:{C:48,E:21,Y:160}
+              };
+              const p=await fetch(process.env.API+'/api/flights',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({identity,patch})});
+              if(!p.ok)throw new Error(identity+' '+p.status+' '+await p.text());
+            }
+            console.log('NH 789 restored:',rows.length);
+          }
+          main().catch(e=>{console.error(e);process.exit(1)});
+          NODE
