@@ -1,0 +1,113 @@
+name: Corrige synchro AUTO cabine NH
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/fix-auto-cabin-sync-nh-once.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Corrige la synchronisation AUTO des configs cabine
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const p='public/index.html';
+          let s=fs.readFileSync(p,'utf8');
+          const old=`function ensureSariaConfigSynced(x){
+ try{
+  const entry=sariaSelectedEntry(x);
+  if(!entry)return false;
+  const cfg=sariaClassObject(entry);
+  const keys=Object.keys(cfg);
+  if(!keys.length)return false;
+  x.config=(x.config&&typeof x.config==='object')?x.config:{};
+  const missing=keys.filter(k=>!(k in x.config));
+  if(!missing.length)return false;
+  missing.forEach(k=>{x.config[k]=Number(cfg[k]||0)});
+  return true;
+ }catch(e){return false}
+}`;
+          const neu=`function ensureSariaConfigSynced(x){
+ try{
+  let entry=sariaSelectedEntry(x);
+  const auto=x?.cabinConfigAuto!==false;
+  // Une ancienne cle AUTO peut rester en local apres remplacement d'une
+  // config en base. Si le type A/C n'a qu'une seule version, on la repare
+  // automatiquement au lieu de laisser une CONFIG stale/incomplete.
+  if(!entry&&auto){
+    const candidates=sariaConfigsFor(x.airline,x.aircraft);
+    if(candidates.length===1){
+      entry=candidates[0];
+      x.sariaConfigKey=sariaConfigKey(entry);
+      x.sariaCabinConfig=entry.config;
+    }
+  }
+  if(!entry)return false;
+  const cfg=sariaClassObject(entry);
+  const keys=Object.keys(cfg);
+  if(!keys.length)return false;
+  x.config=(x.config&&typeof x.config==='object')?x.config:{};
+
+  // En AUTO, le plan cabine selectionne est la source de verite : on
+  // remplace les anciennes capacites et on supprime les anciennes classes.
+  // En manuel, on conserve le comportement protecteur historique.
+  if(auto){
+    const currentKeys=Object.keys(x.config);
+    const changed=currentKeys.length!==keys.length ||
+      keys.some(k=>Number(x.config[k]||0)!==Number(cfg[k]||0)) ||
+      currentKeys.some(k=>!(k in cfg));
+    if(!changed)return false;
+    const oldBooked=x.booked||{},oldWeb=x.web||{},oldMeals=x.meals||{};
+    x.config=Object.fromEntries(keys.map(k=>[k,Number(cfg[k]||0)]));
+    x.booked=Object.fromEntries(keys.map(k=>[k,Number(oldBooked[k]||0)]));
+    x.web=Object.fromEntries(keys.map(k=>[k,Number(oldWeb[k]||0)]));
+    x.meals=Object.fromEntries(keys.map(k=>[k,Number(oldMeals[k]||0)]));
+    return true;
+  }
+
+  const missing=keys.filter(k=>!(k in x.config));
+  if(!missing.length)return false;
+  missing.forEach(k=>{x.config[k]=Number(cfg[k]||0)});
+  return true;
+ }catch(e){return false}
+}`;
+          if(!s.includes(old)){
+            console.error('Bloc ensureSariaConfigSynced introuvable');
+            process.exit(1);
+          }
+          s=s.replace(old,neu);
+          s=s.replace(
+            "// N'ecrase jamais une classe deja presente (edition manuelle).",
+            "// En AUTO, le plan cabine est autoritaire; en manuel, les valeurs saisies restent protegees."
+          );
+          fs.writeFileSync(p,s);
+          NODE
+
+      - name: Verifie le correctif
+        run: |
+          grep -F "const auto=x?.cabinConfigAuto!==false;" public/index.html
+          grep -F "x.config=Object.fromEntries(keys.map(k=>[k,Number(cfg[k]||0)]));" public/index.html
+
+      - name: Commit et push
+        run: |
+          git config user.name "ALYZIA OPS Bot"
+          git config user.email "alyzia.cdg2@gmail.com"
+          git add public/index.html
+          if git diff --cached --quiet; then
+            echo "Aucune modification"
+            exit 0
+          fi
+          git commit -m "Corrige la synchro AUTO des configs cabine"
+          git push
