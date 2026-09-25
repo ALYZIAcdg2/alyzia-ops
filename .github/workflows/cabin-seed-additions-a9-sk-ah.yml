@@ -1,0 +1,45 @@
+name: Cabin — seed A9 SK AH
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'scripts/cabin_seed_additions_a9_sk_ah_20260925.json'
+      - '.github/workflows/cabin-seed-additions-a9-sk-ah.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      API: https://alyzia-ops.alyzia-cdg2.workers.dev
+    steps:
+      - uses: actions/checkout@v4
+      - name: Seed configs
+        run: |
+          node -e "const fs=require('fs');const o=JSON.parse(fs.readFileSync('scripts/cabin_seed_additions_a9_sk_ah_20260925.json','utf8'));fs.writeFileSync('payload.json',JSON.stringify({configs:o.configs||[]}));"
+          curl -sS -f -X POST "$API/api/cabin/seed" -H "Content-Type: application/json" --data-binary @payload.json
+          curl -sS -f -X POST "$API/api/cabin/recompute-classes" >/dev/null
+      - name: Reapply operational classes
+        run: |
+          node <<'NODE'
+          const fs=require('fs');const o=JSON.parse(fs.readFileSync('scripts/cabin_seed_additions_a9_sk_ah_20260925.json','utf8'));
+          const lines=(o.configs||[]).map(r=>JSON.stringify({configKey:r.configKey,airline:r.airline,aircraft:r.aircraft,configuration:r.configuration,total:r.operationalTotal,classes:r.operationalClasses,quality:r.quality||'good',sourceLabel:r.sourceLabel||null}));
+          fs.writeFileSync('ops.ndjson',lines.join('\n')+'\n');
+          NODE
+          while IFS= read -r p; do [ -z "$p" ] && continue; curl -sS -f -X POST "$API/api/cabin/config" -H "Content-Type: application/json" --data "$p" >/dev/null; done < ops.ndjson
+      - name: Reevaluate existing A9 SK AH flights
+        run: |
+          curl -sS -f "$API/api/flights" -o flights.json
+          node <<'NODE'
+          const fs=require('fs');const j=JSON.parse(fs.readFileSync('flights.json','utf8'));
+          const rows=(j.flights||[]).filter(f=>['A9','SK','AH'].includes(String(f.airline||'').toUpperCase()) && f.aircraft && !String(f.sariaConfigKey||'').trim());
+          const lines=rows.map(f=>{const identity=[f.date,f.airline,f.flight].join('|');return `curl -sS -f -X PATCH "$API/api/flights" -H "Content-Type: application/json" --data-binary '${JSON.stringify({identity,patch:{}})}' -o /dev/null`;});
+          fs.writeFileSync('reeval.sh',lines.join('\n'));console.log('vols reevalues:',rows.length);
+          NODE
+          [ -s reeval.sh ] && bash reeval.sh || true
