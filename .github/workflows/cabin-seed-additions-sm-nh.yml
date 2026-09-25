@@ -22,6 +22,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Supprime les anciennes configs NH
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const o=JSON.parse(fs.readFileSync('scripts/cabin_seed_additions_sm_nh_20260925.json','utf8'));
+          fs.writeFileSync('delete_keys.txt',[...new Set(o.deleteKeys||[])].join('\n')+'\n');
+          NODE
+          while IFS= read -r key; do
+            [ -z "$key" ] && continue
+            enc=$(node -e "console.log(encodeURIComponent(process.argv[1]))" "$key")
+            curl -sS -f -X DELETE "$API/api/cabin/layout?key=$enc"
+          done < delete_keys.txt
+
       - name: Seed SM et NH
         run: |
           node <<'NODE'
@@ -54,11 +67,16 @@ jobs:
             const targets=(j.flights||[]).filter(f=>{
               const al=String(f.airline||'').toUpperCase();
               const ac=String(f.aircraft||'').toUpperCase();
-              return ((al==='SM'&&ac==='32N')||(al==='NH'&&ac==='789'))&&!String(f.sariaConfigKey||'').trim();
+              return (al==='SM'&&ac==='32N'&&!String(f.sariaConfigKey||'').trim()) ||
+                     (al==='NH'&&ac==='789'&&String(f.sariaConfigKey||'')!=='NH|789|48C21E160Y');
             });
             console.log('Vols SM/NH a reevaluer:',targets.length);
             for(const f of targets){
               const identity=[f.date,f.airline,f.flight].join('|');
+              if(String(f.airline||'').toUpperCase()==='NH'){
+                let p=await fetch(process.env.API+'/api/flights',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({identity,patch:{sariaConfigKey:'',sariaCabinConfig:''}})});
+                if(!p.ok)throw new Error(identity+' CLEAR '+p.status);
+              }
               const p=await fetch(process.env.API+'/api/flights',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({identity,patch:{}})});
               if(!p.ok)throw new Error(identity+' PATCH '+p.status);
             }
@@ -77,7 +95,7 @@ jobs:
             const wanted={
               'SM|32N|180Y':{Y:180},
               'SM|32N|186Y':{Y:186},
-              'NH|789|48C21E146Y':{C:48,E:21,Y:146}
+              'NH|789|48C21E160Y':{C:48,E:21,Y:160}
             };
             for(const [k,classes] of Object.entries(wanted)){
               const f=rows.find(x=>x.config_key===k);
@@ -85,6 +103,7 @@ jobs:
               let got={};try{got=JSON.parse(f.classes_json||'{}')}catch{}
               if(JSON.stringify(got)!==JSON.stringify(classes))throw new Error('Classes incorrectes '+k+' '+JSON.stringify(got));
             }
+            if(rows.some(x=>x.config_key==='NH|789|48C21E146Y'))throw new Error('Ancienne config NH 146Y encore presente');
             console.log('Configs SM/NH vérifiées');
           }
           main().catch(e=>{console.error(e);process.exit(1)});
