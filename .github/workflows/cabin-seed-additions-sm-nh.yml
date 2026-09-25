@@ -60,6 +60,10 @@ jobs:
       - name: Injection directe CONFIG sur les vols SM NH existants
         run: |
           node <<'NODE'
+          async function patchFlight(identity,patch,label){
+            const p=await fetch(process.env.API+'/api/flights',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({identity,patch})});
+            if(!p.ok)throw new Error(identity+' '+label+' '+p.status+' '+await p.text());
+          }
           async function main(){
             const r=await fetch(process.env.API+'/api/flights');
             if(!r.ok)throw new Error('GET flights '+r.status);
@@ -74,17 +78,21 @@ jobs:
             for(const f of targets){
               const identity=[f.date,f.airline,f.flight].join('|');
               if(String(f.airline||'').toUpperCase()==='NH'){
-                let p=await fetch(process.env.API+'/api/flights',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({identity,patch:{sariaConfigKey:'',sariaCabinConfig:'',config:{}}})});
-                if(!p.ok)throw new Error(identity+' CLEAR '+p.status);
+                await patchFlight(identity,{
+                  sariaConfigKey:'NH|789|48C21E160Y',
+                  sariaCabinConfig:'48C21E160Y',
+                  cabinConfigAuto:true,
+                  config:{C:48,E:21,Y:160}
+                },'NH CONFIG');
+              }else{
+                await patchFlight(identity,{},'SM PATCH');
               }
-              const p=await fetch(process.env.API+'/api/flights',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({identity,patch:{}})});
-              if(!p.ok)throw new Error(identity+' PATCH '+p.status);
             }
           }
           main().catch(e=>{console.error(e);process.exit(1)});
           NODE
 
-      - name: Vérifie les trois configs
+      - name: Vérifie les trois configs et les vols NH
         run: |
           node <<'NODE'
           async function main(){
@@ -104,7 +112,17 @@ jobs:
               if(JSON.stringify(got)!==JSON.stringify(classes))throw new Error('Classes incorrectes '+k+' '+JSON.stringify(got));
             }
             if(rows.some(x=>x.config_key==='NH|789|48C21E146Y'))throw new Error('Ancienne config NH 146Y encore presente');
-            console.log('Configs SM/NH vérifiées');
+
+            const fr=await fetch(process.env.API+'/api/flights');
+            if(!fr.ok)throw new Error('GET flights verification '+fr.status);
+            const fj=await fr.json();
+            const nh=(fj.flights||[]).filter(f=>String(f.airline||'').toUpperCase()==='NH'&&String(f.aircraft||'').toUpperCase()==='789');
+            for(const f of nh){
+              if(String(f.sariaConfigKey||'')!=='NH|789|48C21E160Y')throw new Error('Cle NH incorrecte '+f.flight+' '+f.sariaConfigKey);
+              const c=f.config||{};
+              if(Number(c.C)!==48||Number(c.E)!==21||Number(c.Y)!==160)throw new Error('CONFIG NH incorrecte '+f.flight+' '+JSON.stringify(c));
+            }
+            console.log('Configs SM/NH et vols NH vérifiés:',nh.length);
           }
           main().catch(e=>{console.error(e);process.exit(1)});
           NODE
