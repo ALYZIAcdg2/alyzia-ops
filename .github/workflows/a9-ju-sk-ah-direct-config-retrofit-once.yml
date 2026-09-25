@@ -1,4 +1,4 @@
-name: Retrofit A9 JU SK + injection directe AH 736
+name: Retrofit A9 JU SK AH + injection directe AH 736
 
 on:
   workflow_dispatch:
@@ -18,20 +18,21 @@ jobs:
     env:
       API: https://alyzia-ops.alyzia-cdg2.workers.dev
     steps:
-      - name: Normalise A9 73H, JU 32A et SK 73H
+      - name: Normalise A9 73H, JU 32A, SK 73H et AH 73W
         run: |
           curl -sS -f "$API/api/flights" -o flights.json
           node <<'NODE'
           const fs=require('fs');
           const j=JSON.parse(fs.readFileSync('flights.json','utf8'));
-          const map={'A9|73H':'738','JU|32A':'320','SK|73H':'738'};
+          const map={'A9|73H':'738','JU|32A':'320','SK|73H':'738','AH|73W':'737'};
           const rows=(j.flights||[]).filter(f=>map[String(f.airline||'').toUpperCase()+'|'+String(f.aircraft||'').toUpperCase()]);
           const lines=[];
           for(const f of rows){
             const identity=[f.date,f.airline,f.flight].join('|');
             const key=String(f.airline||'').toUpperCase()+'|'+String(f.aircraft||'').toUpperCase();
             const to=map[key];
-            lines.push(`curl -sS -f -X PATCH "$API/api/flights" -H "Content-Type: application/json" --data-binary '${JSON.stringify({identity,patch:{aircraft:to}})}' -o /dev/null -w "${identity} ${f.aircraft}->${to} [%{http_code}]\\n"`);
+            lines.push(`curl -sS -f -X PATCH "$API/api/flights" -H "Content-Type: application/json" --data-binary '${JSON.stringify({identity,patch:{aircraft:to,sariaConfigKey:'',sariaCabinConfig:''}})}' -o /dev/null -w "${identity} ${f.aircraft}->${to} [%{http_code}]\\n"`);
+            lines.push(`curl -sS -f -X PATCH "$API/api/flights" -H "Content-Type: application/json" --data-binary '${JSON.stringify({identity,patch:{}})}' -o /dev/null`);
           }
           fs.writeFileSync('normalize.sh',lines.join('\n'));
           console.log('vols a normaliser:',rows.length);
@@ -64,13 +65,14 @@ jobs:
           const j=JSON.parse(fs.readFileSync('after.json','utf8'));
           const bad=(j.flights||[]).filter(f=>{
             const k=String(f.airline||'').toUpperCase()+'|'+String(f.aircraft||'').toUpperCase();
-            return ['A9|73H','JU|32A','SK|73H'].includes(k);
+            return ['A9|73H','JU|32A','SK|73H','AH|73W'].includes(k);
           });
-          console.log('anciens codes A9/JU/SK restants:',bad.length);
-          const ah=(j.flights||[]).filter(f=>String(f.airline||'').toUpperCase()==='AH'&&String(f.aircraft||'').toUpperCase()==='736');
-          console.log('AH 736:',ah.length);
-          ah.forEach(f=>console.log(f.date,f.flight,'config=',f.sariaConfigKey||'AUCUNE'));
-          const missing=ah.filter(f=>!String(f.sariaConfigKey||'').trim());
-          console.log('AH 736 sans config apres reevaluation:',missing.length);
-          if(bad.length||missing.length)process.exit(1);
+          console.log('anciens codes A9/JU/SK/AH restants:',bad.length);
+          const ah736=(j.flights||[]).filter(f=>String(f.airline||'').toUpperCase()==='AH'&&String(f.aircraft||'').toUpperCase()==='736');
+          const ah737=(j.flights||[]).filter(f=>String(f.airline||'').toUpperCase()==='AH'&&String(f.aircraft||'').toUpperCase()==='737');
+          const missing736=ah736.filter(f=>!String(f.sariaConfigKey||'').trim());
+          const missing737=ah737.filter(f=>!String(f.sariaConfigKey||'').trim());
+          console.log('AH 736:',ah736.length,'sans config:',missing736.length);
+          console.log('AH 737:',ah737.length,'sans config:',missing737.length);
+          if(bad.length||missing736.length||missing737.length)process.exit(1);
           NODE
