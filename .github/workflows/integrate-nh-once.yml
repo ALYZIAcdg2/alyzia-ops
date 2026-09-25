@@ -1,0 +1,55 @@
+name: Intégration ponctuelle NH
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/integrate-nh-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  integrate-nh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Ajoute NH à CONFIG COMPAGNIE
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const p='public/index.html';
+          let s=fs.readFileSync(p,'utf8');
+          const marker='GENERIC_COMPANY_AIRLINE_CODES';
+          const pos=s.indexOf(marker);
+          if(pos<0)throw new Error('marqueur introuvable');
+          const end=Math.min(s.length,pos+3500);
+          let block=s.slice(pos,end);
+          if(!block.includes("'NH'")){
+            const anchor="'MS'";
+            if(!block.includes(anchor))throw new Error('ancre MS introuvable');
+            block=block.replace(anchor,anchor+",'NH'");
+            s=s.slice(0,pos)+block+s.slice(end);
+          }
+          fs.writeFileSync(p,s);
+          NODE
+      - name: Vérifie NH
+        run: |
+          node <<'NODE'
+          const fs=require('fs');const s=fs.readFileSync('public/index.html','utf8');
+          const pos=s.indexOf('GENERIC_COMPANY_AIRLINE_CODES');
+          if(pos<0||!s.slice(pos,pos+3500).includes("'NH'"))throw new Error('NH absent');
+          console.log('NH présent dans CONFIG COMPAGNIE');
+          NODE
+      - name: Commit
+        run: |
+          git config user.name "ALYZIA OPS Bot"
+          git config user.email "alyzia.cdg2@gmail.com"
+          git add public/index.html
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "Intègre NH dans CONFIG COMPAGNIE"
+          git push
