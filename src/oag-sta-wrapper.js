@@ -13,8 +13,16 @@ function json(data,status=200){
 
 function hhmm(value){
   const s=String(value||"");
+  const direct=s.match(/^(\d{2}:\d{2})$/);
+  if(direct)return direct[1];
   const m=s.match(/(?:T|\s)(\d{2}:\d{2})/);
   return m?m[1]:"";
+}
+
+function combineDateTime(date,time){
+  const d=String(date||"").trim();
+  const t=String(time||"").trim();
+  return d&&t?`${d}T${t}`:"";
 }
 
 function collectRows(payload){
@@ -65,7 +73,13 @@ function findTimeByPath(row,kind){
 }
 
 function pickScheduledTimes(row){
+  const depLocal=combineDateTime(row?.departure?.date?.local,row?.departure?.time?.local);
+  const arrLocal=combineDateTime(row?.arrival?.date?.local,row?.arrival?.time?.local);
+  const depUtc=combineDateTime(row?.departure?.date?.utc,row?.departure?.time?.utc);
+  const arrUtc=combineDateTime(row?.arrival?.date?.utc,row?.arrival?.time?.utc);
+
   const dep = firstString(
+    depLocal,
     row?.DepartureDateTime,
     row?.ScheduledDepartureDateTime,
     row?.ScheduledDeparture,
@@ -79,9 +93,11 @@ function pickScheduledTimes(row){
     row?.departureTime,
     row?.departure?.dateTime,
     row?.departure?.dateTimeLocal,
+    depUtc,
     findTimeByPath(row,"departure")
   );
   const arr = firstString(
+    arrLocal,
     row?.ArrivalDateTime,
     row?.ScheduledArrivalDateTime,
     row?.ScheduledArrival,
@@ -95,9 +111,20 @@ function pickScheduledTimes(row){
     row?.arrivalTime,
     row?.arrival?.dateTime,
     row?.arrival?.dateTimeLocal,
+    arrUtc,
     findTimeByPath(row,"arrival")
   );
-  return {dep,arr,std:hhmm(dep),sta:hhmm(arr)};
+
+  return {
+    dep,
+    arr,
+    std:firstString(row?.departure?.time?.local,hhmm(dep)),
+    sta:firstString(row?.arrival?.time?.local,hhmm(arr)),
+    departureDateLocal:String(row?.departure?.date?.local||""),
+    arrivalDateLocal:String(row?.arrival?.date?.local||""),
+    departureTimeUtc:String(row?.departure?.time?.utc||""),
+    arrivalTimeUtc:String(row?.arrival?.time?.utc||"")
+  };
 }
 
 async function handleOag(request,env,url){
@@ -169,6 +196,7 @@ async function handleOag(request,env,url){
       let x={};
       try{x=JSON.parse(row.data_json||"{}")}catch{}
       x.sta=times.sta;
+      x.staDate=times.arrivalDateLocal;
       x.staSource="OAG";
       x.staUpdatedAt=new Date().toISOString();
       await env.OPS_DB.prepare(`
@@ -187,7 +215,10 @@ async function handleOag(request,env,url){
       scheduledDeparture:times.dep,
       scheduledArrival:times.arr,
       std:times.std,
-      sta:times.sta
+      sta:times.sta,
+      departureDateLocal:times.departureDateLocal,
+      arrivalDateLocal:times.arrivalDateLocal,
+      aircraft:pick?.aircraftType?.iata||pick?.aircraftType?.icao||""
     },
     matches:rows.length,
     applied,
