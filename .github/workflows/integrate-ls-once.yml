@@ -1,0 +1,57 @@
+name: Intégration ponctuelle LS
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/integrate-ls-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  integrate-ls:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Ajoute LS à la configuration compagnie
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const p='public/index.html';
+          let s=fs.readFileSync(p,'utf8');
+          const marker='GENERIC_COMPANY_AIRLINE_CODES';
+          const pos=s.indexOf(marker);
+          if(pos<0)throw new Error('GENERIC_COMPANY_AIRLINE_CODES introuvable');
+          const end=Math.min(s.length,pos+2500);
+          let block=s.slice(pos,end);
+          if(!block.includes("'LS'")){
+            if(!block.includes("'LO','MS'"))throw new Error("Ancre LO/MS introuvable dans la liste compagnies");
+            block=block.replace("'LO','MS'","'LO','LS','MS'");
+            s=s.slice(0,pos)+block+s.slice(end);
+          }
+          fs.writeFileSync(p,s);
+          NODE
+
+      - name: Vérifie LS dans CONFIG COMPAGNIE
+        run: |
+          node <<'NODE'
+          const fs=require('fs');const s=fs.readFileSync('public/index.html','utf8');
+          const pos=s.indexOf('GENERIC_COMPANY_AIRLINE_CODES');
+          if(pos<0||!s.slice(pos,pos+2500).includes("'LS'"))throw new Error('LS absent de CONFIG COMPAGNIE');
+          console.log('LS présent dans la configuration compagnie générique');
+          NODE
+
+      - name: Commit
+        run: |
+          git config user.name "ALYZIA OPS Bot"
+          git config user.email "alyzia.cdg2@gmail.com"
+          git add public/index.html
+          if git diff --cached --quiet; then echo "Aucun changement à committer."; exit 0; fi
+          git commit -m "Intègre LS dans CONFIG COMPAGNIE"
+          git push
