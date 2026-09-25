@@ -1,0 +1,46 @@
+name: Diagnostic NH E Y
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/diagnose-nh-ey-once.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cherche les normalisations de classe et la config NH
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const s=fs.readFileSync('public/index.html','utf8');
+          const needles=[
+            'ensureSariaConfigSynced',
+            'sariaClassObject',
+            'sariaSelectedEntry',
+            'classOrder',
+            'cabinClass',
+            'normalizeClass',
+            "['C','Y']",
+            "['F','C','Y']",
+            'premium',
+            'available'
+          ];
+          for(const n of needles){
+            console.log('\n===== '+n+' =====');
+            let from=0,count=0;
+            while(count<8){
+              const i=s.toLowerCase().indexOf(n.toLowerCase(),from);
+              if(i<0)break;
+              console.log(s.slice(Math.max(0,i-700),Math.min(s.length,i+1400)).replace(/\r/g,''));
+              console.log('\n---');
+              from=i+n.length;count++;
+            }
+          }
+          NODE
