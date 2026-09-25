@@ -1,0 +1,92 @@
+name: Cabin — seed LY et LS
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "scripts/cabin_seed_additions_ly_ls.json"
+      - ".github/workflows/cabin-seed-additions-ly-ls.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      API: https://alyzia-ops.alyzia-cdg2.workers.dev
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Construit le payload
+        run: |
+          node -e "const fs=require('fs');const o=JSON.parse(fs.readFileSync('scripts/cabin_seed_additions_ly_ls.json','utf8'));fs.writeFileSync('seed_payload.json',JSON.stringify({configs:o.configs||[]}));console.log('Configs a importer:',(o.configs||[]).length);"
+
+      - name: POST /api/cabin/seed
+        run: |
+          curl -sS -f -X POST "$API/api/cabin/seed" -H "Content-Type: application/json" --data-binary @seed_payload.json
+
+      - name: Recalcule classes_json et total
+        run: |
+          curl -sS -f -X POST "$API/api/cabin/recompute-classes"
+
+      - name: Réapplique les tris classes opérationnels
+        run: |
+          node - <<'NODE'
+          const fs=require('fs');
+          const o=JSON.parse(fs.readFileSync('scripts/cabin_seed_additions_ly_ls.json','utf8'));
+          const rows=(o.configs||[]).filter(r=>r.operationalClasses&&Object.keys(r.operationalClasses).length);
+          fs.writeFileSync('operational_configs.ndjson',rows.map(r=>JSON.stringify({configKey:r.configKey,airline:r.airline,aircraft:r.aircraft,configuration:r.configuration,total:Number(r.operationalTotal||Object.values(r.operationalClasses).reduce((a,b)=>a+Number(b||0),0)),classes:r.operationalClasses,quality:r.quality||'good',sourceLabel:r.sourceLabel||null})).join('\n')+'\n');
+          NODE
+          while IFS= read -r payload; do
+            [ -z "$payload" ] && continue
+            curl -sS -f -X POST "$API/api/cabin/config" -H "Content-Type: application/json" --data "$payload"
+            echo
+          done < operational_configs.ndjson
+
+      - name: Vérifie les configs
+        run: |
+          curl -sS -f "$API/api/cabin/configs" -o all_configs.json
+          node - <<'NODE'
+          const fs=require('fs');
+          const all=JSON.parse(fs.readFileSync('all_configs.json','utf8')).configs||[];
+          const o=JSON.parse(fs.readFileSync('scripts/cabin_seed_additions_ly_ls.json','utf8'));
+          for(const row of o.configs||[]){
+            const found=all.find(c=>c.config_key===row.configKey);
+            if(!found)throw new Error('Config absente: '+row.configKey);
+            const classes=JSON.parse(found.classes_json||'{}');
+            if(Number(found.total)!==Number(row.operationalTotal)||JSON.stringify(classes)!==JSON.stringify(row.operationalClasses))throw new Error('Tri incorrect: '+row.configKey);
+            console.log(row.configKey,classes,found.total);
+          }
+          NODE
+
+      - name: Injection directe sur vols LY et LS déjà en base
+        run: |
+          curl -sS -f "$API/api/flights" -o flights.json
+          node - <<'NODE'
+          const fs=require('fs');
+          const j=JSON.parse(fs.readFileSync('flights.json','utf8'));
+          const targets=(j.flights||[]).filter(f=>['LY','LS'].includes(String(f.airline||'').toUpperCase())&&String(f.aircraft||'').trim()&&!String(f.sariaConfigKey||'').trim());
+          fs.writeFileSync('targets.json',JSON.stringify(targets.map(f=>({identity:[f.date,f.airline,f.flight].join('|')}))));
+          console.log('Vols à réévaluer:',targets.length);
+          NODE
+          node - <<'NODE'
+          const fs=require('fs');const t=JSON.parse(fs.readFileSync('targets.json','utf8'));
+          fs.writeFileSync('reassign.sh',t.map(x=>'curl -sS -f -X PATCH "$API/api/flights" -H "Content-Type: application/json" --data-binary '+JSON.stringify(JSON.stringify({identity:x.identity,patch:{}}))+' -o /dev/null').join('\n'));
+          NODE
+          [ -s reassign.sh ] && bash reassign.sh || true
+
+      - name: Vérifie l'injection directe LY LS
+        run: |
+          curl -sS -f "$API/api/flights" -o after.json
+          node - <<'NODE'
+          const j=JSON.parse(require('fs').readFileSync('after.json','utf8'));
+          const supported={LY:new Set(['738','777']),LS:new Set(['32Q','738'])};
+          const missing=(j.flights||[]).filter(f=>{const a=String(f.airline||'').toUpperCase(),ac=String(f.aircraft||'').toUpperCase();return supported[a]?.has(ac)&&!String(f.sariaConfigKey||'').trim();});
+          missing.forEach(f=>console.log('MISSING',f.date,f.airline,f.flight,f.aircraft));
+          if(missing.length)process.exit(1);
+          NODE
