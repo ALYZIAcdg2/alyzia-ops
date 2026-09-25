@@ -1,0 +1,57 @@
+name: Retrofit BJ 32A vers 320
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/bj-32a-retrofit-once.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  retrofit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      API: https://alyzia-ops.alyzia-cdg2.workers.dev
+    steps:
+      - name: Corrige les vols BJ 32A existants
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          async function main(){
+            const res=await fetch(process.env.API+'/api/flights');
+            if(!res.ok) throw new Error('GET flights '+res.status);
+            const data=await res.json();
+            const targets=(data.flights||[]).filter(f=>String(f.airline||'').toUpperCase()==='BJ'&&String(f.aircraft||'').toUpperCase()==='32A');
+            console.log('BJ 32A a corriger:',targets.length);
+            for(const f of targets){
+              const identity=[f.date,f.airline,f.flight].join('|');
+              const r=await fetch(process.env.API+'/api/flights',{
+                method:'PATCH',
+                headers:{'Content-Type':'application/json'},
+                body:JSON.stringify({identity,patch:{aircraft:'320'}})
+              });
+              if(!r.ok) throw new Error(identity+' PATCH '+r.status);
+              console.log(identity,'32A -> 320');
+            }
+          }
+          main().catch(e=>{console.error(e);process.exit(1)});
+          NODE
+
+      - name: Vérifie qu'il ne reste aucun BJ 32A
+        run: |
+          node <<'NODE'
+          async function main(){
+            const res=await fetch(process.env.API+'/api/flights');
+            if(!res.ok) throw new Error('GET flights '+res.status);
+            const data=await res.json();
+            const remaining=(data.flights||[]).filter(f=>String(f.airline||'').toUpperCase()==='BJ'&&String(f.aircraft||'').toUpperCase()==='32A');
+            console.log('BJ 32A restants:',remaining.length);
+            if(remaining.length) process.exit(1);
+          }
+          main().catch(e=>{console.error(e);process.exit(1)});
+          NODE
