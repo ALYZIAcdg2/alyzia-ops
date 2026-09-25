@@ -1,6 +1,6 @@
 {
   "name": "alyzia-ops",
-  "main": "./src/ops-enrichment-wrapper.js",
+  "main": "./src/etd-compat-wrapper.js",
   "compatibility_date": "2026-08-06",
 
   "assets": {
