@@ -26,13 +26,77 @@ function collectRows(payload){
   return [];
 }
 
+function firstString(...values){
+  for(const v of values){
+    if(typeof v==="string" && v.trim())return v.trim();
+  }
+  return "";
+}
+
+function flattenStrings(value,prefix="",out=[]){
+  if(value==null)return out;
+  if(typeof value==="string"){
+    out.push([prefix,value]);
+    return out;
+  }
+  if(Array.isArray(value)){
+    value.forEach((v,i)=>flattenStrings(v,`${prefix}[${i}]`,out));
+    return out;
+  }
+  if(typeof value==="object"){
+    for(const [k,v] of Object.entries(value)){
+      flattenStrings(v,prefix?`${prefix}.${k}`:k,out);
+    }
+  }
+  return out;
+}
+
+function findTimeByPath(row,kind){
+  const wanted=kind==="departure"?/depart/i:/arriv/i;
+  const strings=flattenStrings(row);
+  const preferred=strings.find(([path,value])=>
+    wanted.test(path) && /(date.?time|scheduled|local|utc)/i.test(path) && /\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}/.test(value)
+  );
+  if(preferred)return preferred[1];
+  const fallback=strings.find(([path,value])=>
+    wanted.test(path) && /\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}/.test(value)
+  );
+  return fallback?fallback[1]:"";
+}
+
 function pickScheduledTimes(row){
-  const dep = row?.DepartureDateTime || row?.ScheduledDepartureDateTime || row?.ScheduledDeparture ||
-    row?.departure?.scheduledTime?.local || row?.departure?.scheduledTime ||
-    row?.departure?.scheduled || row?.departureTime || "";
-  const arr = row?.ArrivalDateTime || row?.ScheduledArrivalDateTime || row?.ScheduledArrival ||
-    row?.arrival?.scheduledTime?.local || row?.arrival?.scheduledTime ||
-    row?.arrival?.scheduled || row?.arrivalTime || "";
+  const dep = firstString(
+    row?.DepartureDateTime,
+    row?.ScheduledDepartureDateTime,
+    row?.ScheduledDeparture,
+    row?.departureDateTime,
+    row?.scheduledDepartureDateTime,
+    row?.scheduledDeparture,
+    row?.departure?.scheduledTime?.local,
+    row?.departure?.scheduledTime?.utc,
+    row?.departure?.scheduledTime,
+    row?.departure?.scheduled,
+    row?.departureTime,
+    row?.departure?.dateTime,
+    row?.departure?.dateTimeLocal,
+    findTimeByPath(row,"departure")
+  );
+  const arr = firstString(
+    row?.ArrivalDateTime,
+    row?.ScheduledArrivalDateTime,
+    row?.ScheduledArrival,
+    row?.arrivalDateTime,
+    row?.scheduledArrivalDateTime,
+    row?.scheduledArrival,
+    row?.arrival?.scheduledTime?.local,
+    row?.arrival?.scheduledTime?.utc,
+    row?.arrival?.scheduledTime,
+    row?.arrival?.scheduled,
+    row?.arrivalTime,
+    row?.arrival?.dateTime,
+    row?.arrival?.dateTimeLocal,
+    findTimeByPath(row,"arrival")
+  );
   return {dep,arr,std:hhmm(dep),sta:hhmm(arr)};
 }
 
@@ -47,6 +111,7 @@ async function handleOag(request,env,url){
   const origin=String(url.searchParams.get("origin")||"").trim().toUpperCase();
   const destination=String(url.searchParams.get("destination")||"").trim().toUpperCase();
   const apply=String(url.searchParams.get("apply")||"")==="1";
+  const debug=String(url.searchParams.get("debug")||"")==="1";
 
   if(!carrier||!flight||!/^20\d{2}-\d{2}-\d{2}$/.test(date)){
     return json({ok:false,error:"carrier, flight et date (YYYY-MM-DD) requis"},400);
@@ -56,6 +121,7 @@ async function handleOag(request,env,url){
     DepartureDateTime:date,
     CarrierCode:carrier,
     FlightNumber:flight,
+    FlightType:"scheduled",
     CodeType:"IATA",
     version:"v2"
   });
@@ -113,7 +179,7 @@ async function handleOag(request,env,url){
     }
   }
 
-  return json({
+  const result={
     ok:true,
     source:"OAG",
     query:{carrier,flight,date,origin,destination},
@@ -126,7 +192,16 @@ async function handleOag(request,env,url){
     matches:rows.length,
     applied,
     identity
-  });
+  };
+
+  if(debug || (!times.dep && !times.arr)){
+    result.debug={
+      topLevelKeys:Object.keys(pick||{}),
+      stringPaths:flattenStrings(pick).slice(0,120)
+    };
+  }
+
+  return json(result);
 }
 
 export default {
