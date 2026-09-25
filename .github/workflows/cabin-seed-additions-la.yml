@@ -1,0 +1,77 @@
+name: Cabin — seed LA
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "scripts/cabin_seed_additions_la.json"
+      - ".github/workflows/cabin-seed-additions-la.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      API: https://alyzia-ops.alyzia-cdg2.workers.dev
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Seed LA
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const o=JSON.parse(fs.readFileSync('scripts/cabin_seed_additions_la.json','utf8'));
+          fs.writeFileSync('seed_payload.json',JSON.stringify({configs:o.configs||[]}));
+          NODE
+          curl -sS -f -X POST "$API/api/cabin/seed" -H "Content-Type: application/json" --data-binary @seed_payload.json
+          curl -sS -f -X POST "$API/api/cabin/recompute-classes" > /dev/null
+
+      - name: Réapplique les tris classes LA
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const o=JSON.parse(fs.readFileSync('scripts/cabin_seed_additions_la.json','utf8'));
+          fs.writeFileSync('operational.ndjson',(o.configs||[]).map(r=>JSON.stringify({configKey:r.configKey,airline:r.airline,aircraft:r.aircraft,configuration:r.configuration,total:r.operationalTotal,classes:r.operationalClasses,quality:r.quality,sourceLabel:r.sourceLabel})).join('\n')+'\n');
+          NODE
+          while IFS= read -r payload; do
+            [ -z "$payload" ] && continue
+            curl -sS -f -X POST "$API/api/cabin/config" -H "Content-Type: application/json" --data "$payload" > /dev/null
+          done < operational.ndjson
+
+      - name: Injection directe CONFIG sur les vols LA existants
+        run: |
+          node <<'NODE'
+          async function main(){
+            const r=await fetch(process.env.API+'/api/flights');
+            if(!r.ok)throw new Error('GET flights '+r.status);
+            const j=await r.json();
+            const targets=(j.flights||[]).filter(f=>String(f.airline||'').toUpperCase()==='LA'&&String(f.aircraft||'').toUpperCase()==='789'&&!String(f.sariaConfigKey||''));
+            console.log('Vols LA 789 a reevaluer:',targets.length);
+            for(const f of targets){
+              const identity=[f.date,f.airline,f.flight].join('|');
+              const p=await fetch(process.env.API+'/api/flights',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({identity,patch:{}})});
+              if(!p.ok)throw new Error(identity+' PATCH '+p.status);
+            }
+          }
+          main().catch(e=>{console.error(e);process.exit(1)});
+          NODE
+
+      - name: Vérifie les deux configs LA
+        run: |
+          node <<'NODE'
+          async function main(){
+            const r=await fetch(process.env.API+'/api/cabin/configs');
+            if(!r.ok)throw new Error('GET configs '+r.status);
+            const j=await r.json();
+            const keys=new Set((j.configs||[]).map(x=>x.config_key));
+            for(const k of ['LA|789|30J273Y','LA|789|30J277Y']) if(!keys.has(k)) throw new Error('Config absente '+k);
+            console.log('Configs LA vérifiées');
+          }
+          main().catch(e=>{console.error(e);process.exit(1)});
+          NODE
