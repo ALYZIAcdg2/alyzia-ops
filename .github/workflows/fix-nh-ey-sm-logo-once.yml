@@ -79,15 +79,15 @@ jobs:
             for(const f of rows){
               const identity=[f.date,f.airline,f.flight].join('|');
               const patch={
-                sariaConfigKey:'NH|789|48C21E160Y',
-                sariaCabinConfig:'48C21E160Y',
+                sariaConfigKey:'NH|789|48C21E146Y',
+                sariaCabinConfig:'48C21E146Y',
                 cabinConfigAuto:true,
-                config:{C:48,E:21,Y:160}
+                config:{C:48,E:21,Y:146}
               };
               const p=await fetch(process.env.API+'/api/flights',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({identity,patch})});
               if(!p.ok)throw new Error(identity+' '+p.status+' '+await p.text());
             }
-            console.log('NH 789 restored:',rows.length);
+            console.log('NH 789 restored to C48 E21 Y146:',rows.length);
           }
           main().catch(e=>{console.error(e);process.exit(1)});
           NODE
