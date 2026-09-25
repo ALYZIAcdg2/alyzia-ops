@@ -1,6 +1,6 @@
 {
   "name": "alyzia-ops",
-  "main": "./src/flight-list-times-wrapper.js",
+  "main": "./src/duration-auto-wrapper.js",
   "compatibility_date": "2026-08-06",
 
   "assets": {
