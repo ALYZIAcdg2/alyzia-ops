@@ -1,0 +1,57 @@
+name: Intégration ponctuelle LA
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/integrate-la-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  integrate-la:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Ajoute LA à la configuration compagnie
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const p='public/index.html';
+          let s=fs.readFileSync(p,'utf8');
+          const marker='GENERIC_COMPANY_AIRLINE_CODES';
+          const pos=s.indexOf(marker);
+          if(pos<0)throw new Error('GENERIC_COMPANY_AIRLINE_CODES introuvable');
+          const end=Math.min(s.length,pos+3000);
+          let block=s.slice(pos,end);
+          if(!block.includes("'LA'")){
+            if(!block.includes("'J2','JU','LO'"))throw new Error('Ancre J2/JU/LO introuvable');
+            block=block.replace("'J2','JU','LO'","'J2','JU','LA','LO'");
+            s=s.slice(0,pos)+block+s.slice(end);
+          }
+          fs.writeFileSync(p,s);
+          NODE
+
+      - name: Vérifie LA dans CONFIG COMPAGNIE
+        run: |
+          node <<'NODE'
+          const fs=require('fs');const s=fs.readFileSync('public/index.html','utf8');
+          const pos=s.indexOf('GENERIC_COMPANY_AIRLINE_CODES');
+          if(pos<0||!s.slice(pos,pos+3000).includes("'LA'"))throw new Error('LA absent de CONFIG COMPAGNIE');
+          console.log('LA présent dans CONFIG COMPAGNIE');
+          NODE
+
+      - name: Commit
+        run: |
+          git config user.name "ALYZIA OPS Bot"
+          git config user.email "alyzia.cdg2@gmail.com"
+          git add public/index.html
+          if git diff --cached --quiet; then echo "Aucun changement à committer."; exit 0; fi
+          git commit -m "Intègre LA dans CONFIG COMPAGNIE"
+          git push
