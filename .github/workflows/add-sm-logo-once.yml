@@ -1,0 +1,59 @@
+name: Ajoute logo Air Cairo SM
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/add-sm-logo-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ajoute SM dans AIRLINE_LOGOS
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const p='public/index.html';
+          let s=fs.readFileSync(p,'utf8');
+          if(/\bSM\s*:\s*['"]/m.test(s)){
+            console.log('Logo SM déjà présent');
+            process.exit(0);
+          }
+          const marker='/* USER_AIRLINE_LOGOS_END */';
+          const pos=s.indexOf(marker);
+          if(pos<0)throw new Error('USER_AIRLINE_LOGOS_END introuvable');
+          const before=s.slice(0,pos);
+          const close=before.lastIndexOf('});');
+          if(close<0)throw new Error('Fin AIRLINE_LOGOS introuvable');
+          const url='https://thumb.wikimedia.org/wikipedia/commons/thumb/6/60/Air_Cairo_logo.svg/960px-Air_Cairo_logo.svg.png?utm_source=fr.wikipedia.org&utm_campaign=index&utm_content=thumbnail';
+          s=s.slice(0,close)+` SM:'${url}',\n`+s.slice(close);
+          fs.writeFileSync(p,s);
+          NODE
+
+      - name: Vérifie le logo SM
+        run: |
+          node <<'NODE'
+          const s=require('fs').readFileSync('public/index.html','utf8');
+          if(!/SM\s*:\s*['"]https:\/\/thumb\.wikimedia\.org\/wikipedia\/commons\/thumb\/6\/60\/Air_Cairo_logo\.svg/.test(s)){
+            throw new Error('Logo SM non injecté');
+          }
+          console.log('Logo SM présent');
+          NODE
+
+      - name: Commit
+        run: |
+          git config user.name "ALYZIA OPS Bot"
+          git config user.email "alyzia.cdg2@gmail.com"
+          git add public/index.html
+          if git diff --cached --quiet; then echo "Aucun changement"; exit 0; fi
+          git commit -m "Ajoute le logo Air Cairo pour SM"
+          git push
