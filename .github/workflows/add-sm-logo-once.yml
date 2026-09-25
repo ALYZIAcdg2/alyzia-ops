@@ -24,8 +24,11 @@ jobs:
           const fs=require('fs');
           const p='public/index.html';
           let s=fs.readFileSync(p,'utf8');
-          if(/\bSM\s*:\s*['"]/m.test(s)){
-            console.log('Logo SM déjà présent');
+          const url='https://thumb.wikimedia.org/wikipedia/commons/thumb/6/60/Air_Cairo_logo.svg/960px-Air_Cairo_logo.svg.png';
+          // Ne pas tester un simple "SM:" dans tout index.html : SM peut exister
+          // dans d'autres objets et faisait croire a tort que le logo etait deja la.
+          if(s.includes(url)){
+            console.log('Logo Air Cairo déjà présent');
             process.exit(0);
           }
           const marker='/* USER_AIRLINE_LOGOS_END */';
@@ -34,8 +37,16 @@ jobs:
           const before=s.slice(0,pos);
           const close=before.lastIndexOf('});');
           if(close<0)throw new Error('Fin AIRLINE_LOGOS introuvable');
-          const url='https://thumb.wikimedia.org/wikipedia/commons/thumb/6/60/Air_Cairo_logo.svg/960px-Air_Cairo_logo.svg.png?utm_source=fr.wikipedia.org&utm_campaign=index&utm_content=thumbnail';
-          s=s.slice(0,close)+` SM:'${url}',\n`+s.slice(close);
+          // Si une ancienne entree SM existe dans ce bloc, on la remplace;
+          // sinon on ajoute la nouvelle entree juste avant la fermeture.
+          const block=before.slice(0,close);
+          const sm=/\bSM\s*:\s*['"][^'"]*['"]\s*,?/m;
+          if(sm.test(block)){
+            const fixed=block.replace(sm,`SM:'${url}',`);
+            s=fixed+s.slice(close);
+          }else{
+            s=s.slice(0,close)+` SM:'${url}',\n`+s.slice(close);
+          }
           fs.writeFileSync(p,s);
           NODE
 
@@ -43,8 +54,9 @@ jobs:
         run: |
           node <<'NODE'
           const s=require('fs').readFileSync('public/index.html','utf8');
-          if(!/SM\s*:\s*['"]https:\/\/thumb\.wikimedia\.org\/wikipedia\/commons\/thumb\/6\/60\/Air_Cairo_logo\.svg/.test(s)){
-            throw new Error('Logo SM non injecté');
+          const url='https://thumb.wikimedia.org/wikipedia/commons/thumb/6/60/Air_Cairo_logo.svg/960px-Air_Cairo_logo.svg.png';
+          if(!s.includes(`SM:'${url}'`) && !s.includes(`SM: '${url}'`)){
+            throw new Error('Logo SM non injecté dans AIRLINE_LOGOS');
           }
           console.log('Logo SM présent');
           NODE
@@ -55,5 +67,5 @@ jobs:
           git config user.email "alyzia.cdg2@gmail.com"
           git add public/index.html
           if git diff --cached --quiet; then echo "Aucun changement"; exit 0; fi
-          git commit -m "Ajoute le logo Air Cairo pour SM"
+          git commit -m "Intègre réellement le logo Air Cairo SM"
           git push
