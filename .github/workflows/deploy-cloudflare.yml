@@ -32,6 +32,7 @@ jobs:
             "'LY|772':'777'","'LY|77L':'777'","'LY|73H':'738'","'LY|73J':'739'",
             "'LS|73H':'738'",
             "'BJ|32A':'320'",
+            "'A9|73H':'738'","'JU|32A':'320'","'SK|73H':'738'",
             "'ENT|73H':'738'","'PC|32A':'320'","'PC|73H':'738'",
             "'TK|321':'32R'","'TK|32B':'32R'"
           ];
@@ -41,7 +42,7 @@ jobs:
             if(additions.length) s=s.replace(from,from+','+additions.join(','));
           }
           fs.writeFileSync(p,s);
-          console.log('Mappings import actifs: LY 772/77L -> 777 ; LY 73H -> 738 ; LY 73J -> 739 ; LS 73H -> 738 ; BJ 32A -> 320 ; ENT 73H -> 738 ; PC 32A -> 320 ; PC 73H -> 738 ; TK 321/32B -> 32R');
+          console.log('Mappings import actifs: LY 772/77L -> 777 ; LY 73H -> 738 ; LY 73J -> 739 ; LS 73H -> 738 ; BJ 32A -> 320 ; A9 73H -> 738 ; JU 32A -> 320 ; SK 73H -> 738 ; ENT 73H -> 738 ; PC 32A -> 320 ; PC 73H -> 738 ; TK 321/32B -> 32R');
           NODE
 
       - name: Setup Node.js
