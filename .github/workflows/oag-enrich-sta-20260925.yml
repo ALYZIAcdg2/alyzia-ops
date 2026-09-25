@@ -1,0 +1,27 @@
+name: OAG enrich STA 2026-09-25 once
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/oag-enrich-sta-20260925.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  enrich:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Wait for Cloudflare deployment
+        run: sleep 20
+
+      - name: Enrich STA from OAG
+        run: |
+          set -euo pipefail
+          curl -sS --fail-with-body --max-time 480 \
+            'https://alyzia-ops.alyzia-cdg2.workers.dev/api/oag/enrich-sta?date=2026-09-25&limit=100' \
+            | tee /tmp/oag-sta.json
+          echo
+          node -e "const fs=require('fs'); const r=JSON.parse(fs.readFileSync('/tmp/oag-sta.json','utf8')); const s=r.summary||{}; console.log('FOUND='+s.found,'LOOKUPS='+s.lookups,'UPDATED='+s.updated,'SKIPPED='+s.skipped,'NOT_FOUND='+s.notFound,'ERRORS='+s.errors); if(!r.ok) process.exit(1);"
