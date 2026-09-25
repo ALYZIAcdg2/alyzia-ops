@@ -1,6 +1,6 @@
 {
   "name": "alyzia-ops",
-  "main": "./src/flight-list-font-wrapper.js",
+  "main": "./src/oag-sta-wrapper.js",
   "compatibility_date": "2026-08-06",
 
   "assets": {
