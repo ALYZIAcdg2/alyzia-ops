@@ -1,6 +1,6 @@
 {
   "name": "alyzia-ops",
-  "main": "./src/duration-auto-wrapper.js",
+  "main": "./src/ops-enrichment-wrapper.js",
   "compatibility_date": "2026-08-06",
 
   "assets": {
