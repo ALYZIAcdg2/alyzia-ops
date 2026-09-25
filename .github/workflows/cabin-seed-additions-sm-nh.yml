@@ -19,8 +19,7 @@ jobs:
     env:
       API: https://alyzia-ops.alyzia-cdg2.workers.dev
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Supprime les anciennes configs NH
         run: |
@@ -57,72 +56,55 @@ jobs:
             curl -sS -f -X POST "$API/api/cabin/config" -H "Content-Type: application/json" --data "$payload" >/dev/null
           done < operational.ndjson
 
-      - name: Injection directe CONFIG sur les vols SM NH existants
+      - name: Injection directe CONFIG NH depuis le catalogue
         run: |
           node <<'NODE'
-          async function patchFlight(identity,patch,label){
-            const p=await fetch(process.env.API+'/api/flights',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({identity,patch})});
-            if(!p.ok)throw new Error(identity+' '+label+' '+p.status+' '+await p.text());
-          }
+          const fs=require('fs');
           async function main(){
+            const seed=JSON.parse(fs.readFileSync('scripts/cabin_seed_additions_sm_nh_20260925.json','utf8'));
+            const nhCfg=(seed.configs||[]).find(x=>String(x.airline).toUpperCase()==='NH'&&String(x.aircraft).toUpperCase()==='789');
+            if(!nhCfg)throw new Error('Config NH 789 absente du seed');
+            const config={...nhCfg.operationalClasses};
             const r=await fetch(process.env.API+'/api/flights');
             if(!r.ok)throw new Error('GET flights '+r.status);
             const j=await r.json();
-            const targets=(j.flights||[]).filter(f=>{
-              const al=String(f.airline||'').toUpperCase();
-              const ac=String(f.aircraft||'').toUpperCase();
-              return (al==='SM'&&ac==='32N'&&!String(f.sariaConfigKey||'').trim()) ||
-                     (al==='NH'&&ac==='789');
-            });
-            console.log('Vols SM/NH a reevaluer:',targets.length);
-            for(const f of targets){
+            const rows=(j.flights||[]).filter(f=>String(f.airline||'').toUpperCase()==='NH'&&String(f.aircraft||'').toUpperCase()==='789');
+            for(const f of rows){
               const identity=[f.date,f.airline,f.flight].join('|');
-              if(String(f.airline||'').toUpperCase()==='NH'){
-                await patchFlight(identity,{
-                  sariaConfigKey:'NH|789|48C21E160Y',
-                  sariaCabinConfig:'48C21E160Y',
-                  cabinConfigAuto:true,
-                  config:{C:48,E:21,Y:160}
-                },'NH CONFIG');
-              }else{
-                await patchFlight(identity,{},'SM PATCH');
-              }
+              const patch={sariaConfigKey:nhCfg.configKey,sariaCabinConfig:nhCfg.configuration,cabinConfigAuto:true,config};
+              const p=await fetch(process.env.API+'/api/flights',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({identity,patch})});
+              if(!p.ok)throw new Error(identity+' '+p.status+' '+await p.text());
             }
+            console.log('NH 789 corrigés:',rows.length,nhCfg.configKey,JSON.stringify(config));
           }
           main().catch(e=>{console.error(e);process.exit(1)});
           NODE
 
-      - name: Vérifie les trois configs et les vols NH
+      - name: Vérifie catalogue et vols NH
         run: |
           node <<'NODE'
+          const fs=require('fs');
           async function main(){
-            const r=await fetch(process.env.API+'/api/cabin/configs');
-            if(!r.ok)throw new Error('GET configs '+r.status);
-            const j=await r.json();
-            const rows=j.configs||[];
-            const wanted={
-              'SM|32N|180Y':{Y:180},
-              'SM|32N|186Y':{Y:186},
-              'NH|789|48C21E160Y':{C:48,E:21,Y:160}
-            };
-            for(const [k,classes] of Object.entries(wanted)){
-              const f=rows.find(x=>x.config_key===k);
-              if(!f)throw new Error('Config absente '+k);
-              let got={};try{got=JSON.parse(f.classes_json||'{}')}catch{}
-              if(JSON.stringify(got)!==JSON.stringify(classes))throw new Error('Classes incorrectes '+k+' '+JSON.stringify(got));
-            }
-            if(rows.some(x=>x.config_key==='NH|789|48C21E146Y'))throw new Error('Ancienne config NH 146Y encore presente');
-
+            const seed=JSON.parse(fs.readFileSync('scripts/cabin_seed_additions_sm_nh_20260925.json','utf8'));
+            const nhCfg=(seed.configs||[]).find(x=>String(x.airline).toUpperCase()==='NH'&&String(x.aircraft).toUpperCase()==='789');
+            const wanted=nhCfg.operationalClasses||{};
+            const cr=await fetch(process.env.API+'/api/cabin/configs');
+            if(!cr.ok)throw new Error('GET configs '+cr.status);
+            const cj=await cr.json();
+            const c=(cj.configs||[]).find(x=>x.config_key===nhCfg.configKey);
+            if(!c)throw new Error('Config catalogue absente '+nhCfg.configKey);
+            let got={};try{got=JSON.parse(c.classes_json||'{}')}catch{}
+            for(const [k,v] of Object.entries(wanted))if(Number(got[k])!==Number(v))throw new Error('Catalogue '+k+' attendu '+v+' reçu '+got[k]);
+            for(const oldKey of seed.deleteKeys||[])if((cj.configs||[]).some(x=>x.config_key===oldKey))throw new Error('Ancienne config encore présente '+oldKey);
             const fr=await fetch(process.env.API+'/api/flights');
-            if(!fr.ok)throw new Error('GET flights verification '+fr.status);
+            if(!fr.ok)throw new Error('GET flights '+fr.status);
             const fj=await fr.json();
             const nh=(fj.flights||[]).filter(f=>String(f.airline||'').toUpperCase()==='NH'&&String(f.aircraft||'').toUpperCase()==='789');
             for(const f of nh){
-              if(String(f.sariaConfigKey||'')!=='NH|789|48C21E160Y')throw new Error('Cle NH incorrecte '+f.flight+' '+f.sariaConfigKey);
-              const c=f.config||{};
-              if(Number(c.C)!==48||Number(c.E)!==21||Number(c.Y)!==160)throw new Error('CONFIG NH incorrecte '+f.flight+' '+JSON.stringify(c));
+              if(String(f.sariaConfigKey||'')!==nhCfg.configKey)throw new Error('Clé vol incorrecte '+f.flight+' '+f.sariaConfigKey);
+              for(const [k,v] of Object.entries(wanted))if(Number(f.config?.[k])!==Number(v))throw new Error('Vol '+f.flight+' '+k+' attendu '+v+' reçu '+f.config?.[k]);
             }
-            console.log('Configs SM/NH et vols NH vérifiés:',nh.length);
+            console.log('OK NH:',nhCfg.configKey,JSON.stringify(wanted),'vols',nh.length);
           }
           main().catch(e=>{console.error(e);process.exit(1)});
           NODE
