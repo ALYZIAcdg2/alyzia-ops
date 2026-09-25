@@ -68,13 +68,13 @@ jobs:
               const al=String(f.airline||'').toUpperCase();
               const ac=String(f.aircraft||'').toUpperCase();
               return (al==='SM'&&ac==='32N'&&!String(f.sariaConfigKey||'').trim()) ||
-                     (al==='NH'&&ac==='789'&&String(f.sariaConfigKey||'')!=='NH|789|48C21E160Y');
+                     (al==='NH'&&ac==='789');
             });
             console.log('Vols SM/NH a reevaluer:',targets.length);
             for(const f of targets){
               const identity=[f.date,f.airline,f.flight].join('|');
               if(String(f.airline||'').toUpperCase()==='NH'){
-                let p=await fetch(process.env.API+'/api/flights',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({identity,patch:{sariaConfigKey:'',sariaCabinConfig:''}})});
+                let p=await fetch(process.env.API+'/api/flights',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({identity,patch:{sariaConfigKey:'',sariaCabinConfig:'',config:{}}})});
                 if(!p.ok)throw new Error(identity+' CLEAR '+p.status);
               }
               const p=await fetch(process.env.API+'/api/flights',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({identity,patch:{}})});
