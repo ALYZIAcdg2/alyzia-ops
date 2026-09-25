@@ -68,6 +68,11 @@ function findTimeByPath(row,kind){
   return fallback?fallback[1]:"";
 }
 
+function localTime(value){
+  if(typeof value==="string")return hhmm(value)||value;
+  return firstString(value?.local,value?.Local,value?.time?.local,value?.dateTimeLocal,value?.dateTime?.local);
+}
+
 function pickScheduledTimes(row){
   const depDate=firstString(row?.departure?.date?.local,row?.departureDateLocal);
   const arrDate=firstString(row?.arrival?.date?.local,row?.arrivalDateLocal);
@@ -96,6 +101,18 @@ function pickScheduledTimes(row){
     sta:arrLocal||hhmm(arr),
     departureDateLocal:depDate||String(dep||"").slice(0,10),
     arrivalDateLocal:arrDate||String(arr||"").slice(0,10)
+  };
+}
+
+function pickOperational(row){
+  return {
+    etd:localTime(row?.departure?.estimatedTime||row?.departure?.time?.estimated||row?.estimatedDepartureTime||row?.EstimatedDepartureDateTime),
+    eta:localTime(row?.arrival?.estimatedTime||row?.arrival?.time?.estimated||row?.estimatedArrivalTime||row?.EstimatedArrivalDateTime),
+    atd:localTime(row?.departure?.actualTime||row?.departure?.time?.actual||row?.actualDepartureTime||row?.ActualDepartureDateTime),
+    ata:localTime(row?.arrival?.actualTime||row?.arrival?.time?.actual||row?.actualArrivalTime||row?.ActualArrivalDateTime),
+    gate:firstString(row?.departure?.gate,row?.departure?.gateNumber,row?.departureGate,row?.DepartureGate),
+    reg:firstString(row?.aircraft?.registration,row?.aircraftRegistration,row?.registration,row?.tailNumber,row?.AircraftRegistration),
+    status:firstString(row?.status,row?.flightStatus,row?.operationalStatus,row?.FlightStatus)
   };
 }
 
@@ -143,6 +160,7 @@ async function lookupOagFlight(env,{carrier,flight,date,origin,destination,retry
     }
 
     const times=pickScheduledTimes(pick);
+    const op=pickOperational(pick);
     return {
       ok:true,row:pick,matches:rows.length,
       flight:{
@@ -152,7 +170,8 @@ async function lookupOagFlight(env,{carrier,flight,date,origin,destination,retry
         sta:times.sta,
         departureDateLocal:times.departureDateLocal,
         arrivalDateLocal:times.arrivalDateLocal,
-        aircraft:firstString(pick?.aircraftType?.iata,pick?.AircraftType,pick?.equipment?.iata)
+        aircraft:firstString(pick?.aircraftType?.iata,pick?.AircraftType,pick?.equipment?.iata,pick?.aircraft?.type?.iata),
+        ...op
       }
     };
   }
@@ -166,23 +185,70 @@ function canWriteScheduledSta(x){
   return source==="OAG_SCHEDULE";
 }
 
-async function applyOagStaToStoredFlight(env,row,oagFlight){
+function addFlightInfoLog(x,field,from,to,source,at){
+  const oldValue=String(from??"").trim();
+  const newValue=String(to??"").trim();
+  if(oldValue===newValue)return;
+  const log=Array.isArray(x.flightInfoLog)?x.flightInfoLog:[];
+  log.unshift({at,source,field,from:oldValue,to:newValue});
+  x.flightInfoLog=log.slice(0,120);
+}
+
+function setLoggedField(x,field,value,source,at,{allowEmpty=false}={}){
+  const next=String(value??"").trim();
+  if(!allowEmpty && !next)return false;
+  const before=String(x[field]??"").trim();
+  if(before===next)return false;
+  addFlightInfoLog(x,field,before,next,source,at);
+  x[field]=next;
+  x[field+"Source"]=source;
+  x[field+"UpdatedAt"]=at;
+  return true;
+}
+
+async function applyOagDataToStoredFlight(env,row,oagFlight){
   let x={};
   try{x=JSON.parse(row.data_json||"{}")}catch{}
-  const sta=String(oagFlight?.sta||"").trim();
-  if(!sta)return {applied:false,identity:String(row.identity||""),reason:"STA_OAG_EMPTY"};
-  if(!canWriteScheduledSta(x))return {applied:false,identity:String(row.identity||""),reason:"EXISTING_NON_OAG_STA"};
+  const at=new Date().toISOString();
+  let changed=false;
+  const changedFields=[];
 
-  x.sta=sta;
-  x.staArrivalDate=String(oagFlight?.arrivalDateLocal||"").trim();
-  x.staSource="OAG_SCHEDULE";
-  x.staUpdatedAt=new Date().toISOString();
+  const sta=String(oagFlight?.sta||"").trim();
+  if(sta && canWriteScheduledSta(x)){
+    if(setLoggedField(x,"sta",sta,"OAG_SCHEDULE",at)){
+      changed=true;changedFields.push("STA");
+    }
+    x.staArrivalDate=String(oagFlight?.arrivalDateLocal||"").trim();
+  }
+
+  const aircraft=String(oagFlight?.aircraft||"").trim().toUpperCase();
+  if(aircraft && setLoggedField(x,"aircraft",aircraft,"OAG_SCHEDULE",at)){
+    changed=true;changedFields.push("TYPE A/C");
+  }
+
+  const mappings=[
+    ["etd","ETD"],["eta","ETA"],["atd","ATD"],["ata","ATA"],
+    ["gate","GATE"],["reg","IMMATRICULATION"],["status","STATUT"]
+  ];
+  for(const [field,label] of mappings){
+    const value=String(oagFlight?.[field]||"").trim();
+    if(value && setLoggedField(x,field,value,"OAG",at)){
+      changed=true;changedFields.push(label);
+    }
+  }
+
+  x.oagLastCheckedAt=at;
+  if(!changed){
+    await env.OPS_DB.prepare(`UPDATE flights SET data_json=?, updated_at=CURRENT_TIMESTAMP WHERE identity=?`)
+      .bind(JSON.stringify(x),row.identity).run();
+    return {applied:false,identity:String(row.identity||""),reason:"NO_CHANGE",changedFields:[]};
+  }
 
   await env.OPS_DB.prepare(`
     UPDATE flights SET data_json=?, updated_at=CURRENT_TIMESTAMP WHERE identity=?
   `).bind(JSON.stringify(x),row.identity).run();
 
-  return {applied:true,identity:String(row.identity||"")};
+  return {applied:true,identity:String(row.identity||""),changedFields};
 }
 
 async function handleSingleFlight(request,env,url){
@@ -207,7 +273,8 @@ async function handleSingleFlight(request,env,url){
   let applied=false;
   let identity="";
   let applyReason="";
-  if(apply && lookup.flight.sta){
+  let changedFields=[];
+  if(apply){
     const full=(carrier+flight).toUpperCase();
     const row=await env.OPS_DB.prepare(`
       SELECT identity,data_json
@@ -217,20 +284,21 @@ async function handleSingleFlight(request,env,url){
       LIMIT 1
     `).bind(date,carrier,full,flight.toUpperCase()).first();
     if(row){
-      const result=await applyOagStaToStoredFlight(env,row,lookup.flight);
+      const result=await applyOagDataToStoredFlight(env,row,lookup.flight);
       applied=result.applied;
       identity=result.identity;
       applyReason=result.reason||"";
+      changedFields=result.changedFields||[];
     }
   }
 
   const result={
     ok:true,source:"OAG",query:{carrier,flight,date,origin,destination},
-    flight:lookup.flight,matches:lookup.matches,applied,identity,applyReason
+    flight:lookup.flight,matches:lookup.matches,applied,identity,applyReason,changedFields
   };
 
   if(debug || (!lookup.flight.std && !lookup.flight.sta)){
-    result.debug={topLevelKeys:Object.keys(lookup.row||{}),stringPaths:flattenStrings(lookup.row).slice(0,120)};
+    result.debug={topLevelKeys:Object.keys(lookup.row||{}),stringPaths:flattenStrings(lookup.row).slice(0,160)};
   }
   return json(result);
 }
@@ -242,7 +310,7 @@ async function handleBatchSta(request,env,url){
   const date=String(url.searchParams.get("date")||new Date().toISOString().slice(0,10)).trim();
   const requestedLimit=Number(url.searchParams.get("limit")||100);
   const limit=Math.max(1,Math.min(Number.isFinite(requestedLimit)?requestedLimit:100,100));
-  const paceMs=Math.max(1000,Math.min(Number(url.searchParams.get("paceMs")||1400),10000));
+  const paceMs=Math.max(1000,Math.min(Number(url.searchParams.get("paceMs")||3000),10000));
   if(!/^20\d{2}-\d{2}-\d{2}$/.test(date))return json({ok:false,error:"date (YYYY-MM-DD) invalide"},400);
 
   const {results=[]}=await env.OPS_DB.prepare(`
@@ -253,24 +321,11 @@ async function handleBatchSta(request,env,url){
     LIMIT ?
   `).bind(date,limit).all();
 
-  const summary={date,found:results.length,lookups:0,updated:0,protected:0,alreadyOag:0,skipped:0,notFound:0,errors:0,items:[]};
+  const summary={date,found:results.length,lookups:0,updated:0,unchanged:0,skipped:0,notFound:0,errors:0,items:[]};
 
   for(const row of results){
     let x={};
     try{x=JSON.parse(row.data_json||"{}")}catch{}
-
-    const currentSta=String(x.sta||"").trim();
-    const currentSource=String(x.staSource||"").trim().toUpperCase();
-    if(currentSta && currentSource==="OAG_SCHEDULE"){
-      summary.alreadyOag++;
-      summary.items.push({identity:row.identity,ok:true,status:"ALREADY_OAG",sta:currentSta});
-      continue;
-    }
-    if(currentSta && currentSource!=="OAG_SCHEDULE"){
-      summary.protected++;
-      summary.items.push({identity:row.identity,ok:true,status:"PROTECTED_EXISTING_STA",sta:currentSta,source:currentSource||"UNKNOWN"});
-      continue;
-    }
 
     const carrier=String(x.airline||"").trim().toUpperCase();
     const flight=String(x.flight||"").trim().toUpperCase().replace(/^[A-Z]{2}/,"");
@@ -292,19 +347,15 @@ async function handleBatchSta(request,env,url){
       continue;
     }
 
-    if(!lookup.flight.sta){
-      summary.errors++;
-      summary.items.push({identity:row.identity,ok:false,status:"STA OAG VIDE"});
-      continue;
-    }
-
-    const applied=await applyOagStaToStoredFlight(env,row,lookup.flight);
-    if(applied.applied)summary.updated++;
-    else if(applied.reason==="EXISTING_NON_OAG_STA")summary.protected++;
+    const applied=await applyOagDataToStoredFlight(env,row,lookup.flight);
+    if(applied.applied)summary.updated++; else summary.unchanged++;
     summary.items.push({
       identity:row.identity,ok:true,sta:lookup.flight.sta,
       arrivalDateLocal:lookup.flight.arrivalDateLocal,
-      aircraft:lookup.flight.aircraft,applied:applied.applied,reason:applied.reason||""
+      aircraft:lookup.flight.aircraft,
+      gate:lookup.flight.gate||"",reg:lookup.flight.reg||"",
+      etd:lookup.flight.etd||"",eta:lookup.flight.eta||"",atd:lookup.flight.atd||"",ata:lookup.flight.ata||"",
+      status:lookup.flight.status||"",applied:applied.applied,changedFields:applied.changedFields||[]
     });
   }
 
@@ -313,7 +364,7 @@ async function handleBatchSta(request,env,url){
 
 async function handleOag(request,env,url){
   if(url.pathname==="/api/oag/flight-info")return handleSingleFlight(request,env,url);
-  if(url.pathname==="/api/oag/enrich-sta")return handleBatchSta(request,env,url);
+  if(url.pathname==="/api/oag/enrich-sta" || url.pathname==="/api/oag/enrich-operational")return handleBatchSta(request,env,url);
   return null;
 }
 
