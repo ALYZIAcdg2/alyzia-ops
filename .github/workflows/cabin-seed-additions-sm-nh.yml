@@ -1,0 +1,91 @@
+name: Cabin — seed SM NH
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "scripts/cabin_seed_additions_sm_nh_20260925.json"
+      - ".github/workflows/cabin-seed-additions-sm-nh.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      API: https://alyzia-ops.alyzia-cdg2.workers.dev
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Seed SM et NH
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const o=JSON.parse(fs.readFileSync('scripts/cabin_seed_additions_sm_nh_20260925.json','utf8'));
+          fs.writeFileSync('seed_payload.json',JSON.stringify({configs:o.configs||[]}));
+          NODE
+          curl -sS -f -X POST "$API/api/cabin/seed" -H "Content-Type: application/json" --data-binary @seed_payload.json
+          curl -sS -f -X POST "$API/api/cabin/recompute-classes" >/dev/null
+
+      - name: Réapplique les capacités opérationnelles
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const o=JSON.parse(fs.readFileSync('scripts/cabin_seed_additions_sm_nh_20260925.json','utf8'));
+          fs.writeFileSync('operational.ndjson',(o.configs||[]).map(r=>JSON.stringify({configKey:r.configKey,airline:r.airline,aircraft:r.aircraft,configuration:r.configuration,total:r.operationalTotal,classes:r.operationalClasses,quality:r.quality,sourceLabel:r.sourceLabel})).join('\n')+'\n');
+          NODE
+          while IFS= read -r payload; do
+            [ -z "$payload" ] && continue
+            curl -sS -f -X POST "$API/api/cabin/config" -H "Content-Type: application/json" --data "$payload" >/dev/null
+          done < operational.ndjson
+
+      - name: Injection directe CONFIG sur les vols SM NH existants
+        run: |
+          node <<'NODE'
+          async function main(){
+            const r=await fetch(process.env.API+'/api/flights');
+            if(!r.ok)throw new Error('GET flights '+r.status);
+            const j=await r.json();
+            const targets=(j.flights||[]).filter(f=>{
+              const al=String(f.airline||'').toUpperCase();
+              const ac=String(f.aircraft||'').toUpperCase();
+              return ((al==='SM'&&ac==='32N')||(al==='NH'&&ac==='789'))&&!String(f.sariaConfigKey||'').trim();
+            });
+            console.log('Vols SM/NH a reevaluer:',targets.length);
+            for(const f of targets){
+              const identity=[f.date,f.airline,f.flight].join('|');
+              const p=await fetch(process.env.API+'/api/flights',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({identity,patch:{}})});
+              if(!p.ok)throw new Error(identity+' PATCH '+p.status);
+            }
+          }
+          main().catch(e=>{console.error(e);process.exit(1)});
+          NODE
+
+      - name: Vérifie les trois configs
+        run: |
+          node <<'NODE'
+          async function main(){
+            const r=await fetch(process.env.API+'/api/cabin/configs');
+            if(!r.ok)throw new Error('GET configs '+r.status);
+            const j=await r.json();
+            const rows=j.configs||[];
+            const wanted={
+              'SM|32N|180Y':{Y:180},
+              'SM|32N|186Y':{Y:186},
+              'NH|789|48C21E146Y':{C:48,E:21,Y:146}
+            };
+            for(const [k,classes] of Object.entries(wanted)){
+              const f=rows.find(x=>x.config_key===k);
+              if(!f)throw new Error('Config absente '+k);
+              let got={};try{got=JSON.parse(f.classes_json||'{}')}catch{}
+              if(JSON.stringify(got)!==JSON.stringify(classes))throw new Error('Classes incorrectes '+k+' '+JSON.stringify(got));
+            }
+            console.log('Configs SM/NH vérifiées');
+          }
+          main().catch(e=>{console.error(e);process.exit(1)});
+          NODE
