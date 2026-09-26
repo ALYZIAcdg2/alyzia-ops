@@ -3,6 +3,7 @@ import {quotaPlan} from "./oag-quota.js";
 
 const clean=v=>String(v??"").trim();
 const upper=v=>clean(v).toUpperCase();
+const missing=v=>!clean(v)||["—","-","N/A","NULL"].includes(upper(v));
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 
 function parisNow(){
@@ -165,7 +166,7 @@ async function adbFetch(env,path){
   catch(e){return {ok:false,status:502,error:String(e?.message||e)}}
 }
 async function adbRegistrationFallback(env,row,x,date,d){
-  if(clean(x.reg)||d>60||d<-180||clean(x.aeroDataBoxRegCheckedDate)===date)return {ok:true,skipped:"REG_DEJA_TRAITEE"};
+  if(!missing(x.reg)||d>120||d<-360||clean(x.aeroDataBoxRegCheckedDate)===date)return {ok:true,skipped:"REG_DEJA_TRAITEE"};
   if(ageMs(x.oagLastCheckedAt)>90*60000)return {ok:true,skipped:"OAG_DOIT_PASSER_DABORD"};
   const usage=await adbFetch(env,"/usage"),remaining=Number(usage.payload?.daily?.remaining||0);if(!usage.ok||remaining<2)return {ok:true,skipped:"ADB_QUOTA",remaining};
   const flight=fullFlight(x,row);if(!flight)return {ok:false,error:"VOL_MANQUANT"};
@@ -184,7 +185,7 @@ async function runSafeOag(env){
   if(!env.OAG_API_KEY)return {ok:false,error:"OAG_API_KEY_NON_CONFIGURE"};
   const now=parisNow(),limit=Number(env.OAG_QUOTA_LIMIT||1000),u=await usage(env);
   const plan=quotaPlan({date:now.date,minutes:now.minutes,dayCalls:u.day,monthCalls:u.month,limit});
-  if(!plan.dailyTarget||u.month>=plan.monthCap||u.day>=plan.hardDayMax)return {ok:true,skipped:"QUOTA_BUDGET",usage:{...u,...plan}};
+  const oagBudgetAvailable=Boolean(plan.dailyTarget&&u.month<plan.monthCap&&u.day<plan.hardDayMax);
   const {results=[]}=await env.OPS_DB.prepare(`SELECT identity,flight_date,airline,flight_number,std,data_json FROM flights WHERE flight_date=? ORDER BY std,flight_number`).bind(now.date).all();
   const rows=[];
   for(const row of results){
@@ -196,7 +197,7 @@ async function runSafeOag(env){
   }
   const candidates=rows.filter(z=>needsOag(z.x,z.d,now)).sort((a,b)=>a.coverageRank-b.coverageRank||a.prio-b.prio||Math.abs(a.d)-Math.abs(b.d));
   const criticalOnly=u.day>=plan.normalCap;
-  const eligible=criticalOnly?candidates.filter(z=>z.prio<=2):candidates;
+  const eligible=!oagBudgetAvailable?[]:criticalOnly?candidates.filter(z=>z.prio<=2):candidates;
   const allowedCap=criticalOnly?plan.hardDayMax:plan.normalCap;
   const room=Math.max(0,Math.min(2,allowedCap-u.day,plan.monthCap-u.month)),picked=eligible.slice(0,room),items=[];
   for(let i=0;i<picked.length;i++){if(i)await sleep(6500);items.push({flight:picked[i].x.flight||picked[i].row.flight_number,result:await enrichOag(env,picked[i].row,picked[i].x,now.date)})}
@@ -205,11 +206,14 @@ async function runSafeOag(env){
   const refreshed=[];
   for(const z of rows){
     const r=await env.OPS_DB.prepare(`SELECT identity,flight_date,airline,flight_number,std,data_json FROM flights WHERE identity=?`).bind(z.row.identity).first();
-    let x={};try{x=JSON.parse(r?.data_json||"{}")}catch{};if(!clean(x.reg)&&z.d<=60&&z.d>=-180)refreshed.push({row:r||z.row,x,d:z.d});
+    let x={};try{x=JSON.parse(r?.data_json||"{}")}catch{}
+    if(missing(x.reg)&&z.d<=120&&z.d>=-360&&clean(x.aeroDataBoxRegCheckedDate)!==now.date)refreshed.push({row:r||z.row,x,d:z.d});
   }
   refreshed.sort((a,b)=>Math.abs(a.d)-Math.abs(b.d));
-  if(refreshed.length)adb=await adbRegistrationFallback(env,refreshed[0].row,refreshed[0].x,now.date,refreshed[0].d);
-  return {ok:true,date:now.date,usage:{...u,...plan},criticalOnly,candidates:candidates.length,eligible:eligible.length,processed:items.length,items,aerodataboxRegistration:adb};
+  const lastAdbAt=rows.reduce((latest,z)=>Math.max(latest,Date.parse(clean(z.x.aeroDataBoxRegCheckedAt)||0)||0),0);
+  if(refreshed.length&&(!lastAdbAt||Date.now()-lastAdbAt>=75*60000))adb=await adbRegistrationFallback(env,refreshed[0].row,refreshed[0].x,now.date,refreshed[0].d);
+  else if(refreshed.length)adb={ok:true,skipped:"CADENCE_75_MIN",lastAt:new Date(lastAdbAt).toISOString()};
+  return {ok:true,date:now.date,skipped:oagBudgetAvailable?"":"QUOTA_BUDGET",usage:{...u,...plan},criticalOnly,candidates:candidates.length,eligible:eligible.length,processed:items.length,items,aerodataboxRegistration:adb};
 }
 
 async function quotaStatus(env){
