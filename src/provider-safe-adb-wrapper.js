@@ -125,7 +125,7 @@ async function runSafeAdb(env){
     const missingEstimate=d>=0&&(!clean(x.etd)||!clean(x.eta));
     if(!missingActual&&!missingOps&&!missingEstimate)continue;
     const carrier=upper(x.airline||row.airline);
-    const priority=["ENT","TU","A9"].includes(carrier)?0:missingActual?1:missingOps?2:3;
+    const priority=missingActual?0:["ENT","TU","A9"].includes(carrier)?1:missingOps?2:3;
     candidates.push({row,x,d,priority});
   }
   candidates.sort((a,b)=>a.priority-b.priority||Math.abs(a.d)-Math.abs(b.d));
@@ -145,6 +145,7 @@ export default {
       try{
         const masked=Object.create(env);
         Object.defineProperty(masked,"AERODATABOX_API_KEY",{value:"",enumerable:true});
+        Object.defineProperty(masked,"OAG_API_KEY",{value:"",enumerable:true});
         app.scheduled(controller,masked,ctx);
       }catch(_){ }
     }
