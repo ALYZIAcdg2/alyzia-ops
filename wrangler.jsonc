@@ -1,6 +1,6 @@
 {
   "name": "alyzia-ops",
-  "main": "./src/free-provider-prefill-wrapper.js",
+  "main": "./src/ent-alias-wrapper.js",
   "compatibility_date": "2026-08-06",
 
   "assets": {
