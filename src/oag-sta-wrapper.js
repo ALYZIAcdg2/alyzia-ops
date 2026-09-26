@@ -182,7 +182,7 @@ function canWriteScheduledSta(x){
   const current=String(x?.sta||"").trim();
   const source=String(x?.staSource||"").trim().toUpperCase();
   if(!current)return true;
-  return source==="OAG_SCHEDULE";
+  return source==="OAG_SCHEDULE"||source==="OAG_STATUS"||source==="AERODATABOX";
 }
 
 function addFlightInfoLog(x,field,from,to,source,at){

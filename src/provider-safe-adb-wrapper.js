@@ -80,8 +80,7 @@ function logField(x,field,value,at){
 }
 async function applyAdb(env,row,x,data){
   const at=new Date().toISOString(),changed=[];
-  const fields=[["etd","ETD"],["atd","ATD"],["eta","ETA"],["ata","ATA"],["gate","GATE"],["arrivalGate","ARRIVAL GATE"],["terminal","TERMINAL"],["reg","IMMATRICULATION"],["modeS","MODE-S"],["status","STATUT"]];
-  if(!clean(x.sta)&&logField(x,"sta",data.sta,at))changed.push("STA");
+  const fields=[["reg","IMMATRICULATION"],["modeS","MODE-S"]];
   for(const [field,label] of fields)if(logField(x,field,data[field],at))changed.push(label);
   x.aeroDataBoxLastCheckedAt=at;
   x.aeroDataBoxDataLevel=clean(data.dataLevel);
@@ -120,12 +119,10 @@ async function runSafeAdb(env){
     if(d>120||d<-360)continue;
     const lastFlight=Date.parse(clean(x.aeroDataBoxLastCheckedAt)||0)||0;
     if(lastFlight&&Date.now()-lastFlight<120*60*1000)continue;
-    const missingActual=d<0&&(!clean(x.atd)||!clean(x.ata));
-    const missingOps=!clean(x.reg)||!clean(x.gate)||!clean(x.terminal);
-    const missingEstimate=d>=0&&(!clean(x.etd)||!clean(x.eta));
-    if(!missingActual&&!missingOps&&!missingEstimate)continue;
+    const missingOps=!clean(x.reg)||!clean(x.modeS);
+    if(!missingOps)continue;
     const carrier=upper(x.airline||row.airline);
-    const priority=missingActual?0:["ENT","TU","A9"].includes(carrier)?1:missingOps?2:3;
+    const priority=["ENT","TU","A9"].includes(carrier)?1:2;
     candidates.push({row,x,d,priority});
   }
   candidates.sort((a,b)=>a.priority-b.priority||Math.abs(a.d)-Math.abs(b.d));

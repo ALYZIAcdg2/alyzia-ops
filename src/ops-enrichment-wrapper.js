@@ -185,10 +185,7 @@ async function applyAeroDataBoxToStoredFlight(env,row,adbFlight){
   try{x=JSON.parse(row.data_json||"{}")}catch{}
   const at=new Date().toISOString();
   const changedFields=[];
-  const mappings=[
-    ["reg","IMMATRICULATION"],["gate","GATE"],["etd","ETD"],["eta","ETA"],
-    ["atd","ATD"],["ata","ATA"],["status","STATUT"],["terminal","TERMINAL"]
-  ];
+  const mappings=[["reg","IMMATRICULATION"]];
   for(const [field,label] of mappings){
     const value=clean(adbFlight?.[field]);
     if(value&&setLoggedField(x,field,value,"AERODATABOX",at))changedFields.push(label);
@@ -256,9 +253,8 @@ async function enrichOne(env,ctx,row,{useAeroDataBox=true}={}){
     let current={};
     try{current=JSON.parse(refreshed?.data_json||"{}")}catch{}
     const needsReg=!clean(current.reg);
-    const needsGate=!clean(current.gate);
-    const needsLive=!clean(current.etd)&&!clean(current.atd)&&!clean(current.eta)&&!clean(current.ata);
-    if(needsReg||needsGate||needsLive){
+    const needsModeS=!clean(current.modeS);
+    if(needsReg||needsModeS){
       const lookup=await lookupAeroDataBox(env,{carrier,flight,date,origin,destination});
       if(lookup.ok){
         const result=await applyAeroDataBoxToStoredFlight(env,refreshed,lookup.flight);

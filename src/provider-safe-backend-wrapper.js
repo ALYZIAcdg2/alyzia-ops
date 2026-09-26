@@ -60,7 +60,7 @@ function daysRemaining(date){const [y,m,d]=date.split('-').map(Number);return ne
 function dailyBudget(date,monthCalls,limit){
   const reserve=Math.max(20,Math.ceil(limit*0.05));
   const available=Math.max(0,limit-reserve-monthCalls);
-  const budget=available?Math.min(80,Math.max(1,Math.ceil(available/Math.max(1,daysRemaining(date))))):0;
+  const budget=available?Math.min(200,Math.max(1,Math.ceil(available/Math.max(1,daysRemaining(date))))):0;
   const criticalReserve=budget?Math.min(8,Math.max(2,Math.ceil(budget*0.2))):0;
   return {reserve,available,budget,criticalReserve,hardDayMax:budget+criticalReserve};
 }
@@ -112,7 +112,7 @@ async function enrichOag(env,row,x,date){
   x.oagAutoCheckedDate=date;
   const d=parseOag(rows[0]),changed=[];
   for(const [field,label] of [["sta","STA"],["etd","ETD"],["atd","ATD"],["eta","ETA"],["ata","ATA"],["gate","GATE"],["arrivalGate","ARRIVAL GATE"],["terminal","TERMINAL"],["arrivalTerminal","ARRIVAL TERMINAL"],["reg","IMMATRICULATION"],["status","STATUT"]]){
-    if(field==="sta"&&clean(x.sta)&&!["OAG_SCHEDULE","OAG_STATUS"].includes(upper(x.staSource)))continue;
+    if(field==="sta"&&clean(x.sta)&&!["OAG_SCHEDULE","OAG_STATUS","AERODATABOX"].includes(upper(x.staSource)))continue;
     if(logChange(x,field,d[field],"OAG_STATUS",at))changed.push(label);
   }
   if(clean(d.staArrivalDate))x.staArrivalDate=d.staArrivalDate;
