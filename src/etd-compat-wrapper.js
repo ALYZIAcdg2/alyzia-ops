@@ -1,6 +1,12 @@
 import app from "./ops-enrichment-wrapper.js";
 
 const COMPAT=String.raw`
+<style id="alyzia-home-times-style">
+.flight-home-row .home-time .etd-small{font-size:13px!important;line-height:1.2;margin-top:3px}
+.flight-home-row .home-time .ops-atd-time{display:block;font-size:13px;line-height:1.2;margin-top:3px;font-weight:950;color:#078447}
+.flight-home-row .home-time .ops-arrival-time{display:block;font-size:12px;line-height:1.2;margin-top:2px;font-weight:900;color:#52657a}
+.flight-home-row .home-time .ops-eta-time{color:#087b91}
+</style>
 <script id="alyzia-etd-compat-js">
 (()=>{
   'use strict';
@@ -24,14 +30,23 @@ const COMPAT=String.raw`
         if(!flight)return;
         const x=FLIGHTS.find(v=>text(v?.flight).toUpperCase()===flight&&(!date||!text(v?.date)||text(v?.date)===date));
         if(!x)return;
-        const std=text(x.std)||'—',atd=text(x.atd),etd=text(x.etd||x.edt),sta=text(x.sta);
-        const sig=[std,atd,etd,sta].join('|');
+        const std=text(x.std)||'—',atd=text(x.atd),etd=text(x.etd||x.edt),sta=text(x.sta),eta=text(x.eta),ata=text(x.ata);
+        const sig=[std,atd,etd,sta,eta,ata].join('|');
         const cell=row.querySelector('.home-time');
         if(!cell||cell.dataset.opsTimes===sig)return;
         cell.dataset.opsTimes=sig;
-        cell.innerHTML='<span>'+std+'</span>'+
-          (atd?'<span style="display:block;color:#078447;font-size:11px;font-weight:950">ATD '+atd+'</span>':etd?'<span class="etd-small">ETD '+etd+'</span>':'')+
-          (sta?'<span style="display:block;color:#52657a;font-size:11px;font-weight:900">STA '+sta+'</span>':'');
+        cell.replaceChildren();
+        const add=(label,value,className)=>{
+          if(!value)return;
+          const span=document.createElement('span');
+          if(className)span.className=className;
+          span.textContent=label?label+' '+value:value;
+          cell.appendChild(span);
+        };
+        add('',std,'ops-std-time');
+        if(atd)add('ATD',atd,'ops-atd-time');else add('ETD',etd,'etd-small');
+        add('STA',sta,'ops-arrival-time');
+        if(ata)add('ATA',ata,'ops-arrival-time ops-eta-time');else add('ETA',eta,'ops-arrival-time ops-eta-time');
       });
     }catch(_){}
   }
