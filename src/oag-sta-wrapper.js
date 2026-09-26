@@ -13,6 +13,18 @@ function json(data,status=200){
 
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 
+async function recordOagUsage(env,status){
+  try{
+    const at=new Date().toISOString();
+    const p=new Intl.DateTimeFormat("fr-CA",{timeZone:"Europe/Paris",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date());
+    const m=Object.fromEntries(p.map(x=>[x.type,x.value])),date=`${m.year}-${m.month}-${m.day}`;
+    await env.OPS_DB.prepare(`CREATE TABLE IF NOT EXISTS api_provider_usage(provider TEXT NOT NULL,period TEXT NOT NULL,calls INTEGER NOT NULL DEFAULT 0,successes INTEGER NOT NULL DEFAULT 0,errors INTEGER NOT NULL DEFAULT 0,last_status INTEGER,last_at TEXT,PRIMARY KEY(provider,period))`).run();
+    for(const period of [date.slice(0,7),date]){
+      await env.OPS_DB.prepare(`INSERT INTO api_provider_usage(provider,period,calls,successes,errors,last_status,last_at) VALUES('OAG',?,1,?,?,?,?) ON CONFLICT(provider,period) DO UPDATE SET calls=calls+1,successes=successes+excluded.successes,errors=errors+excluded.errors,last_status=excluded.last_status,last_at=excluded.last_at`).bind(period,status>=200&&status<400?1:0,status>=400?1:0,status,at).run();
+    }
+  }catch(_){}
+}
+
 function hhmm(value){
   const s=String(value||"");
   const direct=s.match(/^(\d{2}:\d{2})$/);
@@ -123,6 +135,7 @@ async function lookupOagFlight(env,{carrier,flight,date,origin,destination,retry
     FlightNumber:flight,
     FlightType:"scheduled",
     CodeType:"IATA",
+    Content:"Status",
     version:"v2"
   });
   if(origin)params.set("DepartureAirport",origin);
@@ -137,6 +150,7 @@ async function lookupOagFlight(env,{carrier,flight,date,origin,destination,retry
     }catch(error){
       return {ok:false,status:502,error:"OAG NETWORK ERROR",details:String(error?.message||error)};
     }
+    await recordOagUsage(env,response.status);
 
     const text=await response.text();
     let payload=null;
@@ -238,6 +252,9 @@ async function applyOagDataToStoredFlight(env,row,oagFlight){
   }
 
   x.oagLastCheckedAt=at;
+  x.oagLastStatus=200;
+  x.oagCoverageCheckedDate=String(oagFlight?.departureDateLocal||x.date||"").trim()||at.slice(0,10);
+  if(/CANCEL/i.test(String(x.status||""))||(String(x.atd||"").trim()&&String(x.ata||"").trim()))x.oagCompleteAt=at;
   if(!changed){
     await env.OPS_DB.prepare(`UPDATE flights SET data_json=?, updated_at=CURRENT_TIMESTAMP WHERE identity=?`)
       .bind(JSON.stringify(x),row.identity).run();
@@ -311,6 +328,7 @@ async function handleBatchSta(request,env,url){
   const requestedLimit=Number(url.searchParams.get("limit")||100);
   const limit=Math.max(1,Math.min(Number.isFinite(requestedLimit)?requestedLimit:100,100));
   const paceMs=Math.max(1000,Math.min(Number(url.searchParams.get("paceMs")||3000),10000));
+  const missingStaOnly=String(url.searchParams.get("missingStaOnly")||"")==="1";
   if(!/^20\d{2}-\d{2}-\d{2}$/.test(date))return json({ok:false,error:"date (YYYY-MM-DD) invalide"},400);
 
   const {results=[]}=await env.OPS_DB.prepare(`
@@ -318,14 +336,21 @@ async function handleBatchSta(request,env,url){
     FROM flights
     WHERE flight_date=?
     ORDER BY std,flight_number
-    LIMIT ?
-  `).bind(date,limit).all();
+    LIMIT 100
+  `).bind(date).all();
 
   const summary={date,found:results.length,lookups:0,updated:0,unchanged:0,skipped:0,notFound:0,errors:0,items:[]};
 
   for(const row of results){
     let x={};
     try{x=JSON.parse(row.data_json||"{}")}catch{}
+
+    const finalComplete=/CANCEL/i.test(String(x.status||""))||(String(x.atd||"").trim()&&String(x.ata||"").trim());
+    if(finalComplete||(missingStaOnly&&String(x.sta||"").trim())){
+      summary.skipped++;
+      continue;
+    }
+    if(summary.lookups>=limit)break;
 
     const carrier=String(x.airline||"").trim().toUpperCase();
     const flight=String(x.flight||"").trim().toUpperCase().replace(/^[A-Z]{2}/,"");
@@ -342,6 +367,8 @@ async function handleBatchSta(request,env,url){
     summary.lookups++;
     const lookup=await lookupOagFlight(env,{carrier,flight,date,origin,destination,retry429:true});
     if(!lookup.ok){
+      x.oagLastCheckedAt=new Date().toISOString();x.oagLastStatus=lookup.status||500;x.oagCoverageCheckedDate=date;
+      await env.OPS_DB.prepare(`UPDATE flights SET data_json=?,updated_at=CURRENT_TIMESTAMP WHERE identity=?`).bind(JSON.stringify(x),row.identity).run();
       if(lookup.status===404)summary.notFound++; else summary.errors++;
       summary.items.push({identity:row.identity,ok:false,status:lookup.error});
       continue;

@@ -29,6 +29,7 @@ function hhmm(v){const s=clean(v);const m=s.match(/^(\d{2}:\d{2})$/)||s.match(/(
 function localTime(v){if(!v)return "";if(typeof v==="string")return hhmm(v);return hhmm(first(v.local,v.localTime,v.dateTimeLocal,v.utc,v.dateTimeUtc))}
 function safeAircraft(v){const x=upper(v);return /^[A-Z0-9]{3}$/.test(x)?x:""}
 function ageMs(v){const t=Date.parse(clean(v)||0)||0;return t?Date.now()-t:Infinity}
+function isFinalComplete(x){return /CANCEL/i.test(upper(x.status))||Boolean(clean(x.atd)&&clean(x.ata))}
 function arrivalDelta(x,now){
   const h=hm(x.eta||x.sta);if(h==null)return null;
   const date=clean(x.staArrivalDate)||now.date;
@@ -96,7 +97,7 @@ async function enrichOag(env,row,x,date){
   let r;try{r=await fetch(`https://api.oag.com/flight-instances/?${p}`,{headers:{"Subscription-Key":env.OAG_API_KEY,"Accept":"application/json"}})}catch(e){await bump(env,502);return {ok:false,status:502,error:String(e?.message||e)}}
   await bump(env,r.status);
   const payload=await r.json().catch(()=>null),rows=Array.isArray(payload)?payload:(payload?.data||payload?.results||payload?.flightInstances||payload?.items||[]),at=new Date().toISOString();
-  x.oagLastCheckedAt=at;x.oagLastStatus=r.status;
+  x.oagLastCheckedAt=at;x.oagLastStatus=r.status;x.oagCoverageCheckedDate=date;
   if(!r.ok||!Array.isArray(rows)||!rows.length){await saveRow(env,row,x);return {ok:false,status:r.status||404,carrier,number,error:r.ok?"VOL_OAG_INTROUVABLE":`OAG_${r.status}`}}
   x.oagAutoCheckedDate=date;
   const d=parseOag(rows[0]),changed=[];
@@ -106,12 +107,12 @@ async function enrichOag(env,row,x,date){
   }
   if(clean(d.staArrivalDate))x.staArrivalDate=d.staArrivalDate;
   if(d.aircraft&&!clean(x.aircraft)&&logChange(x,"aircraft",d.aircraft,"OAG_STATUS",at))changed.push("TYPE A/C");
+  if(isFinalComplete(x))x.oagCompleteAt=at;
   await saveRow(env,row,x);return {ok:true,status:r.status,carrier,number,changed,data:d};
 }
 
 function oagGapMinutes(x,d,now){
-  if(/CANCEL/i.test(upper(x.status)))return null;
-  if(clean(x.atd)&&clean(x.ata))return null;
+  if(isFinalComplete(x))return null;
   const arr=arrivalDelta(x,now);
   let gap=null;
   if(d>180)return !clean(x.sta)?360:null;
@@ -129,6 +130,7 @@ function oagGapMinutes(x,d,now){
   return gap;
 }
 function needsOag(x,d,now){
+  if(isFinalComplete(x))return false;
   const gap=oagGapMinutes(x,d,now);if(gap==null)return false;
   const missingSta=!clean(x.sta),missingEstimate=!clean(x.etd)&&!clean(x.atd)||!clean(x.eta)&&!clean(x.ata);
   const missingActual=d<=60&&(!clean(x.atd)||d<0&&!clean(x.ata));
@@ -175,8 +177,14 @@ async function runSafeOag(env){
   if(!plan.dailyTarget||u.month>=plan.monthCap||u.day>=plan.hardDayMax)return {ok:true,skipped:"QUOTA_BUDGET",usage:{...u,...plan}};
   const {results=[]}=await env.OPS_DB.prepare(`SELECT identity,flight_date,airline,flight_number,std,data_json FROM flights WHERE flight_date=? ORDER BY std,flight_number`).bind(now.date).all();
   const rows=[];
-  for(const row of results){let x={};try{x=JSON.parse(row.data_json||"{}")}catch{};const d=delta(x.std||row.std,now.minutes);if(d>720||d<-1500)continue;rows.push({row,x,d,prio:priority(x,d,now)})}
-  const candidates=rows.filter(z=>needsOag(z.x,z.d,now)).sort((a,b)=>a.prio-b.prio||Math.abs(a.d)-Math.abs(b.d));
+  for(const row of results){
+    let x={};try{x=JSON.parse(row.data_json||"{}")}catch{}
+    const d=delta(x.std||row.std,now.minutes);if(d>720||d<-1500||isFinalComplete(x))continue;
+    const covered=clean(x.oagCoverageCheckedDate)===now.date||clean(x.oagAutoCheckedDate)===now.date||Boolean(clean(x.oagLastCheckedAt));
+    const coverageRank=!clean(x.sta)?0:covered?2:1;
+    rows.push({row,x,d,prio:priority(x,d,now),coverageRank});
+  }
+  const candidates=rows.filter(z=>needsOag(z.x,z.d,now)).sort((a,b)=>a.coverageRank-b.coverageRank||a.prio-b.prio||Math.abs(a.d)-Math.abs(b.d));
   const criticalOnly=u.day>=plan.normalCap;
   const eligible=criticalOnly?candidates.filter(z=>z.prio<=2):candidates;
   const allowedCap=criticalOnly?plan.hardDayMax:plan.normalCap;
