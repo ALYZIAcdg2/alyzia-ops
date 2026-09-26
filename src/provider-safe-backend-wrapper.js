@@ -42,8 +42,8 @@ async function ensureTables(env){
 async function bump(env,status){
   try{
     await ensureTables(env);
-    const at=new Date().toISOString();
-    for(const period of [at.slice(0,7),at.slice(0,10)]){
+    const at=new Date().toISOString(),now=parisNow();
+    for(const period of [now.date.slice(0,7),now.date]){
       await env.OPS_DB.prepare(`INSERT INTO api_provider_usage(provider,period,calls,successes,errors,last_status,last_at) VALUES('OAG',?,1,?,?,?,?) ON CONFLICT(provider,period) DO UPDATE SET calls=calls+1,successes=successes+excluded.successes,errors=errors+excluded.errors,last_status=excluded.last_status,last_at=excluded.last_at`).bind(period,status>=200&&status<400?1:0,status>=400?1:0,status,at).run();
     }
   }catch(_){}
@@ -60,7 +60,20 @@ function daysRemaining(date){const [y,m,d]=date.split('-').map(Number);return ne
 function dailyBudget(date,monthCalls,limit){
   const reserve=Math.max(20,Math.ceil(limit*0.05));
   const available=Math.max(0,limit-reserve-monthCalls);
-  return {reserve,available,budget:available?Math.min(80,Math.max(1,Math.ceil(available/Math.max(1,daysRemaining(date))))):0};
+  const budget=available?Math.min(80,Math.max(1,Math.ceil(available/Math.max(1,daysRemaining(date))))):0;
+  const criticalReserve=budget?Math.min(8,Math.max(2,Math.ceil(budget*0.2))):0;
+  return {reserve,available,budget,criticalReserve,hardDayMax:budget+criticalReserve};
+}
+function releasedBudget(minutes,budget){
+  if(!budget)return 0;
+  let ratio=0.10;
+  if(minutes>=6*60)ratio=0.20;
+  if(minutes>=9*60)ratio=0.35;
+  if(minutes>=12*60)ratio=0.50;
+  if(minutes>=15*60)ratio=0.70;
+  if(minutes>=18*60)ratio=0.85;
+  if(minutes>=21*60)ratio=1;
+  return Math.max(1,Math.ceil(budget*ratio));
 }
 function logChange(x,field,to,source,at){
   const next=clean(to),from=clean(x[field]);if(!next||next===from)return false;
@@ -120,7 +133,7 @@ function oagGapMinutes(x,d,now){
 }
 function needsOag(x,d,now){
   const gap=oagGapMinutes(x,d,now);if(gap==null)return false;
-  const useful=!clean(x.sta)||!clean(x.etd)&&!clean(x.atd)||!clean(x.eta)&&!clean(x.ata)||!clean(x.atd)||!clean(x.ata)||!clean(x.gate)||!clean(x.terminal)||!clean(x.reg);
+  const useful=!clean(x.sta)||(!clean(x.etd)&&!clean(x.atd))||(!clean(x.eta)&&!clean(x.ata))||!clean(x.atd)||!clean(x.ata)||!clean(x.gate)||!clean(x.terminal)||!clean(x.reg);
   if(!useful)return false;
   return ageMs(x.oagLastCheckedAt)>=gap*60000;
 }
@@ -158,13 +171,17 @@ async function adbRegistrationFallback(env,row,x,date,d){
 
 async function runSafeOag(env){
   if(!env.OAG_API_KEY)return {ok:false,error:"OAG_API_KEY_NON_CONFIGURE"};
-  const now=parisNow(),limit=Number(env.OAG_QUOTA_LIMIT||1000),u=await usage(env),plan=dailyBudget(now.date,u.month,limit),budget=plan.budget;
-  if(!budget||u.day>=budget||u.month>=limit-plan.reserve)return {ok:true,skipped:"QUOTA_BUDGET",usage:{...u,...plan,limit}};
+  const now=parisNow(),limit=Number(env.OAG_QUOTA_LIMIT||1000),u=await usage(env),plan=dailyBudget(now.date,u.month,limit);
+  const normalCap=releasedBudget(now.minutes,plan.budget),monthCap=limit-plan.reserve,hardDayMax=Math.min(plan.hardDayMax,Math.max(0,monthCap-u.month+u.day));
+  if(!plan.budget||u.month>=monthCap||u.day>=hardDayMax)return {ok:true,skipped:"QUOTA_BUDGET",usage:{...u,...plan,normalCap,hardDayMax,limit}};
   const {results=[]}=await env.OPS_DB.prepare(`SELECT identity,flight_date,airline,flight_number,std,data_json FROM flights WHERE flight_date=? ORDER BY std,flight_number`).bind(now.date).all();
   const rows=[];
   for(const row of results){let x={};try{x=JSON.parse(row.data_json||"{}")}catch{};const d=delta(x.std||row.std,now.minutes);if(d>720||d<-1500)continue;rows.push({row,x,d,prio:priority(x,d,now)})}
   const candidates=rows.filter(z=>needsOag(z.x,z.d,now)).sort((a,b)=>a.prio-b.prio||Math.abs(a.d)-Math.abs(b.d));
-  const room=Math.max(0,Math.min(2,budget-u.day,(limit-plan.reserve)-u.month)),picked=candidates.slice(0,room),items=[];
+  const criticalOnly=u.day>=normalCap;
+  const eligible=criticalOnly?candidates.filter(z=>z.prio<=2):candidates;
+  const allowedCap=criticalOnly?hardDayMax:Math.min(normalCap,hardDayMax);
+  const room=Math.max(0,Math.min(2,allowedCap-u.day,monthCap-u.month)),picked=eligible.slice(0,room),items=[];
   for(let i=0;i<picked.length;i++){if(i)await sleep(6500);items.push({flight:picked[i].x.flight||picked[i].row.flight_number,result:await enrichOag(env,picked[i].row,picked[i].x,now.date)})}
 
   let adb=null;
@@ -175,7 +192,7 @@ async function runSafeOag(env){
   }
   refreshed.sort((a,b)=>Math.abs(a.d)-Math.abs(b.d));
   if(refreshed.length)adb=await adbRegistrationFallback(env,refreshed[0].row,refreshed[0].x,now.date,refreshed[0].d);
-  return {ok:true,date:now.date,usage:{...u,...plan,limit},candidates:candidates.length,processed:items.length,items,aerodataboxRegistration:adb};
+  return {ok:true,date:now.date,usage:{...u,...plan,normalCap,hardDayMax,limit},criticalOnly,candidates:candidates.length,eligible:eligible.length,processed:items.length,items,aerodataboxRegistration:adb};
 }
 
 export default {
