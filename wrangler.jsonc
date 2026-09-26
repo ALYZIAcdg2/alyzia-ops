@@ -21,6 +21,10 @@
     {
       "binding": "SARIA",
       "service": "saria-seatmap"
+    },
+    {
+      "binding": "AERODATABOX",
+      "service": "alyzia-aerodatabox"
     }
   ],
 
