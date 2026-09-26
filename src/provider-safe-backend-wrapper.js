@@ -138,6 +138,9 @@ function oagGapMinutes(x,d,now){
 }
 function needsOag(x,d,now){
   if(isFinalComplete(x))return false;
+  // A full OAG lookup (strict route, then flight-only fallback) already found
+  // nothing today. Do not spend more credits retrying the same missing record.
+  if(Number(x.oagLastStatus)===404&&clean(x.oagCoverageCheckedDate)===now.date)return false;
   const gap=oagGapMinutes(x,d,now);if(gap==null)return false;
   const missingSta=!clean(x.sta),missingEstimate=!clean(x.etd)&&!clean(x.atd)||!clean(x.eta)&&!clean(x.ata);
   const missingActual=d<=60&&(!clean(x.atd)||d<0&&!clean(x.ata));
