@@ -170,6 +170,7 @@ async function lookupOagFlight(env,{carrier,flight,date,origin,destination,retry
     const rows=collectRows(payload);
     const pick=rows[0]||null;
     if(!pick){
+      if(origin||destination)return lookupOagFlight(env,{carrier,flight,date,origin:"",destination:"",retry429});
       return {ok:false,status:404,error:"VOL OAG INTROUVABLE",payloadShape:payload&&typeof payload==="object"?Object.keys(payload):[]};
     }
 

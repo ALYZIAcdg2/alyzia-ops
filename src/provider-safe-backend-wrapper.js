@@ -96,7 +96,14 @@ async function enrichOag(env,row,x,date){
   const origin=upper(x.origin||x.dep||"CDG"),dest=upper(x.destination||x.dest);if(origin)p.set("DepartureAirport",origin);if(dest)p.set("ArrivalAirport",dest);
   let r;try{r=await fetch(`https://api.oag.com/flight-instances/?${p}`,{headers:{"Subscription-Key":env.OAG_API_KEY,"Accept":"application/json"}})}catch(e){await bump(env,502);return {ok:false,status:502,error:String(e?.message||e)}}
   await bump(env,r.status);
-  const payload=await r.json().catch(()=>null),rows=Array.isArray(payload)?payload:(payload?.data||payload?.results||payload?.flightInstances||payload?.items||[]),at=new Date().toISOString();
+  let payload=await r.json().catch(()=>null),rows=Array.isArray(payload)?payload:(payload?.data||payload?.results||payload?.flightInstances||payload?.items||[]);
+  if(r.ok&&(!Array.isArray(rows)||!rows.length)&&(origin||dest)){
+    p.delete("DepartureAirport");p.delete("ArrivalAirport");
+    try{r=await fetch(`https://api.oag.com/flight-instances/?${p}`,{headers:{"Subscription-Key":env.OAG_API_KEY,"Accept":"application/json"}})}catch(e){await bump(env,502);return {ok:false,status:502,error:String(e?.message||e)}}
+    await bump(env,r.status);
+    payload=await r.json().catch(()=>null);rows=Array.isArray(payload)?payload:(payload?.data||payload?.results||payload?.flightInstances||payload?.items||[]);
+  }
+  const at=new Date().toISOString();
   x.oagLastCheckedAt=at;x.oagLastStatus=r.status;x.oagCoverageCheckedDate=date;
   if(!r.ok||!Array.isArray(rows)||!rows.length){await saveRow(env,row,x);return {ok:false,status:r.status||404,carrier,number,error:r.ok?"VOL_OAG_INTROUVABLE":`OAG_${r.status}`}}
   x.oagAutoCheckedDate=date;
