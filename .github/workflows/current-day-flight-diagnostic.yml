@@ -26,29 +26,16 @@ jobs:
           console.log('DATE',date); console.log('TOTAL_TODAY',today.length); console.log('AFTER_1000',today.filter(f=>String(f.std||'')>'10:00').length); console.log('LAST',today.length?`${today.at(-1).std} ${today.at(-1).flight}`:'NONE');
           NODE
           cat backend-summary.txt
-      - name: Extrait la logique de chargement et rendu
+      - name: Extrait les surcharges tardives de la liste vols
         run: |
-          grep -nE "function splitCloudRecords|function startRealtimeSync|const OPS_GLOBAL|setInterval.*silentCloudRefresh|renderHome|loadFlightsFromCloud|FLIGHTS\.splice" public/index.html > defs-lines.txt || true
-          python - <<'PY'
-          from pathlib import Path
-          src=Path('public/index.html').read_text(errors='ignore').splitlines()
-          pats=['function splitCloudRecords','function startRealtimeSync','function renderHome','async function loadFlightsFromCloud']
-          out=[]
-          for p in pats:
-            for i,line in enumerate(src):
-              if p in line:
-                a=max(0,i-25); b=min(len(src),i+180)
-                out.append(f'\n### {p} @ {i+1}\n')
-                out.extend(f'{n+1}: {src[n]}' for n in range(a,b))
-                break
-          Path('frontend-defs.txt').write_text('\n'.join(out))
-          PY
-          cat defs-lines.txt
+          sed -n '24970,25070p' public/index.html > late-render-home.txt
+          sed -n '18660,18730p' public/index.html > realtime-loop.txt
+          cat late-render-home.txt
       - uses: actions/upload-artifact@v4
         with:
           name: flight-diagnostic
           path: |
             backend-summary.txt
-            defs-lines.txt
-            frontend-defs.txt
+            late-render-home.txt
+            realtime-loop.txt
           retention-days: 1
