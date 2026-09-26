@@ -15,6 +15,7 @@ jobs:
     env:
       API: https://alyzia-ops.alyzia-cdg2.workers.dev
     steps:
+      - uses: actions/checkout@v4
       - name: Vérifie les vols du jour en production
         run: |
           DATE=$(TZ=Europe/Paris date +%F)
@@ -32,6 +33,10 @@ jobs:
           console.log('AFTER_1200',today.filter(f=>String(f.std||'')>='12:00').length);
           console.log('FIRST', today[0] ? `${today[0].std} ${today[0].flight}` : 'NONE');
           console.log('LAST', today.length ? `${today[today.length-1].std} ${today[today.length-1].flight}` : 'NONE');
-          console.log('--- TODAY ---');
-          today.forEach(f=>console.log([f.std||'',f.airline||'',f.flight||'',f.origin||f.dep||'',f.destination||f.dest||'',f.sta||'',f.etd||f.edt||'',f.atd||'',f.eta||'',f.ata||''].join('|')));
           NODE
+      - name: Cherche le filtrage de la liste dans le frontend
+        run: |
+          echo '--- fonctions / filtres candidats ---'
+          rg -n -i "render.*flight|flight.*render|filtered.*flight|visible.*flight|today.*flight|current.*time|now.*min|std.*min|FLIGHTS.*filter|\.filter\(.*std|flight-list|flightlist" public/index.html | head -n 260 || true
+          echo '--- fetch API vols ---'
+          rg -n -i "api/flights|server.*flights|load.*flights|sync.*flights" public/index.html | head -n 180 || true
