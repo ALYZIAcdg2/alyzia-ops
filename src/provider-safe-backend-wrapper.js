@@ -1,4 +1,5 @@
-import app from "./etd-compat-wrapper.js";
+import app from "./oag-quota-ui-wrapper.js";
+import {quotaPlan} from "./oag-quota.js";
 
 const clean=v=>String(v??"").trim();
 const upper=v=>clean(v).toUpperCase();
@@ -52,28 +53,16 @@ async function usage(env){
   try{
     await ensureTables(env);
     const now=parisNow(),month=now.date.slice(0,7);
-    const {results=[]}=await env.OPS_DB.prepare(`SELECT period,calls FROM api_provider_usage WHERE provider='OAG' AND period IN (?,?)`).bind(month,now.date).all();
-    return {day:Number(results.find(x=>x.period===now.date)?.calls||0),month:Number(results.find(x=>x.period===month)?.calls||0)};
-  }catch{return {day:0,month:0}}
-}
-function daysRemaining(date){const [y,m,d]=date.split('-').map(Number);return new Date(Date.UTC(y,m,0)).getUTCDate()-d+1}
-function dailyBudget(date,monthCalls,limit){
-  const reserve=Math.max(20,Math.ceil(limit*0.05));
-  const available=Math.max(0,limit-reserve-monthCalls);
-  const budget=available?Math.min(200,Math.max(1,Math.ceil(available/Math.max(1,daysRemaining(date))))):0;
-  const criticalReserve=budget?Math.min(8,Math.max(2,Math.ceil(budget*0.2))):0;
-  return {reserve,available,budget,criticalReserve,hardDayMax:budget+criticalReserve};
-}
-function releasedBudget(minutes,budget){
-  if(!budget)return 0;
-  let ratio=0.10;
-  if(minutes>=6*60)ratio=0.20;
-  if(minutes>=9*60)ratio=0.35;
-  if(minutes>=12*60)ratio=0.50;
-  if(minutes>=15*60)ratio=0.70;
-  if(minutes>=18*60)ratio=0.85;
-  if(minutes>=21*60)ratio=1;
-  return Math.max(1,Math.ceil(budget*ratio));
+    const {results=[]}=await env.OPS_DB.prepare(`SELECT period,calls,successes,errors,last_status,last_at FROM api_provider_usage WHERE provider='OAG' AND period IN (?,?)`).bind(month,now.date).all();
+    const dayRow=results.find(x=>x.period===now.date)||{},monthRow=results.find(x=>x.period===month)||{};
+    return {
+      day:Number(dayRow.calls||0),month:Number(monthRow.calls||0),
+      daySuccesses:Number(dayRow.successes||0),dayErrors:Number(dayRow.errors||0),
+      monthSuccesses:Number(monthRow.successes||0),monthErrors:Number(monthRow.errors||0),
+      lastStatus:Number(dayRow.last_status||monthRow.last_status||0),
+      lastAt:clean(dayRow.last_at||monthRow.last_at)
+    };
+  }catch{return {day:0,month:0,daySuccesses:0,dayErrors:0,monthSuccesses:0,monthErrors:0,lastStatus:0,lastAt:""}}
 }
 function logChange(x,field,to,source,at){
   const next=clean(to),from=clean(x[field]);if(!next||next===from)return false;
@@ -121,19 +110,29 @@ async function enrichOag(env,row,x,date){
 }
 
 function oagGapMinutes(x,d,now){
+  if(/CANCEL/i.test(upper(x.status)))return null;
   if(clean(x.atd)&&clean(x.ata))return null;
   const arr=arrivalDelta(x,now);
-  if(arr!=null&&arr>=-30&&arr<=120&&!clean(x.ata))return 15;
+  let gap=null;
   if(d>180)return !clean(x.sta)?360:null;
-  if(d>60)return 30;
-  if(d>=-30)return 15;
-  if(d>=-240)return 20;
-  if(d>=-1500&&!clean(x.ata))return 30;
-  return null;
+  if(d>60)gap=60;
+  else if(d>=-30)gap=15;
+  else if(arr!=null&&arr>120)gap=60;
+  else if(arr!=null&&arr>=-60)gap=15;
+  else if(arr!=null&&arr>=-180)gap=30;
+  else if(d>=-600)gap=60;
+  else if(d>=-1500&&!clean(x.ata))gap=120;
+  if(gap==null)return null;
+  const status=Number(x.oagLastStatus||0);
+  if(status===404)gap=Math.max(gap,d>60?360:120);
+  if(status===429||status>=500)gap=Math.max(gap,120);
+  return gap;
 }
 function needsOag(x,d,now){
   const gap=oagGapMinutes(x,d,now);if(gap==null)return false;
-  const useful=!clean(x.sta)||(!clean(x.etd)&&!clean(x.atd))||(!clean(x.eta)&&!clean(x.ata))||!clean(x.atd)||!clean(x.ata)||!clean(x.gate)||!clean(x.terminal)||!clean(x.reg);
+  const missingSta=!clean(x.sta),missingEstimate=!clean(x.etd)&&!clean(x.atd)||!clean(x.eta)&&!clean(x.ata);
+  const missingActual=d<=60&&(!clean(x.atd)||d<0&&!clean(x.ata));
+  const useful=missingSta||missingEstimate||missingActual;
   if(!useful)return false;
   return ageMs(x.oagLastCheckedAt)>=gap*60000;
 }
@@ -171,17 +170,17 @@ async function adbRegistrationFallback(env,row,x,date,d){
 
 async function runSafeOag(env){
   if(!env.OAG_API_KEY)return {ok:false,error:"OAG_API_KEY_NON_CONFIGURE"};
-  const now=parisNow(),limit=Number(env.OAG_QUOTA_LIMIT||1000),u=await usage(env),plan=dailyBudget(now.date,u.month,limit);
-  const normalCap=releasedBudget(now.minutes,plan.budget),monthCap=limit-plan.reserve,hardDayMax=Math.min(plan.hardDayMax,Math.max(0,monthCap-u.month+u.day));
-  if(!plan.budget||u.month>=monthCap||u.day>=hardDayMax)return {ok:true,skipped:"QUOTA_BUDGET",usage:{...u,...plan,normalCap,hardDayMax,limit}};
+  const now=parisNow(),limit=Number(env.OAG_QUOTA_LIMIT||1000),u=await usage(env);
+  const plan=quotaPlan({date:now.date,minutes:now.minutes,dayCalls:u.day,monthCalls:u.month,limit});
+  if(!plan.dailyTarget||u.month>=plan.monthCap||u.day>=plan.hardDayMax)return {ok:true,skipped:"QUOTA_BUDGET",usage:{...u,...plan}};
   const {results=[]}=await env.OPS_DB.prepare(`SELECT identity,flight_date,airline,flight_number,std,data_json FROM flights WHERE flight_date=? ORDER BY std,flight_number`).bind(now.date).all();
   const rows=[];
   for(const row of results){let x={};try{x=JSON.parse(row.data_json||"{}")}catch{};const d=delta(x.std||row.std,now.minutes);if(d>720||d<-1500)continue;rows.push({row,x,d,prio:priority(x,d,now)})}
   const candidates=rows.filter(z=>needsOag(z.x,z.d,now)).sort((a,b)=>a.prio-b.prio||Math.abs(a.d)-Math.abs(b.d));
-  const criticalOnly=u.day>=normalCap;
+  const criticalOnly=u.day>=plan.normalCap;
   const eligible=criticalOnly?candidates.filter(z=>z.prio<=2):candidates;
-  const allowedCap=criticalOnly?hardDayMax:Math.min(normalCap,hardDayMax);
-  const room=Math.max(0,Math.min(2,allowedCap-u.day,monthCap-u.month)),picked=eligible.slice(0,room),items=[];
+  const allowedCap=criticalOnly?plan.hardDayMax:plan.normalCap;
+  const room=Math.max(0,Math.min(2,allowedCap-u.day,plan.monthCap-u.month)),picked=eligible.slice(0,room),items=[];
   for(let i=0;i<picked.length;i++){if(i)await sleep(6500);items.push({flight:picked[i].x.flight||picked[i].row.flight_number,result:await enrichOag(env,picked[i].row,picked[i].x,now.date)})}
 
   let adb=null;
@@ -192,11 +191,21 @@ async function runSafeOag(env){
   }
   refreshed.sort((a,b)=>Math.abs(a.d)-Math.abs(b.d));
   if(refreshed.length)adb=await adbRegistrationFallback(env,refreshed[0].row,refreshed[0].x,now.date,refreshed[0].d);
-  return {ok:true,date:now.date,usage:{...u,...plan,normalCap,hardDayMax,limit},criticalOnly,candidates:candidates.length,eligible:eligible.length,processed:items.length,items,aerodataboxRegistration:adb};
+  return {ok:true,date:now.date,usage:{...u,...plan},criticalOnly,candidates:candidates.length,eligible:eligible.length,processed:items.length,items,aerodataboxRegistration:adb};
+}
+
+async function quotaStatus(env){
+  const now=parisNow(),u=await usage(env),limit=Number(env.OAG_QUOTA_LIMIT||1000);
+  const plan=quotaPlan({date:now.date,minutes:now.minutes,dayCalls:u.day,monthCalls:u.month,limit});
+  return {ok:true,provider:"OAG",date:now.date,period:now.date.slice(0,7),usage:u,plan,cron:"*/5 * * * *",maxFlightsPerRun:2};
 }
 
 export default {
-  async fetch(request,env,ctx){return app.fetch(request,env,ctx)},
+  async fetch(request,env,ctx){
+    const url=new URL(request.url);
+    if(url.pathname==="/api/oag/usage")return new Response(JSON.stringify(await quotaStatus(env)),{headers:{"content-type":"application/json; charset=UTF-8","cache-control":"no-store"}});
+    return app.fetch(request,env,ctx);
+  },
   scheduled(controller,env,ctx){
     if(typeof app.scheduled==="function"){
       try{const masked=Object.create(env);Object.defineProperty(masked,"OAG_API_KEY",{value:"",enumerable:true});Object.defineProperty(masked,"AERODATABOX_API_KEY",{value:"",enumerable:true});app.scheduled(controller,masked,ctx)}catch(_){}
