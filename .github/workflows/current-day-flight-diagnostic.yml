@@ -37,6 +37,6 @@ jobs:
       - name: Cherche le filtrage de la liste dans le frontend
         run: |
           echo '--- fonctions / filtres candidats ---'
-          rg -n -i "render.*flight|flight.*render|filtered.*flight|visible.*flight|today.*flight|current.*time|now.*min|std.*min|FLIGHTS.*filter|\.filter\(.*std|flight-list|flightlist" public/index.html | head -n 260 || true
+          grep -Eni "render.*flight|flight.*render|filtered.*flight|visible.*flight|today.*flight|current.*time|now.*min|std.*min|FLIGHTS.*filter|filter\(.*std|flight-list|flightlist" public/index.html | head -n 320 || true
           echo '--- fetch API vols ---'
-          rg -n -i "api/flights|server.*flights|load.*flights|sync.*flights" public/index.html | head -n 180 || true
+          grep -Eni "api/flights|server.*flights|load.*flights|sync.*flights" public/index.html | head -n 220 || true
