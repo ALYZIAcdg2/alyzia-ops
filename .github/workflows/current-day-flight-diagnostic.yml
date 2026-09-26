@@ -21,29 +21,34 @@ jobs:
           DATE=$(TZ=Europe/Paris date +%F)
           curl -sS -f "$API/api/flights" -o flights.json
           node - "$DATE" > backend-summary.txt <<'NODE'
-          const fs=require('fs');
-          const date=process.argv[2];
-          const j=JSON.parse(fs.readFileSync('flights.json','utf8'));
-          const all=Array.isArray(j.flights)?j.flights:[];
-          const today=all.filter(f=>String(f.date||'')===date).sort((a,b)=>String(a.std||'').localeCompare(String(b.std||''))||String(a.flight||'').localeCompare(String(b.flight||'')));
-          console.log('DATE',date); console.log('TOTAL_BASE',j.count); console.log('TOTAL_TODAY',today.length);
-          console.log('AFTER_1000',today.filter(f=>String(f.std||'')>'10:00').length); console.log('AFTER_1200',today.filter(f=>String(f.std||'')>='12:00').length);
-          console.log('FIRST',today[0]?`${today[0].std} ${today[0].flight}`:'NONE'); console.log('LAST',today.length?`${today[today.length-1].std} ${today[today.length-1].flight}`:'NONE');
+          const fs=require('fs'); const date=process.argv[2]; const j=JSON.parse(fs.readFileSync('flights.json','utf8'));
+          const all=Array.isArray(j.flights)?j.flights:[]; const today=all.filter(f=>String(f.date||'')===date).sort((a,b)=>String(a.std||'').localeCompare(String(b.std||'')));
+          console.log('DATE',date); console.log('TOTAL_TODAY',today.length); console.log('AFTER_1000',today.filter(f=>String(f.std||'')>'10:00').length); console.log('LAST',today.length?`${today.at(-1).std} ${today.at(-1).flight}`:'NONE');
           NODE
           cat backend-summary.txt
-      - name: Extrait les zones frontend utiles
+      - name: Extrait la logique de chargement et rendu
         run: |
-          sed -n '7300,9500p' public/index.html > frontend-home.txt
-          sed -n '18450,18650p' public/index.html > frontend-sync-a.txt
-          sed -n '20480,20660p' public/index.html > frontend-sync-b.txt
-          grep -Eni "renderHome|HOME_DATE|FLIGHTS.*filter|FLIGHTS\.map|loadFlightsFromCloud|FLIGHTS\.splice|api/flights|syncFlights|sortByDeparture|HOME_" public/index.html | head -n 1000 > frontend-flight-grep.txt || true
+          grep -nE "function splitCloudRecords|function startRealtimeSync|const OPS_GLOBAL|setInterval.*silentCloudRefresh|renderHome|loadFlightsFromCloud|FLIGHTS\.splice" public/index.html > defs-lines.txt || true
+          python - <<'PY'
+          from pathlib import Path
+          src=Path('public/index.html').read_text(errors='ignore').splitlines()
+          pats=['function splitCloudRecords','function startRealtimeSync','function renderHome','async function loadFlightsFromCloud']
+          out=[]
+          for p in pats:
+            for i,line in enumerate(src):
+              if p in line:
+                a=max(0,i-25); b=min(len(src),i+180)
+                out.append(f'\n### {p} @ {i+1}\n')
+                out.extend(f'{n+1}: {src[n]}' for n in range(a,b))
+                break
+          Path('frontend-defs.txt').write_text('\n'.join(out))
+          PY
+          cat defs-lines.txt
       - uses: actions/upload-artifact@v4
         with:
           name: flight-diagnostic
           path: |
             backend-summary.txt
-            frontend-home.txt
-            frontend-sync-a.txt
-            frontend-sync-b.txt
-            frontend-flight-grep.txt
+            defs-lines.txt
+            frontend-defs.txt
           retention-days: 1
