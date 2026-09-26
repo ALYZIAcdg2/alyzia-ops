@@ -16,26 +16,25 @@ jobs:
       API: https://alyzia-ops.alyzia-cdg2.workers.dev
     steps:
       - uses: actions/checkout@v4
-      - name: Vérifie les vols du jour en production
+      - name: Vérifie couverture OAG du jour
         run: |
           DATE=$(TZ=Europe/Paris date +%F)
           curl -sS -f "$API/api/flights" -o flights.json
-          node - "$DATE" > backend-summary.txt <<'NODE'
+          node - "$DATE" > oag-day.txt <<'NODE'
           const fs=require('fs'); const date=process.argv[2]; const j=JSON.parse(fs.readFileSync('flights.json','utf8'));
-          const all=Array.isArray(j.flights)?j.flights:[]; const today=all.filter(f=>String(f.date||'')===date).sort((a,b)=>String(a.std||'').localeCompare(String(b.std||'')));
-          console.log('DATE',date); console.log('TOTAL_TODAY',today.length); console.log('AFTER_1000',today.filter(f=>String(f.std||'')>'10:00').length); console.log('LAST',today.length?`${today.at(-1).std} ${today.at(-1).flight}`:'NONE');
+          const today=(j.flights||[]).filter(f=>String(f.date||'')===date).sort((a,b)=>String(a.std||'').localeCompare(String(b.std||'')));
+          const yes=v=>String(v||'').trim()?String(v).trim():'-';
+          console.log('DATE',date,'TOTAL',today.length,'AFTER_1000',today.filter(f=>String(f.std||'')>'10:00').length);
+          console.log('STD|VOL|STA|ETD|ATD|ETA|ATA|REG|OAG_CHECK|OAG_STATUS');
+          for(const f of today) console.log([yes(f.std),yes(f.flight),yes(f.sta),yes(f.etd||f.edt),yes(f.atd),yes(f.eta),yes(f.ata),yes(f.reg),yes(f.oagLastCheckedAt||f.oagSafeCheckedAt),yes(f.oagLastStatus||f.oagSafeStatus)].join('|'));
+          console.log('CHECKED_OAG',today.filter(f=>f.oagLastCheckedAt||f.oagSafeCheckedAt).length);
+          console.log('CHECKED_AFTER_1000',today.filter(f=>String(f.std||'')>'10:00'&&(f.oagLastCheckedAt||f.oagSafeCheckedAt)).length);
+          console.log('WITH_STA_AFTER_1000',today.filter(f=>String(f.std||'')>'10:00'&&String(f.sta||'').trim()).length);
+          console.log('WITH_OPS_AFTER_1000',today.filter(f=>String(f.std||'')>'10:00'&&[f.etd,f.edt,f.atd,f.eta,f.ata].some(x=>String(x||'').trim())).length);
           NODE
-          cat backend-summary.txt
-      - name: Extrait les surcharges tardives de la liste vols
-        run: |
-          sed -n '24970,25070p' public/index.html > late-render-home.txt
-          sed -n '18660,18730p' public/index.html > realtime-loop.txt
-          cat late-render-home.txt
+          cat oag-day.txt
       - uses: actions/upload-artifact@v4
         with:
           name: flight-diagnostic
-          path: |
-            backend-summary.txt
-            late-render-home.txt
-            realtime-loop.txt
+          path: oag-day.txt
           retention-days: 1
