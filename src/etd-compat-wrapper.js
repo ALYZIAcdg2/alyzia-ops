@@ -4,17 +4,38 @@ const COMPAT=String.raw`
 <script id="alyzia-etd-compat-js">
 (()=>{
   'use strict';
-  function sync(){
+  const text=v=>String(v??'').trim();
+  function syncAliases(){
     try{
       if(!Array.isArray(FLIGHTS))return;
       for(const x of FLIGHTS){
         if(!x||typeof x!=='object')continue;
-        const live=String(x.etd||'').trim();
-        const legacy=String(x.edt||'').trim();
-        if(live && live!==legacy)x.edt=live;
+        const live=text(x.etd),legacy=text(x.edt);
+        if(live&&live!==legacy)x.edt=live;
       }
     }catch(_){}
   }
+  function syncHomeTimes(){
+    try{
+      if(!Array.isArray(FLIGHTS))return;
+      const date=typeof HOME_DATE!=='undefined'?text(HOME_DATE):'';
+      document.querySelectorAll('.flight-home-row').forEach(row=>{
+        const flight=text(row.querySelector('.home-flight')?.textContent).toUpperCase();
+        if(!flight)return;
+        const x=FLIGHTS.find(v=>text(v?.flight).toUpperCase()===flight&&(!date||!text(v?.date)||text(v?.date)===date));
+        if(!x)return;
+        const std=text(x.std)||'—',atd=text(x.atd),etd=text(x.etd||x.edt),sta=text(x.sta);
+        const sig=[std,atd,etd,sta].join('|');
+        const cell=row.querySelector('.home-time');
+        if(!cell||cell.dataset.opsTimes===sig)return;
+        cell.dataset.opsTimes=sig;
+        cell.innerHTML='<span>'+std+'</span>'+
+          (atd?'<span style="display:block;color:#078447;font-size:11px;font-weight:950">ATD '+atd+'</span>':etd?'<span class="etd-small">ETD '+etd+'</span>':'')+
+          (sta?'<span style="display:block;color:#52657a;font-size:11px;font-weight:900">STA '+sta+'</span>':'');
+      });
+    }catch(_){}
+  }
+  function sync(){syncAliases();syncHomeTimes()}
   sync();
   setInterval(sync,2000);
   document.addEventListener('click',sync,true);
