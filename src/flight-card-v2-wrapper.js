@@ -114,6 +114,50 @@ const PATCH=String.raw`<script id="alyzia-header-cleanup-safe">
     if(cell.innerHTML!==wanted) cell.innerHTML=wanted;
   };
 
+  const normalizeFlightStatus=(flight)=>{
+    const raw=String(flight?.opsStatus||flight?.status||flight?.flight_status||'').trim().toUpperCase();
+    if(!raw) return '';
+    if(raw.includes('CANCEL') || raw.includes('ANNUL')) return 'ANNULÉ';
+    if(raw.includes('ARRIV')) return 'ARRIVÉ';
+    if(raw.includes('DEPART') || raw.includes('DÉCOLL') || raw.includes('DECOLL')) return 'DÉCOLLÉ';
+    if(raw.includes('BOARD') || raw.includes('EMBAR')) return 'EMBARQUEMENT';
+    if(raw.includes('DELAY') || raw.includes('RETARD')) return 'RETARDÉ';
+    if(raw.includes('CONFIRM')) return 'À CONFIRMER';
+    if(raw.includes('SCHED') || raw.includes('PROGRAM')) return 'PROGRAMMÉ';
+    return '';
+  };
+
+  const patchFlightStatus=(row)=>{
+    const flight=flightForRow(row);
+    const actions=row.querySelector('.home-flight-actions');
+    if(!flight || !actions) return;
+
+    const status=normalizeFlightStatus(flight);
+    let badge=actions.querySelector('.home-ops-status');
+    if(!status){
+      if(badge) badge.remove();
+      return;
+    }
+
+    if(!badge){
+      badge=document.createElement('span');
+      badge.className='home-ops-status';
+      badge.style.setProperty('display','inline-flex','important');
+      badge.style.setProperty('align-items','center','important');
+      badge.style.setProperty('padding','2px 6px','important');
+      badge.style.setProperty('border-radius','999px','important');
+      badge.style.setProperty('font-size','9px','important');
+      badge.style.setProperty('font-weight','900','important');
+      badge.style.setProperty('line-height','1.1','important');
+      badge.style.setProperty('background','#eaf3ff','important');
+      badge.style.setProperty('color','#0b66c3','important');
+      badge.style.setProperty('margin-right','5px','important');
+      actions.insertBefore(badge,actions.firstChild);
+    }
+
+    if(badge.textContent!==status) badge.textContent=status;
+  };
+
   const clean=()=>{
     document.querySelectorAll('body *').forEach(el=>{
       const text=(el.textContent||'').trim();
@@ -130,6 +174,7 @@ const PATCH=String.raw`<script id="alyzia-header-cleanup-safe">
 
     document.querySelectorAll('.flight-home-row').forEach(row=>{
       patchOperationalTimes(row);
+      patchFlightStatus(row);
       const flight=String(row.querySelector('.home-flight')?.textContent||'').trim().toUpperCase();
       if(!/^HF\s*\d+/.test(flight)) return;
       row.querySelectorAll('.home-config-booking > div b').forEach(value=>{
