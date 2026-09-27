@@ -1,5 +1,5 @@
 import app from "./flight-card-v2-wrapper.js";
-import openSkyLive from "./opensky-live-wrapper.js";
+import todayStaBackfill from "./today-sta-backfill-wrapper.js";
 
 const FIX=String.raw`<style id="alyzia-card-top-v2-fix">
 #app .flight-home-row{position:relative!important;padding-top:76px!important}
@@ -40,7 +40,7 @@ export default {
     return new Response(patch(html),{status:response.status,statusText:response.statusText,headers});
   },
   scheduled(controller,env,ctx){
-    if(typeof openSkyLive.scheduled==='function') return openSkyLive.scheduled(controller,env,ctx);
+    if(typeof todayStaBackfill.scheduled==='function') return todayStaBackfill.scheduled(controller,env,ctx);
     if(typeof app.scheduled==='function') return app.scheduled(controller,env,ctx);
   }
 };
