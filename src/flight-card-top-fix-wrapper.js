@@ -9,9 +9,15 @@ const FIX=String.raw`<style id="alyzia-card-top-v2-fix">
 #app .flight-home-row .home-flight-actions,
 #app .flight-home-row .home-pin,
 #app .flight-home-row .home-open{display:none!important}
+#app .flight-home-row .v2-metric-value{white-space:nowrap!important;overflow:visible!important;font-size:clamp(13px,1.65vw,19px)!important;letter-spacing:-.2px!important}
+@media(max-width:900px){
+  #app .flight-home-row .v2-metric-value{font-size:clamp(12px,2.2vw,17px)!important}
+}
 @media(max-width:620px){
   #app .flight-home-row{padding-top:70px!important}
   #app .flight-home-row .ops-top-v2{top:12px!important;left:14px!important;right:14px!important}
+  #app .flight-home-row .v2-metric-value{font-size:clamp(11px,3.2vw,15px)!important;letter-spacing:-.35px!important}
+  #app .flight-home-row .v2-metric{padding-left:2px!important;padding-right:2px!important}
 }
 </style>`;
 
