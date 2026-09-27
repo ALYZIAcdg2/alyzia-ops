@@ -13,6 +13,19 @@ const PATCH=String.raw`<script id="alyzia-header-cleanup-safe">
       const text=(el.textContent||'').toUpperCase().replace(/[^A-ZÀ-ÖØ-Þ]/g,'');
       if(text==='IMPRIMER') el.style.setProperty('display','none','important');
     });
+
+    const count=document.getElementById('homeVisibleFlightCount');
+    if(count){
+      const fav=[...document.querySelectorAll('button,[role="button"],a,span')].find(el=>{
+        const text=(el.textContent||'').trim().toUpperCase();
+        return text==='FAVORIS' || text==='★ FAVORIS' || text==='☆ FAVORIS';
+      });
+      if(fav && fav.parentElement){
+        fav.insertAdjacentElement('afterend',count);
+        count.style.setProperty('margin-left','8px','important');
+        count.style.setProperty('margin-right','0','important');
+      }
+    }
   };
   clean();
   document.addEventListener('DOMContentLoaded',clean,{once:true});
