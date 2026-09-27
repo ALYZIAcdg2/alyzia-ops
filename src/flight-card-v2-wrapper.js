@@ -158,6 +158,17 @@ const PATCH=String.raw`<script id="alyzia-header-cleanup-safe">
     if(badge.textContent!==status) badge.textContent=status;
   };
 
+  const patchAcGateScale=(row)=>{
+    row.querySelectorAll('*').forEach(el=>{
+      if(el.children.length) return;
+      const text=String(el.textContent||'').trim().toUpperCase();
+      if(!/^(A\/C|GATE)(?:\s|:|$)/.test(text)) return;
+      el.style.setProperty('font-size','10px','important');
+      el.style.setProperty('line-height','1.15','important');
+      el.style.setProperty('font-weight','800','important');
+    });
+  };
+
   const clean=()=>{
     document.querySelectorAll('body *').forEach(el=>{
       const text=(el.textContent||'').trim();
@@ -175,6 +186,7 @@ const PATCH=String.raw`<script id="alyzia-header-cleanup-safe">
     document.querySelectorAll('.flight-home-row').forEach(row=>{
       patchOperationalTimes(row);
       patchFlightStatus(row);
+      patchAcGateScale(row);
       const flight=String(row.querySelector('.home-flight')?.textContent||'').trim().toUpperCase();
       if(!/^HF\s*\d+/.test(flight)) return;
       row.querySelectorAll('.home-config-booking > div b').forEach(value=>{
