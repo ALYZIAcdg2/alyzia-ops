@@ -14,7 +14,7 @@ function parisNow(){
 function flightNo(v){const s=upper(v);const m=s.match(/(\d+[A-Z]?)$/);return m?m[1]:""}
 function delta(std,minutes){const h=hhmm(std);if(!h)return 99999;const [a,b]=h.split(":").map(Number);return a*60+b-minutes}
 function isFinal(x){return /CANCEL/i.test(upper(x.status))||Boolean(clean(x.atd)&&clean(x.ata))}
-function canRefresh(x,field){if(missing(x[field]))return true;return ["AIRLABS","AIRLABS_ROUTE","SKYLINK","SKYLINK_ENT_ALIAS","OAG_STATUS","OAG_SCHEDULE","AERODATABOX","AERODATABOX_REG"].includes(upper(x[field+"Source"]))}
+function canRefresh(x,field){if(missing(x[field]))return true;return ["AIRLABS","AIRLABS_ROUTE","SKYLINK","SKYLINK_ENT_ALIAS","OAG_STATUS","OAG_SCHEDULE","AERODATABOX","AERODATABOX_REG","ALYZIA_OPS_STATE"].includes(upper(x[field+"Source"]))}
 function apply(x,field,value,at,{refresh=true}={}){
   const next=clean(value),from=clean(x[field]);if(!next||next===from)return false;
   if(!refresh&&!missing(from))return false;if(refresh&&!canRefresh(x,field))return false;
@@ -32,17 +32,23 @@ async function bump(env,status){
 async function usage(env){
   try{const now=parisNow(),r=await env.OPS_DB.prepare(`SELECT calls,last_at FROM api_provider_usage WHERE provider='SKYLINK' AND period=?`).bind(now.date.slice(0,7)).first();return {month:Number(r?.calls||0),lastAt:clean(r?.last_at)}}catch{return {month:0,lastAt:""}}
 }
+function departedStatus(v){return /(DEPARTED|EN\s*ROUTE|AIRBORNE|IN\s*FLIGHT|TOOK\s*OFF|LANDED|ARRIVED|COMPLETED)/i.test(clean(v))}
+function arrivedStatus(v){return /(LANDED|ARRIVED|COMPLETED)/i.test(clean(v))}
 function parse(p){
   const root=p?.data||p?.response||p||{},dep=root?.departure||{},arr=root?.arrival||{},ac=root?.aircraft||{};
+  const status=clean(root?.status||root?.flight_status);
+  const depLatest=hhmm(dep?.actual_time||dep?.actual||root?.atd);
+  const explicitEtd=hhmm(dep?.estimated_time||dep?.estimated||root?.etd);
+  const arrActual=hhmm(arr?.actual_time||arr?.actual||root?.ata);
   return {
     sta:hhmm(arr?.scheduled_time||arr?.scheduled||root?.sta),
-    etd:hhmm(dep?.estimated_time||dep?.estimated||root?.etd),
-    atd:hhmm(dep?.actual_time||dep?.actual||root?.atd),
+    etd:explicitEtd||(!departedStatus(status)?depLatest:""),
+    atd:departedStatus(status)?depLatest:"",
     eta:hhmm(arr?.estimated_time||arr?.estimated||root?.eta),
-    ata:hhmm(arr?.actual_time||arr?.actual||root?.ata),
+    ata:arrivedStatus(status)?arrActual:"",
     gate:clean(dep?.gate||root?.departure_gate),arrivalGate:clean(arr?.gate||root?.arrival_gate),
     terminal:clean(dep?.terminal||root?.departure_terminal),arrivalTerminal:clean(arr?.terminal||root?.arrival_terminal),
-    reg:clean(ac?.registration||root?.registration||root?.aircraft_registration),aircraft:upper(ac?.icao_type||ac?.type||root?.aircraft_type),status:clean(root?.status||root?.flight_status)
+    reg:clean(ac?.registration||root?.registration||root?.aircraft_registration),aircraft:upper(ac?.icao_type||ac?.type||root?.aircraft_type),status
   };
 }
 async function fetchAlias(env,alias){
@@ -65,6 +71,7 @@ async function enrichOneEnt(env){
   for(const alias of aliases){const r=await fetchAlias(env,alias);last={alias,...r};if(r.ok){const d=parse(r.payload);if(Object.values(d).some(v=>clean(v))){found={alias,data:d,status:r.status};break}}if(![400,404].includes(Number(r.status)))break;}
   z.x.entAliasLastCheckedAt=at;z.x.entAliasLastStatus=Number(found?.status||last?.status||0);z.x.entAliasTried=aliases;
   if(!found){await save(env,z.row,z.x);return {ok:false,status:last?.status||404,flight:`ENT${n}`,tried:aliases,error:"ENT_ALIAS_NOT_FOUND"}}
+  z.x.providerStatusRaw=found.data.status||z.x.providerStatusRaw;
   const changed=[];for(const field of ["sta","etd","atd","eta","ata","gate","arrivalGate","terminal","arrivalTerminal","status"]){if(apply(z.x,field,found.data[field],at,{refresh:field!=="sta"}))changed.push(field)}
   if(apply(z.x,"reg",found.data.reg,at,{refresh:false}))changed.push("reg");if(found.data.aircraft&&missing(z.x.aircraft)&&apply(z.x,"aircraft",found.data.aircraft,at,{refresh:false}))changed.push("aircraft");
   await save(env,z.row,z.x);return {ok:true,flight:`ENT${n}`,matchedAs:found.alias,changed};
