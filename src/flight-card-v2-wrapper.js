@@ -1,23 +1,29 @@
 import app from "./operational-state-wrapper.js";
 
-const PATCH=String.raw`<script id="alyzia-hide-version-badge">
+const PATCH=String.raw`<script id="alyzia-header-cleanup-safe">
 (()=>{
-  const hideVersion=()=>{
+  const clean=()=>{
     document.querySelectorAll('body *').forEach(el=>{
-      if(el.children.length===0 && /^V\d+(?:\.\d+)+$/i.test((el.textContent||'').trim())){
+      const text=(el.textContent||'').trim();
+      if(el.children.length===0 && /^V\d+(?:\.\d+)+$/i.test(text)){
         el.style.setProperty('display','none','important');
       }
     });
+    document.querySelectorAll('button,[role="button"]')?.forEach(el=>{
+      const text=(el.textContent||'').toUpperCase().replace(/[^A-ZÀ-ÖØ-Þ]/g,'');
+      if(text==='IMPRIMER') el.style.setProperty('display','none','important');
+    });
   };
-  hideVersion();
-  document.addEventListener('DOMContentLoaded',hideVersion,{once:true});
-  new MutationObserver(hideVersion).observe(document.documentElement,{childList:true,subtree:true});
+  clean();
+  document.addEventListener('DOMContentLoaded',clean,{once:true});
+  new MutationObserver(clean).observe(document.documentElement,{childList:true,subtree:true});
 })();
 </script>`;
 
 function patch(html){
-  const s=String(html||'');
-  if(s.includes('id="alyzia-hide-version-badge"')) return s;
+  let s=String(html||'');
+  s=s.replace(/<script id="alyzia-hide-version-badge">[\s\S]*?<\/script>/,'');
+  if(s.includes('id="alyzia-header-cleanup-safe"')) return s;
   const i=s.lastIndexOf('</body>');
   return i>=0?s.slice(0,i)+PATCH+'\n'+s.slice(i):s+PATCH;
 }
