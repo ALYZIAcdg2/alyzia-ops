@@ -55,10 +55,14 @@ async function backfillOne(env){
   if(!env.SKYLINK_API_KEY)return {ok:true,skipped:"SKYLINK_API_KEY_NON_CONFIGURE"};
   const u=await usage(env),limit=Number(env.SKYLINK_MONTHLY_LIMIT||1000),reserve=Number(env.SKYLINK_MONTHLY_RESERVE||220);
   if(u.month>=Math.max(0,limit-reserve))return {ok:true,skipped:"SKYLINK_QUOTA_RESERVE",usage:u};
-  if(ageMs(u.lastAt)<30*60000)return {ok:true,skipped:"SKYLINK_GLOBAL_CADENCE",usage:u};
   const now=parisNow(),{results=[]}=await env.OPS_DB.prepare(`SELECT identity,airline,flight_number,std,data_json FROM flights WHERE flight_date=? ORDER BY std,flight_number`).bind(now.date).all();
-  const candidates=[];
-  for(const row of results){let x={};try{x=JSON.parse(row.data_json||"{}")}catch{}const d=delta(x.std||row.std,now.minutes);if(d>-30||d<-900||isFinal(x)||!needsBackfill(x))continue;if(ageMs(x.j0BackfillLastCheckedAt)<60*60000)continue;candidates.push({row,x,d})}
+  const candidates=[];let latestBackfillAt="";
+  for(const row of results){
+    let x={};try{x=JSON.parse(row.data_json||"{}")}catch{}
+    if(clean(x.j0BackfillLastCheckedAt)&&(!latestBackfillAt||Date.parse(x.j0BackfillLastCheckedAt)>Date.parse(latestBackfillAt)))latestBackfillAt=x.j0BackfillLastCheckedAt;
+    const d=delta(x.std||row.std,now.minutes);if(d>-30||d<-900||isFinal(x)||!needsBackfill(x))continue;if(ageMs(x.j0BackfillLastCheckedAt)<60*60000)continue;candidates.push({row,x,d})
+  }
+  if(ageMs(latestBackfillAt)<30*60000)return {ok:true,skipped:"SKYLINK_BACKFILL_CADENCE",usage:u,lastBackfillAt:latestBackfillAt};
   candidates.sort((a,b)=>priority(a)-priority(b)||a.d-b.d);const z=candidates[0];if(!z)return {ok:true,skipped:"J0_AUCUN_VOL_INCOMPLET"};
   const flight=flightKey(z.x,z.row);if(!flight)return {ok:false,error:"J0_IDENTITE_INCOMPLETE"};
   const base=clean(env.SKYLINK_BASE_URL)||"https://data.skylinkapi.com/v2",headers={Accept:"application/json","x-api-key":env.SKYLINK_API_KEY};
