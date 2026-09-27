@@ -30,6 +30,61 @@ const PATCH=String.raw`<script id="alyzia-header-cleanup-safe">
     return out.map(([k,v])=>k+v).join(' · ');
   };
 
+  const hhmm=(value)=>{
+    const raw=String(value||'').trim();
+    if(!raw) return '';
+    let m=raw.match(/T(\d{2}):(\d{2})/);
+    if(m) return m[1]+':'+m[2];
+    m=raw.match(/\b(\d{1,2}):(\d{2})\b/);
+    if(!m) return '';
+    return String(m[1]).padStart(2,'0')+':'+m[2];
+  };
+
+  const delayMinutes=(std,etd)=>{
+    const mins=(v)=>{
+      const m=/^(\d{2}):(\d{2})$/.exec(v||'');
+      return m ? Number(m[1])*60+Number(m[2]) : null;
+    };
+    const a=mins(std), b=mins(etd);
+    if(a===null || b===null) return 0;
+    let d=b-a;
+    if(d < -720) d+=1440;
+    if(d > 720) d-=1440;
+    return d;
+  };
+
+  const flightForRow=(row)=>{
+    const source=String(row.getAttribute('onclick')||row.querySelector('.home-open')?.getAttribute('onclick')||'');
+    const match=source.match(/openFlightFromHomeList\((\d+)\)/);
+    if(!match) return null;
+    const index=Number(match[1]);
+    try{
+      if(typeof FLIGHTS!=='undefined' && Array.isArray(FLIGHTS)) return FLIGHTS[index]||null;
+    }catch(e){}
+    try{
+      if(Array.isArray(window.FLIGHTS)) return window.FLIGHTS[index]||null;
+    }catch(e){}
+    return null;
+  };
+
+  const patchDepartureTime=(row)=>{
+    const flight=flightForRow(row);
+    const cell=row.querySelector('.home-time');
+    if(!flight || !cell) return;
+    const std=hhmm(flight.std);
+    if(!std) return;
+    const atd=hhmm(flight.atd);
+    const etd=hhmm(flight.etd||flight.edt);
+    let extra='';
+    if(atd){
+      extra='<span class="etd-small">ATD '+atd+'</span>';
+    }else if(etd && delayMinutes(std,etd)>=5){
+      extra='<span class="etd-small">ETD '+etd+'</span>';
+    }
+    const wanted=std+extra;
+    if(cell.innerHTML!==wanted) cell.innerHTML=wanted;
+  };
+
   const clean=()=>{
     document.querySelectorAll('body *').forEach(el=>{
       const text=(el.textContent||'').trim();
@@ -45,6 +100,7 @@ const PATCH=String.raw`<script id="alyzia-header-cleanup-safe">
     if(homeIcon && homeIcon.textContent!=='✈️') homeIcon.textContent='✈️';
 
     document.querySelectorAll('.flight-home-row').forEach(row=>{
+      patchDepartureTime(row);
       const flight=String(row.querySelector('.home-flight')?.textContent||'').trim().toUpperCase();
       if(!/^HF\s*\d+/.test(flight)) return;
       row.querySelectorAll('.home-config-booking > div b').forEach(value=>{
