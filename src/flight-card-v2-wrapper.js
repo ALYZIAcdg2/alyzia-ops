@@ -15,16 +15,12 @@ const PATCH=String.raw`<script id="alyzia-header-cleanup-safe">
     });
 
     const count=document.getElementById('homeVisibleFlightCount');
-    if(count){
-      const fav=[...document.querySelectorAll('button,[role="button"],a,span')].find(el=>{
-        const text=(el.textContent||'').trim().toUpperCase();
-        return text==='FAVORIS' || text==='★ FAVORIS' || text==='☆ FAVORIS';
-      });
-      if(fav && fav.parentElement){
-        fav.insertAdjacentElement('afterend',count);
-        count.style.setProperty('margin-left','8px','important');
-        count.style.setProperty('margin-right','0','important');
-      }
+    const filters=document.querySelector('.terminal-filter-bar');
+    if(count && filters){
+      filters.appendChild(count);
+      count.style.setProperty('margin-left','8px','important');
+      count.style.setProperty('margin-right','0','important');
+      count.style.setProperty('align-self','center','important');
     }
   };
   clean();
