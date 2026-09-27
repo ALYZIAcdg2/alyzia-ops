@@ -1,0 +1,95 @@
+import app from "./registration-enrichment-wrapper.js";
+
+const clean=v=>String(v??"").trim();
+const upper=v=>clean(v).toUpperCase();
+const hhmm=v=>{const s=clean(v),m=s.match(/^(\d{2}:\d{2})$/)||s.match(/(?:T|\s)(\d{2}:\d{2})/);return m?m[1]:""};
+const missing=v=>!clean(v)||["—","-","N/A","NULL"].includes(upper(v));
+
+function parisNow(){
+  const p=new Intl.DateTimeFormat("fr-CA",{timeZone:"Europe/Paris",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).formatToParts(new Date());
+  const m=Object.fromEntries(p.map(x=>[x.type,x.value]));
+  return {date:`${m.year}-${m.month}-${m.day}`,minutes:Number(m.hour)*60+Number(m.minute)};
+}
+function mins(v){const h=hhmm(v);if(!h)return null;const [a,b]=h.split(":").map(Number);return a*60+b}
+function apiSource(x,field){return /(AIRLABS|SKYLINK|OAG|AERODATABOX)/i.test(clean(x?.[field+"Source"]))}
+function skylinkSource(x,field){return /SKYLINK/i.test(clean(x?.[field+"Source"]))}
+function departedRaw(v){return /(DEPARTED|EN\s*ROUTE|AIRBORNE|IN\s*FLIGHT|TOOK\s*OFF|LANDED|ARRIVED|COMPLETED)/i.test(clean(v))}
+function cancelledRaw(v){return /(CANCEL|CANCELED|CANCELLED|ANNUL)/i.test(clean(v))}
+function boardingRaw(v){return /(BOARDING|GATE\s*CLOSED|FINAL\s*CALL|EMBARQU)/i.test(clean(v))}
+function delayedRaw(v){return /(DELAY|RETARD)/i.test(clean(v))}
+function arrivedRaw(v){return /(LANDED|ARRIVED|COMPLETED)/i.test(clean(v))}
+function addLog(x,field,from,to,reason,at){
+  const log=Array.isArray(x.flightInfoLog)?x.flightInfoLog:[];
+  log.unshift({at,source:"ALYZIA_OPS_STATE",field,from:clean(from),to:clean(to),reason});
+  x.flightInfoLog=log.slice(0,180);
+}
+function setField(x,field,value,at,reason){
+  const next=clean(value),from=clean(x[field]);if(next===from)return false;
+  addLog(x,field,from,next,reason,at);x[field]=next;x[field+"Source"]="ALYZIA_OPS_STATE";x[field+"UpdatedAt"]=at;
+  if(field==="etd")x.edt=next;return true;
+}
+function clearField(x,field,at,reason){
+  const from=clean(x[field]);if(!from)return false;addLog(x,field,from,"",reason,at);x[field]="";x[field+"Source"]="ALYZIA_OPS_STATE";x[field+"UpdatedAt"]=at;return true;
+}
+function repairTimes(x,now,at){
+  let changed=false;const raw=clean(x.providerStatusRaw||x.status);
+  const atd=mins(x.atd),ata=mins(x.ata),std=mins(x.std);
+  const atdFuture=atd!=null&&atd>now.minutes+3;
+  const ataFuture=ata!=null&&ata>now.minutes+3;
+  const skyAmbiguous=skylinkSource(x,"atd")&&!departedRaw(raw);
+  const beforeDeparture=std!=null&&now.minutes<std-3;
+
+  if(apiSource(x,"atd")&&(atdFuture||(skyAmbiguous&&beforeDeparture))){
+    if(missing(x.etd)||apiSource(x,"etd")||/ALYZIA_OPS_STATE/i.test(clean(x.etdSource)))changed=setField(x,"etd",x.atd,at,"ATD fournisseur ambigu/futur reclassé en ETD")||changed;
+    changed=clearField(x,"atd",at,"ATD impossible avant départ")||changed;
+  }
+  if(apiSource(x,"ata")&&ataFuture){
+    if(missing(x.eta)||apiSource(x,"eta")||/ALYZIA_OPS_STATE/i.test(clean(x.etaSource)))changed=setField(x,"eta",x.ata,at,"ATA fournisseur futur reclassé en ETA")||changed;
+    changed=clearField(x,"ata",at,"ATA impossible dans le futur")||changed;
+  }
+  return changed;
+}
+function normalizedStatus(x){
+  const raw=clean(x.providerStatusRaw||x.status);
+  if(cancelledRaw(raw))return "ANNULÉ";
+  if(clean(x.ata)||arrivedRaw(raw))return "ARRIVÉ";
+  if(clean(x.atd)||departedRaw(raw))return "DÉCOLLÉ";
+  if(boardingRaw(raw))return "EMBARQUEMENT";
+  if(delayedRaw(raw))return "RETARDÉ";
+  const s=mins(x.std),e=mins(x.etd);
+  if(s!=null&&e!=null&&e-s>=5)return "RETARDÉ";
+  return "PROGRAMMÉ";
+}
+async function normalizeToday(env){
+  const now=parisNow(),at=new Date().toISOString();
+  const {results=[]}=await env.OPS_DB.prepare(`SELECT identity,data_json FROM flights WHERE flight_date=?`).bind(now.date).all();
+  let changedRows=0,repairedTimes=0,statusChanges=0;
+  for(const row of results){
+    let x={};try{x=JSON.parse(row.data_json||"{}")}catch{continue}
+    let changed=false;
+    const currentStatus=clean(x.status),statusSource=clean(x.statusSource);
+    if(currentStatus&&/(AIRLABS|SKYLINK|OAG|AERODATABOX)/i.test(statusSource))x.providerStatusRaw=currentStatus;
+    if(repairTimes(x,now,at)){changed=true;repairedTimes++}
+    const next=normalizedStatus(x);
+    if(next&&next!==clean(x.status)){
+      if(currentStatus&&currentStatus!==next&&!x.providerStatusRaw)x.providerStatusRaw=currentStatus;
+      changed=setField(x,"status",next,at,"Statut opérationnel ALYZIA normalisé")||changed;statusChanges++;
+    }else if(next){x.statusSource="ALYZIA_OPS_STATE";x.statusUpdatedAt=at}
+    x.opsStatus=next;x.opsStatusUpdatedAt=at;
+    if(changed){await env.OPS_DB.prepare(`UPDATE flights SET data_json=?,updated_at=CURRENT_TIMESTAMP WHERE identity=?`).bind(JSON.stringify(x),row.identity).run();changedRows++}
+  }
+  return {ok:true,date:now.date,changedRows,repairedTimes,statusChanges};
+}
+
+export default {
+  async fetch(request,env,ctx){
+    const url=new URL(request.url);
+    if(url.pathname==="/api/providers/operational-state/status"){
+      return new Response(JSON.stringify(await normalizeToday(env)),{headers:{"content-type":"application/json; charset=UTF-8","cache-control":"no-store"}});
+    }
+    return app.fetch(request,env,ctx);
+  },
+  scheduled(controller,env,ctx){
+    ctx.waitUntil((async()=>{try{await normalizeToday(env)}catch(_){}if(typeof app.scheduled==="function")await app.scheduled(controller,env,ctx)})());
+  }
+};
