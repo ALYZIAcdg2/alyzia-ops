@@ -1,6 +1,6 @@
 {
   "name": "alyzia-ops",
-  "main": "./src/operational-state-wrapper.js",
+  "main": "./src/flight-card-v2-wrapper.js",
   "compatibility_date": "2026-08-06",
 
   "assets": {
