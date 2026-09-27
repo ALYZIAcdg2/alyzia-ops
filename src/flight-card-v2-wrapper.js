@@ -2,6 +2,34 @@ import app from "./operational-state-wrapper.js";
 
 const PATCH=String.raw`<script id="alyzia-header-cleanup-safe">
 (()=>{
+  const mergeEconomyConfig=(text)=>{
+    const raw=String(text||'').trim();
+    if(!raw || !/\bM\s*\d+/i.test(raw)) return raw;
+    const tokens=[];
+    const re=/\b([A-Z])\s*(\d+)\b/g;
+    let m;
+    while((m=re.exec(raw))) tokens.push([m[1].toUpperCase(),Number(m[2]||0)]);
+    if(!tokens.length) return raw;
+    const map=new Map();
+    const order=[];
+    for(const [k,v] of tokens){
+      if(!order.includes(k)) order.push(k);
+      map.set(k,(map.get(k)||0)+v);
+    }
+    if(!map.has('M')) return raw;
+    map.set('Y',(map.get('Y')||0)+(map.get('M')||0));
+    map.delete('M');
+    const out=[];
+    for(const k of order){
+      if(k==='M') continue;
+      if(k==='Y'){
+        if(!out.some(x=>x[0]==='Y')) out.push(['Y',map.get('Y')||0]);
+      }else if(map.has(k)) out.push([k,map.get(k)]);
+    }
+    if(!out.some(x=>x[0]==='Y')) out.push(['Y',map.get('Y')||0]);
+    return out.map(([k,v])=>k+v).join(' · ');
+  };
+
   const clean=()=>{
     document.querySelectorAll('body *').forEach(el=>{
       const text=(el.textContent||'').trim();
@@ -15,19 +43,36 @@ const PATCH=String.raw`<script id="alyzia-header-cleanup-safe">
     });
     const homeIcon=document.querySelector('.mobile-bottom-nav [data-mobile-nav="home"] span');
     if(homeIcon && homeIcon.textContent!=='✈️') homeIcon.textContent='✈️';
-    if(!window.__alyziaOpenTopPatched && typeof window.openFlightFromHomeList==='function'){
-      const original=window.openFlightFromHomeList;
-      window.openFlightFromHomeList=function(index){
-        const result=original.apply(this,arguments);
-        requestAnimationFrame(()=>requestAnimationFrame(()=>window.scrollTo(0,0)));
-        return result;
-      };
-      window.__alyziaOpenTopPatched=true;
-    }
+
+    document.querySelectorAll('.flight-home-row .home-config-booking').forEach(box=>{
+      const first=box.querySelector('div:first-child b');
+      if(!first) return;
+      const merged=mergeEconomyConfig(first.textContent);
+      if(merged && merged!==first.textContent.trim()) first.textContent=merged;
+    });
   };
   clean();
   document.addEventListener('DOMContentLoaded',clean,{once:true});
   new MutationObserver(clean).observe(document.documentElement,{childList:true,subtree:true});
+})();
+</script>
+<script id="alyzia-open-flight-top-safe">
+(()=>{
+  const install=()=>{
+    if(typeof window.openFlightFromHomeList!=='function' || window.openFlightFromHomeList.__alyziaTopWrapped) return;
+    const original=window.openFlightFromHomeList;
+    const wrapped=function(index){
+      const out=original.apply(this,arguments);
+      requestAnimationFrame(()=>requestAnimationFrame(()=>window.scrollTo(0,0)));
+      setTimeout(()=>window.scrollTo(0,0),80);
+      return out;
+    };
+    wrapped.__alyziaTopWrapped=true;
+    window.openFlightFromHomeList=wrapped;
+  };
+  install();
+  document.addEventListener('DOMContentLoaded',install,{once:true});
+  setTimeout(install,0);
 })();
 </script>`;
 
