@@ -36,16 +36,7 @@ const UI=String.raw`
     }catch(error){box.innerHTML='<div class="oag-quota-meta">OAG · '+String(error?.message||error).toUpperCase()+'</div>'}
   }
   window.loadOagQuota=loadOagQuota;
-  window.openOagAdmin=function(){
-    if(typeof showModal!=='function')return;
-    showModal('ADMIN','QUOTAS API','<div id="oagQuotaAdmin" class="oag-quota-card"></div><div class="adb-usage-card"><div id="adbUsageBox"><button class="live-refresh" onclick="loadAeroUsage()">CHARGER COMPTEUR AERODATABOX</button></div></div>');
-    setTimeout(()=>{loadOagQuota();if(typeof loadAeroUsage==='function')loadAeroUsage()},20);
-  };
-  document.addEventListener('click',event=>{
-    const button=event.target?.closest?.('button');
-    if(!button||String(button.textContent||'').trim().toUpperCase()!=='ADMIN')return;
-    event.preventDefault();event.stopImmediatePropagation();window.openOagAdmin();
-  },true);
+  window.renderOagQuotaMarkup=quotaMarkup;
 })();
 </script>`;
 
