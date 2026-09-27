@@ -1,6 +1,24 @@
 import app from "./operational-state-wrapper.js";
 
-const PATCH=String.raw`<script id="alyzia-header-cleanup-safe">
+const PATCH=String.raw`<style id="alyzia-card-top-v2-style">
+#app .flight-home-row .ops-top-v2{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;margin:0 0 10px;padding:2px 0 4px}
+#app .flight-home-row .ops-top-v2-main{display:flex;align-items:center;gap:10px;min-width:0;flex:1;flex-wrap:wrap}
+#app .flight-home-row .ops-top-v2-logo{width:92px;height:34px;object-fit:contain;object-position:left center;flex:0 0 auto}
+#app .flight-home-row .ops-top-v2-logo-text{font-size:20px;font-weight:950;color:#1577b8;line-height:1}
+#app .flight-home-row .ops-top-v2-flight{font-size:27px;font-weight:950;color:#0b2a60;line-height:1;white-space:nowrap}
+#app .flight-home-row .ops-top-v2-status{display:inline-flex;align-items:center;padding:7px 11px;border-radius:999px;font-size:11px;font-weight:950;line-height:1;white-space:nowrap;background:#eaf0f6;color:#596d86}
+#app .flight-home-row .ops-top-v2-status.retarde{background:#fee8ec;color:#d91f34}
+#app .flight-home-row .ops-top-v2-status.embarquement{background:#fff0c8;color:#8b6200}
+#app .flight-home-row .ops-top-v2-status.decolle{background:#e1f0ff;color:#0870c9}
+#app .flight-home-row .ops-top-v2-status.arrive{background:#e1f6eb;color:#087443}
+#app .flight-home-row .ops-top-v2-status.annule{background:#f1f1f3;color:#666d77}
+#app .flight-home-row .ops-top-v2-status.aconfirmer{background:#fff3df;color:#b15d00}
+#app .flight-home-row .ops-top-v2-actions{display:flex;gap:8px;flex:0 0 auto}
+#app .flight-home-row .ops-top-v2-btn{width:42px;height:42px;border:1px solid #dfe7f0;border-radius:14px;background:#fff;color:#7185a0;font-size:24px;display:grid;place-items:center;padding:0}
+#app .flight-home-row .ops-top-v2-btn.open{background:#edf6ff;color:#0874d1;border-color:#edf6ff;font-size:31px;font-weight:900}
+@media(max-width:620px){#app .flight-home-row .ops-top-v2{margin-bottom:8px}#app .flight-home-row .ops-top-v2-main{gap:8px}#app .flight-home-row .ops-top-v2-logo{width:78px;height:29px}#app .flight-home-row .ops-top-v2-flight{font-size:23px}#app .flight-home-row .ops-top-v2-status{font-size:10px;padding:6px 9px}#app .flight-home-row .ops-top-v2-btn{width:38px;height:38px;border-radius:12px}}
+</style>
+<script id="alyzia-header-cleanup-safe">
 (()=>{
   const mergeEconomyConfig=(text)=>{
     const raw=String(text||'').trim();
@@ -127,6 +145,8 @@ const PATCH=String.raw`<script id="alyzia-header-cleanup-safe">
     return '';
   };
 
+  const statusClass=(status)=>String(status||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z]+/g,'');
+
   const patchFlightStatus=(row)=>{
     const flight=flightForRow(row);
     const actions=row.querySelector('.home-flight-actions');
@@ -156,6 +176,47 @@ const PATCH=String.raw`<script id="alyzia-header-cleanup-safe">
     }
 
     if(badge.textContent!==status) badge.textContent=status;
+  };
+
+  const patchTopV2=(row)=>{
+    const flight=flightForRow(row);
+    if(!flight) return;
+
+    const oldFlight=row.querySelector('.home-flight');
+    const flightNo=String(oldFlight?.textContent||flight.flight||flight.flight_number||'').trim().toUpperCase();
+    if(!flightNo) return;
+    const airline=String(flight.airline||flightNo.replace(/\d.*$/,'')).trim().toUpperCase();
+    const status=normalizeFlightStatus(flight)||'PROGRAMMÉ';
+    const logo=[...row.querySelectorAll('img')].find(img=>!img.closest('.ops-top-v2'));
+    const fav=[...row.querySelectorAll('button,[role="button"]')].find(el=>!el.closest('.ops-top-v2') && /home-pin|star|fav|favorite|favori/i.test(String(el.className||'')+' '+String(el.title||'')+' '+String(el.getAttribute('aria-label')||'')));
+    const open=[...row.querySelectorAll('button,[role="button"]')].find(el=>!el.closest('.ops-top-v2') && /home-open|open|detail|ouvrir|chevron|arrow/i.test(String(el.className||'')+' '+String(el.title||'')+' '+String(el.getAttribute('aria-label')||'')));
+
+    let head=row.querySelector('.ops-top-v2');
+    if(!head){
+      head=document.createElement('div');
+      head.className='ops-top-v2';
+      row.insertBefore(head,row.firstChild);
+    }
+
+    const logoHtml=logo?.src?'<img class="ops-top-v2-logo" src="'+logo.src+'" alt="">':'<span class="ops-top-v2-logo-text">'+airline+'</span>';
+    const star=String(fav?.textContent||'').includes('★')?'★':'☆';
+    const wanted=logoHtml+'|'+flightNo+'|'+status+'|'+star;
+    if(head.dataset.sig!==wanted){
+      head.dataset.sig=wanted;
+      head.innerHTML='<div class="ops-top-v2-main">'+logoHtml+'<span class="ops-top-v2-flight">'+flightNo+'</span><span class="ops-top-v2-status '+statusClass(status)+'">'+status+'</span></div><div class="ops-top-v2-actions"><button type="button" class="ops-top-v2-btn fav">'+star+'</button><button type="button" class="ops-top-v2-btn open">›</button></div>';
+      head.querySelector('.ops-top-v2-btn.fav')?.addEventListener('click',e=>{e.stopPropagation();fav?.click();});
+      head.querySelector('.ops-top-v2-btn.open')?.addEventListener('click',e=>{e.stopPropagation();if(open) open.click();else row.click();});
+    }
+
+    const oldCell=oldFlight?.closest('.home-flight-cell');
+    if(oldCell) oldCell.style.setProperty('display','none','important');
+    else{
+      if(oldFlight) oldFlight.style.setProperty('display','none','important');
+      const actions=row.querySelector('.home-flight-actions');
+      if(actions) actions.style.setProperty('display','none','important');
+    }
+    if(fav) fav.style.setProperty('display','none','important');
+    if(open) open.style.setProperty('display','none','important');
   };
 
   const patchAcGateScale=(row)=>{
@@ -196,6 +257,7 @@ const PATCH=String.raw`<script id="alyzia-header-cleanup-safe">
     document.querySelectorAll('.flight-home-row').forEach(row=>{
       patchOperationalTimes(row);
       patchFlightStatus(row);
+      patchTopV2(row);
       patchAcGateScale(row);
       patchClassVisibility(row);
       const flight=String(row.querySelector('.home-flight')?.textContent||'').trim().toUpperCase();
