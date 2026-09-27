@@ -15,6 +15,15 @@ const PATCH=String.raw`<script id="alyzia-header-cleanup-safe">
     });
     const homeIcon=document.querySelector('.mobile-bottom-nav [data-mobile-nav="home"] span');
     if(homeIcon && homeIcon.textContent!=='✈️') homeIcon.textContent='✈️';
+    if(!window.__alyziaOpenTopPatched && typeof window.openFlightFromHomeList==='function'){
+      const original=window.openFlightFromHomeList;
+      window.openFlightFromHomeList=function(index){
+        const result=original.apply(this,arguments);
+        requestAnimationFrame(()=>requestAnimationFrame(()=>window.scrollTo(0,0)));
+        return result;
+      };
+      window.__alyziaOpenTopPatched=true;
+    }
   };
   clean();
   document.addEventListener('DOMContentLoaded',clean,{once:true});
