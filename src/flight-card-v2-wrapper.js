@@ -47,10 +47,10 @@ const PATCH=String.raw`<script id="alyzia-header-cleanup-safe">
     document.querySelectorAll('.flight-home-row').forEach(row=>{
       const flight=String(row.querySelector('.home-flight')?.textContent||'').trim().toUpperCase();
       if(!/^HF\s*\d+/.test(flight)) return;
-      const first=row.querySelector('.home-config-booking > div:first-child b');
-      if(!first) return;
-      const merged=mergeEconomyConfig(first.textContent);
-      if(merged && merged!==first.textContent.trim()) first.textContent=merged;
+      row.querySelectorAll('.home-config-booking > div b').forEach(value=>{
+        const merged=mergeEconomyConfig(value.textContent);
+        if(merged && merged!==value.textContent.trim()) value.textContent=merged;
+      });
     });
   };
   clean();
