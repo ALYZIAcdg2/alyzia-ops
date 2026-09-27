@@ -67,21 +67,50 @@ const PATCH=String.raw`<script id="alyzia-header-cleanup-safe">
     return null;
   };
 
-  const patchDepartureTime=(row)=>{
+  const scheduleFor=(flight)=>{
+    try{
+      if(typeof schedule==='function') return schedule(flight)||{};
+    }catch(e){}
+    try{
+      if(typeof window.schedule==='function') return window.schedule(flight)||{};
+    }catch(e){}
+    return {};
+  };
+
+  const patchOperationalTimes=(row)=>{
     const flight=flightForRow(row);
     const cell=row.querySelector('.home-time');
     if(!flight || !cell) return;
+
+    const sched=scheduleFor(flight);
     const std=hhmm(flight.std);
     if(!std) return;
+
     const atd=hhmm(flight.atd);
     const etd=hhmm(flight.etd||flight.edt);
-    let extra='';
+    const sta=hhmm(sched.sta||flight.sta);
+    const ata=hhmm(flight.ata||sched.ata);
+    const eta=hhmm(sched.eta||flight.eta);
+
+    let departure='';
     if(atd){
-      extra='<span class="etd-small">ATD '+atd+'</span>';
+      departure='<span class="etd-small">ATD '+atd+'</span>';
     }else if(etd && delayMinutes(std,etd)>=5){
-      extra='<span class="etd-small">ETD '+etd+'</span>';
+      departure='<span class="etd-small">ETD '+etd+'</span>';
     }
-    const wanted=std+extra;
+
+    let arrival='';
+    if(sta){
+      arrival='<span class="home-sta-small">STA '+sta+'</span>';
+      if(ata){
+        arrival+='<span class="eta-small">ATA '+ata+'</span>';
+      }else if(eta){
+        arrival+='<span class="eta-small">ETA '+eta+'</span>';
+      }
+    }
+
+    const wanted='<span class="home-std-main">'+std+'</span>'+departure+arrival;
+    if(!cell.classList.contains('home-time-ops')) cell.classList.add('home-time-ops');
     if(cell.innerHTML!==wanted) cell.innerHTML=wanted;
   };
 
@@ -100,7 +129,7 @@ const PATCH=String.raw`<script id="alyzia-header-cleanup-safe">
     if(homeIcon && homeIcon.textContent!=='✈️') homeIcon.textContent='✈️';
 
     document.querySelectorAll('.flight-home-row').forEach(row=>{
-      patchDepartureTime(row);
+      patchOperationalTimes(row);
       const flight=String(row.querySelector('.home-flight')?.textContent||'').trim().toUpperCase();
       if(!/^HF\s*\d+/.test(flight)) return;
       row.querySelectorAll('.home-config-booking > div b').forEach(value=>{
