@@ -1,6 +1,11 @@
 import app from "./flight-card-v2-wrapper.js";
 import todayStaBackfill from "./today-sta-backfill-wrapper.js";
 
+const STARTUP_GUARD=String.raw`<style id="alyzia-startup-today-guard-css">
+html.alyzia-flights-loading #app .flight-home-row{visibility:hidden!important}
+html.alyzia-flights-loading body::after{content:"Chargement des vols du jour…";position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:99999;padding:12px 18px;border-radius:14px;background:#fff;color:#15233a;font:800 14px/1.2 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;box-shadow:0 8px 30px rgba(20,35,58,.14);border:1px solid rgba(20,35,58,.08);pointer-events:none}
+</style><script id="alyzia-startup-today-guard-js">(()=>{const root=document.documentElement;if(root.classList.contains('alyzia-startup-guard-ready'))return;root.classList.add('alyzia-startup-guard-ready','alyzia-flights-loading');let done=false,seenFlights=false,settleTimer=null;const reveal=()=>{if(done)return;done=true;clearTimeout(settleTimer);root.classList.remove('alyzia-flights-loading')};const settle=()=>{clearTimeout(settleTimer);settleTimer=setTimeout(reveal,220)};const originalFetch=window.fetch;if(typeof originalFetch==='function'){window.fetch=async function(...args){const raw=typeof args[0]==='string'?args[0]:String(args[0]?.url||'');const isFlights=/\/api\/flights(?:[/?#]|$)/i.test(raw);try{const response=await originalFetch.apply(this,args);if(isFlights){seenFlights=true;settle()}return response}catch(error){if(isFlights)settle();throw error}}}document.addEventListener('DOMContentLoaded',()=>{const appRoot=document.getElementById('app')||document.body;const observer=new MutationObserver(()=>{if(seenFlights)settle()});observer.observe(appRoot,{childList:true,subtree:true});setTimeout(()=>{if(!done)reveal()},5000)},{once:true})})();</script>`;
+
 const FIX=String.raw`<style id="alyzia-card-top-v2-fix">
 #app .flight-home-row{position:relative!important;padding-top:76px!important}
 #app .flight-home-row .ops-top-v2{position:absolute!important;top:14px!important;left:18px!important;right:18px!important;width:auto!important;margin:0!important;z-index:5!important;grid-column:auto!important;grid-row:auto!important}
@@ -23,9 +28,15 @@ const FIX=String.raw`<style id="alyzia-card-top-v2-fix">
 
 function patch(html){
   let s=String(html||'');
-  if(s.includes('id="alyzia-card-top-v2-fix"')) return s;
-  const i=s.lastIndexOf('</body>');
-  return i>=0?s.slice(0,i)+FIX+'\n'+s.slice(i):s+FIX;
+  if(!s.includes('id="alyzia-startup-today-guard-css"')){
+    const headOpen=s.indexOf('<head>');
+    s=headOpen>=0?s.slice(0,headOpen+6)+STARTUP_GUARD+s.slice(headOpen+6):STARTUP_GUARD+s;
+  }
+  if(!s.includes('id="alyzia-card-top-v2-fix"')){
+    const i=s.lastIndexOf('</body>');
+    s=i>=0?s.slice(0,i)+FIX+'\n'+s.slice(i):s+FIX;
+  }
+  return s;
 }
 
 export default {
