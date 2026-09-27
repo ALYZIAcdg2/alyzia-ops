@@ -44,8 +44,10 @@ const PATCH=String.raw`<script id="alyzia-header-cleanup-safe">
     const homeIcon=document.querySelector('.mobile-bottom-nav [data-mobile-nav="home"] span');
     if(homeIcon && homeIcon.textContent!=='✈️') homeIcon.textContent='✈️';
 
-    document.querySelectorAll('.flight-home-row .home-config-booking').forEach(box=>{
-      const first=box.querySelector('div:first-child b');
+    document.querySelectorAll('.flight-home-row').forEach(row=>{
+      const flight=String(row.querySelector('.home-flight')?.textContent||'').trim().toUpperCase();
+      if(!/^HF\s*\d+/.test(flight)) return;
+      const first=row.querySelector('.home-config-booking > div:first-child b');
       if(!first) return;
       const merged=mergeEconomyConfig(first.textContent);
       if(merged && merged!==first.textContent.trim()) first.textContent=merged;
