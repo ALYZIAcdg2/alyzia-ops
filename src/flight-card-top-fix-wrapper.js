@@ -1,4 +1,4 @@
-import app from "./admin-dashboard-overlay-wrapper.js";
+import app from "./admin-flight-processing-click-fix-wrapper.js";
 import todayStaBackfill from "./today-sta-backfill-wrapper.js";
 
 const STARTUP_GUARD=String.raw`<style id="alyzia-startup-today-guard-css">
