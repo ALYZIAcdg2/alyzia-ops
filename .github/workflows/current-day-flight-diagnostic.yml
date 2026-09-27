@@ -50,3 +50,5 @@ jobs:
           name: flight-audit
           path: flight-audit.txt
           retention-days: 1
+
+# refresh 2026-09-27 17:10 Europe/Paris
