@@ -1,4 +1,5 @@
 import app from "./flight-card-v2-wrapper.js";
+import backfill from "./j0-backfill-wrapper.js";
 
 const FIX=String.raw`<style id="alyzia-card-top-v2-fix">
 #app .flight-home-row{position:relative!important;padding-top:76px!important}
@@ -33,6 +34,7 @@ export default {
     return new Response(patch(html),{status:response.status,statusText:response.statusText,headers});
   },
   scheduled(controller,env,ctx){
+    if(typeof backfill.scheduled==='function') return backfill.scheduled(controller,env,ctx);
     if(typeof app.scheduled==='function') return app.scheduled(controller,env,ctx);
   }
 };
