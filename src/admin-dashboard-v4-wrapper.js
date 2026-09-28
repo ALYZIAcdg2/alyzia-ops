@@ -10,6 +10,7 @@ const UI=String.raw`<style id="alyzia-admin-dashboard-v4-css">
 </style><script id="alyzia-admin-dashboard-v4-js">(()=>{'use strict';
 if(window.__alyziaAdminV4)return;window.__alyziaAdminV4=true;
 const norm=v=>String(v||'').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim();
+function setView(view){try{currentView=view}catch(e){}}
 function statusKey(text){const t=norm(text);if(t.startsWith('OK '))return 'OK';if(t.startsWith('PARTIEL '))return 'PARTIEL';if(t.startsWith('A CONTROLER '))return 'A CONTROLER';if(t.startsWith('NON TRAITE '))return 'NON TRAITE';return ''}
 function tableMini(root){return [...root.querySelectorAll('.adn-section')].find(s=>s.querySelector('.adn-table'))?.querySelector('.adn-mini')||null}
 function activeStatus(root){return tableMini(root)?.querySelector('.adn-status-active')?.dataset?.adminStatus||'ALL'}
@@ -23,6 +24,7 @@ function resetFilters(root){
 }
 function patchAdmin(){
  const app=document.getElementById('app'),root=app?.querySelector('.admin-native');if(!root)return;
+ setView('admin');
  const logSection=[...root.querySelectorAll('.adn-section')].find(s=>norm(s.querySelector('h3')?.textContent).startsWith('LOG TRAITEMENT'));
  let logBtn=logSection?.querySelector('.adn-log-btn')||null;
  if(logSection)logSection.classList.add('adn-log-section-hidden');
@@ -38,20 +40,27 @@ function patchAdmin(){
 }
 const baseRender=window.renderAdminDashboard;
 if(typeof baseRender==='function')window.renderAdminDashboard=async function(...args){
+ setView('admin');window.__alyziaFlightOriginView='admin';
  const app=document.getElementById('app');if(app)app.innerHTML='<section class="admin-native"><div class="adn-section"><b>CHARGEMENT DU TABLEAU DE BORD ADMIN…</b></div></section>';
- const r=await baseRender.apply(this,args);patchAdmin();return r;
+ const r=await baseRender.apply(this,args);setView('admin');patchAdmin();return r;
 };
 function isAdminButton(button){return !!button&&(button.dataset?.mobileNav==='admin'||norm(button.textContent)==='ADMIN')}
+function returnToAdmin(e){
+ if(window.__alyziaFlightOriginView!=='admin')return false;
+ e?.preventDefault?.();e?.stopImmediatePropagation?.();window.__alyziaFlightOriginView='';setView('admin');window.renderAdminDashboard?.();return true;
+}
 document.addEventListener('click',e=>{
  const b=e.target?.closest?.('button');
  if(isAdminButton(b)){
-   e.preventDefault();e.stopImmediatePropagation();
+   e.preventDefault();e.stopImmediatePropagation();setView('admin');window.__alyziaFlightOriginView='admin';
    const app=document.getElementById('app');if(app)app.innerHTML='<section class="admin-native"><div class="adn-section"><b>CHARGEMENT DU TABLEAU DE BORD ADMIN…</b></div></section>';
    window.renderAdminDashboard?.();return;
  }
- const ctl=e.target?.closest?.('#adminPrev,#adminNext,#adminDateBtn,[data-terminal],#adminRefreshBtn,.adn-status-active,.adn-mini span');if(ctl)setTimeout(patchAdmin,0);
+ const back=e.target?.closest?.('#app .flight-back-btn');if(back&&returnToAdmin(e))return;
+ const row=e.target?.closest?.('#app .admin-native .adn-table tbody tr');if(row)window.__alyziaFlightOriginView='admin';
+ const ctl=e.target?.closest?.('#adminPrev,#adminNext,#adminDateBtn,[data-terminal],#adminRefreshBtn,.adn-status-active,.adn-mini span');if(ctl)setTimeout(()=>{setView('admin');patchAdmin()},0);
 },true);
-document.addEventListener('change',e=>{if(e.target?.id==='adminDateInput')setTimeout(patchAdmin,0)},true);
+document.addEventListener('change',e=>{if(e.target?.id==='adminDateInput')setTimeout(()=>{setView('admin');patchAdmin()},0)},true);
 setTimeout(patchAdmin,0);
 })();</script>`;
 
