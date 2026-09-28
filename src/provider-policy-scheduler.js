@@ -1,4 +1,5 @@
 import h2Recovery from "./h2-operational-recovery-wrapper.js";
+import {runAeroDataBoxQueue} from "./aerodatabox-queue-runner.js";
 import {buildNeeds,neededFields,providerNeeded,stopAll} from "./flight-enrichment-policy.js";
 
 const clean=v=>String(v??"").trim();
@@ -7,6 +8,27 @@ function parisNow(){const p=new Intl.DateTimeFormat("fr-CA",{timeZone:"Europe/Pa
 function delta(std,minutes){const h=hhmm(std);if(!h)return 99999;const [a,b]=h.split(":").map(Number);return a*60+b-minutes}
 
 const PROVIDERS=["OAG_SCHEDULE","OAG_STATUS","AIRLABS","SKYLINK","OPENSKY","AERODATABOX"];
+function available(env,p){if(p.startsWith("OAG_"))return Boolean(env.OAG_API_KEY);if(p==="AIRLABS")return Boolean(env.AIRLABS_API_KEY);if(p==="SKYLINK")return Boolean(env.SKYLINK_API_KEY);if(p==="OPENSKY")return Boolean(env.OPENSKY_CLIENT_ID&&env.OPENSKY_CLIENT_SECRET);if(p==="AERODATABOX")return Boolean(env.AERODATABOX);return false}
+function attempted(x,p){if(p.startsWith("OAG_"))return Boolean(clean(x.oagH2LastCheckedAt)||clean(x.oagLastCheckedAt)||clean(x.oagCoverageCheckedDate));if(p==="AIRLABS")return Boolean(clean(x.airlabsRecoveryLastCheckedAt)||clean(x.airlabsLastCheckedAt)||clean(x.airlabsRegBatchCheckedAt));if(p==="SKYLINK")return Boolean(clean(x.skylinkRecoveryLastCheckedAt)||clean(x.entAliasLastCheckedAt));if(p==="OPENSKY")return Boolean(clean(x.openSkyLastSeenAt)||clean(x.openSkyAirborneConfirmedAt));if(p==="AERODATABOX")return Boolean(clean(x.aeroDataBoxLastCheckedAt));return false}
+function providerEligible(env,p,x,d){
+  if(!available(env,p))return false;
+  if(p==="OAG_SCHEDULE"||p==="OAG_STATUS"||p==="AIRLABS"||p==="OPENSKY")return true;
+  if(p==="SKYLINK")return d<=30||attempted(x,"OAG_STATUS")||attempted(x,"OAG_SCHEDULE")||attempted(x,"AIRLABS")||attempted(x,"OPENSKY");
+  if(p==="AERODATABOX"){
+    const prior=["OAG_STATUS","OAG_SCHEDULE","AIRLABS","SKYLINK","OPENSKY"].filter(q=>attempted(x,q)).length;
+    return prior>=2||(d<=0&&prior>=1);
+  }
+  return false;
+}
+function eligibleFields(env,p,x,d){
+  let fields=neededFields(p,x,d);
+  if(p==="AIRLABS"&&available(env,"OAG_SCHEDULE")&&!attempted(x,"OAG_SCHEDULE"))fields=fields.filter(f=>!['std','sta'].includes(f));
+  if(p==="AERODATABOX"&&fields.length){
+    const prior=["OAG_STATUS","OAG_SCHEDULE","AIRLABS","SKYLINK","OPENSKY"].filter(q=>attempted(x,q)).length;
+    if(prior<2&&d>0)fields=[];
+  }
+  return fields;
+}
 
 async function ensure(env){
   await env.OPS_DB.prepare(`CREATE TABLE IF NOT EXISTS provider_enrichment_queue(
@@ -34,13 +56,12 @@ export async function refreshProviderQueue(env){
     const d=delta(x.std||row.std,now.minutes),stoppedFlight=stopAll(x),needs=buildNeeds(x,d);
     if(stoppedFlight){stopped++;continue}
     for(const provider of PROVIDERS){
-      if(!providerNeeded(provider,x,d))continue;
-      const fields=neededFields(provider,x,d);if(!fields.length)continue;
+      if(!providerNeeded(provider,x,d)||!providerEligible(env,provider,x,d))continue;
+      const fields=eligibleFields(env,provider,x,d);if(!fields.length)continue;
       await env.OPS_DB.prepare(`INSERT INTO provider_enrichment_queue(flight_identity,flight_date,provider,fields_json,delta_minutes,stop_all,evaluated_at) VALUES(?,?,?,?,?,0,?) ON CONFLICT(flight_identity,provider) DO UPDATE SET fields_json=excluded.fields_json,delta_minutes=excluded.delta_minutes,stop_all=0,evaluated_at=excluded.evaluated_at`).bind(row.identity,row.flight_date,provider,JSON.stringify(fields),d,at).run();
       providerCounts[provider]++;queued++;
     }
-    x.enrichmentNeeds=needs;
-    x.enrichmentPolicyEvaluatedAt=at;
+    x.enrichmentNeeds=needs;x.enrichmentPolicyEvaluatedAt=at;
     await env.OPS_DB.prepare(`UPDATE flights SET data_json=? WHERE identity=?`).bind(JSON.stringify(x),row.identity).run();
   }
   return {ok:true,date:now.date,flights:results.length,queued,stopped,providerCounts,evaluatedAt:at};
@@ -51,6 +72,7 @@ export default {
     ctx.waitUntil((async()=>{
       try{await refreshProviderQueue(env)}catch(_){}
       if(typeof h2Recovery.scheduled==="function")await h2Recovery.scheduled(controller,env,ctx);
+      try{await runAeroDataBoxQueue(env)}catch(_){}
     })());
   }
 };
