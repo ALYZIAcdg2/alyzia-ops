@@ -1,4 +1,5 @@
 import app from "./provider-safe-backend-wrapper.js";
+import {queuedFieldMap} from "./provider-queue-authority.js";
 
 const clean=v=>String(v??"").trim();
 const upper=v=>clean(v).toUpperCase();
@@ -78,17 +79,17 @@ function logField(x,field,value,at){
   if(field==="etd")x.edt=to;
   return true;
 }
-async function applyAdb(env,row,x,data){
+async function applyAdb(env,row,x,data,allowed){
   const at=new Date().toISOString(),changed=[];
-  const fields=[["reg","IMMATRICULATION"],["modeS","MODE-S"]];
-  for(const [field,label] of fields)if(logField(x,field,data[field],at))changed.push(label);
+  if(allowed.has("reg")&&logField(x,"reg",data.reg,at))changed.push("IMMATRICULATION");
+  if(allowed.has("reg")&&logField(x,"modeS",data.modeS,at))changed.push("MODE-S");
   x.aeroDataBoxLastCheckedAt=at;
   x.aeroDataBoxDataLevel=clean(data.dataLevel);
   x.aeroDataBoxLastUpdatedUtc=clean(data.lastUpdatedUtc);
   await env.OPS_DB.prepare(`UPDATE flights SET data_json=?,updated_at=CURRENT_TIMESTAMP WHERE identity=?`).bind(JSON.stringify(x),row.identity).run();
   return changed;
 }
-async function enrichAdb(env,row,x){
+async function enrichAdb(env,row,x,allowed){
   const flight=fullFlight(x,row),date=clean(x.date||row.flight_date);
   if(!flight||!date)return {ok:false,error:"IDENTITE_INCOMPLETE"};
   const r=await adbFetch(env,`/flight?flight=${encodeURIComponent(flight)}&date=${encodeURIComponent(date)}`);
@@ -96,11 +97,13 @@ async function enrichAdb(env,row,x){
   if(!r.ok||!r.payload?.ok){x.aeroDataBoxLastCheckedAt=at;x.aeroDataBoxLastStatus=r.status;await env.OPS_DB.prepare(`UPDATE flights SET data_json=?,updated_at=CURRENT_TIMESTAMP WHERE identity=?`).bind(JSON.stringify(x),row.identity).run();return {ok:false,status:r.status,error:r.payload?.error||r.payload?.message||r.error||"AERODATABOX_ERROR"}}
   const selected=chooseFlight(r.payload,flight);
   if(!selected)return {ok:false,status:404,error:"VOL_AERODATABOX_INTROUVABLE"};
-  const data=mapRow(selected),changed=await applyAdb(env,row,x,data);
+  const data=mapRow(selected),changed=await applyAdb(env,row,x,data,allowed);
   return {ok:true,flight,changed,data,usage:r.payload?.usage||null,cache:r.payload?.cache||null};
 }
 
 async function runSafeAdb(env){
+  const now=parisNow(),authority=await queuedFieldMap(env,"AERODATABOX",now.date);
+  if(!authority.size)return {ok:true,skipped:"AERODATABOX_QUEUE_VIDE"};
   const usage=await adbUsage(env);
   if(!usage)return {ok:false,skipped:"USAGE_INDISPONIBLE"};
   const remaining=Number(usage?.daily?.remaining||0);
@@ -110,29 +113,29 @@ async function runSafeAdb(env){
   const lastMs=Date.parse(clean(last?.value)||clean(last?.updated_at)||0)||0;
   if(lastMs&&Date.now()-lastMs<75*60*1000)return {ok:true,skipped:"CADENCE_75_MIN",remaining,lastAt:new Date(lastMs).toISOString()};
 
-  const now=parisNow();
   const {results=[]}=await env.OPS_DB.prepare(`SELECT identity,flight_date,airline,flight_number,std,data_json FROM flights WHERE flight_date=? ORDER BY std,flight_number`).bind(now.date).all();
   const candidates=[];
   for(const row of results){
+    const allowed=authority.get(row.identity);if(!allowed?.size)continue;
     let x={};try{x=JSON.parse(row.data_json||"{}")}catch{}
     const d=delta(x.std||row.std,now.minutes);
     if(d>120||d<-360)continue;
     const lastFlight=Date.parse(clean(x.aeroDataBoxLastCheckedAt)||0)||0;
     if(lastFlight&&Date.now()-lastFlight<120*60*1000)continue;
-    const missingOps=!clean(x.reg)||!clean(x.modeS);
-    if(!missingOps)continue;
+    const missingAuthorized=(allowed.has("reg")&&!clean(x.reg))||(allowed.has("std")&&!clean(x.std))||(allowed.has("sta")&&!clean(x.sta))||(allowed.has("etd")&&!clean(x.etd))||(allowed.has("eta")&&!clean(x.eta))||(allowed.has("atd")&&!clean(x.atd))||(allowed.has("ata")&&!clean(x.ata))||(allowed.has("gate")&&!clean(x.gate));
+    if(!missingAuthorized)continue;
     const carrier=upper(x.airline||row.airline);
     const priority=["ENT","TU","A9"].includes(carrier)?1:2;
-    candidates.push({row,x,d,priority});
+    candidates.push({row,x,d,priority,allowed});
   }
   candidates.sort((a,b)=>a.priority-b.priority||Math.abs(a.d)-Math.abs(b.d));
-  if(!candidates.length)return {ok:true,skipped:"AUCUN_CANDIDAT",remaining};
+  if(!candidates.length)return {ok:true,skipped:"AUCUN_CANDIDAT_QUEUE",remaining};
 
   const pick=candidates[0];
   await setRuntime(env,"adb_auto_last_call",new Date().toISOString());
-  const result=await enrichAdb(env,pick.row,pick.x);
+  const result=await enrichAdb(env,pick.row,pick.x,pick.allowed);
   await setRuntime(env,"adb_auto_last_result",JSON.stringify({at:new Date().toISOString(),identity:pick.row.identity,result:{ok:result.ok,status:result.status||200,changed:result.changed||[],error:result.error||""}}));
-  return {ok:true,date:now.date,remainingBefore:remaining,candidates:candidates.length,identity:pick.row.identity,result};
+  return {ok:true,date:now.date,remainingBefore:remaining,candidates:candidates.length,identity:pick.row.identity,fields:[...pick.allowed],result};
 }
 
 export default {
