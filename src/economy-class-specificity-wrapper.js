@@ -26,10 +26,23 @@ function repairFlight(x){
 }
 function repairAll(){let changed=false;for(const x of flights())changed=repairFlight(x)||changed;return changed}
 function repairCurrent(){try{return typeof f==='function'?repairFlight(f()):false}catch{return false}}
-const baseHome=window.renderHome;if(typeof baseHome==='function')window.renderHome=function(...args){repairAll();const r=baseHome.apply(this,args);if(repairAll())baseHome.apply(this,args);return r};
+function rowIndex(row){const src=String(row.getAttribute('onclick')||row.querySelector('.home-open')?.getAttribute('onclick')||'');const m=src.match(/openFlightFromHomeList\((\d+)\)/);return m?Number(m[1]):null}
+function cabinText(obj){if(!obj||typeof obj!=='object')return String(obj||'—');const order=['F','J','C','S','W','E','Y','M'],keys=Object.keys(obj);return [...order.filter(k=>k in obj),...keys.filter(k=>!order.includes(k))].map(k=>k+Number(obj[k]||0)).join(' ')||'—'}
+function fixHomeListDisplay(){
+ const list=flights();document.querySelectorAll('#app .flight-home-row').forEach(row=>{
+  const i=rowIndex(row),x=i!==null?list[i]:null;if(!x)return;repairFlight(x);
+  row.querySelectorAll('.v2-metric').forEach(metric=>{
+   const label=norm(metric.querySelector('.v2-metric-label')?.textContent),value=metric.querySelector('.v2-metric-value');if(!value)return;
+   if(label==='CONFIG')value.textContent=cabinText(x.config||x.cabinConfig||x.capacity||x.cabin_configuration);
+   if(label==='BOOKING')value.textContent=cabinText(x.booked||x.booking||x.load?.booked);
+  });
+ })
+}
+function scheduleListFix(){[0,40,120,260].forEach(ms=>setTimeout(fixHomeListDisplay,ms))}
+const baseHome=window.renderHome;if(typeof baseHome==='function')window.renderHome=function(...args){repairAll();const r=baseHome.apply(this,args);scheduleListFix();return r};
 const baseRender=window.render;if(typeof baseRender==='function')window.render=function(...args){repairCurrent();const r=baseRender.apply(this,args);setTimeout(()=>{if(repairCurrent())baseRender.apply(this,args)},30);return r};
 const baseAircraftChange=window.onSariaAircraftChange;if(typeof baseAircraftChange==='function')window.onSariaAircraftChange=function(value){const r=baseAircraftChange.call(this,value);setTimeout(()=>{if(repairCurrent()){try{persistFlightAction('CLASSE ÉCO SYNCHRONISÉE AU SEATMAP')}catch{}try{baseRender?.()}catch{}}},0);return r};
-repairAll();
+repairAll();scheduleListFix();
 })();</script>`;
 
 function patch(html){let s=String(html||'');if(s.includes('id="alyzia-economy-class-specificity"'))return s;const i=s.lastIndexOf('</body>');return i>=0?s.slice(0,i)+UI+'\n'+s.slice(i):s+UI}
