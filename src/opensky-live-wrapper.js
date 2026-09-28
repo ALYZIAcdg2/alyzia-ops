@@ -25,11 +25,20 @@ function isFinal(x){const s=upper([x.status,x.opsStatus,x.flight_status].filter(
 async function ensureState(env){
   await env.OPS_DB.prepare(`CREATE TABLE IF NOT EXISTS provider_runtime_state(provider TEXT PRIMARY KEY,last_at TEXT,last_status INTEGER,meta_json TEXT)`).run();
 }
+async function ensureUsage(env){
+  await env.OPS_DB.prepare(`CREATE TABLE IF NOT EXISTS api_provider_usage(provider TEXT NOT NULL,period TEXT NOT NULL,calls INTEGER NOT NULL DEFAULT 0,successes INTEGER NOT NULL DEFAULT 0,errors INTEGER NOT NULL DEFAULT 0,last_status INTEGER,last_at TEXT,PRIMARY KEY(provider,period))`).run();
+}
 async function lane(env){
   try{await ensureState(env);const r=await env.OPS_DB.prepare(`SELECT last_at,last_status,meta_json FROM provider_runtime_state WHERE provider='OPENSKY_LIVE'`).first();return {lastAt:clean(r?.last_at),lastStatus:Number(r?.last_status||0),meta:clean(r?.meta_json)}}catch{return {lastAt:"",lastStatus:0,meta:""}}
 }
 async function bump(env,status,meta={}){
   try{await ensureState(env);await env.OPS_DB.prepare(`INSERT INTO provider_runtime_state(provider,last_at,last_status,meta_json) VALUES('OPENSKY_LIVE',?,?,?) ON CONFLICT(provider) DO UPDATE SET last_at=excluded.last_at,last_status=excluded.last_status,meta_json=excluded.meta_json`).bind(new Date().toISOString(),status,JSON.stringify(meta)).run()}catch(_){}
+}
+async function bumpUsage(env,status){
+  try{
+    await ensureUsage(env);const now=parisNow(),at=new Date().toISOString();
+    for(const period of [now.date.slice(0,7),now.date])await env.OPS_DB.prepare(`INSERT INTO api_provider_usage(provider,period,calls,successes,errors,last_status,last_at) VALUES('OPENSKY_LIVE',?,1,?,?,?,?) ON CONFLICT(provider,period) DO UPDATE SET calls=calls+1,successes=successes+excluded.successes,errors=errors+excluded.errors,last_status=excluded.last_status,last_at=excluded.last_at`).bind(period,status>=200&&status<400?1:0,status>=400?1:0,status,at).run();
+  }catch(_){}
 }
 
 async function token(env){
@@ -61,6 +70,7 @@ async function confirm(env){
   const candidates=rows.filter(z=>z.d<=20&&z.d>=-75&&!isFinal(z.x)&&missing(z.x.atd));
   if(!candidates.length){await bump(env,204,{candidates:0});return {ok:true,skipped:"OPENSKY_AUCUN_VOL"}}
   let r;try{r=await states(env)}catch(e){await bump(env,502,{error:clean(e?.message||e)});return {ok:false,status:502,error:clean(e?.message||e)}}
+  await bumpUsage(env,r.status);
   if(!r.ok){await bump(env,r.status);return {ok:false,status:r.status,error:`OPENSKY_${r.status}`}}
   const j=await r.json().catch(()=>({})),vectors=Array.isArray(j?.states)?j.states:[];
   const byCallsign=new Map();
