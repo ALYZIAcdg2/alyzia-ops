@@ -1,4 +1,4 @@
-import app from "./home-list-final-fixes-wrapper.js";
+import app from "./detail-sync-stability-wrapper.js";
 import todayStaBackfill from "./today-sta-backfill-wrapper.js";
 
 const STARTUP_GUARD=String.raw`<style id="alyzia-startup-today-guard-css">
