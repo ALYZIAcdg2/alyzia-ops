@@ -48,6 +48,7 @@ async function adbUsage(env){
 }
 function mapRow(row){
   return {
+    std:clean(row?.departure?.std),
     sta:clean(row?.arrival?.sta),
     etd:clean(row?.departure?.etd),
     atd:clean(row?.departure?.atd),
@@ -81,7 +82,9 @@ function logField(x,field,value,at){
 }
 async function applyAdb(env,row,x,data,allowed){
   const at=new Date().toISOString(),changed=[];
-  if(allowed.has("reg")&&logField(x,"reg",data.reg,at))changed.push("IMMATRICULATION");
+  for(const [field,label] of [["std","STD"],["sta","STA"],["etd","ETD"],["eta","ETA"],["atd","ATD"],["ata","ATA"],["gate","GATE"],["reg","IMMATRICULATION"]]){
+    if(allowed.has(field)&&logField(x,field,data[field],at))changed.push(label);
+  }
   if(allowed.has("reg")&&logField(x,"modeS",data.modeS,at))changed.push("MODE-S");
   x.aeroDataBoxLastCheckedAt=at;
   x.aeroDataBoxDataLevel=clean(data.dataLevel);
@@ -122,7 +125,7 @@ async function runSafeAdb(env){
     if(d>120||d<-360)continue;
     const lastFlight=Date.parse(clean(x.aeroDataBoxLastCheckedAt)||0)||0;
     if(lastFlight&&Date.now()-lastFlight<120*60*1000)continue;
-    const missingAuthorized=(allowed.has("reg")&&!clean(x.reg))||(allowed.has("std")&&!clean(x.std))||(allowed.has("sta")&&!clean(x.sta))||(allowed.has("etd")&&!clean(x.etd))||(allowed.has("eta")&&!clean(x.eta))||(allowed.has("atd")&&!clean(x.atd))||(allowed.has("ata")&&!clean(x.ata))||(allowed.has("gate")&&!clean(x.gate));
+    const missingAuthorized=[...allowed].some(field=>!clean(x[field]));
     if(!missingAuthorized)continue;
     const carrier=upper(x.airline||row.airline);
     const priority=["ENT","TU","A9"].includes(carrier)?1:2;
@@ -145,6 +148,7 @@ export default {
       try{
         const masked=Object.create(env);
         Object.defineProperty(masked,"AERODATABOX_API_KEY",{value:"",enumerable:true});
+        Object.defineProperty(masked,"AERODATABOX",{value:null,enumerable:true});
         Object.defineProperty(masked,"OAG_API_KEY",{value:"",enumerable:true});
         app.scheduled(controller,masked,ctx);
       }catch(_){ }
