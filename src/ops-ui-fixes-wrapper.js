@@ -58,7 +58,7 @@ function drawSearchPage(){
  app.querySelector('#opsSearchPrev')?.addEventListener('click',()=>{SEARCH_STATE.date=addDays(SEARCH_STATE.date,-1);SEARCH_STATE.company='';drawSearchPage()});
  app.querySelector('#opsSearchNext')?.addEventListener('click',()=>{SEARCH_STATE.date=addDays(SEARCH_STATE.date,1);SEARCH_STATE.company='';drawSearchPage()});
  app.querySelector('#opsSearchDate')?.addEventListener('change',e=>{SEARCH_STATE.date=e.target.value||SEARCH_STATE.date;SEARCH_STATE.company='';drawSearchPage()});
- app.querySelector('#opsSearchInput')?.addEventListener('input',e=>{SEARCH_STATE.query=e.target.value||'';drawSearchPage()});
+ app.querySelector('#opsSearchInput')?.addEventListener('input',e=>{SEARCH_STATE.query=e.target.value||'';drawSearchPage();const input=document.querySelector('#opsSearchInput');if(input){input.focus({preventScroll:true});const n=input.value.length;try{input.setSelectionRange(n,n)}catch{}}});
  app.querySelector('#opsCompanyBack')?.addEventListener('click',()=>{SEARCH_STATE.company='';drawSearchPage()});
  app.querySelectorAll('[data-company]').forEach(b=>b.addEventListener('click',()=>{SEARCH_STATE.company=String(b.dataset.company||'');drawSearchPage()}));
  app.querySelectorAll('[data-flight-index]').forEach(b=>b.addEventListener('click',()=>{const i=Number(b.dataset.flightIndex),f=flights()[i];if(!f)return;window.__alyziaFlightOriginView='search';try{if(typeof openSearchFlight==='function')openSearchFlight(i,flightDate(f));else{selected=i;selectedDate=flightDate(f)||selectedDate;HOME_DATE=flightDate(f)||HOME_DATE;render()}}catch(e){console.warn('SEARCH PAGE OPEN FLIGHT',e)}}));
