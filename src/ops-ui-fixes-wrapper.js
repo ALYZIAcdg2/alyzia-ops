@@ -71,18 +71,18 @@ const TYPE_ALIASES={'TK|N32':{C:20,Y:162}};
 function configForAircraft(x){
  const airline=airlineCode(x),ac=norm(x?.aircraft).replace(/\s+/g,''),special=TYPE_ALIASES[airline+'|'+ac];if(special)return {...special};
  const rows=configRows().filter(e=>norm(e.cie)===airline&&norm(e.ac).replace(/\s+/g,'')===ac).sort((a,b)=>Number(b.freq||0)-Number(a.freq||0));
- const e=rows[0];if(!e)return null;const cfg={};for(const pair of (e.classes||[])){let k=String(pair?.[0]||'').toUpperCase();if(k==='M')k='Y';if(k==='J'&&airline!=='SQ')k='C';cfg[k]=(cfg[k]||0)+Number(pair?.[1]||0)}return Object.keys(cfg).length?moveEBeforeY(cfg):null;
+ const e=rows[0];if(!e)return null;const cfg={};for(const pair of (e.classes||[])){const k=String(pair?.[0]||'').toUpperCase();if(!k)continue;cfg[k]=(cfg[k]||0)+Number(pair?.[1]||0)}return Object.keys(cfg).length?moveEBeforeY(cfg):null;
 }
 function alignOperationalObjects(x,cfg){const copy=(src={})=>{const o={};for(const k of Object.keys(cfg))o[k]=Number(src?.[k]||0);return o};x.booked=copy(x.booked);x.web=copy(x.web);x.meals=copy(x.meals);const cap=total(cfg),booked=total(x.booked);if(typeof x.available==='number')x.available=Math.max(0,cap-booked);else if(x.available&&typeof x.available==='object'){const a={};for(const k of Object.keys(cfg))a[k]=Math.max(0,Number(cfg[k]||0)-Number(x.booked[k]||0));x.available=a}}
 function syncConfigToAircraft(x,{persist=false,note='TYPE A/C'}={}){
  if(!x||!x.aircraft)return false;const cfg=configForAircraft(x);if(!cfg)return false;const before=JSON.stringify(x.config||{}),after=JSON.stringify(cfg);if(before===after)return false;x.config={...cfg};alignOperationalObjects(x,cfg);normalizeClassOrder();x.aircraftConfigSyncedFrom=String(x.aircraft||'').toUpperCase();x.aircraftConfigSyncedAt=new Date().toISOString();if(persist){try{markManualFields(x,'config',note+' · CONFIG/CAPACITY synchronisée')}catch{}try{persistFlightAction('CONFIG/CAPACITY SYNCHRONISÉE AU TYPE A/C')}catch{}}return true
 }
 function syncAllVisibleAircraft(){for(const x of flights()){if(x.aircraftDetectedByApi&&x.aircraftConfigSyncedFrom!==String(x.aircraft||'').toUpperCase())syncConfigToAircraft(x)}}
-async function syncCurrentDetectedAircraft(){const x=typeof f==='function'?f():null;if(!x||!x.aircraftDetectedByApi)return;if(syncConfigToAircraft(x,{persist:true,note:'TYPE A/C API'})){try{render()}catch{}}}
+function syncCurrentDetectedAircraft(){const x=typeof f==='function'?f():null;if(!x||!x.aircraftDetectedByApi)return false;return syncConfigToAircraft(x,{persist:true,note:'TYPE A/C API'})}
 
 const baseHome=window.renderHome;if(typeof baseHome==='function')window.renderHome=function(...args){syncAllVisibleAircraft();normalizeClassOrder();setView('home');window.__alyziaFlightOriginView='home';const r=baseHome.apply(this,args);setTimeout(()=>{try{filterFlightHomeRows(document.querySelector('.home-flight-search input')?.value||'')}catch{}},0);scheduleCardFixes();return r};
 const baseTools=window.renderTools;if(typeof baseTools==='function')window.renderTools=function(...args){setView('tools');window.__alyziaFlightOriginView='tools';const r=baseTools.apply(this,args);setTimeout(()=>document.querySelectorAll('#app .adb-usage-card').forEach(x=>x.remove()),0);return r};
-const baseDetailRender=window.render;if(typeof baseDetailRender==='function')window.render=function(...args){const r=baseDetailRender.apply(this,args);setTimeout(syncCurrentDetectedAircraft,0);return r};
+const baseDetailRender=window.render;if(typeof baseDetailRender==='function')window.render=function(...args){try{syncCurrentDetectedAircraft()}catch{}return baseDetailRender.apply(this,args)};
 
 window.onSariaAircraftChange=function(value){
  const x=typeof f==='function'?f():null;if(!x)return;x.aircraft=String(value||'').trim().toUpperCase();x.aircraftDetectedByApi=false;x.aircraftConfigSyncedFrom='';
