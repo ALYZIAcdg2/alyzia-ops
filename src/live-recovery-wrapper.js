@@ -1,4 +1,5 @@
 import app from "./operational-state-wrapper.js";
+import {queuedFieldMap} from "./provider-queue-authority.js";
 
 const clean=v=>String(v??"").trim();
 const upper=v=>clean(v).toUpperCase();
@@ -66,29 +67,25 @@ function apply(x,field,value,source,at,{refresh=true}={}){
   const log=Array.isArray(x.flightInfoLog)?x.flightInfoLog:[];log.unshift({at,source,field,from,to:next});x.flightInfoLog=log.slice(0,160);
   x[field]=next;x[field+"Source"]=source;x[field+"UpdatedAt"]=at;if(field==="etd")x.edt=next;return true;
 }
-function applyDetectedAircraft(x,value,source,at){
-  const next=upper(value),from=upper(x.aircraft);if(!next||next===from)return false;
-  const log=Array.isArray(x.flightInfoLog)?x.flightInfoLog:[];log.unshift({at,source,field:"aircraft",from,to:next});x.flightInfoLog=log.slice(0,160);
-  x.aircraft=next;x.aircraftSource=source;x.aircraftUpdatedAt=at;x.aircraftDetectedByApi=true;return true;
-}
 async function save(env,row,x){await env.OPS_DB.prepare(`UPDATE flights SET data_json=?,updated_at=CURRENT_TIMESTAMP WHERE identity=?`).bind(JSON.stringify(x),row.identity).run()}
 
 function airlabsRows(payload){if(Array.isArray(payload))return payload;if(Array.isArray(payload?.response))return payload.response;if(Array.isArray(payload?.data))return payload.data;return []}
 function parseAirlabs(r){return {
   sta:hhmm(r?.arr_time),etd:hhmm(r?.dep_estimated),atd:hhmm(r?.dep_actual),eta:hhmm(r?.arr_estimated),ata:hhmm(r?.arr_actual),
-  gate:clean(r?.dep_gate),arrivalGate:clean(r?.arr_gate),terminal:clean(r?.dep_terminal),arrivalTerminal:clean(r?.arr_terminal),
-  reg:clean(r?.reg_number),aircraft:upper(r?.aircraft_icao),status:clean(r?.status)
+  gate:clean(r?.dep_gate),reg:clean(r?.reg_number)
 }}
 async function airlabsRecovery(env,rows){
   if(!env.AIRLABS_API_KEY)return {ok:true,skipped:"AIRLABS_API_KEY_NON_CONFIGURE"};
+  const now=parisNow(),authority=await queuedFieldMap(env,"AIRLABS",now.date);
+  if(!authority.size)return {ok:true,skipped:"AIRLABS_QUEUE_VIDE"};
   const lane="AIRLABS_LIVE_RECOVERY",u=await usageLane(env,lane),total=await usageTotal(env,"AIRLABS"),limit=Number(env.AIRLABS_MONTHLY_LIMIT||1000),reserve=Number(env.AIRLABS_MONTHLY_RESERVE||180);
   if(total>=Math.max(0,limit-reserve))return {ok:true,skipped:"AIRLABS_QUOTA_RESERVE",total};
-  const candidates=rows.filter(z=>z.d<=180&&z.d>=-900&&!isFinal(z.x)&&liveIncomplete(z.x));
-  if(!candidates.length)return {ok:true,skipped:"AIRLABS_LIVE_AUCUN_VOL"};
+  const candidates=rows.filter(z=>authority.has(z.row.identity)&&z.d<=180&&z.d>=-900&&!isFinal(z.x)&&liveIncomplete(z.x));
+  if(!candidates.length)return {ok:true,skipped:"AIRLABS_LIVE_AUCUN_VOL_QUEUE"};
   const urgent=candidates.some(z=>z.d<=30&&z.d>=-240&&(missing(z.x.atd)||missing(z.x.etd)||missing(z.x.gate)||missing(z.x.reg)));
-  const cadence=urgent?20:45;if(ageMs(u.lastAt)<cadence*60000)return {ok:true,skipped:"AIRLABS_LIVE_CADENCE",cadence};
+  const cadence=urgent?20:90;if(ageMs(u.lastAt)<cadence*60000)return {ok:true,skipped:"AIRLABS_LIVE_CADENCE",cadence};
   const wanted=new Map(candidates.map(z=>[flightKey(z.x,z.row),z]).filter(([k])=>k));
-  const fields="airline_iata,flight_iata,flight_number,dep_iata,dep_terminal,dep_gate,dep_time,dep_estimated,dep_actual,arr_iata,arr_terminal,arr_gate,arr_time,arr_estimated,arr_actual,status,reg_number,aircraft_icao";
+  const fields="airline_iata,flight_iata,flight_number,dep_iata,dep_gate,dep_time,dep_estimated,dep_actual,arr_iata,arr_time,arr_estimated,arr_actual,reg_number";
   const all=[];let calls=0,lastStatus=0;
   for(let page=0;page<2;page++){
     if(total+calls>=Math.max(0,limit-reserve))break;
@@ -101,10 +98,9 @@ async function airlabsRecovery(env,rows){
   for(const r of all){
     const key=upper(r?.flight_iata||`${r?.airline_iata||""}${r?.flight_number||""}`),z=wanted.get(key);if(!z)continue;
     const dest=upper(z.x.destination||z.x.dest),apiDest=upper(r?.arr_iata);if(dest&&apiDest&&dest!==apiDest)continue;
-    const d=parseAirlabs(r),changed=[];
-    for(const field of ["sta","etd","atd","eta","ata","gate","arrivalGate","terminal","arrivalTerminal","status"]){if(apply(z.x,field,d[field],"AIRLABS_LIVE_RECOVERY",at,{refresh:field!=="sta"}))changed.push(field)}
-    if(apply(z.x,"reg",d.reg,"AIRLABS_LIVE_RECOVERY",at,{refresh:false}))changed.push("reg");
-    if(applyDetectedAircraft(z.x,d.aircraft,"AIRLABS_LIVE_RECOVERY",at))changed.push("aircraft");
+    const allowed=authority.get(z.row.identity)||new Set(),d=parseAirlabs(r),changed=[];
+    for(const field of ["sta","etd","atd","eta","ata","gate"]){if(allowed.has(field)&&apply(z.x,field,d[field],"AIRLABS_LIVE_RECOVERY",at,{refresh:field!=="sta"}))changed.push(field)}
+    if(allowed.has("reg")&&apply(z.x,"reg",d.reg,"AIRLABS_LIVE_RECOVERY",at,{refresh:false}))changed.push("reg");
     z.x.airlabsRecoveryLastCheckedAt=at;z.x.airlabsRecoveryLastStatus=lastStatus;
     if(changed.length){await save(env,z.row,z.x);changes.push({flight:key,changed})}
   }
@@ -120,26 +116,26 @@ function parseSkylink(p){
     sta:hhmm(arr?.scheduled_time||arr?.scheduled||root?.sta),
     etd:hhmm(dep?.estimated_time||dep?.estimated||root?.etd)||(!departedStatus(status)?depLatest:""),
     atd:departedStatus(status)?depLatest:"",eta:hhmm(arr?.estimated_time||arr?.estimated||root?.eta),ata:arrivedStatus(status)?arrActual:"",
-    gate:clean(dep?.gate||root?.departure_gate),arrivalGate:clean(arr?.gate||root?.arrival_gate),terminal:clean(dep?.terminal||root?.departure_terminal),arrivalTerminal:clean(arr?.terminal||root?.arrival_terminal),
-    reg:clean(ac?.registration||root?.registration||root?.aircraft_registration),aircraft:upper(ac?.icao_type||ac?.type||root?.aircraft_type),status
+    gate:clean(dep?.gate||root?.departure_gate),reg:clean(ac?.registration||root?.registration||root?.aircraft_registration)
   };
 }
 async function skylinkRecovery(env,rows){
   if(!env.SKYLINK_API_KEY)return {ok:true,skipped:"SKYLINK_API_KEY_NON_CONFIGURE"};
+  const now=parisNow(),authority=await queuedFieldMap(env,"SKYLINK",now.date);
+  if(!authority.size)return {ok:true,skipped:"SKYLINK_QUEUE_VIDE"};
   const lane="SKYLINK_LIVE_RECOVERY",u=await usageLane(env,lane),total=await usageTotal(env,"SKYLINK"),limit=Number(env.SKYLINK_MONTHLY_LIMIT||1000),reserve=Number(env.SKYLINK_MONTHLY_RESERVE||220);
   if(total>=Math.max(0,limit-reserve))return {ok:true,skipped:"SKYLINK_QUOTA_RESERVE",total};
   if(ageMs(u.lastAt)<30*60000)return {ok:true,skipped:"SKYLINK_LIVE_CADENCE"};
-  const candidates=rows.filter(z=>z.d<=120&&z.d>=-900&&!isFinal(z.x)&&liveIncomplete(z.x)&&ageMs(z.x.skylinkRecoveryLastCheckedAt)>=90*60000).sort((a,b)=>priority(a)-priority(b)||Math.abs(a.d)-Math.abs(b.d));
-  const z=candidates[0];if(!z)return {ok:true,skipped:"SKYLINK_LIVE_AUCUN_VOL"};
+  const candidates=rows.filter(z=>authority.has(z.row.identity)&&z.d<=120&&z.d>=-900&&!isFinal(z.x)&&liveIncomplete(z.x)&&ageMs(z.x.skylinkRecoveryLastCheckedAt)>=60*60000).sort((a,b)=>priority(a)-priority(b)||Math.abs(a.d)-Math.abs(b.d));
+  const z=candidates[0];if(!z)return {ok:true,skipped:"SKYLINK_LIVE_AUCUN_VOL_QUEUE"};
   const flight=flightKey(z.x,z.row);if(!flight)return {ok:false,error:"SKYLINK_IDENTITE_INCOMPLETE"};
   const base=clean(env.SKYLINK_BASE_URL)||"https://data.skylinkapi.com/v2",headers={Accept:"application/json","x-api-key":env.SKYLINK_API_KEY};
   let r;try{r=await fetch(`${base.replace(/\/$/,"")}/flight_status/${encodeURIComponent(flight)}`,{headers})}catch(e){await bump(env,lane,502);return {ok:false,status:502,error:String(e?.message||e),flight}}
   await bump(env,lane,r.status);const payload=await r.json().catch(()=>null),at=new Date().toISOString();z.x.skylinkRecoveryLastCheckedAt=at;z.x.skylinkRecoveryLastStatus=r.status;
   if(!r.ok){await save(env,z.row,z.x);return {ok:false,status:r.status,error:`SKYLINK_${r.status}`,flight}}
-  const d=parseSkylink(payload),changed=[];z.x.providerStatusRaw=d.status||z.x.providerStatusRaw;
-  for(const field of ["sta","etd","atd","eta","ata","gate","arrivalGate","terminal","arrivalTerminal","status"]){if(apply(z.x,field,d[field],"SKYLINK_LIVE_RECOVERY",at,{refresh:field!=="sta"}))changed.push(field)}
-  if(apply(z.x,"reg",d.reg,"SKYLINK_LIVE_RECOVERY",at,{refresh:false}))changed.push("reg");
-  if(applyDetectedAircraft(z.x,d.aircraft,"SKYLINK_LIVE_RECOVERY",at))changed.push("aircraft");
+  const allowed=authority.get(z.row.identity)||new Set(),d=parseSkylink(payload),changed=[];
+  for(const field of ["sta","etd","atd","eta","ata","gate"]){if(allowed.has(field)&&apply(z.x,field,d[field],"SKYLINK_LIVE_RECOVERY",at,{refresh:field!=="sta"}))changed.push(field)}
+  if(allowed.has("reg")&&apply(z.x,"reg",d.reg,"SKYLINK_LIVE_RECOVERY",at,{refresh:false}))changed.push("reg");
   await save(env,z.row,z.x);return {ok:true,flight,changed};
 }
 
