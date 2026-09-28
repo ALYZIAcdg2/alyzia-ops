@@ -1,4 +1,4 @@
-import app from "./admin-dashboard-v4-wrapper.js";
+import app from "./admin-dashboard-v5-wrapper.js";
 
 const clean=v=>String(v??"").trim();
 const num=v=>{const n=Number(v);return Number.isFinite(n)?n:null};
@@ -58,8 +58,6 @@ async function enrich(data,env){
   }
   const os=findQuota(data,"OPENSKY");
   if(os){
-    // Les compteurs viennent désormais de api_provider_usage. Le runtime ne sert qu'à compléter l'horodatage/état
-    // tant qu'aucun appel OpenSky comptabilisé n'a encore eu lieu après la mise à jour.
     if(!os.lastAt&&osRt.lastAt&&osRt.lastStatus!==204)os.lastAt=osRt.lastAt;
     if((os.lastStatus==null||os.lastStatus==='')&&osRt.lastStatus!=null&&osRt.lastStatus!==204)os.lastStatus=osRt.lastStatus;
   }
