@@ -58,13 +58,18 @@ async function todayRows(env){
 }
 function canRefresh(x,field){
   if(missing(x[field]))return true;
-  return ["AIRLABS","AIRLABS_LIVE_RECOVERY","AIRLABS_ROUTE","SKYLINK","SKYLINK_LIVE_RECOVERY","SKYLINK_J0_BACKFILL","SKYLINK_ENT_ALIAS","OAG_STATUS","OAG_SCHEDULE","AERODATABOX","AERODATABOX_REG","ALYZIA_OPS_STATE"].includes(upper(x[field+"Source"]));
+  return ["AIRLABS","AIRLABS_LIVE_RECOVERY","AIRLABS_ROUTE","SKYLINK","SKYLINK_LIVE_RECOVERY","SKYLINK_J0_BACKFILL","SKYLINK_ENT_ALIAS","OAG_STATUS","OAG_SCHEDULE","AERODATABOX","AERODATABOX_REG","ALYZIA_OPS_STATE","OPENSKY_ADSB"].includes(upper(x[field+"Source"]));
 }
 function apply(x,field,value,source,at,{refresh=true}={}){
   const next=clean(value),from=clean(x[field]);if(!next||next===from)return false;
   if(!refresh&&!missing(from))return false;if(refresh&&!canRefresh(x,field))return false;
   const log=Array.isArray(x.flightInfoLog)?x.flightInfoLog:[];log.unshift({at,source,field,from,to:next});x.flightInfoLog=log.slice(0,160);
   x[field]=next;x[field+"Source"]=source;x[field+"UpdatedAt"]=at;if(field==="etd")x.edt=next;return true;
+}
+function applyDetectedAircraft(x,value,source,at){
+  const next=upper(value),from=upper(x.aircraft);if(!next||next===from)return false;
+  const log=Array.isArray(x.flightInfoLog)?x.flightInfoLog:[];log.unshift({at,source,field:"aircraft",from,to:next});x.flightInfoLog=log.slice(0,160);
+  x.aircraft=next;x.aircraftSource=source;x.aircraftUpdatedAt=at;x.aircraftDetectedByApi=true;return true;
 }
 async function save(env,row,x){await env.OPS_DB.prepare(`UPDATE flights SET data_json=?,updated_at=CURRENT_TIMESTAMP WHERE identity=?`).bind(JSON.stringify(x),row.identity).run()}
 
@@ -99,7 +104,7 @@ async function airlabsRecovery(env,rows){
     const d=parseAirlabs(r),changed=[];
     for(const field of ["sta","etd","atd","eta","ata","gate","arrivalGate","terminal","arrivalTerminal","status"]){if(apply(z.x,field,d[field],"AIRLABS_LIVE_RECOVERY",at,{refresh:field!=="sta"}))changed.push(field)}
     if(apply(z.x,"reg",d.reg,"AIRLABS_LIVE_RECOVERY",at,{refresh:false}))changed.push("reg");
-    if(d.aircraft&&missing(z.x.aircraft)&&apply(z.x,"aircraft",d.aircraft,"AIRLABS_LIVE_RECOVERY",at,{refresh:false}))changed.push("aircraft");
+    if(applyDetectedAircraft(z.x,d.aircraft,"AIRLABS_LIVE_RECOVERY",at))changed.push("aircraft");
     z.x.airlabsRecoveryLastCheckedAt=at;z.x.airlabsRecoveryLastStatus=lastStatus;
     if(changed.length){await save(env,z.row,z.x);changes.push({flight:key,changed})}
   }
@@ -134,7 +139,7 @@ async function skylinkRecovery(env,rows){
   const d=parseSkylink(payload),changed=[];z.x.providerStatusRaw=d.status||z.x.providerStatusRaw;
   for(const field of ["sta","etd","atd","eta","ata","gate","arrivalGate","terminal","arrivalTerminal","status"]){if(apply(z.x,field,d[field],"SKYLINK_LIVE_RECOVERY",at,{refresh:field!=="sta"}))changed.push(field)}
   if(apply(z.x,"reg",d.reg,"SKYLINK_LIVE_RECOVERY",at,{refresh:false}))changed.push("reg");
-  if(d.aircraft&&missing(z.x.aircraft)&&apply(z.x,"aircraft",d.aircraft,"SKYLINK_LIVE_RECOVERY",at,{refresh:false}))changed.push("aircraft");
+  if(applyDetectedAircraft(z.x,d.aircraft,"SKYLINK_LIVE_RECOVERY",at))changed.push("aircraft");
   await save(env,z.row,z.x);return {ok:true,flight,changed};
 }
 
