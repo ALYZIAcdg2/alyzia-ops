@@ -1,6 +1,13 @@
 import app from "./ops-ui-fixes-wrapper.js";
 
-const UI=String.raw`<script id="alyzia-economy-class-specificity">(()=>{'use strict';
+const UI=String.raw`<style id="alyzia-home-list-ux-css">
+#app .alyzia-home-clear{position:absolute;right:12px;top:50%;transform:translateY(-50%);width:34px;height:34px;border:0;border-radius:50%;background:#eef4fa;color:#526b88;font-size:22px;font-weight:700;display:grid;place-items:center;cursor:pointer;z-index:3}
+#app .home-flight-search{position:relative}
+#app .home-flight-search input{padding-right:54px!important}
+#alyzia-home-to-top{position:fixed;right:18px;bottom:86px;width:48px;height:48px;border:1px solid #c9d9ea;border-radius:50%;background:#fff;color:#0b70d1;font-size:26px;font-weight:950;box-shadow:0 7px 22px rgba(24,58,93,.18);z-index:9000;display:none;place-items:center;cursor:pointer}
+#alyzia-home-to-top.show{display:grid}
+@media(min-width:760px){#alyzia-home-to-top{bottom:24px;right:24px}}
+</style><script id="alyzia-economy-class-specificity">(()=>{'use strict';
 if(window.__alyziaEconomyClassSpecificity)return;window.__alyziaEconomyClassSpecificity=true;
 const norm=v=>String(v||'').toUpperCase().trim();
 function flights(){try{return Array.isArray(FLIGHTS)?FLIGHTS:[]}catch{return Array.isArray(window.FLIGHTS)?window.FLIGHTS:[]}}
@@ -55,10 +62,38 @@ function fixHomeListDisplay(){
   });
  })
 }
-function scheduleListFix(){[0,40,120,260,600].forEach(ms=>setTimeout(fixHomeListDisplay,ms))}
-const baseHome=window.renderHome;if(typeof baseHome==='function')window.renderHome=function(...args){repairAll();const r=baseHome.apply(this,args);scheduleListFix();return r};
+function currentHomeSearch(){return String(document.querySelector('#app .home-flight-search input')?.value||'')}
+function currentTerminal(){
+ const buttons=[...document.querySelectorAll('#app button')];const active=buttons.find(b=>/^(T1|T2|T3|ALL)$/.test(norm(b.textContent))&&(b.classList.contains('active')||b.getAttribute('aria-pressed')==='true'||/selected|active|is-active/.test(String(b.className))));return active?norm(active.textContent):''
+}
+function captureHomePosition(){window.__alyziaHomeReturnState={pending:true,y:Math.max(0,window.scrollY||document.documentElement.scrollTop||0),search:currentHomeSearch(),terminal:currentTerminal()}}
+function restoreHomePosition(){
+ const s=window.__alyziaHomeReturnState;if(!s?.pending)return;s.pending=false;
+ const apply=()=>{
+  const input=document.querySelector('#app .home-flight-search input');if(input&&input.value!==s.search){input.value=s.search||'';input.dispatchEvent(new Event('input',{bubbles:true}));try{if(typeof filterFlightHomeRows==='function')filterFlightHomeRows(input.value)}catch{}}
+  if(s.terminal){const b=[...document.querySelectorAll('#app button')].find(x=>norm(x.textContent)===s.terminal);if(b&&!b.classList.contains('active')&&b.getAttribute('aria-pressed')!=='true')b.click()}
+  window.scrollTo(0,Number(s.y||0));
+ };
+ [30,120,320].forEach(ms=>setTimeout(apply,ms));
+}
+function resetHomeFilters(){
+ const input=document.querySelector('#app .home-flight-search input');if(input){input.value='';input.dispatchEvent(new Event('input',{bubbles:true}));try{if(typeof filterFlightHomeRows==='function')filterFlightHomeRows('')}catch{}}
+ const all=[...document.querySelectorAll('#app button')].find(b=>norm(b.textContent)==='ALL');if(all)all.click();
+ const fav=[...document.querySelectorAll('#app button')].find(b=>(norm(b.textContent)==='★'||norm(b.textContent)==='☆')&&(b.classList.contains('active')||b.getAttribute('aria-pressed')==='true'));if(fav)fav.click();
+}
+function ensureHomeControls(){
+ const box=document.querySelector('#app .home-flight-search');if(box&&!box.querySelector('.alyzia-home-clear')){const b=document.createElement('button');b.type='button';b.className='alyzia-home-clear';b.setAttribute('aria-label','Effacer la recherche et réinitialiser les filtres');b.textContent='×';b.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();resetHomeFilters()});box.appendChild(b)}
+ let top=document.getElementById('alyzia-home-to-top');if(!top){top=document.createElement('button');top.id='alyzia-home-to-top';top.type='button';top.setAttribute('aria-label','Remonter en haut de la liste');top.textContent='↑';top.addEventListener('click',()=>window.scrollTo({top:0,behavior:'smooth'}));document.body.appendChild(top)}
+ updateTopButton();
+}
+function isHomeView(){try{return currentView==='home'}catch{return Boolean(document.querySelector('#app .flight-home-row'))}}
+function updateTopButton(){const b=document.getElementById('alyzia-home-to-top');if(!b)return;b.classList.toggle('show',isHomeView()&&(window.scrollY||0)>500)}
+function scheduleListFix(){[0,40,120,260,600].forEach(ms=>setTimeout(()=>{fixHomeListDisplay();ensureHomeControls()},ms))}
+const baseHome=window.renderHome;if(typeof baseHome==='function')window.renderHome=function(...args){repairAll();const r=baseHome.apply(this,args);scheduleListFix();restoreHomePosition();return r};
 const baseRender=window.render;if(typeof baseRender==='function')window.render=function(...args){repairCurrent();const r=baseRender.apply(this,args);setTimeout(()=>{if(repairCurrent())baseRender.apply(this,args)},30);return r};
 const baseAircraftChange=window.onSariaAircraftChange;if(typeof baseAircraftChange==='function')window.onSariaAircraftChange=function(value){const r=baseAircraftChange.call(this,value);setTimeout(()=>{if(repairCurrent()){try{persistFlightAction('CLASSE ÉCO SYNCHRONISÉE AU SEATMAP')}catch{}try{baseRender?.()}catch{}}},0);return r};
+document.addEventListener('click',e=>{const row=e.target?.closest?.('#app .flight-home-row');if(!row)return;const button=e.target?.closest?.('button');if(button&&!button.classList.contains('open')&&!button.classList.contains('v2-btn'))return;if(button?.classList.contains('fav'))return;captureHomePosition()},true);
+window.addEventListener('scroll',updateTopButton,{passive:true});
 repairAll();scheduleListFix();
 })();</script>`;
 
