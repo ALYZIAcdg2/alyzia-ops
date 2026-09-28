@@ -1,5 +1,5 @@
 import app from "./home-filter-ui-stability-wrapper.js";
-import todayStaBackfill from "./today-sta-backfill-wrapper.js";
+import h2Recovery from "./h2-operational-recovery-wrapper.js";
 
 const STARTUP_GUARD=String.raw`<style id="alyzia-startup-today-guard-css">
 html.alyzia-flights-loading #app{visibility:hidden!important}
@@ -51,7 +51,7 @@ export default {
     return new Response(patch(html),{status:response.status,statusText:response.statusText,headers});
   },
   scheduled(controller,env,ctx){
-    if(typeof todayStaBackfill.scheduled==='function') return todayStaBackfill.scheduled(controller,env,ctx);
+    if(typeof h2Recovery.scheduled==='function') return h2Recovery.scheduled(controller,env,ctx);
     if(typeof app.scheduled==='function') return app.scheduled(controller,env,ctx);
   }
 };
