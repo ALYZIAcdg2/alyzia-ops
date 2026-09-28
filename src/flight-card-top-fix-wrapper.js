@@ -1,4 +1,4 @@
-import app from "./ops-ui-fixes-wrapper.js";
+import app from "./economy-class-specificity-wrapper.js";
 import todayStaBackfill from "./today-sta-backfill-wrapper.js";
 
 const STARTUP_GUARD=String.raw`<style id="alyzia-startup-today-guard-css">
