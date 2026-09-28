@@ -19,6 +19,9 @@ function setView(v){try{currentView=v}catch(e){}}
 function flights(){try{return Array.isArray(FLIGHTS)?FLIGHTS:[]}catch{return Array.isArray(window.FLIGHTS)?window.FLIGHTS:[]}}
 function moveEBeforeY(obj){if(!obj||typeof obj!=='object'||Array.isArray(obj)||!('E' in obj)||!('Y' in obj))return obj;const out={};for(const k of Object.keys(obj)){if(k==='Y'||k==='E')continue;out[k]=obj[k]}out.E=obj.E;out.Y=obj.Y;return out}
 function normalizeClassOrder(){for(const x of flights()){if(x.config)x.config=moveEBeforeY(x.config);if(x.booked)x.booked=moveEBeforeY(x.booked);if(x.web)x.web=moveEBeforeY(x.web);if(x.meals)x.meals=moveEBeforeY(x.meals)}}
+function sortedCabinText(raw){const s=String(raw||'').trim();const parts=[...s.matchAll(/\b([A-Z])\s*(\d+)\b/g)].map(m=>({k:m[1].toUpperCase(),v:m[2]}));if(parts.length<2)return s;const rank={F:0,J:1,C:2,S:3,W:4,E:5,Y:6,M:7};parts.sort((a,b)=>(rank[a.k]??50)-(rank[b.k]??50));return parts.map(x=>x.k+x.v).join(' ')}
+function fixV2ClassOrder(){document.querySelectorAll('#app .v2-metric').forEach(m=>{const label=norm(m.querySelector('.v2-metric-label')?.textContent);if(label!=='CONFIG'&&label!=='BOOKING')return;const v=m.querySelector('.v2-metric-value');if(v)v.textContent=sortedCabinText(v.textContent)})}
+function scheduleCardFixes(){[0,40,120].forEach(ms=>setTimeout(()=>{normalizeClassOrder();fixV2ClassOrder()},ms))}
 function activeMobile(name){document.querySelectorAll('[data-mobile-nav]').forEach(b=>b.classList.toggle('active',b.dataset.mobileNav===name))}
 function renderSearchPage(){
  setView('search');window.__alyziaFlightOriginView='search';activeMobile('search');normalizeClassOrder();
@@ -30,12 +33,19 @@ function renderSearchPage(){
 }
 window.renderFlightSearchPage=renderSearchPage;window.openFlightSearch=renderSearchPage;
 
-const baseHome=window.renderHome; if(typeof baseHome==='function')window.renderHome=function(...args){normalizeClassOrder();setView('home');window.__alyziaFlightOriginView='home';const r=baseHome.apply(this,args);setTimeout(()=>{try{filterFlightHomeRows(document.querySelector('.home-flight-search input')?.value||'')}catch{}},0);return r};
+async function adaptConfigToAircraft(x,{persist=false}={}){
+ if(!x||!x.aircraft)return false;
+ try{if(typeof loadSariaCatalog==='function')await loadSariaCatalog();const configs=typeof sariaConfigsFor==='function'?sariaConfigsFor(x.airline,x.aircraft):[];if(!configs.length)return false;const current=typeof sariaSelectedEntry==='function'?sariaSelectedEntry(x):null;if(current&&norm(current.ac)===norm(x.aircraft)&&norm(current.config)===norm(x.sariaCabinConfig))return false;const e=configs[0],cfg=typeof sariaClassObject==='function'?sariaClassObject(e):{};if(!Object.keys(cfg).length)return false;x.sariaConfigKey=typeof sariaConfigKey==='function'?sariaConfigKey(e):'';x.sariaCabinConfig=e.config||'';x.config={...cfg};const keep=(src={})=>{const o={};Object.keys(cfg).forEach(k=>o[k]=Number(src[k]||0));return o};x.booked=keep(x.booked);x.web=keep(x.web);x.meals=keep(x.meals);normalizeClassOrder();if(persist){try{markManualFields(x,'config','Configuration adaptée au type A/C détecté')}catch{}try{persistFlightAction('CONFIG ADAPTÉE AU TYPE A/C')}catch{}}return true}catch{return false}
+}
+async function syncApiDetectedAircraft(){const x=typeof f==='function'?f():null;if(!x||!x.aircraftDetectedByApi)return;const key=String(x.aircraft||'');if(x.__apiAircraftConfigSynced===key)return;x.__apiAircraftConfigSynced=key;if(await adaptConfigToAircraft(x,{persist:true})){try{render()}catch{}}}
+
+const baseHome=window.renderHome; if(typeof baseHome==='function')window.renderHome=function(...args){normalizeClassOrder();setView('home');window.__alyziaFlightOriginView='home';const r=baseHome.apply(this,args);setTimeout(()=>{try{filterFlightHomeRows(document.querySelector('.home-flight-search input')?.value||'')}catch{}},0);scheduleCardFixes();return r};
 const baseTools=window.renderTools;if(typeof baseTools==='function')window.renderTools=function(...args){setView('tools');window.__alyziaFlightOriginView='tools';const r=baseTools.apply(this,args);setTimeout(()=>document.querySelectorAll('#app .adb-usage-card').forEach(x=>x.remove()),0);return r};
+const baseDetailRender=window.render;if(typeof baseDetailRender==='function')window.render=function(...args){const r=baseDetailRender.apply(this,args);setTimeout(syncApiDetectedAircraft,0);return r};
 
 window.onSariaAircraftChange=async function(value){
- const x=typeof f==='function'?f():null;if(!x)return;x.aircraft=typeof sariaNorm==='function'?sariaNorm(value):String(value||'').trim().toUpperCase();x.sariaConfigKey='';x.sariaCabinConfig='';
- try{if(typeof loadSariaCatalog==='function')await loadSariaCatalog();const configs=typeof sariaConfigsFor==='function'?sariaConfigsFor(x.airline,x.aircraft):[];if(configs.length){const e=configs[0],cfg=typeof sariaClassObject==='function'?sariaClassObject(e):{};x.sariaConfigKey=typeof sariaConfigKey==='function'?sariaConfigKey(e):'';x.sariaCabinConfig=e.config||'';x.config={...cfg};const keep=(src={})=>{const o={};Object.keys(cfg).forEach(k=>o[k]=Number(src[k]||0));return o};x.booked=keep(x.booked);x.web=keep(x.web);x.meals=keep(x.meals);try{markManualFields(x,'config','Type A/C modifié · configuration SARIA adaptée')}catch{}try{persistFlightAction('TYPE A/C + CONFIG SARIA')}catch{}try{render()}catch{}if(configs.length>1)setTimeout(()=>{try{openSariaCabinChooser()}catch{}},30);return}x.config={};x.booked={};x.web={};x.meals={};try{render()}catch{}setTimeout(()=>{try{openSariaCabinChooser()}catch{}},30)}catch(e){try{render()}catch{}}
+ const x=typeof f==='function'?f():null;if(!x)return;x.aircraft=typeof sariaNorm==='function'?sariaNorm(value):String(value||'').trim().toUpperCase();x.sariaConfigKey='';x.sariaCabinConfig='';x.aircraftDetectedByApi=false;x.__apiAircraftConfigSynced='';
+ try{if(await adaptConfigToAircraft(x,{persist:true})){try{render()}catch{}const configs=typeof sariaConfigsFor==='function'?sariaConfigsFor(x.airline,x.aircraft):[];if(configs.length>1)setTimeout(()=>{try{openSariaCabinChooser()}catch{}},30);return}x.config={};x.booked={};x.web={};x.meals={};try{render()}catch{}setTimeout(()=>{try{openSariaCabinChooser()}catch{}},30)}catch(e){try{render()}catch{}}
 };
 
 function routeBack(){const origin=window.__alyziaFlightOriginView||'home';if(origin==='admin'&&typeof window.renderAdminDashboard==='function'){setView('admin');window.renderAdminDashboard();return}if(origin==='search'){renderSearchPage();return}if(origin==='tools'&&typeof window.renderTools==='function'){window.renderTools();return}if(typeof window.renderHome==='function')window.renderHome()}
@@ -48,7 +58,7 @@ document.addEventListener('click',e=>{
  if(e.target?.closest?.('#app .ops-search-page #flightSearchResults,#app .alyzia-search-page .alyzia-search-results'))window.__alyziaFlightOriginView='search';
  const back=e.target?.closest?.('#app button');if(back&&norm(back.textContent).includes('RETOUR LISTE')){e.preventDefault();e.stopImmediatePropagation();routeBack();return}
 },true);
-normalizeClassOrder();
+normalizeClassOrder();scheduleCardFixes();
 })();</script>`;
 
 function patch(html){let s=String(html||'');if(s.includes('id="alyzia-ops-ui-fixes-js"'))return s;const i=s.lastIndexOf('</body>');return i>=0?s.slice(0,i)+UI+'\n'+s.slice(i):s+UI}
