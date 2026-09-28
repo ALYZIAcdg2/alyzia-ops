@@ -1,4 +1,4 @@
-import app from "./search-page-home-filter-tools-wrapper.js";
+import app from "./ops-ui-fixes-wrapper.js";
 import todayStaBackfill from "./today-sta-backfill-wrapper.js";
 
 const STARTUP_GUARD=String.raw`<style id="alyzia-startup-today-guard-css">
