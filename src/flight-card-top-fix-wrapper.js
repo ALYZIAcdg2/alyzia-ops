@@ -1,4 +1,4 @@
-import app from "./home-time-filter-v2-specificity-wrapper.js";
+import app from "./home-filter-count-sync-wrapper.js";
 import todayStaBackfill from "./today-sta-backfill-wrapper.js";
 
 const STARTUP_GUARD=String.raw`<style id="alyzia-startup-today-guard-css">
