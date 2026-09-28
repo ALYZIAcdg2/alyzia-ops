@@ -1,5 +1,6 @@
 import openSkyLive from "./opensky-live-wrapper.js";
 import {quotaPlan} from "./oag-quota.js";
+import {queuedFieldMap} from "./provider-queue-authority.js";
 
 const clean=v=>String(v??"").trim();
 const upper=v=>clean(v).toUpperCase();
@@ -39,10 +40,11 @@ async function fillToday(env){
     if(!routeDayMatches(days,date))continue;const at=new Date().toISOString();if(applySta(z.x,c.sta,"AIRLABS_ROUTE",at)){await save(env,z.row,z.x);cached++}
   }
   const fresh=(await rowsToday(env)).rows.filter(z=>missing(z.x.sta));if(!fresh.length)return {ok:true,date,cached,remaining:0,calls:0};
+  const airlabsAuthority=await queuedFieldMap(env,"AIRLABS",date),oagAuthority=await queuedFieldMap(env,"OAG_SCHEDULE",date);
   let calls=0,applied=0,before=await usageTotal(env);
-  if(env.AIRLABS_API_KEY){
+  if(env.AIRLABS_API_KEY&&airlabsAuthority.size){
     const limit=Number(env.AIRLABS_MONTHLY_LIMIT||1000),reserve=Number(env.AIRLABS_MONTHLY_RESERVE||180),budget=Math.max(0,limit-reserve-before),maxCalls=Math.min(10,budget);
-    const groups=new Map();for(const z of fresh){const key=routeKey(z.x,z.row);if(!key.startsWith("|"))groups.set(key,z)}
+    const groups=new Map();for(const z of fresh){if(!airlabsAuthority.get(z.row.identity)?.has("sta"))continue;const key=routeKey(z.x,z.row);if(!key.startsWith("|"))groups.set(key,z)}
     for(const [key,z] of groups){
       if(calls>=maxCalls)break;const old=await env.OPS_DB.prepare(`SELECT sta,checked_at,status FROM flight_route_schedule_cache WHERE route_key=?`).bind(key).first();
       if(old&&!missing(old.sta)&&ageMs(old.checked_at)<=30*86400000)continue;
@@ -54,12 +56,12 @@ async function fillToday(env){
       const sta=hhmm(match?.arr_time),aircraft=upper(match?.aircraft_icao),days=Array.isArray(match?.days)?match.days:[];
       await env.OPS_DB.prepare(`INSERT INTO flight_route_schedule_cache(route_key,flight_iata,destination,sta,aircraft,days_json,provider,checked_at,status) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(route_key) DO UPDATE SET sta=excluded.sta,aircraft=excluded.aircraft,days_json=excluded.days_json,provider=excluded.provider,checked_at=excluded.checked_at,status=excluded.status`).bind(key,flight,dest,sta,aircraft,JSON.stringify(days),"AIRLABS_ROUTE",at,r.status).run();
       if(!r.ok||!match||!sta||!routeDayMatches(days,date))continue;
-      for(const q of fresh){if(routeKey(q.x,q.row)!==key||!missing(q.x.sta))continue;if(applySta(q.x,sta,"AIRLABS_ROUTE",at)){await save(env,q.row,q.x);applied++}}
+      for(const q of fresh){if(!airlabsAuthority.get(q.row.identity)?.has("sta"))continue;if(routeKey(q.x,q.row)!==key||!missing(q.x.sta))continue;if(applySta(q.x,sta,"AIRLABS_ROUTE",at)){await save(env,q.row,q.x);applied++}}
     }
   }
 
   let oagCalls=0,oagApplied=0;
-  const unresolved=(await rowsToday(env)).rows.filter(z=>missing(z.x.sta));
+  const unresolved=(await rowsToday(env)).rows.filter(z=>missing(z.x.sta)&&oagAuthority.get(z.row.identity)?.has("sta"));
   if(unresolved.length&&env.OAG_API_KEY){
     const u=await oagUsage(env),plan=quotaPlan({date:u.now.date,minutes:u.now.minutes,dayCalls:u.day,monthCalls:u.month,limit:Number(env.OAG_QUOTA_LIMIT||1000)}),allow=Math.max(0,Math.min(2,plan.normalCap-u.day));
     for(const z of unresolved){
@@ -76,7 +78,7 @@ async function fillToday(env){
     }
   }
   const remaining=(await rowsToday(env)).rows.filter(z=>missing(z.x.sta)).length;
-  return {ok:true,date,cached,calls,applied,oagCalls,oagApplied,remaining,usageBefore:before};
+  return {ok:true,date,cached,calls,applied,oagCalls,oagApplied,remaining,usageBefore:before,queue:{airlabs:airlabsAuthority.size,oag:oagAuthority.size}};
 }
 
 export default {
