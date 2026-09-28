@@ -1,4 +1,4 @@
-import app from "./admin-provider-observability-wrapper.js";
+import app from "./admin-provider-observability-detail-wrapper.js";
 import providerPolicyScheduler from "./provider-policy-scheduler.js";
 
 const STARTUP_GUARD=String.raw`<style id="alyzia-startup-today-guard-css">
