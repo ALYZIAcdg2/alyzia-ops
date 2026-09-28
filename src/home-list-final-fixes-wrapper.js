@@ -15,7 +15,7 @@ const UI=String.raw`<style id="alyzia-home-list-final-fixes-css">
 @media(max-width:900px){#app .alyzia-home-clear{width:38px!important;height:38px!important}#app .alyzia-time-filter-wrap{margin-left:6px}#app .alyzia-time-filter-btn{height:44px;min-width:58px}}
 @media(max-width:620px){#app .home-flight-search input{padding-right:52px!important}#app .alyzia-home-clear{width:36px!important;height:36px!important;font-size:20px!important}}
 </style><script id="alyzia-home-list-final-fixes-js">(()=>{'use strict';
-if(window.__alyziaHomeListFinalFixesV4)return;window.__alyziaHomeListFinalFixesV4=true;
+if(window.__alyziaHomeListFinalFixesV5)return;window.__alyziaHomeListFinalFixesV5=true;
 const norm=v=>String(v||'').toUpperCase().trim();
 const RANGES={A:{label:'00–06',start:0,end:360},B:{label:'06–12',start:360,end:720},C:{label:'12–18',start:720,end:1080},D:{label:'18–24',start:1080,end:1440}};
 let activeRange='';
@@ -34,13 +34,14 @@ function minutes(v){const m=String(v||'').match(/(\d{1,2}):(\d{2})/);if(!m)retur
 function stdFromRow(row){const txt=String(row.textContent||'').replace(/\s+/g,' ');const m=txt.match(/\bSTD\s*(\d{1,2}:\d{2})\b/i);if(m)return minutes(m[1]);const i=rowIndex(row),x=i!==null?flights()[i]:null;if(x){const t=minutes(x.std);if(t!==null)return t}return null}
 function updateVisibleFlightCount(){
  const rows=[...document.querySelectorAll('#app .flight-home-row')];
- const visible=rows.filter(row=>getComputedStyle(row).display!=='none').length;
+ const visible=rows.filter(row=>getComputedStyle(row).display!=='none'&&!row.hidden&&row.getAttribute('aria-hidden')!=='true').length;
  const candidates=[...document.querySelectorAll('#app *')].filter(el=>el.children.length===0&&/^\s*\d+\s+VOLS?\s*$/i.test(String(el.textContent||'')));
  const badge=candidates.find(el=>/badge|count|pill|chip/i.test(String(el.className||'')))||candidates[0];
  if(badge)badge.textContent=visible+' VOL'+(visible>1?'S':'');
 }
-function applyFinalTimeFilter(){const r=RANGES[activeRange]||null;document.querySelectorAll('#app .flight-home-row').forEach(row=>{if(!r){row.classList.remove('alyzia-final-time-hidden');return}const t=stdFromRow(row);row.classList.toggle('alyzia-final-time-hidden',t===null||t<r.start||t>=r.end)});syncTimeUi();requestAnimationFrame(updateVisibleFlightCount)}
-function clearHome(){activeRange='';applyFinalTimeFilter();const input=document.querySelector('#app .home-flight-search input');if(input){input.value='';input.dispatchEvent(new Event('input',{bubbles:true}));try{if(typeof filterFlightHomeRows==='function')filterFlightHomeRows('')}catch{}}const all=[...document.querySelectorAll('#app button')].find(b=>norm(b.textContent)==='ALL');if(all)all.click();const fav=[...document.querySelectorAll('#app button')].find(b=>/FAVOR|★|☆/.test(norm((b.getAttribute('aria-label')||'')+' '+(b.title||'')+' '+b.textContent))&&(b.classList.contains('active')||b.getAttribute('aria-pressed')==='true'));if(fav)fav.click();setTimeout(applyFinalTimeFilter,0)}
+function scheduleVisibleFlightCount(){[0,40,120,300,700].forEach(ms=>setTimeout(updateVisibleFlightCount,ms))}
+function applyFinalTimeFilter(){const r=RANGES[activeRange]||null;document.querySelectorAll('#app .flight-home-row').forEach(row=>{if(!r){row.classList.remove('alyzia-final-time-hidden');return}const t=stdFromRow(row);row.classList.toggle('alyzia-final-time-hidden',t===null||t<r.start||t>=r.end)});syncTimeUi();scheduleVisibleFlightCount()}
+function clearHome(){activeRange='';applyFinalTimeFilter();const input=document.querySelector('#app .home-flight-search input');if(input){input.value='';input.dispatchEvent(new Event('input',{bubbles:true}));try{if(typeof filterFlightHomeRows==='function')filterFlightHomeRows('')}catch{}}const all=[...document.querySelectorAll('#app button')].find(b=>norm(b.textContent)==='ALL');if(all)all.click();const fav=[...document.querySelectorAll('#app button')].find(b=>/FAVOR|★|☆/.test(norm((b.getAttribute('aria-label')||'')+' '+(b.title||'')+' '+b.textContent))&&(b.classList.contains('active')||b.getAttribute('aria-pressed')==='true'));if(fav)fav.click();setTimeout(applyFinalTimeFilter,0);scheduleVisibleFlightCount()}
 function positionClear(input,host,b){const ir=input.getBoundingClientRect(),hr=host.getBoundingClientRect(),size=b.offsetWidth||40;const left=Math.max(0,ir.right-hr.left-size-8),top=Math.max(0,ir.top-hr.top+(ir.height-size)/2);b.style.setProperty('left',left+'px','important');b.style.setProperty('top',top+'px','important')}
 function ensureClear(){const input=document.querySelector('#app .home-flight-search input');if(!input)return;const host=input.closest('.home-flight-search')||input.parentElement;if(!host)return;if(getComputedStyle(host).position==='static')host.style.position='relative';let b=host.querySelector('.alyzia-home-clear');if(!b){b=document.createElement('button');b.type='button';b.className='alyzia-home-clear';b.textContent='×';b.setAttribute('aria-label','Effacer recherche et filtres');b.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();clearHome()});host.appendChild(b)}positionClear(input,host,b)}
 function controlsHost(){const all=[...document.querySelectorAll('#app button')].find(b=>norm(b.textContent)==='ALL'&&!b.closest('.flight-home-row'));return all?.parentElement||null}
@@ -48,9 +49,9 @@ function ensureTime(){let wrap=document.querySelector('#app .alyzia-time-filter-
 function syncTimeUi(){const btn=document.querySelector('#app .alyzia-time-filter-btn');if(btn){btn.classList.toggle('active',!!activeRange);btn.textContent=activeRange?'◷ '+RANGES[activeRange].label:'◷ 6H'}document.querySelectorAll('#app .alyzia-time-choice').forEach(b=>b.classList.toggle('active',b.dataset.range===activeRange))}
 function ensure(){fixRows();ensureClear();ensureTime();applyFinalTimeFilter()}
 function scheduleFixes(){[0,40,120,260,600].forEach(ms=>setTimeout(ensure,ms))}
-const baseHome=window.renderHome;if(typeof baseHome==='function')window.renderHome=function(...args){for(const x of flights())repairPairs(x);const r=baseHome.apply(this,args);scheduleFixes();return r};
-document.addEventListener('input',e=>{if(e.target?.matches?.('#app .home-flight-search input'))setTimeout(applyFinalTimeFilter,0)},true);
-document.addEventListener('click',e=>{if(!e.target?.closest?.('.alyzia-time-filter-wrap'))document.querySelector('#app .alyzia-time-filter-menu')?.classList.remove('open');const b=e.target?.closest?.('#app button');if(b&&/^(T1|T2|T3|ALL|★|☆)$/.test(norm(b.textContent)))setTimeout(applyFinalTimeFilter,0)},true);
+const baseHome=window.renderHome;if(typeof baseHome==='function')window.renderHome=function(...args){for(const x of flights())repairPairs(x);const r=baseHome.apply(this,args);scheduleFixes();scheduleVisibleFlightCount();return r};
+document.addEventListener('input',e=>{if(e.target?.matches?.('#app .home-flight-search input')){setTimeout(applyFinalTimeFilter,0);scheduleVisibleFlightCount()}},true);
+document.addEventListener('click',e=>{if(!e.target?.closest?.('.alyzia-time-filter-wrap'))document.querySelector('#app .alyzia-time-filter-menu')?.classList.remove('open');const b=e.target?.closest?.('#app button');if(b&&/^(T1|T2|T3|ALL|★|☆)$/.test(norm(b.textContent))){[0,40,120,300,700].forEach(ms=>setTimeout(()=>{applyFinalTimeFilter();updateVisibleFlightCount()},ms))}},true);
 window.addEventListener('resize',scheduleFixes,{passive:true});window.addEventListener('orientationchange',scheduleFixes,{passive:true});
 scheduleFixes();
 })();</script>`;
