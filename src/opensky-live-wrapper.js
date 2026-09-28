@@ -1,4 +1,5 @@
 import liveRecovery from "./live-recovery-wrapper.js";
+import {queuedFieldMap} from "./provider-queue-authority.js";
 
 const clean=v=>String(v??"").trim();
 const upper=v=>clean(v).toUpperCase();
@@ -65,13 +66,15 @@ async function save(env,row,x){await env.OPS_DB.prepare(`UPDATE flights SET data
 
 async function confirm(env){
   if(!env.OPENSKY_CLIENT_ID||!env.OPENSKY_CLIENT_SECRET)return {ok:true,skipped:"OPENSKY_NON_CONFIGURE"};
+  const now=parisNow(),authority=await queuedFieldMap(env,"OPENSKY",now.date);
+  if(!authority.size){await bump(env,204,{candidates:0,queue:0});return {ok:true,skipped:"OPENSKY_QUEUE_VIDE"}}
   const l=await lane(env);if(ageMs(l.lastAt)<10*60000)return {ok:true,skipped:"OPENSKY_CADENCE"};
   const {rows}=await todayRows(env);
-  const candidates=rows.filter(z=>z.d<=20&&z.d>=-75&&!isFinal(z.x)&&missing(z.x.atd));
-  if(!candidates.length){await bump(env,204,{candidates:0});return {ok:true,skipped:"OPENSKY_AUCUN_VOL"}}
-  let r;try{r=await states(env)}catch(e){await bump(env,502,{error:clean(e?.message||e)});return {ok:false,status:502,error:clean(e?.message||e)}}
+  const candidates=rows.filter(z=>authority.has(z.row.identity)&&z.d<=20&&z.d>=-75&&!isFinal(z.x));
+  if(!candidates.length){await bump(env,204,{candidates:0,queue:authority.size});return {ok:true,skipped:"OPENSKY_AUCUN_VOL_QUEUE"}}
+  let r;try{r=await states(env)}catch(e){await bump(env,502,{error:clean(e?.message||e),candidates:candidates.length});return {ok:false,status:502,error:clean(e?.message||e)}}
   await bumpUsage(env,r.status);
-  if(!r.ok){await bump(env,r.status);return {ok:false,status:r.status,error:`OPENSKY_${r.status}`}}
+  if(!r.ok){await bump(env,r.status,{candidates:candidates.length});return {ok:false,status:r.status,error:`OPENSKY_${r.status}`}}
   const j=await r.json().catch(()=>({})),vectors=Array.isArray(j?.states)?j.states:[];
   const byCallsign=new Map();
   for(const s of vectors){const cs=upper(s?.[1]);if(cs)byCallsign.set(cs,s)}
@@ -93,9 +96,9 @@ async function confirm(env){
     }
     const log=Array.isArray(z.x.flightInfoLog)?z.x.flightInfoLog:[];
     log.unshift({at,source:"OPENSKY_ADSB",field:"status",from:old||"",to:"DÉCOLLÉ",evidence:{callsign,icao24:z.x.openSkyIcao24}});z.x.flightInfoLog=log.slice(0,160);
-    await save(env,z.row,z.x);changes.push({flight:upper(z.x.flight||z.row.flight_number),callsign,icao24:z.x.openSkyIcao24});
+    await save(env,z.row,z.x);changes.push({flight:upper(z.x.flight||z.row.flight_number),callsign,icao24:z.x.openSkyIcao24,fields:[...(authority.get(z.row.identity)||new Set())]});
   }
-  await bump(env,200,{candidates:candidates.length,vectors:vectors.length,confirmed:changes.length});
+  await bump(env,200,{candidates:candidates.length,vectors:vectors.length,confirmed:changes.length,queue:authority.size});
   return {ok:true,candidates:candidates.length,vectors:vectors.length,confirmed:changes.length,changes};
 }
 
