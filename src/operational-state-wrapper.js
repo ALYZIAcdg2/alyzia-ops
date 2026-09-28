@@ -55,8 +55,14 @@ async function normalizeToday(env){
   }
   return {ok:true,date:now.date,changedRows,repairedTimes,statusChanges};
 }
+function legacyProviderMaskedEnv(env){
+  const masked=Object.create(env);
+  for(const key of ["AIRLABS_API_KEY","SKYLINK_API_KEY","OAG_API_KEY","AERODATABOX_API_KEY"]){try{Object.defineProperty(masked,key,{value:"",enumerable:true})}catch(_){}}
+  try{Object.defineProperty(masked,"AERODATABOX",{value:null,enumerable:true})}catch(_){}
+  return masked;
+}
 
 export default {
   async fetch(request,env,ctx){const url=new URL(request.url);if(url.pathname==="/api/providers/operational-state/status")return new Response(JSON.stringify(await normalizeToday(env)),{headers:{"content-type":"application/json; charset=UTF-8","cache-control":"no-store"}});return app.fetch(request,env,ctx)},
-  scheduled(controller,env,ctx){ctx.waitUntil((async()=>{try{await normalizeToday(env)}catch(_){}if(typeof app.scheduled==="function")await app.scheduled(controller,env,ctx)})())}
+  scheduled(controller,env,ctx){ctx.waitUntil((async()=>{try{await normalizeToday(env)}catch(_){}if(typeof app.scheduled==="function")await app.scheduled(controller,legacyProviderMaskedEnv(env),ctx)})())}
 };
