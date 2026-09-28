@@ -40,11 +40,12 @@ function patchAdmin(){
 }
 const baseRender=window.renderAdminDashboard;
 if(typeof baseRender==='function')window.renderAdminDashboard=async function(...args){
- setView('admin');window.__alyziaFlightOriginView='admin';
+ setView('admin');
  const app=document.getElementById('app');if(app)app.innerHTML='<section class="admin-native"><div class="adn-section"><b>CHARGEMENT DU TABLEAU DE BORD ADMIN…</b></div></section>';
  const r=await baseRender.apply(this,args);setView('admin');patchAdmin();return r;
 };
 function isAdminButton(button){return !!button&&(button.dataset?.mobileNav==='admin'||norm(button.textContent)==='ADMIN')}
+function isHomeButton(button){if(!button)return false;const t=norm(button.textContent);return button.dataset?.mobileNav==='home'||t==='VOLS'||button.classList?.contains('home-nav')}
 function returnToAdmin(e){
  if(window.__alyziaFlightOriginView!=='admin')return false;
  e?.preventDefault?.();e?.stopImmediatePropagation?.();window.__alyziaFlightOriginView='';setView('admin');window.renderAdminDashboard?.();return true;
@@ -52,10 +53,12 @@ function returnToAdmin(e){
 document.addEventListener('click',e=>{
  const b=e.target?.closest?.('button');
  if(isAdminButton(b)){
-   e.preventDefault();e.stopImmediatePropagation();setView('admin');window.__alyziaFlightOriginView='admin';
+   e.preventDefault();e.stopImmediatePropagation();setView('admin');window.__alyziaFlightOriginView='';
    const app=document.getElementById('app');if(app)app.innerHTML='<section class="admin-native"><div class="adn-section"><b>CHARGEMENT DU TABLEAU DE BORD ADMIN…</b></div></section>';
    window.renderAdminDashboard?.();return;
  }
+ if(isHomeButton(b))window.__alyziaFlightOriginView='home';
+ const homeRow=e.target?.closest?.('#app .flight-home-row');if(homeRow)window.__alyziaFlightOriginView='home';
  const back=e.target?.closest?.('#app .flight-back-btn');if(back&&returnToAdmin(e))return;
  const row=e.target?.closest?.('#app .admin-native .adn-table tbody tr');if(row)window.__alyziaFlightOriginView='admin';
  const ctl=e.target?.closest?.('#adminPrev,#adminNext,#adminDateBtn,[data-terminal],#adminRefreshBtn,.adn-status-active,.adn-mini span');if(ctl)setTimeout(()=>{setView('admin');patchAdmin()},0);
