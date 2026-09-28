@@ -1,4 +1,4 @@
-import app from "./admin-provider-quota-fix-wrapper.js";
+import app from "./search-page-home-filter-tools-wrapper.js";
 
 const UI=String.raw`<style id="alyzia-ops-ui-fixes-css">
 #app .flight-home-row.v2-ready[style*="display: none"]{display:none!important}
@@ -17,7 +17,7 @@ if(window.__alyziaOpsUiFixes)return;window.__alyziaOpsUiFixes=true;
 const norm=v=>String(v||'').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim();
 function setView(v){try{currentView=v}catch(e){}}
 function flights(){try{return Array.isArray(FLIGHTS)?FLIGHTS:[]}catch{return Array.isArray(window.FLIGHTS)?window.FLIGHTS:[]}}
-function moveEBeforeY(obj){if(!obj||typeof obj!=='object'||Array.isArray(obj)||!('E' in obj)||!('Y' in obj))return obj;const out={};for(const k of Object.keys(obj)){if(k==='Y')continue;if(k==='E')continue;out[k]=obj[k];if(k==='W'){out.E=obj.E}}if(!('E' in out))out.E=obj.E;out.Y=obj.Y;return out}
+function moveEBeforeY(obj){if(!obj||typeof obj!=='object'||Array.isArray(obj)||!('E' in obj)||!('Y' in obj))return obj;const out={};for(const k of Object.keys(obj)){if(k==='Y'||k==='E')continue;out[k]=obj[k]}out.E=obj.E;out.Y=obj.Y;return out}
 function normalizeClassOrder(){for(const x of flights()){if(x.config)x.config=moveEBeforeY(x.config);if(x.booked)x.booked=moveEBeforeY(x.booked);if(x.web)x.web=moveEBeforeY(x.web);if(x.meals)x.meals=moveEBeforeY(x.meals)}}
 function activeMobile(name){document.querySelectorAll('[data-mobile-nav]').forEach(b=>b.classList.toggle('active',b.dataset.mobileNav===name))}
 function renderSearchPage(){
@@ -45,7 +45,7 @@ document.addEventListener('click',e=>{
  if(b?.dataset?.mobileNav==='home'||txt==='VOLS'||b?.classList?.contains('home-nav'))window.__alyziaFlightOriginView='home';
  if(e.target?.closest?.('#app .flight-home-row'))window.__alyziaFlightOriginView='home';
  if(e.target?.closest?.('#app .admin-native .adn-table tbody tr'))window.__alyziaFlightOriginView='admin';
- if(e.target?.closest?.('#app .ops-search-page #flightSearchResults'))window.__alyziaFlightOriginView='search';
+ if(e.target?.closest?.('#app .ops-search-page #flightSearchResults,#app .alyzia-search-page .alyzia-search-results'))window.__alyziaFlightOriginView='search';
  const back=e.target?.closest?.('#app button');if(back&&norm(back.textContent).includes('RETOUR LISTE')){e.preventDefault();e.stopImmediatePropagation();routeBack();return}
 },true);
 normalizeClassOrder();
