@@ -22,7 +22,7 @@ function providerEligible(env,p,x,d){
 }
 function eligibleFields(env,p,x,d){
   let fields=neededFields(p,x,d);
-  if(p==="AIRLABS"&&available(env,"OAG_SCHEDULE")&&!attempted(x,"OAG_SCHEDULE"))fields=fields.filter(f=>!['std','sta'].includes(f));
+  if(p==="AIRLABS"&&available(env,"OAG_SCHEDULE")&&!attempted(x,"OAG_SCHEDULE"))fields=fields.filter(f=>!["std","sta"].includes(f));
   if(p==="AERODATABOX"&&fields.length){
     const prior=["OAG_STATUS","OAG_SCHEDULE","AIRLABS","SKYLINK","OPENSKY"].filter(q=>attempted(x,q)).length;
     if(prior<2&&d>0)fields=[];
@@ -41,6 +41,16 @@ async function ensure(env){
     evaluated_at TEXT NOT NULL,
     PRIMARY KEY(flight_identity,provider)
   )`).run();
+  await env.OPS_DB.prepare(`CREATE TABLE IF NOT EXISTS provider_observability_snapshot(
+    flight_date TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    potential INTEGER NOT NULL DEFAULT 0,
+    waiting INTEGER NOT NULL DEFAULT 0,
+    avoided INTEGER NOT NULL DEFAULT 0,
+    stop_all INTEGER NOT NULL DEFAULT 0,
+    evaluated_at TEXT NOT NULL,
+    PRIMARY KEY(flight_date,provider)
+  )`).run();
 }
 
 export async function refreshProviderQueue(env){
@@ -51,20 +61,28 @@ export async function refreshProviderQueue(env){
   await env.OPS_DB.prepare(`DELETE FROM provider_enrichment_queue WHERE flight_date=?`).bind(now.date).run();
   let queued=0,stopped=0;
   const providerCounts=Object.fromEntries(PROVIDERS.map(p=>[p,0]));
+  const potentialCounts=Object.fromEntries(PROVIDERS.map(p=>[p,0]));
+  const avoidedCounts=Object.fromEntries(PROVIDERS.map(p=>[p,0]));
   for(const row of results){
     let x={};try{x=JSON.parse(row.data_json||"{}")}catch{}
     const d=delta(x.std||row.std,now.minutes),stoppedFlight=stopAll(x),needs=buildNeeds(x,d);
     if(stoppedFlight){stopped++;continue}
     for(const provider of PROVIDERS){
-      if(!providerNeeded(provider,x,d)||!providerEligible(env,provider,x,d))continue;
-      const fields=eligibleFields(env,provider,x,d);if(!fields.length)continue;
+      if(!providerNeeded(provider,x,d))continue;
+      potentialCounts[provider]++;
+      if(!providerEligible(env,provider,x,d)){avoidedCounts[provider]++;continue}
+      const fields=eligibleFields(env,provider,x,d);
+      if(!fields.length){avoidedCounts[provider]++;continue}
       await env.OPS_DB.prepare(`INSERT INTO provider_enrichment_queue(flight_identity,flight_date,provider,fields_json,delta_minutes,stop_all,evaluated_at) VALUES(?,?,?,?,?,0,?) ON CONFLICT(flight_identity,provider) DO UPDATE SET fields_json=excluded.fields_json,delta_minutes=excluded.delta_minutes,stop_all=0,evaluated_at=excluded.evaluated_at`).bind(row.identity,row.flight_date,provider,JSON.stringify(fields),d,at).run();
       providerCounts[provider]++;queued++;
     }
     x.enrichmentNeeds=needs;x.enrichmentPolicyEvaluatedAt=at;
     await env.OPS_DB.prepare(`UPDATE flights SET data_json=? WHERE identity=?`).bind(JSON.stringify(x),row.identity).run();
   }
-  return {ok:true,date:now.date,flights:results.length,queued,stopped,providerCounts,evaluatedAt:at};
+  for(const provider of PROVIDERS){
+    await env.OPS_DB.prepare(`INSERT INTO provider_observability_snapshot(flight_date,provider,potential,waiting,avoided,stop_all,evaluated_at) VALUES(?,?,?,?,?,?,?) ON CONFLICT(flight_date,provider) DO UPDATE SET potential=excluded.potential,waiting=excluded.waiting,avoided=excluded.avoided,stop_all=excluded.stop_all,evaluated_at=excluded.evaluated_at`).bind(now.date,provider,potentialCounts[provider],providerCounts[provider],avoidedCounts[provider],stopped,at).run();
+  }
+  return {ok:true,date:now.date,flights:results.length,queued,stopped,providerCounts,potentialCounts,avoidedCounts,evaluatedAt:at};
 }
 
 export default {
