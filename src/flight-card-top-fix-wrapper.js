@@ -26,6 +26,16 @@ const FIX=String.raw`<style id="alyzia-card-top-v2-fix">
 }
 </style>`;
 
+const OPS_UI_FIX=String.raw`<script id="alyzia-envol-hf-class-fix">(()=>{
+  if(window.__alyziaEnVolHfClassFix)return;window.__alyziaEnVolHfClassFix=true;
+  const statusMap=new Map([['DEPARTED','EN VOL'],['AIRBORNE','EN VOL'],['IN FLIGHT','EN VOL']]);
+  const isHFScope=(el)=>{const scope=el?.closest?.('[data-airline],.flight-home-row,.flight-card,.flight-detail,.modal,.sheet,.cabin-config,.seatmap')||el?.parentElement;const airline=String(scope?.getAttribute?.('data-airline')||'').trim().toUpperCase();if(airline==='HF')return true;return /(^|\s)HF(?:\d|\s|$)/i.test(String(scope?.textContent||''));};
+  const patchLeaf=(el)=>{if(!el||el.nodeType!==1||el.children.length)return;const raw=String(el.textContent||'').trim();if(!raw)return;const status=statusMap.get(raw.toUpperCase());if(status){el.textContent=status;return;}if(!isHFScope(el))return;if(raw==='M'){el.textContent='Y';return;}if(/\dM\b/.test(raw)&&!/[a-z]/.test(raw)){el.textContent=raw.replace(/(\d+)M\b/g,'$1Y');}};
+  const patch=(root)=>{if(!root)return;if(root.nodeType===1)patchLeaf(root);root.querySelectorAll?.('*').forEach(patchLeaf);};
+  const start=()=>{const root=document.getElementById('app')||document.body;patch(root);new MutationObserver(ms=>{for(const m of ms){for(const n of m.addedNodes){if(n.nodeType===1)patch(n)}if(m.type==='characterData')patch(m.target.parentElement)}}).observe(root,{childList:true,subtree:true,characterData:true});};
+  document.readyState==='loading'?document.addEventListener('DOMContentLoaded',start,{once:true}):start();
+})();</script>`;
+
 function patch(html){
   let s=String(html||'');
   if(!s.includes('id="alyzia-startup-today-guard-css"')){
@@ -35,6 +45,10 @@ function patch(html){
   if(!s.includes('id="alyzia-card-top-v2-fix"')){
     const i=s.lastIndexOf('</body>');
     s=i>=0?s.slice(0,i)+FIX+'\n'+s.slice(i):s+FIX;
+  }
+  if(!s.includes('id="alyzia-envol-hf-class-fix"')){
+    const i=s.lastIndexOf('</body>');
+    s=i>=0?s.slice(0,i)+OPS_UI_FIX+'\n'+s.slice(i):s+OPS_UI_FIX;
   }
   return s;
 }
