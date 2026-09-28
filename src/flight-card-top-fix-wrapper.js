@@ -28,11 +28,21 @@ const FIX=String.raw`<style id="alyzia-card-top-v2-fix">
 
 const OPS_UI_FIX=String.raw`<script id="alyzia-envol-hf-class-fix">(()=>{
   if(window.__alyziaEnVolHfClassFix)return;window.__alyziaEnVolHfClassFix=true;
-  const statusMap=new Map([['DEPARTED','EN VOL'],['AIRBORNE','EN VOL'],['IN FLIGHT','EN VOL']]);
-  const isHFScope=(el)=>{const scope=el?.closest?.('[data-airline],.flight-home-row,.flight-card,.flight-detail,.modal,.sheet,.cabin-config,.seatmap')||el?.parentElement;const airline=String(scope?.getAttribute?.('data-airline')||'').trim().toUpperCase();if(airline==='HF')return true;return /(^|\s)HF(?:\d|\s|$)/i.test(String(scope?.textContent||''));};
-  const patchLeaf=(el)=>{if(!el||el.nodeType!==1||el.children.length)return;const raw=String(el.textContent||'').trim();if(!raw)return;const status=statusMap.get(raw.toUpperCase());if(status){el.textContent=status;return;}if(!isHFScope(el))return;if(raw==='M'){el.textContent='Y';return;}if(/\dM\b/.test(raw)&&!/[a-z]/.test(raw)){el.textContent=raw.replace(/(\d+)M\b/g,'$1Y');}};
-  const patch=(root)=>{if(!root)return;if(root.nodeType===1)patchLeaf(root);root.querySelectorAll?.('*').forEach(patchLeaf);};
-  const start=()=>{const root=document.getElementById('app')||document.body;patch(root);new MutationObserver(ms=>{for(const m of ms){for(const n of m.addedNodes){if(n.nodeType===1)patch(n)}if(m.type==='characterData')patch(m.target.parentElement)}}).observe(root,{childList:true,subtree:true,characterData:true});};
+  const txt=v=>String(v??'').trim();
+  const up=v=>txt(v).toUpperCase();
+  const flights=()=>{try{if(typeof FLIGHTS!=='undefined'&&Array.isArray(FLIGHTS))return FLIGHTS}catch(e){}return Array.isArray(window.FLIGHTS)?window.FLIGHTS:[]};
+  const rowIndex=row=>{const src=String(row.getAttribute('onclick')||row.querySelector('.home-open')?.getAttribute('onclick')||'');const m=src.match(/openFlightFromHomeList\((\d+)\)/);return m?Number(m[1]):null};
+  const flightNo=v=>up(v).replace(/\s+/g,'');
+  const getFlight=row=>{const list=flights(),i=rowIndex(row);if(i!==null&&list[i])return list[i];const shown=flightNo(row.querySelector('.home-flight')?.textContent||row.querySelector('.v2-flight')?.textContent||'');return list.find(x=>flightNo(x.flight||x.flight_number)===shown)||null};
+  const hh=v=>{const m=txt(v).match(/(\d{2}):(\d{2})/);return m?Number(m[1])*60+Number(m[2]):null};
+  const parisNowMinutes=()=>{const p=new Intl.DateTimeFormat('fr-FR',{timeZone:'Europe/Paris',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date());const o=Object.fromEntries(p.map(x=>[x.type,x.value]));return Number(o.hour)*60+Number(o.minute)};
+  const elapsedFrom=atd=>{const t=hh(atd);if(t===null)return null;let d=parisNowMinutes()-t;if(d< -720)d+=1440;if(d>720)d-=1440;return d};
+  const isHFScope=(el)=>{const scope=el?.closest?.('[data-airline],.flight-home-row,.flight-card,.flight-detail,.modal,.sheet,.cabin-config,.seatmap')||el?.parentElement;const airline=up(scope?.getAttribute?.('data-airline'));if(airline==='HF')return true;return /(^|\s)HF(?:\d|\s|$)/i.test(String(scope?.textContent||''));};
+  const patchHFLeaf=(el)=>{if(!el||el.nodeType!==1||el.children.length)return;const raw=txt(el.textContent);if(!raw||!isHFScope(el))return;if(raw==='M'){el.textContent='Y';return;}if(/\dM\b/.test(raw)&&!/[a-z]/.test(raw)){el.textContent=raw.replace(/(\d+)M\b/g,'$1Y');}};
+  const patchHF=root=>{if(!root)return;if(root.nodeType===1)patchHFLeaf(root);root.querySelectorAll?.('*').forEach(patchHFLeaf)};
+  const patchEnVol=()=>{document.querySelectorAll('.flight-home-row').forEach(row=>{const x=getFlight(row);const badge=row.querySelector('.v2-status');if(!x||!badge)return;const atd=txt(x.atd||x.actualDeparture||x.actual_departure),ata=txt(x.ata||x.actualArrival||x.actual_arrival),elapsed=elapsedFrom(atd);const shouldEnVol=!!atd&&!ata&&elapsed!==null&&elapsed>=5&&elapsed<720;if(shouldEnVol){if(!badge.dataset.preEnVol)badge.dataset.preEnVol=txt(badge.textContent);badge.textContent='EN VOL';badge.classList.add('envol')}else if(badge.dataset.preEnVol){badge.textContent=badge.dataset.preEnVol;delete badge.dataset.preEnVol;badge.classList.remove('envol')}})};
+  const patch=root=>{patchHF(root);patchEnVol()};
+  const start=()=>{const root=document.getElementById('app')||document.body;patch(root);new MutationObserver(ms=>{for(const m of ms){for(const n of m.addedNodes){if(n.nodeType===1)patchHF(n)}}patchEnVol()}).observe(root,{childList:true,subtree:true,characterData:true});setInterval(patchEnVol,30000)};
   document.readyState==='loading'?document.addEventListener('DOMContentLoaded',start,{once:true}):start();
 })();</script>`;
 
