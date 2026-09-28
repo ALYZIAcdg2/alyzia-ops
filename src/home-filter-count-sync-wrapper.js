@@ -1,4 +1,4 @@
-import app from "./detail-sync-stability-wrapper.js";
+import app from "./home-time-filter-v2-specificity-wrapper.js";
 
 const UI=String.raw`<script id="alyzia-home-filter-count-sync">(()=>{'use strict';
 if(window.__alyziaHomeFilterCountSync)return;window.__alyziaHomeFilterCountSync=true;
