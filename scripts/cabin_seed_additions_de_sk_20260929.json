@@ -1,0 +1,139 @@
+{
+  "configs": [
+    {
+      "configKey": "DE|32B|8C203M",
+      "airline": "DE",
+      "aircraft": "32B",
+      "configuration": "8C203M",
+      "label": "DE 32B · 8C203M",
+      "sourceLabel": "DE4214 22SEP CDG-FRA Generic Report — reference cabin; capacity remains manually adjustable",
+      "quality": "exact",
+      "operationalClasses": {"C": 8, "M": 203},
+      "operationalTotal": 211,
+      "zones": [
+        {"class": "C", "row_start": 1, "row_end": 2, "pattern": "ABC|DEF", "exceptions": ""},
+        {"class": "M", "row_start": 3, "row_end": 39, "pattern": "ABC|DEF", "exceptions": "13=SKIP\n17=SKIP"}
+      ]
+    },
+    {
+      "configKey": "DE|32Q|16Y209M",
+      "airline": "DE",
+      "aircraft": "32Q",
+      "configuration": "16Y209M",
+      "label": "DE 32Q · 16Y209M",
+      "sourceLabel": "DE1594 22SEP FRA-RHO Generic Report — reference cabin; capacity remains manually adjustable",
+      "quality": "exact",
+      "operationalClasses": {"Y": 16, "M": 209},
+      "operationalTotal": 225,
+      "zones": [
+        {"class": "Y", "row_start": 1, "row_end": 4, "pattern": "ABC|DEF", "exceptions": ""},
+        {"class": "M", "row_start": 5, "row_end": 39, "pattern": "ABC|DEF", "exceptions": ""}
+      ]
+    },
+    {
+      "configKey": "DE|320|8C168M",
+      "airline": "DE",
+      "aircraft": "320",
+      "configuration": "8C168M",
+      "label": "DE 320 · 8C168M",
+      "sourceLabel": "DE4264 23SEP CDG-FRA Generic Report — reference cabin; capacity remains manually adjustable",
+      "quality": "exact",
+      "operationalClasses": {"C": 8, "M": 168},
+      "operationalTotal": 176,
+      "zones": [
+        {"class": "C", "row_start": 1, "row_end": 2, "pattern": "ABC|DEF", "exceptions": ""},
+        {"class": "M", "row_start": 3, "row_end": 30, "pattern": "ABC|DEF", "exceptions": ""}
+      ]
+    },
+    {
+      "configKey": "DE|32N|4C174M",
+      "airline": "DE",
+      "aircraft": "32N",
+      "configuration": "4C174M",
+      "label": "DE 32N · 4C174M",
+      "sourceLabel": "DE4187 22SEP FRA-FCO Generic Report — reference cabin; capacity remains manually adjustable",
+      "quality": "exact",
+      "operationalClasses": {"C": 4, "M": 174},
+      "operationalTotal": 178,
+      "zones": [
+        {"class": "C", "row_start": 1, "row_end": 1, "pattern": "ABC|DEF", "exceptions": ""},
+        {"class": "M", "row_start": 2, "row_end": 30, "pattern": "ABC|DEF", "exceptions": ""}
+      ]
+    },
+    {
+      "configKey": "SK|73H|22C156M",
+      "airline": "SK",
+      "aircraft": "73H",
+      "configuration": "22C156M",
+      "label": "SK 73H · 22C156M",
+      "sourceLabel": "SK560 27SEP CDG-CPH Generic Report — reference cabin; capacity remains manually adjustable",
+      "quality": "exact",
+      "operationalClasses": {"C": 22, "M": 156},
+      "operationalTotal": 178,
+      "zones": [
+        {"class": "C", "row_start": 1, "row_end": 6, "pattern": "ABC|DEF", "exceptions": ""},
+        {"class": "M", "row_start": 7, "row_end": 32, "pattern": "ABC|DEF", "exceptions": ""}
+      ]
+    },
+    {
+      "configKey": "SK|E95|18C104M",
+      "airline": "SK",
+      "aircraft": "E95",
+      "configuration": "18C104M",
+      "label": "SK E95 · 18C104M",
+      "sourceLabel": "SK564 24SEP CDG-CPH Generic Report — reference cabin; capacity remains manually adjustable",
+      "quality": "exact",
+      "operationalClasses": {"C": 18, "M": 104},
+      "operationalTotal": 122,
+      "zones": [
+        {"class": "C", "row_start": 1, "row_end": 5, "pattern": "AC|DF", "exceptions": ""},
+        {"class": "M", "row_start": 6, "row_end": 32, "pattern": "AC|DF", "exceptions": "13=SKIP"}
+      ]
+    },
+    {
+      "configKey": "SK|319|8C138M",
+      "airline": "SK",
+      "aircraft": "319",
+      "configuration": "8C138M",
+      "label": "SK 319 · 8C138M",
+      "sourceLabel": "SK568 22SEP CDG-CPH Generic Report — reference cabin; capacity remains manually adjustable",
+      "quality": "exact",
+      "operationalClasses": {"C": 8, "M": 138},
+      "operationalTotal": 146,
+      "zones": [
+        {"class": "C", "row_start": 1, "row_end": 2, "pattern": "ABC|DEF", "exceptions": ""},
+        {"class": "M", "row_start": 3, "row_end": 26, "pattern": "ABC|DEF", "exceptions": "13=SKIP"}
+      ]
+    },
+    {
+      "configKey": "SK|320|16C156M",
+      "airline": "SK",
+      "aircraft": "320",
+      "configuration": "16C156M",
+      "label": "SK 320 · 16C156M",
+      "sourceLabel": "SK560 22SEP CDG-CPH Generic Report — reference cabin; capacity remains manually adjustable",
+      "quality": "exact",
+      "operationalClasses": {"C": 16, "M": 156},
+      "operationalTotal": 172,
+      "zones": [
+        {"class": "C", "row_start": 1, "row_end": 4, "pattern": "ABC|DEF", "exceptions": ""},
+        {"class": "M", "row_start": 5, "row_end": 30, "pattern": "ABC|DEF", "exceptions": ""}
+      ]
+    },
+    {
+      "configKey": "SK|32N|12C162M",
+      "airline": "SK",
+      "aircraft": "32N",
+      "configuration": "12C162M",
+      "label": "SK 32N · 12C162M",
+      "sourceLabel": "SK574 22SEP CDG-ARN Generic Report — reference cabin; capacity remains manually adjustable",
+      "quality": "exact",
+      "operationalClasses": {"C": 12, "M": 162},
+      "operationalTotal": 174,
+      "zones": [
+        {"class": "C", "row_start": 1, "row_end": 3, "pattern": "ABC|DEF", "exceptions": ""},
+        {"class": "M", "row_start": 4, "row_end": 31, "pattern": "ABC|DEF", "exceptions": "13=SKIP"}
+      ]
+    }
+  ]
+}
