@@ -4,9 +4,12 @@ import providerPolicyScheduler from "./provider-policy-scheduler.js";
 const UI=String.raw`<style id="alyzia-flight-status-authoritative-css">
 #app .v2-status{font-size:14px!important;padding:8px 13px!important}
 .flight-head .duration{font-size:21px!important;font-weight:950!important}
+.flight-detail-status-wrap{display:flex;align-items:center;margin-top:6px;min-height:32px}
+.flight-detail-status-wrap .v2-status{font-size:14px!important;padding:8px 13px!important}
 @media(max-width:620px){
   #app .v2-status{font-size:12px!important;padding:7px 11px!important}
   .flight-head .duration{font-size:17px!important}
+  .flight-detail-status-wrap .v2-status{font-size:12px!important;padding:7px 11px!important}
 }
 </style><script id="alyzia-flight-status-authoritative-js">(()=>{
   'use strict';
@@ -49,16 +52,52 @@ const UI=String.raw`<style id="alyzia-flight-status-authoritative-css">
     return arr;
   };
   const nowUtcMinute=()=>Date.now()/60000;
+  const fmtRemain=min=>{
+    const n=Math.max(0,Math.ceil(min));
+    return String(Math.floor(n/60)).padStart(2,'0')+':'+String(n%60).padStart(2,'0');
+  };
+  const statusClass=label=>{
+    const s=up(label);
+    if(s.startsWith('ARRIVÉ'))return 'arrive';
+    if(s.startsWith('EN VOL'))return 'envol';
+    if(s.includes('ANNUL'))return 'annule';
+    if(s.includes('RETARD'))return 'retarde';
+    if(s.includes('EMBAR'))return 'embarquement';
+    if(s.includes('DÉCOLL')||s.includes('DECOLL'))return 'decolle';
+    if(s.includes('CONFIRM'))return 'aconfirmer';
+    return 'programme';
+  };
   const setBadge=(badge,label)=>{
-    const cls=label.startsWith('ARRIVÉ')?'arrive':'envol';
+    const cls=statusClass(label);
     if(txt(badge.textContent)!==label||!badge.classList.contains(cls)){
       badge.textContent=label;
       badge.className='v2-status '+cls;
     }
   };
-  const fmtRemain=min=>{
-    const n=Math.max(0,Math.ceil(min));
-    return String(Math.floor(n/60)).padStart(2,'0')+':'+String(n%60).padStart(2,'0');
+  const getCurrentFlight=()=>{
+    try{if(typeof FLIGHTS!=='undefined'&&Array.isArray(FLIGHTS)&&typeof selected!=='undefined'&&FLIGHTS[selected])return FLIGHTS[selected]}catch{}
+    try{if(Array.isArray(window.FLIGHTS)&&Number.isInteger(window.selected)&&window.FLIGHTS[window.selected])return window.FLIGHTS[window.selected]}catch{}
+    return null;
+  };
+  const statusFromFlight=x=>{
+    if(!x)return '';
+    const raw=up(x.opsStatus||x.status||x.flight_status||x.providerStatusRaw);
+    if(/CANCEL|ANNUL/.test(raw))return 'ANNULÉ';
+    const atd=txt(x.atd||x.actualDeparture||x.actual_departure),ata=txt(x.ata||x.actualArrival||x.actual_arrival);
+    if(ata||/ARRIV|LANDED|COMPLETED/.test(raw))return 'ARRIVÉ';
+    if(atd){
+      const date=txt(x.flight_date||x.flightDate||x.service_date_internal||x.serviceDate||x.date)||serviceDate();
+      const origin=up(x.origin||x.dep||'CDG'),dest=up(x.destination||x.dest||'');
+      const eta=txt(x.eta||x.estimatedArrival||x.estimated_arrival||x.sta),dep=atd||txt(x.std);
+      const arrival=arrivalUtcMinute(date,dep,eta,origin,dest);
+      if(arrival!=null){const left=arrival-nowUtcMinute();if(left<=-15)return 'ARRIVÉ';return 'EN VOL · RESTE '+fmtRemain(left)}
+      return 'EN VOL';
+    }
+    if(/BOARD|EMBAR/.test(raw))return 'EMBARQUEMENT';
+    if(/DELAY|RETARD/.test(raw))return 'RETARDÉ';
+    if(/DEPART|DÉCOLL|DECOLL|AIRBORNE|IN FLIGHT|EN ROUTE/.test(raw))return 'DÉCOLLÉ';
+    if(/CONFIRM/.test(raw))return 'À CONFIRMER';
+    return 'PROGRAMMÉ';
   };
 
   function fixCard(card){
@@ -78,7 +117,16 @@ const UI=String.raw`<style id="alyzia-flight-status-authoritative-css">
     if(left<=-15){setBadge(badge,'ARRIVÉ');return}
     setBadge(badge,'EN VOL · RESTE '+fmtRemain(left));
   }
-  const run=()=>document.querySelectorAll('#app .v2-card').forEach(fixCard);
+  function fixDetail(){
+    const head=document.querySelector('#app .flight-head');if(!head)return;
+    const id=head.querySelector('.fh-id')||head.querySelector('.flight-id-with-logo')?.parentElement;if(!id)return;
+    let wrap=id.querySelector('.flight-detail-status-wrap');
+    if(!wrap){wrap=document.createElement('div');wrap.className='flight-detail-status-wrap';wrap.innerHTML='<span class="v2-status programme">PROGRAMMÉ</span>';id.appendChild(wrap)}
+    const badge=wrap.querySelector('.v2-status');
+    const label=statusFromFlight(getCurrentFlight());
+    if(label)setBadge(badge,label);
+  }
+  const run=()=>{document.querySelectorAll('#app .v2-card').forEach(fixCard);fixDetail()};
   const start=()=>{
     run();
     const root=document.getElementById('app')||document.documentElement;
