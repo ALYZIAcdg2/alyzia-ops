@@ -2,9 +2,9 @@ import app from "./home-filter-ui-stability-wrapper.js";
 
 const clean=v=>String(v??"").trim();
 function parisDate(){const p=new Intl.DateTimeFormat("fr-CA",{timeZone:"Europe/Paris",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date()),m=Object.fromEntries(p.map(x=>[x.type,x.value]));return `${m.year}-${m.month}-${m.day}`}
-const DISPLAY={OAG_SCHEDULE:"OAG",OAG_STATUS:"OAG",AIRLABS:"AIRLABS",SKYLINK:"SKYLINK",OPENSKY:"OPENSKY",AERODATABOX:"AERODATABOX"};
-const ORDER=["OAG","AIRLABS","SKYLINK","OPENSKY","AERODATABOX"];
-const FALLBACK={OAG:"PRIMAIRE",AIRLABS:"BATCH / PRIMAIRE",SKYLINK:"FALLBACK 1",OPENSKY:"ADS-B",AERODATABOX:"DERNIER RECOURS"};
+const DISPLAY={OAG_SCHEDULE:"OAG",OAG_STATUS:"OAG",AIRLABS:"AIRLABS",SKYLINK:"SKYLINK",OPENSKY:"OPENSKY",AVIATIONSTACK:"AVIATIONSTACK",AERODATABOX:"AERODATABOX"};
+const ORDER=["OAG","AIRLABS","SKYLINK","OPENSKY","AVIATIONSTACK","AERODATABOX"];
+const FALLBACK={OAG:"PRIMAIRE",AIRLABS:"BATCH / PRIMAIRE",SKYLINK:"FALLBACK 1",OPENSKY:"ADS-B",AVIATIONSTACK:"FALLBACK 2",AERODATABOX:"DERNIER RECOURS"};
 
 async function observability(env){
   const date=parisDate();
@@ -17,7 +17,7 @@ async function observability(env){
     const rows=Object.fromEntries(ORDER.map(provider=>[provider,{provider,waitingFlights:new Set(),fieldCounts:{},avoided:0,performed:0,successes:0,errors:0,stop:0,potential:0,lastStatus:null,lastAt:"",evaluatedAt:"",fallback:FALLBACK[provider]}]));
     for(const s of snap){const p=DISPLAY[s.provider];if(!rows[p])continue;rows[p].avoided+=Number(s.avoided||0);rows[p].potential+=Number(s.potential||0);rows[p].stop=Math.max(rows[p].stop,Number(s.stop_all||0));if(clean(s.evaluated_at)>rows[p].evaluatedAt)rows[p].evaluatedAt=clean(s.evaluated_at)}
     for(const q of queue){const p=DISPLAY[q.provider];if(!rows[p])continue;rows[p].waitingFlights.add(q.flight_identity);let fields=[];try{fields=JSON.parse(q.fields_json||"[]")}catch{}for(const f of fields)rows[p].fieldCounts[f]=(rows[p].fieldCounts[f]||0)+1;if(clean(q.evaluated_at)>rows[p].evaluatedAt)rows[p].evaluatedAt=clean(q.evaluated_at)}
-    for(const u of usage){const raw=String(u.provider||"").toUpperCase();let p="";if(raw.startsWith("OAG"))p="OAG";else if(raw.startsWith("AIRLABS"))p="AIRLABS";else if(raw.startsWith("SKYLINK"))p="SKYLINK";else if(raw.startsWith("OPENSKY"))p="OPENSKY";else if(raw.startsWith("AERODATABOX"))p="AERODATABOX";if(!rows[p])continue;rows[p].performed+=Number(u.calls||0);rows[p].successes+=Number(u.successes||0);rows[p].errors+=Number(u.errors||0);if(clean(u.last_at)>=rows[p].lastAt){rows[p].lastAt=clean(u.last_at);rows[p].lastStatus=u.last_status}}
+    for(const u of usage){const raw=String(u.provider||"").toUpperCase();let p="";if(raw.startsWith("OAG"))p="OAG";else if(raw.startsWith("AIRLABS"))p="AIRLABS";else if(raw.startsWith("SKYLINK"))p="SKYLINK";else if(raw.startsWith("OPENSKY"))p="OPENSKY";else if(raw.startsWith("AVIATIONSTACK"))p="AVIATIONSTACK";else if(raw.startsWith("AERODATABOX"))p="AERODATABOX";if(!rows[p])continue;rows[p].performed+=Number(u.calls||0);rows[p].successes+=Number(u.successes||0);rows[p].errors+=Number(u.errors||0);if(clean(u.last_at)>=rows[p].lastAt){rows[p].lastAt=clean(u.last_at);rows[p].lastStatus=u.last_status}}
     return {ok:true,date,rows:ORDER.map(p=>({...rows[p],waiting:rows[p].waitingFlights.size,waitingFlights:undefined,fields:Object.entries(rows[p].fieldCounts).sort((a,b)=>b[1]-a[1]).map(([field,count])=>({field,count})),fieldCounts:undefined}))};
   }catch(e){return {ok:false,date,error:String(e?.message||e),rows:[]}}
 }
