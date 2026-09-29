@@ -3,13 +3,30 @@ import providerPolicyScheduler from "./provider-policy-scheduler.js";
 
 const UI_STABILITY=String.raw`<style id="alyzia-ui-stability-css">
 html.alyzia-ui-stability-loading #app{visibility:hidden!important}
+html.alyzia-resume-silent.alyzia-flights-loading #app,
+html.alyzia-resume-silent.alyzia-ui-stability-loading #app{visibility:visible!important}
+html.alyzia-resume-silent.alyzia-flights-loading body::after{display:none!important;content:none!important}
+html.alyzia-resume-silent #app .flight-home-row{visibility:hidden!important}
+html.alyzia-resume-ready #app .flight-home-row{visibility:visible!important}
 </style><script id="alyzia-ui-stability-head-js">(()=>{
   'use strict';
   const root=document.documentElement;
   if(root.classList.contains('alyzia-ui-stability-ready'))return;
-  root.classList.add('alyzia-ui-stability-ready','alyzia-ui-stability-loading');
+  let resumed=false;
+  try{resumed=sessionStorage.getItem('alyzia-ui-boot-seen')==='1'}catch{}
+  root.classList.add('alyzia-ui-stability-ready');
+  if(resumed)root.classList.add('alyzia-resume-silent');
+  else root.classList.add('alyzia-ui-stability-loading');
   let revealed=false,fullListSeen=false,timer=null;
-  const reveal=()=>{if(revealed)return;revealed=true;clearTimeout(timer);requestAnimationFrame(()=>requestAnimationFrame(()=>root.classList.remove('alyzia-ui-stability-loading')))};
+  const markBooted=()=>{try{sessionStorage.setItem('alyzia-ui-boot-seen','1')}catch{}};
+  const reveal=()=>{
+    if(revealed)return;revealed=true;clearTimeout(timer);markBooted();
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{
+      root.classList.remove('alyzia-ui-stability-loading','alyzia-flights-loading','alyzia-resume-silent');
+      root.classList.add('alyzia-resume-ready');
+      setTimeout(()=>root.classList.remove('alyzia-resume-ready'),250);
+    }));
+  };
   const isFullFlightsRequest=raw=>{
     try{const u=new URL(String(raw||''),location.origin);return u.pathname==='/api/flights'&&!u.searchParams.has('identity')}catch{return false}
   };
@@ -18,17 +35,23 @@ html.alyzia-ui-stability-loading #app{visibility:hidden!important}
     const raw=typeof args[0]==='string'?args[0]:String(args[0]?.url||'');
     const full=isFullFlightsRequest(raw);
     const response=await baseFetch.apply(this,args);
-    if(full&&response?.ok&&!fullListSeen){fullListSeen=true;clearTimeout(timer);timer=setTimeout(reveal,180)}
+    if(full&&response?.ok&&!fullListSeen){
+      fullListSeen=true;clearTimeout(timer);
+      timer=setTimeout(reveal,resumed?80:180);
+    }
     return response;
   };
-  timer=setTimeout(reveal,8000);
+  window.addEventListener('pageshow',e=>{
+    if(e.persisted){root.classList.remove('alyzia-ui-stability-loading','alyzia-flights-loading','alyzia-resume-silent');root.classList.add('alyzia-resume-ready')}
+  });
+  timer=setTimeout(reveal,resumed?2500:8000);
 })();</script>`;
 
 const NAV_STABILITY=String.raw`<script id="alyzia-ui-stability-nav-js">(()=>{
   'use strict';
   if(window.__alyziaUiStabilityInstalled)return;window.__alyziaUiStabilityInstalled=true;
   let homeLockUntil=0,lastHomeScroll=0;
-  const lockHome=()=>{homeLockUntil=Date.now()+4500;window.__alyziaHomeNavigationLockUntil=homeLockUntil};
+  const lockHome=()=>{homeLockUntil=Date.now()+6000;window.__alyziaHomeNavigationLockUntil=homeLockUntil};
   const homeLocked=()=>Date.now()<homeLockUntil;
   const detailVisible=()=>Boolean(document.querySelector('#app .flight-head'));
   const isHomeReturnControl=el=>{
@@ -96,7 +119,7 @@ const NAV_STABILITY=String.raw`<script id="alyzia-ui-stability-nav-js">(()=>{
     }catch{}
     return count;
   }
-  let tries=0;const retry=()=>{tries++;install();if(tries<24)setTimeout(retry,250)};retry();
+  let tries=0;const retry=()=>{tries++;install();if(tries<32)setTimeout(retry,250)};retry();
 })();</script>`;
 
 function patch(html){
