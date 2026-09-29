@@ -2,11 +2,11 @@ import app from "./flight-card-top-fix-wrapper.js";
 import providerPolicyScheduler from "./provider-policy-scheduler.js";
 
 const UI=String.raw`<style id="alyzia-flight-status-authoritative-css">
-#app .v2-status{font-size:13px!important;padding:8px 13px!important}
-.flight-head .duration{font-size:20px!important;font-weight:950!important}
+#app .v2-status{font-size:14px!important;padding:8px 13px!important}
+.flight-head .duration{font-size:21px!important;font-weight:950!important}
 @media(max-width:620px){
-  #app .v2-status{font-size:11px!important;padding:7px 11px!important}
-  .flight-head .duration{font-size:16px!important}
+  #app .v2-status{font-size:12px!important;padding:7px 11px!important}
+  .flight-head .duration{font-size:17px!important}
 }
 </style><script id="alyzia-flight-status-authoritative-js">(()=>{
   'use strict';
@@ -79,9 +79,12 @@ const UI=String.raw`<style id="alyzia-flight-status-authoritative-css">
     setBadge(badge,'EN VOL · RESTE '+fmtRemain(left));
   }
   const run=()=>document.querySelectorAll('#app .v2-card').forEach(fixCard);
-  let queued=false;
-  const queue=()=>{if(queued)return;queued=true;setTimeout(()=>{queued=false;run()},60)};
-  const start=()=>{run();new MutationObserver(queue).observe(document.getElementById('app')||document.documentElement,{childList:true,subtree:true});setInterval(run,1000)};
+  const start=()=>{
+    run();
+    const root=document.getElementById('app')||document.documentElement;
+    new MutationObserver(()=>run()).observe(root,{childList:true,subtree:true});
+    setInterval(run,30000);
+  };
   document.readyState==='loading'?document.addEventListener('DOMContentLoaded',start,{once:true}):start();
 })();</script>`;
 
