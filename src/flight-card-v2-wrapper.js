@@ -81,11 +81,11 @@ const UI=String.raw`
   }
   function clean(){
     document.querySelectorAll('button,[role="button"]').forEach(el=>{const t=up(el.textContent).replace(/[^A-ZÀ-ÖØ-Þ]/g,'');if(t==='IMPRIMER')el.style.setProperty('display','none','important')});
-    document.querySelectorAll('body *').forEach(el=>{const t=txt(el.textContent);if(el.children.length===0&&/^V\d+(?:\.\d+)+$/i.test(t))el.style.setProperty('display','none','important')});
+    document.querySelectorAll('body *').forEach(el=>{if(el.children.length!==0||el.style.display==='none')return;const t=txt(el.textContent);if(t.length<=12&&/^V\d+(?:\.\d+)+$/i.test(t))el.style.setProperty('display','none','important')});
     const nav=document.querySelector('.mobile-bottom-nav [data-mobile-nav="home"] span');if(nav&&nav.textContent!=='✈️')nav.textContent='✈️';
     document.querySelectorAll('.flight-home-row').forEach(render);
   }
-  clean();document.addEventListener('DOMContentLoaded',clean,{once:true});new MutationObserver(clean).observe(document.documentElement,{childList:true,subtree:true});setInterval(clean,60000);
+  clean();document.addEventListener('DOMContentLoaded',clean,{once:true});let cleanQueued=false;new MutationObserver(()=>{if(cleanQueued)return;cleanQueued=true;setTimeout(()=>{cleanQueued=false;clean()},60)}).observe(document.documentElement,{childList:true,subtree:true});setInterval(clean,60000);
 })();
 </script>`;
 
