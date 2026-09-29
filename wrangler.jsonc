@@ -1,6 +1,6 @@
 {
   "name": "alyzia-ops",
-  "main": "./src/ui-stability-wrapper.js",
+  "main": "./src/ui-first-paint-wrapper.js",
   "compatibility_date": "2026-08-06",
 
   "assets": {
