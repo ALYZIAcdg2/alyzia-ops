@@ -4,8 +4,10 @@ import {buildNeeds,neededFields,providerNeeded,stopAll} from "./flight-enrichmen
 
 const clean=v=>String(v??"").trim();
 const hhmm=v=>{const m=clean(v).match(/^(\d{2}):(\d{2})$/);return m?`${m[1]}:${m[2]}`:""};
+function parisDateAt(ms){const p=new Intl.DateTimeFormat("fr-CA",{timeZone:"Europe/Paris",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date(ms)),m=Object.fromEntries(p.map(x=>[x.type,x.value]));return `${m.year}-${m.month}-${m.day}`}
 function parisNow(){const p=new Intl.DateTimeFormat("fr-CA",{timeZone:"Europe/Paris",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).formatToParts(new Date()),m=Object.fromEntries(p.map(x=>[x.type,x.value]));return {date:`${m.year}-${m.month}-${m.day}`,minutes:Number(m.hour)*60+Number(m.minute)}}
-function delta(std,minutes){const h=hhmm(std);if(!h)return 99999;const [a,b]=h.split(":").map(Number);return a*60+b-minutes}
+function dayNumber(d){const m=clean(d).match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?Math.floor(Date.UTC(Number(m[1]),Number(m[2])-1,Number(m[3]))/86400000):null}
+function delta(flightDate,std,now){const h=hhmm(std),fd=dayNumber(flightDate),nd=dayNumber(now.date);if(!h||fd==null||nd==null)return 99999;const [a,b]=h.split(":").map(Number);return (fd-nd)*1440+a*60+b-now.minutes}
 
 const PROVIDERS=["OAG_SCHEDULE","OAG_STATUS","AIRLABS","SKYLINK","OPENSKY","AERODATABOX"];
 function available(env,p){if(p.startsWith("OAG_"))return Boolean(env.OAG_API_KEY);if(p==="AIRLABS")return Boolean(env.AIRLABS_API_KEY);if(p==="SKYLINK")return Boolean(env.SKYLINK_API_KEY);if(p==="OPENSKY")return Boolean(env.OPENSKY_CLIENT_ID&&env.OPENSKY_CLIENT_SECRET);if(p==="AERODATABOX")return Boolean(env.AERODATABOX);return false}
@@ -56,16 +58,16 @@ async function ensure(env){
 export async function refreshProviderQueue(env){
   if(!env?.OPS_DB)return {ok:false,error:"OPS_DB_NON_CONFIGURE"};
   await ensure(env);
-  const now=parisNow(),at=new Date().toISOString();
-  const {results=[]}=await env.OPS_DB.prepare(`SELECT identity,flight_date,airline,flight_number,std,data_json FROM flights WHERE flight_date=? ORDER BY std,flight_number`).bind(now.date).all();
-  await env.OPS_DB.prepare(`DELETE FROM provider_enrichment_queue WHERE flight_date=?`).bind(now.date).run();
+  const now=parisNow(),yesterday=parisDateAt(Date.now()-86400000),at=new Date().toISOString();
+  const {results=[]}=await env.OPS_DB.prepare(`SELECT identity,flight_date,airline,flight_number,std,data_json FROM flights WHERE flight_date IN (?,?) ORDER BY flight_date,std,flight_number`).bind(yesterday,now.date).all();
+  await env.OPS_DB.prepare(`DELETE FROM provider_enrichment_queue WHERE flight_date IN (?,?)`).bind(yesterday,now.date).run();
   let queued=0,stopped=0;
   const providerCounts=Object.fromEntries(PROVIDERS.map(p=>[p,0]));
   const potentialCounts=Object.fromEntries(PROVIDERS.map(p=>[p,0]));
   const avoidedCounts=Object.fromEntries(PROVIDERS.map(p=>[p,0]));
   for(const row of results){
     let x={};try{x=JSON.parse(row.data_json||"{}")}catch{}
-    const d=delta(x.std||row.std,now.minutes),stoppedFlight=stopAll(x),needs=buildNeeds(x,d);
+    const d=delta(row.flight_date,x.std||row.std,now),stoppedFlight=stopAll(x),needs=buildNeeds(x,d);
     if(stoppedFlight){stopped++;continue}
     for(const provider of PROVIDERS){
       if(!providerNeeded(provider,x,d))continue;
@@ -73,7 +75,7 @@ export async function refreshProviderQueue(env){
       if(!providerEligible(env,provider,x,d)){avoidedCounts[provider]++;continue}
       const fields=eligibleFields(env,provider,x,d);
       if(!fields.length){avoidedCounts[provider]++;continue}
-      await env.OPS_DB.prepare(`INSERT INTO provider_enrichment_queue(flight_identity,flight_date,provider,fields_json,delta_minutes,stop_all,evaluated_at) VALUES(?,?,?,?,?,0,?) ON CONFLICT(flight_identity,provider) DO UPDATE SET fields_json=excluded.fields_json,delta_minutes=excluded.delta_minutes,stop_all=0,evaluated_at=excluded.evaluated_at`).bind(row.identity,row.flight_date,provider,JSON.stringify(fields),d,at).run();
+      await env.OPS_DB.prepare(`INSERT INTO provider_enrichment_queue(flight_identity,flight_date,provider,fields_json,delta_minutes,stop_all,evaluated_at) VALUES(?,?,?,?,?,0,?) ON CONFLICT(flight_identity,provider) DO UPDATE SET flight_date=excluded.flight_date,fields_json=excluded.fields_json,delta_minutes=excluded.delta_minutes,stop_all=0,evaluated_at=excluded.evaluated_at`).bind(row.identity,row.flight_date,provider,JSON.stringify(fields),d,at).run();
       providerCounts[provider]++;queued++;
     }
     x.enrichmentNeeds=needs;x.enrichmentPolicyEvaluatedAt=at;
@@ -82,7 +84,7 @@ export async function refreshProviderQueue(env){
   for(const provider of PROVIDERS){
     await env.OPS_DB.prepare(`INSERT INTO provider_observability_snapshot(flight_date,provider,potential,waiting,avoided,stop_all,evaluated_at) VALUES(?,?,?,?,?,?,?) ON CONFLICT(flight_date,provider) DO UPDATE SET potential=excluded.potential,waiting=excluded.waiting,avoided=excluded.avoided,stop_all=excluded.stop_all,evaluated_at=excluded.evaluated_at`).bind(now.date,provider,potentialCounts[provider],providerCounts[provider],avoidedCounts[provider],stopped,at).run();
   }
-  return {ok:true,date:now.date,flights:results.length,queued,stopped,providerCounts,potentialCounts,avoidedCounts,evaluatedAt:at};
+  return {ok:true,date:now.date,previousDate:yesterday,flights:results.length,queued,stopped,providerCounts,potentialCounts,avoidedCounts,evaluatedAt:at};
 }
 
 export default {
