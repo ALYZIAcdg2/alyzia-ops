@@ -11,7 +11,14 @@ function parisNow(){
   return {date:`${m.year}-${m.month}-${m.day}`,minutes:Number(m.hour)*60+Number(m.minute)};
 }
 function mins(v){const h=hhmm(v);if(!h)return null;const [a,b]=h.split(":").map(Number);return a*60+b}
-function elapsedMinutes(nowMinutes,thenMinutes){if(thenMinutes==null)return null;let d=nowMinutes-thenMinutes;if(d<-720)d+=1440;if(d>720)d-=1440;return d}
+function etaPassedBy10(x,now){
+  const atd=mins(x.atd),eta=mins(x.eta),std=mins(x.std),sta=mins(x.sta);
+  if(atd==null||eta==null)return false;
+  const nextDay=((std!=null&&sta!=null&&sta<std)||eta<atd);
+  const etaAbs=eta+(nextDay?1440:0);
+  let nowAbs=now.minutes;if(nowAbs<atd)nowAbs+=1440;
+  return nowAbs>=etaAbs+10;
+}
 function apiSource(x,field){return /(AIRLABS|SKYLINK|OAG|AERODATABOX)/i.test(clean(x?.[field+"Source"]))}
 function skylinkSource(x,field){return /SKYLINK/i.test(clean(x?.[field+"Source"]))}
 function departedRaw(v){return /(DEPARTED|EN\s*ROUTE|AIRBORNE|IN\s*FLIGHT|TOOK\s*OFF|TAKEOFF|LANDED|ARRIVED|COMPLETED)/i.test(clean(v))}
@@ -30,11 +37,12 @@ function repairTimes(x,now,at){
   return changed;
 }
 function normalizedStatus(x,now){
-  const raw=clean(x.providerStatusRaw||x.status),s=mins(x.std),e=mins(x.etd),atd=mins(x.atd),sinceAtd=elapsedMinutes(now.minutes,atd);
+  const raw=clean(x.providerStatusRaw||x.status),s=mins(x.std),e=mins(x.etd);
   if(cancelledRaw(raw))return {status:"ANNULÉ",reason:"provider"};
   if(clean(x.ata)||arrivedRaw(raw))return {status:"ARRIVÉ",reason:"actual_arrival"};
-  if(clean(x.atd)&&sinceAtd!=null&&sinceAtd>=5)return {status:"EN VOL",reason:"atd_plus_5"};
-  if(clean(x.atd)||departedRaw(raw))return {status:"DÉCOLLÉ",reason:"actual_departure"};
+  if(clean(x.atd)&&etaPassedBy10(x,now))return {status:"ARRIVÉ",reason:"eta_plus_10_without_ata"};
+  if(clean(x.atd))return {status:"EN VOL",reason:"actual_departure"};
+  if(departedRaw(raw))return {status:"DÉCOLLÉ",reason:"provider_departure_without_atd"};
   if(boardingRaw(raw))return {status:"EMBARQUEMENT",reason:"provider"};
   if(delayedRaw(raw))return {status:"RETARDÉ",reason:"provider"};
   if(s!=null&&e!=null&&e-s>=5)return {status:"RETARDÉ",reason:"etd_after_std"};
