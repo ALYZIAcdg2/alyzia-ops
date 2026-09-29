@@ -36,10 +36,16 @@ html.alyzia-resume-ready #app .flight-home-row{visibility:visible!important}
     const full=isFullFlightsRequest(raw);
     const response=await baseFetch.apply(this,args);
     if(full&&response?.ok&&!fullListSeen){
+      // Fallback only: the real reveal comes from bootstrap's final renderHome (__alyziaBootReady).
       fullListSeen=true;clearTimeout(timer);
-      timer=setTimeout(reveal,resumed?80:180);
+      timer=setTimeout(reveal,resumed?1500:3000);
     }
     return response;
+  };
+  window.__alyziaBootReady=()=>{
+    if(revealed)return;
+    clearTimeout(timer);
+    timer=setTimeout(reveal,resumed?60:200);
   };
   window.addEventListener('pageshow',e=>{
     if(e.persisted){root.classList.remove('alyzia-ui-stability-loading','alyzia-flights-loading','alyzia-resume-silent');root.classList.add('alyzia-resume-ready')}
