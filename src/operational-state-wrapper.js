@@ -11,6 +11,7 @@ function parisNow(){
   return {date:`${m.year}-${m.month}-${m.day}`,minutes:Number(m.hour)*60+Number(m.minute)};
 }
 function mins(v){const h=hhmm(v);if(!h)return null;const [a,b]=h.split(":").map(Number);return a*60+b}
+function elapsedMinutes(nowMinutes,thenMinutes){if(thenMinutes==null)return null;let d=nowMinutes-thenMinutes;if(d<-720)d+=1440;if(d>720)d-=1440;return d}
 function apiSource(x,field){return /(AIRLABS|SKYLINK|OAG|AERODATABOX)/i.test(clean(x?.[field+"Source"]))}
 function skylinkSource(x,field){return /SKYLINK/i.test(clean(x?.[field+"Source"]))}
 function departedRaw(v){return /(DEPARTED|EN\s*ROUTE|AIRBORNE|IN\s*FLIGHT|TOOK\s*OFF|TAKEOFF|LANDED|ARRIVED|COMPLETED)/i.test(clean(v))}
@@ -29,9 +30,10 @@ function repairTimes(x,now,at){
   return changed;
 }
 function normalizedStatus(x,now){
-  const raw=clean(x.providerStatusRaw||x.status),s=mins(x.std),e=mins(x.etd);
+  const raw=clean(x.providerStatusRaw||x.status),s=mins(x.std),e=mins(x.etd),atd=mins(x.atd),sinceAtd=elapsedMinutes(now.minutes,atd);
   if(cancelledRaw(raw))return {status:"ANNULÉ",reason:"provider"};
   if(clean(x.ata)||arrivedRaw(raw))return {status:"ARRIVÉ",reason:"actual_arrival"};
+  if(clean(x.atd)&&sinceAtd!=null&&sinceAtd>=5)return {status:"EN VOL",reason:"atd_plus_5"};
   if(clean(x.atd)||departedRaw(raw))return {status:"DÉCOLLÉ",reason:"actual_departure"};
   if(boardingRaw(raw))return {status:"EMBARQUEMENT",reason:"provider"};
   if(delayedRaw(raw))return {status:"RETARDÉ",reason:"provider"};
