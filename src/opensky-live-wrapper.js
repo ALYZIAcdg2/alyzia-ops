@@ -10,7 +10,14 @@ const IATA_TO_ICAO={
   "A9":"TGZ","AH":"DAH","AI":"AIC","AT":"RAM","BJ":"LBT","DE":"CFG","EI":"EIN","FB":"LZB",
   "FI":"ICE","IZ":"AIZ","JU":"ASL","LO":"LOT","LS":"EXS","LY":"ELY","MS":"MSR","NH":"ANA",
   "OZ":"AAR","PC":"PGT","RJ":"RJA","SK":"SAS","SQ":"SIA","TK":"THY","TU":"TAR","TW":"TWB",
-  "VF":"TKJ","WB":"RWD"
+  "VF":"TKJ","WB":"RWD",
+  // Frequent carriers at CDG that were missing (without them OpenSky could never match the callsign)
+  "AF":"AFR","A5":"HOP","BA":"BAW","LH":"DLH","KL":"KLM","IB":"IBE","VY":"VLG","U2":"EZY","FR":"RYR","TP":"TAP",
+  "AZ":"ITY","LX":"SWR","OS":"AUA","SN":"BEL","EK":"UAE","QR":"QTR","EY":"ETD","AC":"ACA","DL":"DAL","UA":"UAL",
+  "AA":"AAL","TO":"TVF","HV":"TRA","AY":"FIN","HU":"CHH","CA":"CCA","MU":"CES","CZ":"CSN","KE":"KAL","JL":"JAL",
+  "WY":"OMA","SV":"SVA","ET":"ETH","LA":"LAN","AV":"AVA","AM":"AMX","PS":"AUI","BT":"BTI","DY":"NOZ","D8":"IBK",
+  "W6":"WZZ","EW":"EWG","LG":"LGL","OU":"CTN","RO":"ROT","OK":"CSA","J2":"AHY","KC":"KZR","HY":"UZB","B6":"JBU",
+  "WS":"WJA","TS":"TSC","SS":"CRL","XK":"CCM"
 };
 
 function parisNow(){
@@ -18,9 +25,9 @@ function parisNow(){
   const m=Object.fromEntries(p.map(x=>[x.type,x.value]));
   return {date:`${m.year}-${m.month}-${m.day}`,minutes:Number(m.hour)*60+Number(m.minute)};
 }
-function apply(x,field,value,source,at){
+function apply(x,field,value,source,at,estimated=true){
   const next=clean(value),from=clean(x[field]);if(!next||next===from)return false;
-  const log=Array.isArray(x.flightInfoLog)?x.flightInfoLog:[];log.unshift({at,source,field,from,to:next,estimated:true});x.flightInfoLog=log.slice(0,160);
+  const log=Array.isArray(x.flightInfoLog)?x.flightInfoLog:[];log.unshift({at,source,field,from,to:next,estimated});x.flightInfoLog=log.slice(0,160);
   x[field]=next;x[field+"Source"]=source;x[field+"UpdatedAt"]=at;return true;
 }
 function hhmm(v){const m=clean(v).match(/^(\d{2}):(\d{2})$/);return m?`${m[1]}:${m[2]}`:""}
@@ -57,8 +64,24 @@ async function token(env){
   if(!r.ok)throw new Error(`OPENSKY_AUTH_${r.status}`);
   const j=await r.json();if(!j?.access_token)throw new Error("OPENSKY_AUTH_TOKEN_ABSENT");return j.access_token;
 }
+let TOKEN_CACHE={t:"",exp:0};
+async function cachedToken(env){
+  if(TOKEN_CACHE.t&&Date.now()<TOKEN_CACHE.exp)return TOKEN_CACHE.t;
+  const t=await token(env);TOKEN_CACHE={t,exp:Date.now()+25*60000};return t;
+}
+// Registration from the OpenSky aircraft database (icao24 -> registration). Null when unknown/unreachable.
+async function registrationFor(env,icao24){
+  try{
+    const t=await cachedToken(env);
+    const r=await fetch(`https://opensky-network.org/api/metadata/aircraft/icao/${encodeURIComponent(clean(icao24).toLowerCase())}`,{headers:{Authorization:`Bearer ${t}`,Accept:"application/json"},signal:AbortSignal.timeout(10000)});
+    await bumpUsage(env,r.status);
+    if(!r.ok)return {status:r.status,reg:""};
+    const j=await r.json().catch(()=>null),reg=upper(j?.registration);
+    return {status:r.status,reg:/^[A-Z0-9-]{3,8}$/.test(reg)?reg:""};
+  }catch{return {status:0,reg:""}}
+}
 async function states(env){
-  let t;try{t=await token(env)}catch(e){if(/OPENSKY_AUTH_\d{3}$/.test(String(e?.message||"")))throw e;const err=new Error("OPENSKY_AUTH_598");throw err}
+  let t;try{t=await cachedToken(env)}catch(e){if(/OPENSKY_AUTH_\d{3}$/.test(String(e?.message||"")))throw e;const err=new Error("OPENSKY_AUTH_598");throw err}
   const q=new URLSearchParams({lamin:"48.70",lamax:"49.20",lomin:"1.95",lomax:"2.85"});
   return fetch(`https://opensky-network.org/api/states/all?${q}`,{headers:{Authorization:`Bearer ${t}`,Accept:"application/json"},signal:AbortSignal.timeout(20000)}).catch(()=>{throw new Error("OPENSKY_STATES_599")});
 }
@@ -82,7 +105,9 @@ async function confirm(env){
   // Normal window -75..+20 min around STD; widened to -360 min for flights still missing an ATD,
   // so that an airborne aircraft can give an estimated ATD instead of staying "À CONTRÔLER".
   const candidates=rows.filter(z=>authority.has(z.row.identity)&&z.d<=20&&(z.d>=-75||(z.d>=-360&&missing(z.x.atd)&&authority.get(z.row.identity)?.has("atd")))&&!isFinal(z.x));
-  if(!candidates.length){await bump(env,204,{candidates:0,queue:authority.size});return {ok:true,skipped:"OPENSKY_AUCUN_VOL_QUEUE"}}
+  // REG lookup: flights (up to 6h after STD, 3h before) whose queue entry asks for REG; each flight tried at most twice, 6h apart.
+  const regCandidates=rows.filter(z=>authority.get(z.row.identity)?.has("reg")&&missing(z.x.reg)&&z.d<=180&&z.d>=-360&&!isFinal(z.x)&&Number(z.x.openSkyRegAttempts||0)<2&&ageMs(z.x.openSkyRegCheckedAt)>=6*3600000&&expectedCallsign(z));
+  if(!candidates.length&&!regCandidates.length){await bump(env,204,{candidates:0,queue:authority.size});return {ok:true,skipped:"OPENSKY_AUCUN_VOL_QUEUE"}}
   let r;try{r=await states(env)}catch(e){
     // Surface auth/network failures in the usage table (provider observability) with the real HTTP code when known.
     const code=Number(String(e?.message||"").match(/_(\d{3})$/)?.[1])||502;
@@ -122,8 +147,20 @@ async function confirm(env){
     }
     await save(env,z.row,z.x);changes.push({flight:upper(z.x.flight||z.row.flight_number),callsign,icao24:z.x.openSkyIcao24,fields:[...(authority.get(z.row.identity)||new Set())]});
   }
-  await bump(env,200,{candidates:candidates.length,vectors:vectors.length,confirmed:changes.length,queue:authority.size});
-  return {ok:true,candidates:candidates.length,vectors:vectors.length,confirmed:changes.length,changes};
+  // Registration: aircraft seen with the expected callsign (on the ground or airborne) -> icao24 -> registration. Max 3 lookups per run.
+  let regLookups=0;const regChanges=[];
+  for(const z of regCandidates){
+    if(regLookups>=3)break;
+    const s=byCallsign.get(expectedCallsign(z));if(!s)continue;
+    const icao24=upper(s?.[0]);if(!icao24)continue;
+    regLookups++;
+    const res=await registrationFor(env,icao24);
+    z.x.openSkyIcao24=icao24;z.x.openSkyRegCheckedAt=at;z.x.openSkyRegAttempts=Number(z.x.openSkyRegAttempts||0)+1;
+    if(res.reg&&missing(z.x.reg)&&apply(z.x,"reg",res.reg,"OPENSKY_ADSB",at,false))regChanges.push({flight:upper(z.x.flight||z.row.flight_number),reg:res.reg});
+    await save(env,z.row,z.x);
+  }
+  await bump(env,200,{candidates:candidates.length,regCandidates:regCandidates.length,regLookups,regFilled:regChanges.length,vectors:vectors.length,confirmed:changes.length,queue:authority.size});
+  return {ok:true,candidates:candidates.length,vectors:vectors.length,confirmed:changes.length,changes,regChanges};
 }
 
 export default {
