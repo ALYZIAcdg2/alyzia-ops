@@ -79,7 +79,11 @@ async function confirm(env){
   // so that an airborne aircraft can give an estimated ATD instead of staying "À CONTRÔLER".
   const candidates=rows.filter(z=>authority.has(z.row.identity)&&z.d<=20&&(z.d>=-75||(z.d>=-360&&missing(z.x.atd)&&authority.get(z.row.identity)?.has("atd")))&&!isFinal(z.x));
   if(!candidates.length){await bump(env,204,{candidates:0,queue:authority.size});return {ok:true,skipped:"OPENSKY_AUCUN_VOL_QUEUE"}}
-  let r;try{r=await states(env)}catch(e){await bump(env,502,{error:clean(e?.message||e),candidates:candidates.length});return {ok:false,status:502,error:clean(e?.message||e)}}
+  let r;try{r=await states(env)}catch(e){
+    // Surface auth/network failures in the usage table (provider observability) with the real HTTP code when known.
+    const code=Number(String(e?.message||"").match(/_(\d{3})$/)?.[1])||502;
+    await bumpUsage(env,code);await bump(env,code,{error:clean(e?.message||e),candidates:candidates.length});return {ok:false,status:code,error:clean(e?.message||e)};
+  }
   await bumpUsage(env,r.status);
   if(!r.ok){await bump(env,r.status,{candidates:candidates.length});return {ok:false,status:r.status,error:`OPENSKY_${r.status}`}}
   const j=await r.json().catch(()=>({})),vectors=Array.isArray(j?.states)?j.states:[];
