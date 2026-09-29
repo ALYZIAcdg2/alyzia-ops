@@ -40,7 +40,8 @@ async function bump(env,now,status){
 
 async function fetchFlight(env,flightIata){
   const host=clean(env.AVIATIONSTACK_RAPIDAPI_HOST)||"aviationstack1.p.rapidapi.com";
-  const url=`https://${host}/flights?flight_iata=${encodeURIComponent(flightIata)}&limit=10`;
+  const path=clean(env.AVIATIONSTACK_RAPIDAPI_PATH)||"/v1/flights";   // AviationStack endpoint is /v1/flights
+  const url=`https://${host}${path}?flight_iata=${encodeURIComponent(flightIata)}&limit=10`;
   try{
     const r=await fetch(url,{headers:{Accept:"application/json","X-RapidAPI-Key":env.AVIATIONSTACK_RAPIDAPI_KEY,"X-RapidAPI-Host":host}});
     const payload=await r.json().catch(()=>null);
