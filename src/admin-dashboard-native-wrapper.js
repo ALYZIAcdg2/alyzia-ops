@@ -26,9 +26,17 @@ function classify({row,x},now){
   if(future){if(!std&&!sta)state="NON TRAITÉ";else if(!std||!sta)state="PARTIEL"}
   else if(today){
     if(cancelled||final)state="OK";
-    else if(delta!==null&&delta<0&&!atd){state="À CONTRÔLER";miss.push("ATD")}
-    else if(atd&&!ata){state="À CONTRÔLER";miss.push("ATA")}
-    else if(delta!==null&&delta<=60){if(!etd&&!atd)miss.push("ETD/ATD");if(!gate)miss.push("GATE");if(!reg)miss.push("REG");state=miss.length?"PARTIEL":"OK"}
+    else if(delta!==null&&delta<0&&!atd){
+      // Grace period: only flag once the expected departure (ETD, else STD) is 20+ min past.
+      const depMin=minute(etd)??stdMin,late=depMin!==null&&depMin<=nowMin&&nowMin-depMin>20;
+      miss.push("ATD");state=late?"À CONTRÔLER":"PARTIEL";
+    }
+    else if(atd&&!ata){
+      // Airborne is normal: only flag a missing ATA once ETA (else STA) is 20+ min past.
+      const arrMin=minute(eta)??minute(sta),atdMin=minute(atd),sameDay=arrMin!==null&&atdMin!==null&&arrMin>=atdMin;
+      if(sameDay&&arrMin<=nowMin&&nowMin-arrMin>20){state="À CONTRÔLER";miss.push("ATA")}
+    }
+    else if(delta!==null&&delta<=60){if(!etd&&!atd)miss.push("ETD/ATD");if(!gate&&!atd)miss.push("GATE");if(!reg)miss.push("REG");state=miss.length?"PARTIEL":"OK"}
     else if(!std||!sta)state="PARTIEL";
     if(!sta&&!etd&&!atd&&!eta&&!ata&&!gate&&!reg)state="NON TRAITÉ";
   }
