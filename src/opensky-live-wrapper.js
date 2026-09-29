@@ -47,16 +47,20 @@ async function bumpUsage(env,status){
   }catch(_){}
 }
 
+// Failure stage is encoded in the status shown by provider observability:
+//   598 = token request (auth.opensky-network.org) timed out / unreachable
+//   599 = states request (opensky-network.org/api/states/all) timed out / unreachable
+//   401/403/429/5xx = real HTTP status returned by OpenSky
 async function token(env){
   const body=new URLSearchParams({grant_type:"client_credentials",client_id:env.OPENSKY_CLIENT_ID,client_secret:env.OPENSKY_CLIENT_SECRET});
-  const r=await fetch("https://auth.opensky-network.org/auth/realms/opensky-network/protocol/openid-connect/token",{method:"POST",headers:{"content-type":"application/x-www-form-urlencoded"},body,signal:AbortSignal.timeout(8000)});
+  const r=await fetch("https://auth.opensky-network.org/auth/realms/opensky-network/protocol/openid-connect/token",{method:"POST",headers:{"content-type":"application/x-www-form-urlencoded"},body,signal:AbortSignal.timeout(10000)});
   if(!r.ok)throw new Error(`OPENSKY_AUTH_${r.status}`);
   const j=await r.json();if(!j?.access_token)throw new Error("OPENSKY_AUTH_TOKEN_ABSENT");return j.access_token;
 }
 async function states(env){
-  const t=await token(env);
+  let t;try{t=await token(env)}catch(e){if(/OPENSKY_AUTH_\d{3}$/.test(String(e?.message||"")))throw e;const err=new Error("OPENSKY_AUTH_598");throw err}
   const q=new URLSearchParams({lamin:"48.70",lamax:"49.20",lomin:"1.95",lomax:"2.85"});
-  return fetch(`https://opensky-network.org/api/states/all?${q}`,{headers:{Authorization:`Bearer ${t}`,Accept:"application/json"},signal:AbortSignal.timeout(8000)});
+  return fetch(`https://opensky-network.org/api/states/all?${q}`,{headers:{Authorization:`Bearer ${t}`,Accept:"application/json"},signal:AbortSignal.timeout(20000)}).catch(()=>{throw new Error("OPENSKY_STATES_599")});
 }
 
 async function todayRows(env){
