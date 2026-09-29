@@ -50,9 +50,11 @@ function quotaLimit(env,key){
   if(key==="OAG")return {period:"month",limit:Number(env.OAG_MONTHLY_LIMIT||0),reserve:Number(env.OAG_MONTHLY_RESERVE||0)};
   if(key==="AERODATABOX")return {period:"month",limit:Number(env.AERODATABOX_MONTHLY_LIMIT||env.ADB_MONTHLY_LIMIT||0),reserve:Number(env.AERODATABOX_MONTHLY_RESERVE||0)};
   if(key==="OPENSKY")return {period:"day",limit:Number(env.OPENSKY_DAILY_LIMIT||4000),reserve:0};
+  if(key==="QUARK")return {period:"month",limit:Number(env.QUARK_MONTHLY_LIMIT||20000),reserve:0};
+  if(key==="AVIATIONDATA")return {period:"month",limit:Number(env.AVIATIONDATA_MONTHLY_LIMIT||500),reserve:Number(env.AVIATIONDATA_MONTHLY_RESERVE||100)};
   return {period:"month",limit:0,reserve:0};
 }
-function baseProvider(v){const p=upper(v);if(p.startsWith("AIRLABS"))return "AIRLABS";if(p.startsWith("SKYLINK"))return "SKYLINK";if(p.startsWith("OAG"))return "OAG";if(p.includes("AERODATABOX")||p.startsWith("ADB"))return "AERODATABOX";if(p.startsWith("OPENSKY"))return "OPENSKY";return p}
+function baseProvider(v){const p=upper(v);if(p.startsWith("AIRLABS"))return "AIRLABS";if(p.startsWith("SKYLINK"))return "SKYLINK";if(p.startsWith("OAG"))return "OAG";if(p.includes("AERODATABOX")||p.startsWith("ADB"))return "AERODATABOX";if(p.startsWith("OPENSKY"))return "OPENSKY";if(p.startsWith("QUARK"))return "QUARK";if(p.startsWith("AVIATIONDATA"))return "AVIATIONDATA";return p}
 async function dashboard(env){
   const now=parisParts(),until=addDays(now.date,7);
   const {results=[]}=await env.OPS_DB.prepare(`SELECT identity,flight_date,airline,flight_number,std,updated_at,data_json FROM flights WHERE flight_date>=? AND flight_date<=? ORDER BY flight_date,std,flight_number`).bind(now.date,until).all();
@@ -65,7 +67,7 @@ async function dashboard(env){
     const {results:q=[]}=await env.OPS_DB.prepare(`SELECT provider,period,calls,successes,errors,last_status,last_at FROM api_provider_usage WHERE period IN (?,?) ORDER BY provider,period`).bind(month,now.date).all();
     const map=new Map();
     for(const r of q){const k=baseProvider(r.provider);if(!map.has(k))map.set(k,{provider:k,today:0,month:0,successes:0,errors:0,lastStatus:null,lastAt:""});const o=map.get(k);if(r.period===now.date)o.today+=Number(r.calls||0);if(r.period===month)o.month+=Number(r.calls||0);o.successes+=Number(r.successes||0);o.errors+=Number(r.errors||0);if(!o.lastAt||clean(r.last_at)>o.lastAt){o.lastAt=clean(r.last_at);o.lastStatus=r.last_status}}
-    quotas=["AIRLABS","SKYLINK","OAG","AERODATABOX","OPENSKY"].map(k=>{const o=map.get(k)||{provider:k,today:0,month:0,successes:0,errors:0,lastStatus:null,lastAt:""};const cfg=quotaLimit(env,k),used=cfg.period==="day"?o.today:o.month,remaining=cfg.limit?Math.max(0,cfg.limit-cfg.reserve-used):null;return {...o,...cfg,remaining}});
+    quotas=["AIRLABS","SKYLINK","OAG","AERODATABOX","OPENSKY","QUARK","AVIATIONDATA"].map(k=>{const o=map.get(k)||{provider:k,today:0,month:0,successes:0,errors:0,lastStatus:null,lastAt:""};const cfg=quotaLimit(env,k),used=cfg.period==="day"?o.today:o.month,remaining=cfg.limit?Math.max(0,cfg.limit-cfg.reserve-used):null;return {...o,...cfg,remaining}});
   }catch(_){quotas=[]}
   return {ok:true,generatedAt:new Date().toISOString(),date:now.date,until,summary:{today:summarize(today),future:summarize(future)},flights,quotas};
 }
