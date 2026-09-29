@@ -9,6 +9,7 @@ const DAY_CAP=12;
 const MONTH_CAP=400;
 const COOLDOWN_MIN=60;          // per flight
 const MAX_NOT_FOUND=3;
+const MAX_ATTEMPTS_PER_FLIGHT=3;   // per flight: stop insisting when the API has no actual time for it
 const FIELDS=["atd","ata"];
 
 const clean=v=>String(v??"").trim();
@@ -100,6 +101,7 @@ export async function runAviationDataQueue(env){
     if(!FIELDS.some(f=>allowed.has(f)&&needs[f]))continue;
     if(ageMs(x.aviationDataLastCheckedAt)<COOLDOWN_MIN*60000)continue;
     if(Number(x.aviationDataNotFoundAttempts||0)>=MAX_NOT_FOUND)continue;
+    if(Number(x.aviationDataAttempts||0)>=MAX_ATTEMPTS_PER_FLIGHT)continue;
     candidates.push({row,x,d,allowed,prio:priorityScore(x,d)});
   }
   candidates.sort((a,b)=>a.prio-b.prio||Math.abs(a.d)-Math.abs(b.d));
@@ -108,6 +110,7 @@ export async function runAviationDataQueue(env){
     const flight=fullFlight(z.x,z.row);if(!flight)continue;
     const r=await fetchFlight(env,flight,z.row.flight_date),at=new Date().toISOString();
     await bump(env,now,r.status);
+    z.x.aviationDataAttempts=Number(z.x.aviationDataAttempts||0)+1;
     z.x.aviationDataLastCheckedAt=at;z.x.aviationDataLastStatus=r.status;
     const changed=[];
     if(r.status===404)z.x.aviationDataNotFoundAttempts=Number(z.x.aviationDataNotFoundAttempts||0)+1;
