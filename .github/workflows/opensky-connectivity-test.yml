@@ -25,3 +25,12 @@ jobs:
           curl -s -o /tmp/meta.json -w "metadata: HTTP %{http_code} en %{time_total}s\n" --max-time 20 \
             "https://opensky-network.org/api/metadata/aircraft/icao/3944ef" || echo "metadata: ECHEC connexion"
           head -c 300 /tmp/meta.json || true; echo
+      - name: "Base d'avions telechargeable (pour les immatriculations)"
+        run: |
+          for u in \
+            "https://opensky-network.org/datasets/metadata/aircraftDatabase.csv" \
+            "https://opensky-network.org/datasets/metadata/aircraft-database-complete-2025-08.csv" \
+            "https://opensky-network.org/datasets/metadata/"; do
+            curl -s -I -o /tmp/h.txt -w "%{http_code} $u\n" --max-time 20 "$u" || echo "ECHEC $u"
+            grep -i "content-length\|content-type" /tmp/h.txt || true
+          done

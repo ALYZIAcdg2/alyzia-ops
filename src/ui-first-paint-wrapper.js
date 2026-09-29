@@ -1,5 +1,6 @@
 import app from "./ui-stability-wrapper.js";
 import providerPolicyScheduler from "./provider-policy-scheduler.js";
+import {handleOpenSkyIngest} from "./opensky-live-wrapper.js";
 
 const FIRST_PAINT=String.raw`<style id="alyzia-first-paint-guard-css">html:not(.alyzia-ui-stability-ready) #app{visibility:hidden!important}</style>`;
 
@@ -12,6 +13,7 @@ function patch(html){
 
 export default {
   async fetch(request,env,ctx){
+    if(new URL(request.url).pathname==="/api/opensky/ingest")return handleOpenSkyIngest(request,env);
     const response=await app.fetch(request,env,ctx);
     const type=String(response.headers.get('content-type')||'').toLowerCase();
     if(!type.includes('text/html'))return response;

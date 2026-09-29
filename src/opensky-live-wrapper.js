@@ -69,18 +69,6 @@ async function cachedToken(env){
   if(TOKEN_CACHE.t&&Date.now()<TOKEN_CACHE.exp)return TOKEN_CACHE.t;
   const t=await token(env);TOKEN_CACHE={t,exp:Date.now()+25*60000};return t;
 }
-// Registration from the OpenSky aircraft database (icao24 -> registration). Null when unknown/unreachable.
-async function registrationFor(env,icao24){
-  try{
-    let t="";try{t=await cachedToken(env)}catch{}
-    const headers={Accept:"application/json"};if(t)headers.Authorization=`Bearer ${t}`;
-    const r=await fetch(`https://opensky-network.org/api/metadata/aircraft/icao/${encodeURIComponent(clean(icao24).toLowerCase())}`,{headers,signal:AbortSignal.timeout(10000)});
-    await bumpUsage(env,r.status);
-    if(!r.ok)return {status:r.status,reg:""};
-    const j=await r.json().catch(()=>null),reg=upper(j?.registration);
-    return {status:r.status,reg:/^[A-Z0-9-]{3,8}$/.test(reg)?reg:""};
-  }catch{return {status:0,reg:""}}
-}
 async function states(env){
   // If the token server is unreachable (598), try anonymous access (reduced credits, but the API host may still answer).
   let t="";try{t=await cachedToken(env)}catch(e){if(/OPENSKY_AUTH_\d{3}$/.test(String(e?.message||"")))throw e}
@@ -99,11 +87,15 @@ function expectedCallsign(z){
 }
 async function save(env,row,x){await env.OPS_DB.prepare(`UPDATE flights SET data_json=?,updated_at=CURRENT_TIMESTAMP WHERE identity=?`).bind(JSON.stringify(x),row.identity).run()}
 
-async function confirm(env){
-  if(!env.OPENSKY_CLIENT_ID||!env.OPENSKY_CLIENT_SECRET)return {ok:true,skipped:"OPENSKY_NON_CONFIGURE"};
+// Vectors normally come from the GitHub collector (opensky-collector.yml -> POST /api/opensky/ingest), because OpenSky
+// times out from Cloudflare. Direct fetching from the Worker stays available with OPENSKY_DIRECT=1.
+async function confirm(env,opts={}){
+  const pushed=Array.isArray(opts.vectors);
+  if(!pushed&&env.OPENSKY_DIRECT!=="1")return {ok:true,skipped:"OPENSKY_VIA_GITHUB"};
+  if(!pushed&&(!env.OPENSKY_CLIENT_ID||!env.OPENSKY_CLIENT_SECRET))return {ok:true,skipped:"OPENSKY_NON_CONFIGURE"};
   const now=parisNow(),authority=await queuedFieldMap(env,"OPENSKY",now.date);
   if(!authority.size){await bump(env,204,{candidates:0,queue:0});return {ok:true,skipped:"OPENSKY_QUEUE_VIDE"}}
-  const l=await lane(env);if(ageMs(l.lastAt)<10*60000)return {ok:true,skipped:"OPENSKY_CADENCE"};
+  if(!pushed){const l=await lane(env);if(ageMs(l.lastAt)<10*60000)return {ok:true,skipped:"OPENSKY_CADENCE"};}
   const {rows}=await todayRows(env);
   // Normal window -75..+20 min around STD; widened to -360 min for flights still missing an ATD,
   // so that an airborne aircraft can give an estimated ATD instead of staying "À CONTRÔLER".
@@ -111,14 +103,18 @@ async function confirm(env){
   // REG lookup: flights (up to 6h after STD, 3h before) whose queue entry asks for REG; each flight tried at most twice, 6h apart.
   const regCandidates=rows.filter(z=>authority.get(z.row.identity)?.has("reg")&&missing(z.x.reg)&&z.d<=180&&z.d>=-360&&!isFinal(z.x)&&Number(z.x.openSkyRegAttempts||0)<2&&ageMs(z.x.openSkyRegCheckedAt)>=6*3600000&&expectedCallsign(z));
   if(!candidates.length&&!regCandidates.length){await bump(env,204,{candidates:0,queue:authority.size});return {ok:true,skipped:"OPENSKY_AUCUN_VOL_QUEUE"}}
-  let r;try{r=await states(env)}catch(e){
-    // Surface auth/network failures in the usage table (provider observability) with the real HTTP code when known.
-    const code=Number(String(e?.message||"").match(/_(\d{3})$/)?.[1])||502;
-    await bumpUsage(env,code);await bump(env,code,{error:clean(e?.message||e),candidates:candidates.length});return {ok:false,status:code,error:clean(e?.message||e)};
+  let vectors;
+  if(pushed){vectors=opts.vectors;await bumpUsage(env,200)}
+  else{
+    let r;try{r=await states(env)}catch(e){
+      // Surface auth/network failures in the usage table (provider observability) with the real HTTP code when known.
+      const code=Number(String(e?.message||"").match(/_(\d{3})$/)?.[1])||502;
+      await bumpUsage(env,code);await bump(env,code,{error:clean(e?.message||e),candidates:candidates.length});return {ok:false,status:code,error:clean(e?.message||e)};
+    }
+    await bumpUsage(env,r.status);
+    if(!r.ok){await bump(env,r.status,{candidates:candidates.length});return {ok:false,status:r.status,error:`OPENSKY_${r.status}`}}
+    const j=await r.json().catch(()=>({}));vectors=Array.isArray(j?.states)?j.states:[];
   }
-  await bumpUsage(env,r.status);
-  if(!r.ok){await bump(env,r.status,{candidates:candidates.length});return {ok:false,status:r.status,error:`OPENSKY_${r.status}`}}
-  const j=await r.json().catch(()=>({})),vectors=Array.isArray(j?.states)?j.states:[];
   const byCallsign=new Map();
   for(const s of vectors){const cs=upper(s?.[1]);if(cs)byCallsign.set(cs,s)}
   const at=new Date().toISOString(),changes=[];
@@ -150,20 +146,38 @@ async function confirm(env){
     }
     await save(env,z.row,z.x);changes.push({flight:upper(z.x.flight||z.row.flight_number),callsign,icao24:z.x.openSkyIcao24,fields:[...(authority.get(z.row.identity)||new Set())]});
   }
-  // Registration: aircraft seen with the expected callsign (on the ground or airborne) -> icao24 -> registration. Max 3 lookups per run.
+  // Registration: aircraft seen with the expected callsign -> icao24 -> registration provided by the collector (if any).
+  const registrations=opts.registrations&&typeof opts.registrations==="object"?opts.registrations:{};
   let regLookups=0;const regChanges=[];
   for(const z of regCandidates){
-    if(regLookups>=3)break;
     const s=byCallsign.get(expectedCallsign(z));if(!s)continue;
     const icao24=upper(s?.[0]);if(!icao24)continue;
+    z.x.openSkyIcao24=icao24;
+    const reg=upper(registrations[icao24]||registrations[icao24.toLowerCase()]);
+    if(!reg)continue;                       // nothing known yet: do not burn the attempt counter
     regLookups++;
-    const res=await registrationFor(env,icao24);
-    z.x.openSkyIcao24=icao24;z.x.openSkyRegCheckedAt=at;z.x.openSkyRegAttempts=Number(z.x.openSkyRegAttempts||0)+1;
-    if(res.reg&&missing(z.x.reg)&&apply(z.x,"reg",res.reg,"OPENSKY_ADSB",at,false))regChanges.push({flight:upper(z.x.flight||z.row.flight_number),reg:res.reg});
+    z.x.openSkyRegCheckedAt=at;z.x.openSkyRegAttempts=Number(z.x.openSkyRegAttempts||0)+1;
+    if(/^[A-Z0-9-]{3,8}$/.test(reg)&&missing(z.x.reg)&&apply(z.x,"reg",reg,"OPENSKY_ADSB",at,false))regChanges.push({flight:upper(z.x.flight||z.row.flight_number),reg});
     await save(env,z.row,z.x);
   }
   await bump(env,200,{candidates:candidates.length,regCandidates:regCandidates.length,regLookups,regFilled:regChanges.length,vectors:vectors.length,confirmed:changes.length,queue:authority.size});
   return {ok:true,candidates:candidates.length,vectors:vectors.length,confirmed:changes.length,changes,regChanges};
+}
+
+function sameSecret(a,b){a=String(a||"");b=String(b||"");if(!a||a.length!==b.length)return false;let d=0;for(let i=0;i<a.length;i++)d|=a.charCodeAt(i)^b.charCodeAt(i);return d===0}
+const jsonResp=(o,status=200)=>new Response(JSON.stringify(o),{status,headers:{"content-type":"application/json; charset=UTF-8","cache-control":"no-store"}});
+// POST /api/opensky/ingest  (Authorization: Bearer <OPENSKY_INGEST_TOKEN>)  body: {states:[[icao24,callsign,...]], registrations:{icao24:reg}}
+export async function handleOpenSkyIngest(request,env){
+  if(request.method!=="POST")return jsonResp({ok:false,error:"METHOD"},405);
+  if(!env.OPENSKY_INGEST_TOKEN)return jsonResp({ok:false,error:"INGEST_NON_CONFIGURE"},503);
+  const auth=String(request.headers.get("authorization")||"").replace(/^Bearer\s+/i,"");
+  if(!sameSecret(auth,env.OPENSKY_INGEST_TOKEN))return jsonResp({ok:false,error:"UNAUTHORIZED"},401);
+  const text=await request.text();if(text.length>3_000_000)return jsonResp({ok:false,error:"TOO_LARGE"},413);
+  let body;try{body=JSON.parse(text)}catch{return jsonResp({ok:false,error:"JSON"},400)}
+  if(!Array.isArray(body?.states))return jsonResp({ok:false,error:"STATES"},400);
+  const vectors=body.states.filter(v=>Array.isArray(v)).slice(0,2000);
+  try{const res=await confirm(env,{vectors,registrations:body.registrations});await bump(env,200,{ingest:true,vectors:vectors.length});return jsonResp({ok:true,vectors:vectors.length,...res})}
+  catch(e){return jsonResp({ok:false,error:String(e?.message||e)},500)}
 }
 
 export default {
