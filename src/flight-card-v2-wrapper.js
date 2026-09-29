@@ -2,6 +2,7 @@ import app from "./operational-state-wrapper.js";
 
 const UI=String.raw`
 <style id="alyzia-v2-full-style">
+#app .flight-home-row:not(.v2-ready):not([data-v2-skip]){visibility:hidden!important}
 #app .flight-home-row.v2-ready{display:block!important;position:relative!important;padding:0!important;overflow:hidden!important;border-radius:24px!important;background:#fff!important;border:1px solid #e1e8f0!important;box-shadow:0 7px 24px rgba(22,48,86,.08)!important;min-height:0!important}
 #app .flight-home-row.v2-ready>*:not(.v2-card){display:none!important}
 #app .flight-home-row.v2-ready .v2-card{display:block!important;padding:18px!important;color:#0b1d3a;font-family:inherit;cursor:pointer}
@@ -83,9 +84,11 @@ const UI=String.raw`
     document.querySelectorAll('button,[role="button"]').forEach(el=>{const t=up(el.textContent).replace(/[^A-ZÀ-ÖØ-Þ]/g,'');if(t==='IMPRIMER')el.style.setProperty('display','none','important')});
     document.querySelectorAll('body *').forEach(el=>{if(el.children.length!==0||el.style.display==='none')return;const t=txt(el.textContent);if(t.length<=12&&/^V\d+(?:\.\d+)+$/i.test(t))el.style.setProperty('display','none','important')});
     const nav=document.querySelector('.mobile-bottom-nav [data-mobile-nav="home"] span');if(nav&&nav.textContent!=='✈️')nav.textContent='✈️';
-    document.querySelectorAll('.flight-home-row').forEach(render);
+    document.querySelectorAll('.flight-home-row').forEach(r=>{try{render(r)}catch(e){}});
+    // A row whose card could not be built (unknown flight...) must not stay invisible.
+    document.querySelectorAll('.flight-home-row:not(.v2-ready):not([data-v2-skip])').forEach(r=>r.setAttribute('data-v2-skip','1'));
   }
-  clean();document.addEventListener('DOMContentLoaded',clean,{once:true});let cleanQueued=false;new MutationObserver(()=>{if(cleanQueued)return;cleanQueued=true;setTimeout(()=>{cleanQueued=false;clean()},60)}).observe(document.documentElement,{childList:true,subtree:true});setInterval(clean,60000);
+  clean();document.addEventListener('DOMContentLoaded',clean,{once:true});let cleanQueued=false;new MutationObserver(()=>{if(cleanQueued)return;cleanQueued=true;requestAnimationFrame(()=>{cleanQueued=false;clean()})}).observe(document.documentElement,{childList:true,subtree:true});setInterval(clean,60000);
 })();
 </script>`;
 
