@@ -102,6 +102,7 @@ export async function runQuarkQueue(env){
     await bump(env,now,r.status);
     z.x.quarkLastCheckedAt=at;z.x.quarkLastStatus=r.status;
     const changed=[];
+    if(r.status===404)z.x.quarkNotFoundAttempts=Number(z.x.quarkNotFoundAttempts||0)+1;
     if(r.ok){
       const data=parse(r.payload,z.row.flight_date,upper(z.x.origin||"CDG"));
       if(data){for(const f of FIELDS)if(z.allowed.has(f)&&apply(z.x,f,data[f],at))changed.push(f)}
@@ -109,7 +110,8 @@ export async function runQuarkQueue(env){
     }
     await env.OPS_DB.prepare(`UPDATE flights SET data_json=?,updated_at=CURRENT_TIMESTAMP WHERE identity=?`).bind(JSON.stringify(z.x),z.row.identity).run();
     items.push({flight,status:r.status,changed});
-    if(r.status===429||r.status===403)break;   // rate/plan problem: stop this run
+    // Rate/plan/auth problem, or wrong RapidAPI endpoint (gateway says "does not exist"): stop this run instead of burning calls.
+    if([401,403,429].includes(r.status)||r.status>=500||(r.status===404&&/does not exist|not subscribed|invalid/i.test(clean(r.payload?.message||r.payload?.error))))break;
   }
   return {ok:true,processed:items.length,items};
 }
