@@ -1,6 +1,6 @@
 {
   "name": "alyzia-ops",
-  "main": "./src/flight-status-authoritative-wrapper.js",
+  "main": "./src/ui-stability-wrapper.js",
   "compatibility_date": "2026-08-06",
 
   "assets": {
