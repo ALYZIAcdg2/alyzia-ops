@@ -26,6 +26,21 @@ const FIX=String.raw`<style id="alyzia-card-top-v2-fix">
 }
 </style>`;
 
+const EN_VOL=String.raw`<script id="alyzia-en-vol-safe-js">(()=>{
+  if(window.__alyziaEnVolSafe)return;window.__alyziaEnVolSafe=true;
+  const txt=v=>String(v??'').trim();
+  const up=v=>txt(v).toUpperCase();
+  const flightNo=v=>up(v).replace(/\s+/g,'');
+  const hhmm=v=>{const m=txt(v).match(/(\d{2}):(\d{2})/);return m?Number(m[1])*60+Number(m[2]):null};
+  const nowMinutes=()=>{const p=new Intl.DateTimeFormat('fr-FR',{timeZone:'Europe/Paris',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date());const o=Object.fromEntries(p.map(x=>[x.type,x.value]));return Number(o.hour)*60+Number(o.minute)};
+  const elapsed=v=>{const t=hhmm(v);if(t===null)return null;let d=nowMinutes()-t;if(d<-720)d+=1440;if(d>720)d-=1440;return d};
+  const flights=()=>{try{if(typeof FLIGHTS!=='undefined'&&Array.isArray(FLIGHTS))return FLIGHTS}catch(e){}return Array.isArray(window.FLIGHTS)?window.FLIGHTS:[]};
+  const getFlight=row=>{const shown=flightNo(row.querySelector('.v2-flight')?.textContent||row.querySelector('.home-flight')?.textContent||'');if(!shown)return null;return flights().find(x=>flightNo(x.flight||x.flight_number)===shown)||null};
+  const run=()=>{for(const row of document.querySelectorAll('.flight-home-row')){const badge=row.querySelector('.v2-status'),x=getFlight(row);if(!badge||!x)continue;const raw=up(x.opsStatus||x.status||x.flight_status||x.providerStatusRaw),atd=txt(x.atd||x.actualDeparture||x.actual_departure),ata=txt(x.ata||x.actualArrival||x.actual_arrival),d=elapsed(atd);const arrived=!!ata||/ARRIV|LANDED|COMPLETED/.test(raw),cancelled=/CANCEL|ANNUL/.test(raw);if(arrived){if(txt(badge.textContent)==='EN VOL'){badge.textContent='ARRIVÉ';badge.className='v2-status arrive'}continue}if(cancelled)continue;const inFlight=raw==='EN VOL'||(!!atd&&d!==null&&d>=5&&d<720);if(inFlight&&txt(badge.textContent)!=='ARRIVÉ'&&txt(badge.textContent)!=='ANNULÉ'){badge.textContent='EN VOL';badge.classList.add('envol')}}};
+  const start=()=>{setTimeout(run,900);setInterval(run,30000)};
+  document.readyState==='loading'?document.addEventListener('DOMContentLoaded',start,{once:true}):start();
+})();</script>`;
+
 function patch(html){
   let s=String(html||'');
   if(!s.includes('id="alyzia-startup-today-guard-css"')){
@@ -35,6 +50,10 @@ function patch(html){
   if(!s.includes('id="alyzia-card-top-v2-fix"')){
     const i=s.lastIndexOf('</body>');
     s=i>=0?s.slice(0,i)+FIX+'\n'+s.slice(i):s+FIX;
+  }
+  if(!s.includes('id="alyzia-en-vol-safe-js"')){
+    const i=s.lastIndexOf('</body>');
+    s=i>=0?s.slice(0,i)+EN_VOL+'\n'+s.slice(i):s+EN_VOL;
   }
   return s;
 }
