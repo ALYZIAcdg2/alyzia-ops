@@ -3,6 +3,8 @@ import providerPolicyScheduler from "./provider-policy-scheduler.js";
 
 const UI=String.raw`<style id="alyzia-flight-status-authoritative-css">
 #app .v2-status{font-size:14px!important;padding:8px 13px!important}
+#app .v2-status.ops-time-alert,
+.flight-detail-status-wrap .v2-status.ops-time-alert{background:#fee8ec!important;color:#d91f34!important}
 .flight-head .duration{font-size:21px!important;font-weight:950!important}
 .flight-detail-status-wrap{display:flex;align-items:center;margin-top:6px;min-height:32px}
 .flight-detail-status-wrap .v2-status{font-size:14px!important;padding:8px 13px!important}
@@ -19,6 +21,8 @@ const UI=String.raw`<style id="alyzia-flight-status-authoritative-css">
   const txt=v=>String(v??'').trim();
   const up=v=>txt(v).toUpperCase();
   const hh=v=>{const m=txt(v).match(/(\d{2}):(\d{2})/);return m?{h:Number(m[1]),m:Number(m[2])}:null};
+  const minuteOfDay=v=>{const t=hh(v);return t?t.h*60+t.m:null};
+  const minuteDelta=(scheduled,actual)=>{const a=minuteOfDay(scheduled),b=minuteOfDay(actual);if(a==null||b==null)return null;let d=b-a;if(d<-720)d+=1440;if(d>720)d-=1440;return d};
   const dayNumber=d=>{const m=txt(d).match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?Math.floor(Date.UTC(Number(m[1]),Number(m[2])-1,Number(m[3]))/86400000):null};
   const serviceDate=()=>{
     try{if(typeof HOME_DATE!=='undefined'&&/^\d{4}-\d{2}-\d{2}$/.test(String(HOME_DATE)))return String(HOME_DATE)}catch{}
@@ -38,6 +42,15 @@ const UI=String.raw`<style id="alyzia-flight-status-authoritative-css">
       if(up(cell.querySelector('.v2-time-label')?.textContent)===wanted)return txt(cell.querySelector('.v2-time-value')?.textContent);
     }
     return '';
+  };
+  const cardHasRedOperationalTime=card=>{
+    for(const cell of card.querySelectorAll('.v2-time-cell')){
+      const label=up(cell.querySelector('.v2-time-label')?.textContent);
+      if(!['ETD','ATD','ETA','ATA'].includes(label))continue;
+      const value=cell.querySelector('.v2-time-value');
+      if(value?.classList.contains('late')||value?.classList.contains('red'))return true;
+    }
+    return false;
   };
   const absoluteUtcMinute=(date,localTime,offset)=>{
     const d=dayNumber(date),t=hh(localTime);
@@ -67,17 +80,24 @@ const UI=String.raw`<style id="alyzia-flight-status-authoritative-css">
     if(s.includes('CONFIRM'))return 'aconfirmer';
     return 'programme';
   };
-  const setBadge=(badge,label)=>{
-    const cls=statusClass(label);
-    if(txt(badge.textContent)!==label||!badge.classList.contains(cls)){
+  const setBadge=(badge,label,timeAlert=false)=>{
+    const cls=statusClass(label),wanted='v2-status '+cls+(timeAlert?' ops-time-alert':'');
+    if(txt(badge.textContent)!==label||badge.className!==wanted){
       badge.textContent=label;
-      badge.className='v2-status '+cls;
+      badge.className=wanted;
     }
   };
   const getCurrentFlight=()=>{
     try{if(typeof FLIGHTS!=='undefined'&&Array.isArray(FLIGHTS)&&typeof selected!=='undefined'&&FLIGHTS[selected])return FLIGHTS[selected]}catch{}
     try{if(Array.isArray(window.FLIGHTS)&&Number.isInteger(window.selected)&&window.FLIGHTS[window.selected])return window.FLIGHTS[window.selected]}catch{}
     return null;
+  };
+  const flightHasRedOperationalTime=x=>{
+    if(!x)return false;
+    const std=txt(x.std),sta=txt(x.sta),atd=txt(x.atd||x.actualDeparture||x.actual_departure),etd=txt(x.etd||x.edt||x.estimatedDeparture||x.estimated_departure),ata=txt(x.ata||x.actualArrival||x.actual_arrival),eta=txt(x.eta||x.estimatedArrival||x.estimated_arrival);
+    const dep=atd||etd,arr=ata||eta;
+    const depDelay=dep?minuteDelta(std,dep):null,arrDelay=arr?minuteDelta(sta,arr):null;
+    return (depDelay!=null&&depDelay>0)||(arrDelay!=null&&arrDelay>1);
   };
   const statusFromFlight=x=>{
     if(!x)return '';
@@ -102,29 +122,30 @@ const UI=String.raw`<style id="alyzia-flight-status-authoritative-css">
 
   function fixCard(card){
     const badge=card.querySelector('.v2-status');if(!badge)return;
-    const r=route(card);if(!r)return;
-    const date=serviceDate();if(!date)return;
+    const timeAlert=cardHasRedOperationalTime(card);
+    const r=route(card);if(!r){badge.classList.toggle('ops-time-alert',timeAlert);return}
+    const date=serviceDate();if(!date){badge.classList.toggle('ops-time-alert',timeAlert);return}
     const std=timeByLabel(card,'STD');
     const atd=timeByLabel(card,'ATD');
     const sta=timeByLabel(card,'STA');
     const ata=timeByLabel(card,'ATA');
     const eta=timeByLabel(card,'ETA');
-    if(!atd)return;
-    if(ata){setBadge(badge,'ARRIVÉ');return}
+    if(!atd){badge.classList.toggle('ops-time-alert',timeAlert);return}
+    if(ata){setBadge(badge,'ARRIVÉ',timeAlert);return}
     const arrival=arrivalUtcMinute(date,atd||std,eta||sta,r.origin,r.dest);
-    if(arrival==null){setBadge(badge,'EN VOL');return}
+    if(arrival==null){setBadge(badge,'EN VOL',timeAlert);return}
     const left=arrival-nowUtcMinute();
-    if(left<=-15){setBadge(badge,'ARRIVÉ');return}
-    setBadge(badge,'EN VOL · RESTE '+fmtRemain(left));
+    if(left<=-15){setBadge(badge,'ARRIVÉ',timeAlert);return}
+    setBadge(badge,'EN VOL · RESTE '+fmtRemain(left),timeAlert);
   }
   function fixDetail(){
     const head=document.querySelector('#app .flight-head');if(!head)return;
     const id=head.querySelector('.fh-id')||head.querySelector('.flight-id-with-logo')?.parentElement;if(!id)return;
     let wrap=id.querySelector('.flight-detail-status-wrap');
     if(!wrap){wrap=document.createElement('div');wrap.className='flight-detail-status-wrap';wrap.innerHTML='<span class="v2-status programme">PROGRAMMÉ</span>';id.appendChild(wrap)}
-    const badge=wrap.querySelector('.v2-status');
-    const label=statusFromFlight(getCurrentFlight());
-    if(label)setBadge(badge,label);
+    const badge=wrap.querySelector('.v2-status'),x=getCurrentFlight();
+    const label=statusFromFlight(x);
+    if(label)setBadge(badge,label,flightHasRedOperationalTime(x));
   }
   const run=()=>{document.querySelectorAll('#app .v2-card').forEach(fixCard);fixDetail()};
   const start=()=>{
