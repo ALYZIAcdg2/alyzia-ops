@@ -5,18 +5,20 @@ const upper=v=>clean(v).toUpperCase();
 const hhmm=v=>{const s=clean(v),m=s.match(/^(\d{2}:\d{2})$/)||s.match(/(?:T|\s)(\d{2}:\d{2})/);return m?m[1]:""};
 const missing=v=>!clean(v)||["—","-","N/A","NULL"].includes(upper(v));
 
+function parisDateAt(ms){const p=new Intl.DateTimeFormat("fr-CA",{timeZone:"Europe/Paris",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date(ms));const m=Object.fromEntries(p.map(x=>[x.type,x.value]));return `${m.year}-${m.month}-${m.day}`}
 function parisNow(){
   const p=new Intl.DateTimeFormat("fr-CA",{timeZone:"Europe/Paris",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).formatToParts(new Date());
   const m=Object.fromEntries(p.map(x=>[x.type,x.value]));
   return {date:`${m.year}-${m.month}-${m.day}`,minutes:Number(m.hour)*60+Number(m.minute)};
 }
 function mins(v){const h=hhmm(v);if(!h)return null;const [a,b]=h.split(":").map(Number);return a*60+b}
-function etaPassedBy10(x,now){
-  const atd=mins(x.atd),eta=mins(x.eta),std=mins(x.std),sta=mins(x.sta);
-  if(atd==null||eta==null)return false;
+function dayNumber(date){const m=clean(date).match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?Math.floor(Date.UTC(Number(m[1]),Number(m[2])-1,Number(m[3]))/86400000):null}
+function etaPassedBy10(x,now,flightDate){
+  const atd=mins(x.atd),eta=mins(x.eta),std=mins(x.std),sta=mins(x.sta),flightDay=dayNumber(flightDate),nowDay=dayNumber(now.date);
+  if(atd==null||eta==null||flightDay==null||nowDay==null)return false;
   const nextDay=((std!=null&&sta!=null&&sta<std)||eta<atd);
-  const etaAbs=eta+(nextDay?1440:0);
-  let nowAbs=now.minutes;if(nowAbs<atd)nowAbs+=1440;
+  const etaAbs=(flightDay+(nextDay?1:0))*1440+eta;
+  const nowAbs=nowDay*1440+now.minutes;
   return nowAbs>=etaAbs+10;
 }
 function apiSource(x,field){return /(AIRLABS|SKYLINK|OAG|AERODATABOX)/i.test(clean(x?.[field+"Source"]))}
@@ -36,34 +38,34 @@ function repairTimes(x,now,at){
   if(apiSource(x,"ata")&&ataFuture){if(missing(x.eta)||apiSource(x,"eta")||/ALYZIA_OPS_STATE/i.test(clean(x.etaSource)))changed=setField(x,"eta",x.ata,at,"ATA fournisseur futur reclassé en ETA")||changed;changed=clearField(x,"ata",at,"ATA impossible dans le futur")||changed}
   return changed;
 }
-function normalizedStatus(x,now){
+function normalizedStatus(x,now,flightDate){
   const raw=clean(x.providerStatusRaw||x.status),s=mins(x.std),e=mins(x.etd);
   if(cancelledRaw(raw))return {status:"ANNULÉ",reason:"provider"};
   if(clean(x.ata)||arrivedRaw(raw))return {status:"ARRIVÉ",reason:"actual_arrival"};
-  if(clean(x.atd)&&etaPassedBy10(x,now))return {status:"ARRIVÉ",reason:"eta_plus_10_without_ata"};
+  if(clean(x.atd)&&etaPassedBy10(x,now,flightDate))return {status:"ARRIVÉ",reason:"eta_plus_10_without_ata"};
   if(clean(x.atd))return {status:"EN VOL",reason:"actual_departure"};
   if(departedRaw(raw))return {status:"DÉCOLLÉ",reason:"provider_departure_without_atd"};
   if(boardingRaw(raw))return {status:"EMBARQUEMENT",reason:"provider"};
   if(delayedRaw(raw))return {status:"RETARDÉ",reason:"provider"};
-  if(s!=null&&e!=null&&e-s>=5)return {status:"RETARDÉ",reason:"etd_after_std"};
-  if(s!=null&&now.minutes>s+15)return {status:"À CONFIRMER",reason:"past_std_without_actual"};
+  if(flightDate===now.date&&s!=null&&e!=null&&e-s>=5)return {status:"RETARDÉ",reason:"etd_after_std"};
+  if(flightDate===now.date&&s!=null&&now.minutes>s+15)return {status:"À CONFIRMER",reason:"past_std_without_actual"};
   return {status:"PROGRAMMÉ",reason:"scheduled"};
 }
-async function normalizeToday(env){
-  const now=parisNow(),at=new Date().toISOString();
-  const {results=[]}=await env.OPS_DB.prepare(`SELECT identity,data_json FROM flights WHERE flight_date=?`).bind(now.date).all();
+async function normalizeRecent(env){
+  const now=parisNow(),yesterday=parisDateAt(Date.now()-86400000),at=new Date().toISOString();
+  const {results=[]}=await env.OPS_DB.prepare(`SELECT identity,flight_date,data_json FROM flights WHERE flight_date IN (?,?)`).bind(yesterday,now.date).all();
   let changedRows=0,repairedTimes=0,statusChanges=0;
   for(const row of results){
     let x={};try{x=JSON.parse(row.data_json||"{}")}catch{continue}
-    let changed=false;const currentStatus=clean(x.status),statusSource=clean(x.statusSource);
+    let changed=false;const currentStatus=clean(x.status),statusSource=clean(x.statusSource),flightDate=clean(row.flight_date||x.flight_date||x.flightDate||now.date);
     if(currentStatus&&/(AIRLABS|SKYLINK|OAG|AERODATABOX)/i.test(statusSource))x.providerStatusRaw=currentStatus;
-    if(repairTimes(x,now,at)){changed=true;repairedTimes++}
-    const state=normalizedStatus(x,now),next=state.status;
+    if(flightDate===now.date&&repairTimes(x,now,at)){changed=true;repairedTimes++}
+    const state=normalizedStatus(x,now,flightDate),next=state.status;
     if(next&&next!==clean(x.status)){if(currentStatus&&currentStatus!==next&&!x.providerStatusRaw)x.providerStatusRaw=currentStatus;changed=setField(x,"status",next,at,"Statut opérationnel ALYZIA normalisé")||changed;statusChanges++}
     x.opsStatus=next;x.opsStatusReason=state.reason;x.opsStatusUpdatedAt=at;
     if(changed){await env.OPS_DB.prepare(`UPDATE flights SET data_json=?,updated_at=CURRENT_TIMESTAMP WHERE identity=?`).bind(JSON.stringify(x),row.identity).run();changedRows++}
   }
-  return {ok:true,date:now.date,changedRows,repairedTimes,statusChanges};
+  return {ok:true,dates:[yesterday,now.date],changedRows,repairedTimes,statusChanges};
 }
 function legacyProviderMaskedEnv(env){
   const masked=Object.create(env);
@@ -73,6 +75,6 @@ function legacyProviderMaskedEnv(env){
 }
 
 export default {
-  async fetch(request,env,ctx){const url=new URL(request.url);if(url.pathname==="/api/providers/operational-state/status")return new Response(JSON.stringify(await normalizeToday(env)),{headers:{"content-type":"application/json; charset=UTF-8","cache-control":"no-store"}});return app.fetch(request,env,ctx)},
-  scheduled(controller,env,ctx){ctx.waitUntil((async()=>{try{await normalizeToday(env)}catch(_){}if(typeof app.scheduled==="function")await app.scheduled(controller,legacyProviderMaskedEnv(env),ctx)})())}
+  async fetch(request,env,ctx){const url=new URL(request.url);if(url.pathname==="/api/providers/operational-state/status")return new Response(JSON.stringify(await normalizeRecent(env)),{headers:{"content-type":"application/json; charset=UTF-8","cache-control":"no-store"}});return app.fetch(request,env,ctx)},
+  scheduled(controller,env,ctx){ctx.waitUntil((async()=>{try{await normalizeRecent(env)}catch(_){}if(typeof app.scheduled==="function")await app.scheduled(controller,legacyProviderMaskedEnv(env),ctx)})())}
 };
