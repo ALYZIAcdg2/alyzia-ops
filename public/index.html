@@ -20637,6 +20637,7 @@ async function bootstrapAlyziaOps(){
  restoreSariaFlightSelections();
  await loadAirlineProfilesV50();
  renderHome();
+ try{window.__alyziaBootReady&&window.__alyziaBootReady()}catch(e){}
  updateClocks();
  OPS_REALTIME_LAST_HASH=stableCloudHash(FLIGHTS);
  startRealtimeSync();

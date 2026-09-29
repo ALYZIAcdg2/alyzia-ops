@@ -36,10 +36,27 @@ html.alyzia-resume-ready #app .flight-home-row{visibility:visible!important}
     const full=isFullFlightsRequest(raw);
     const response=await baseFetch.apply(this,args);
     if(full&&response?.ok&&!fullListSeen){
+      // Fallback only: the real reveal comes from bootstrap's final renderHome (__alyziaBootReady).
       fullListSeen=true;clearTimeout(timer);
-      timer=setTimeout(reveal,resumed?80:180);
+      timer=setTimeout(reveal,resumed?1500:3000);
     }
     return response;
+  };
+  // Home wrappers (time filter, counts, card layout) re-touch the list for ~1s after renderHome.
+  // Wait until #app has been quiet for a moment (max 1.6s) so only the final list is ever shown.
+  window.__alyziaBootReady=()=>{
+    if(revealed)return;
+    clearTimeout(timer);
+    const app=document.getElementById('app');
+    let quiet=null,obs=null;
+    const done=()=>{if(obs)obs.disconnect();reveal()};
+    const bump=()=>{clearTimeout(quiet);quiet=setTimeout(done,resumed?250:320)};
+    if(app&&typeof MutationObserver==='function'){
+      obs=new MutationObserver(bump);
+      obs.observe(app,{childList:true,subtree:true,attributes:true,characterData:true});
+    }
+    bump();
+    timer=setTimeout(done,1600);
   };
   window.addEventListener('pageshow',e=>{
     if(e.persisted){root.classList.remove('alyzia-ui-stability-loading','alyzia-flights-loading','alyzia-resume-silent');root.classList.add('alyzia-resume-ready')}
