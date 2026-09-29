@@ -22,7 +22,7 @@ export async function runAeroDataBoxQueue(env){
   if(!usage.ok||remaining<2)return {ok:true,skipped:"AERODATABOX_QUOTA",remaining};
   const {results=[]}=await env.OPS_DB.prepare(`SELECT identity,flight_date,airline,flight_number,std,data_json FROM flights WHERE flight_date=? ORDER BY std,flight_number`).bind(now.date).all();
   const candidates=[];
-  for(const row of results){const allowed=authority.get(row.identity);if(!allowed?.size)continue;let x={};try{x=JSON.parse(row.data_json||"{}")}catch{}const d=delta(x.std||row.std,now.minutes);if(d>120||d<-360)continue;if(![...allowed].some(f=>!clean(x[f])))continue;const last=Date.parse(clean(x.aeroDataBoxLastCheckedAt)||0)||0;if(last&&Date.now()-last<120*60000)continue;candidates.push({row,x,d,allowed})}
+  for(const row of results){const allowed=authority.get(row.identity);if(!allowed?.size)continue;let x={};try{x=JSON.parse(row.data_json||"{}")}catch{}const d=delta(x.std||row.std,now.minutes);if(d>120||d<-1080)continue;if(![...allowed].some(f=>!clean(x[f])))continue;const last=Date.parse(clean(x.aeroDataBoxLastCheckedAt)||0)||0;if(last&&Date.now()-last<120*60000)continue;candidates.push({row,x,d,allowed})}
   candidates.sort((a,b)=>Math.abs(a.d)-Math.abs(b.d));
   const z=candidates[0];if(!z)return {ok:true,skipped:"AERODATABOX_AUCUN_CANDIDAT_QUEUE",remaining};
   const flight=fullFlight(z.x,z.row),date=z.row.flight_date;if(!flight)return {ok:false,error:"IDENTITE_INCOMPLETE"};

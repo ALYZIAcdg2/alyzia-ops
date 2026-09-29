@@ -15,8 +15,8 @@ export const FIELD_MATRIX={
   sta:{providers:["OAG_SCHEDULE","AIRLABS","SKYLINK","AERODATABOX"],window:[-1440,10080]},
   etd:{providers:["OAG_STATUS","AIRLABS","SKYLINK","AERODATABOX"],window:[-60,240]},
   eta:{providers:["OAG_STATUS","AIRLABS","SKYLINK","AERODATABOX"],window:[-1800,60]},
-  atd:{providers:["OAG_STATUS","SKYLINK","AIRLABS","AERODATABOX"],window:[-360,30]},
-  ata:{providers:["OAG_STATUS","AIRLABS","SKYLINK","AERODATABOX"],window:[-360,30]},
+  atd:{providers:["OAG_STATUS","SKYLINK","AIRLABS","AERODATABOX"],window:[-1080,30]},
+  ata:{providers:["OAG_STATUS","AIRLABS","SKYLINK","AERODATABOX"],window:[-1080,30]},
   gate:{providers:["OAG_STATUS","SKYLINK","AIRLABS","AERODATABOX"],window:[-60,240]},
   reg:{providers:["OPENSKY","SKYLINK","AIRLABS","AERODATABOX"],window:[-360,180]}
 };
