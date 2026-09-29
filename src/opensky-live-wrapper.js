@@ -18,6 +18,11 @@ function parisNow(){
   const m=Object.fromEntries(p.map(x=>[x.type,x.value]));
   return {date:`${m.year}-${m.month}-${m.day}`,minutes:Number(m.hour)*60+Number(m.minute)};
 }
+function apply(x,field,value,source,at){
+  const next=clean(value),from=clean(x[field]);if(!next||next===from)return false;
+  const log=Array.isArray(x.flightInfoLog)?x.flightInfoLog:[];log.unshift({at,source,field,from,to:next,estimated:true});x.flightInfoLog=log.slice(0,160);
+  x[field]=next;x[field+"Source"]=source;x[field+"UpdatedAt"]=at;return true;
+}
 function hhmm(v){const m=clean(v).match(/^(\d{2}):(\d{2})$/);return m?`${m[1]}:${m[2]}`:""}
 function delta(std,minutes){const h=hhmm(std);if(!h)return 99999;const [a,b]=h.split(":").map(Number);return a*60+b-minutes}
 function flightNo(v,carrier=""){let s=upper(v),c=upper(carrier);if(c&&s.startsWith(c))s=s.slice(c.length);else s=s.replace(/^[A-Z]{2,3}/,"");const m=s.match(/(\d+[A-Z]?)$/);return m?m[1]:s}
@@ -70,7 +75,9 @@ async function confirm(env){
   if(!authority.size){await bump(env,204,{candidates:0,queue:0});return {ok:true,skipped:"OPENSKY_QUEUE_VIDE"}}
   const l=await lane(env);if(ageMs(l.lastAt)<10*60000)return {ok:true,skipped:"OPENSKY_CADENCE"};
   const {rows}=await todayRows(env);
-  const candidates=rows.filter(z=>authority.has(z.row.identity)&&z.d<=20&&z.d>=-75&&!isFinal(z.x));
+  // Normal window -75..+20 min around STD; widened to -360 min for flights still missing an ATD,
+  // so that an airborne aircraft can give an estimated ATD instead of staying "À CONTRÔLER".
+  const candidates=rows.filter(z=>authority.has(z.row.identity)&&z.d<=20&&(z.d>=-75||(z.d>=-360&&missing(z.x.atd)&&authority.get(z.row.identity)?.has("atd")))&&!isFinal(z.x));
   if(!candidates.length){await bump(env,204,{candidates:0,queue:authority.size});return {ok:true,skipped:"OPENSKY_AUCUN_VOL_QUEUE"}}
   let r;try{r=await states(env)}catch(e){await bump(env,502,{error:clean(e?.message||e),candidates:candidates.length});return {ok:false,status:502,error:clean(e?.message||e)}}
   await bumpUsage(env,r.status);
@@ -96,6 +103,15 @@ async function confirm(env){
     }
     const log=Array.isArray(z.x.flightInfoLog)?z.x.flightInfoLog:[];
     log.unshift({at,source:"OPENSKY_ADSB",field:"status",from:old||"",to:"DÉCOLLÉ",evidence:{callsign,icao24:z.x.openSkyIcao24}});z.x.flightInfoLog=log.slice(0,160);
+    // Estimated ATD: aircraft is airborne but no provider gave an ATD yet. Use ETD (else STD), never later than now.
+    // Source stays OPENSKY_ADSB, so real providers (OAG/AirLabs/SkyLink/AeroDataBox) overwrite it when they answer.
+    if(missing(z.x.atd)&&authority.get(z.row.identity)?.has("atd")){
+      const base=hhmm(z.x.etd)||hhmm(z.x.std)||hhmm(z.row.std);
+      if(base){
+        const [h,m]=base.split(":").map(Number),est=Math.min(h*60+m,now.minutes);
+        apply(z.x,"atd",String(Math.floor(est/60)).padStart(2,"0")+":"+String(est%60).padStart(2,"0"),"OPENSKY_ADSB",at);
+      }
+    }
     await save(env,z.row,z.x);changes.push({flight:upper(z.x.flight||z.row.flight_number),callsign,icao24:z.x.openSkyIcao24,fields:[...(authority.get(z.row.identity)||new Set())]});
   }
   await bump(env,200,{candidates:candidates.length,vectors:vectors.length,confirmed:changes.length,queue:authority.size});
