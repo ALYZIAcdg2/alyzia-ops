@@ -34,3 +34,11 @@ jobs:
             curl -s -I -o /tmp/h.txt -w "%{http_code} $u\n" --max-time 20 "$u" || echo "ECHEC $u"
             grep -i "content-length\|content-type" /tmp/h.txt || true
           done
+      - name: "Liste des fichiers de la base d'avions"
+        run: |
+          curl -s --max-time 30 "https://opensky-network.org/datasets/metadata/" -o /tmp/index.html
+          echo "--- liens trouvés (csv, zip, gz, parquet) ---"
+          grep -Eo 'href="[^"]+\.(csv|zip|gz|parquet|tar)[^"]*"' /tmp/index.html | head -30 || true
+          echo "--- où mène la redirection du fichier principal ---"
+          curl -s -I -L -o /dev/null -w "final: %{http_code} %{url_effective} taille=%{size_download}\n" --max-time 30 "https://opensky-network.org/datasets/metadata/aircraftDatabase.csv" || echo "ECHEC"
+          curl -s -I --max-time 20 "https://opensky-network.org/datasets/metadata/aircraftDatabase.csv" | grep -i "^location" || true
