@@ -49,7 +49,7 @@ function ensureTime(){let wrap=document.querySelector('#app .alyzia-time-filter-
 function syncTimeUi(){const btn=document.querySelector('#app .alyzia-time-filter-btn');if(btn){btn.classList.toggle('active',!!activeRange);btn.textContent=activeRange?'◷ '+RANGES[activeRange].label:'◷ 6H'}document.querySelectorAll('#app .alyzia-time-choice').forEach(b=>b.classList.toggle('active',b.dataset.range===activeRange))}
 function ensure(){fixRows();ensureClear();ensureTime();applyFinalTimeFilter()}
 function scheduleFixes(){[0,40,120,260,600].forEach(ms=>setTimeout(ensure,ms))}
-const baseHome=window.renderHome;if(typeof baseHome==='function')window.renderHome=function(...args){for(const x of flights())repairPairs(x);const r=baseHome.apply(this,args);scheduleFixes();scheduleVisibleFlightCount();return r};
+const baseHome=window.renderHome;if(typeof baseHome==='function')window.renderHome=function(...args){for(const x of flights())repairPairs(x);const r=baseHome.apply(this,args);try{ensure();updateVisibleFlightCount()}catch{}scheduleFixes();scheduleVisibleFlightCount();return r};
 document.addEventListener('input',e=>{if(e.target?.matches?.('#app .home-flight-search input')){setTimeout(applyFinalTimeFilter,0);scheduleVisibleFlightCount()}},true);
 document.addEventListener('click',e=>{if(!e.target?.closest?.('.alyzia-time-filter-wrap'))document.querySelector('#app .alyzia-time-filter-menu')?.classList.remove('open');const b=e.target?.closest?.('#app button');if(b&&/^(T1|T2|T3|ALL|★|☆)$/.test(norm(b.textContent))){[0,40,120,300,700].forEach(ms=>setTimeout(()=>{applyFinalTimeFilter();updateVisibleFlightCount()},ms))}},true);
 window.addEventListener('resize',scheduleFixes,{passive:true});window.addEventListener('orientationchange',scheduleFixes,{passive:true});

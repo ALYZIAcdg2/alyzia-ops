@@ -40,7 +40,7 @@ let timer=0;
 function scheduleFix(){clearTimeout(timer);[0,30,100,250,650,1200].forEach(ms=>setTimeout(reconcile,ms));timer=setTimeout(reconcile,1600)}
 document.addEventListener('click',e=>{const b=e.target?.closest?.('#app button');if(!b)return;const t=norm(b.textContent);if(b.classList.contains('alyzia-time-choice')||/^(T1|T2|T3|ALL|★|☆)$/.test(t)||b.classList.contains('alyzia-home-clear'))scheduleFix()},true);
 document.addEventListener('input',e=>{if(e.target?.matches?.('#app .home-flight-search input'))scheduleFix()},true);
-const base=window.renderHome;if(typeof base==='function')window.renderHome=function(...args){const r=base.apply(this,args);scheduleFix();return r};
+const base=window.renderHome;if(typeof base==='function')window.renderHome=function(...args){const r=base.apply(this,args);try{reconcile()}catch{}scheduleFix();return r};
 window.addEventListener('resize',scheduleFix,{passive:true});window.addEventListener('orientationchange',scheduleFix,{passive:true});
 scheduleFix();
 })();</script>`;

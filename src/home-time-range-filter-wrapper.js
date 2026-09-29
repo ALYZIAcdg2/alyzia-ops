@@ -45,7 +45,7 @@ function ensureControl(){
  btn.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();menu.classList.toggle('open')});wrap.append(btn,menu);fav.insertAdjacentElement('afterend',wrap);applyTimeFilter()
 }
 function scheduleApply(){[0,40,120,260,600].forEach(ms=>setTimeout(()=>{ensureControl();applyTimeFilter()},ms))}
-const baseHome=window.renderHome;if(typeof baseHome==='function')window.renderHome=function(...args){const r=baseHome.apply(this,args);scheduleApply();return r};
+const baseHome=window.renderHome;if(typeof baseHome==='function')window.renderHome=function(...args){const r=baseHome.apply(this,args);try{ensureControl();applyTimeFilter()}catch{}scheduleApply();return r};
 document.addEventListener('click',e=>{if(!e.target?.closest?.('.alyzia-time-filter-wrap'))closeMenu()},true);
 document.addEventListener('click',e=>{if(e.target?.closest?.('.alyzia-home-clear'))setTimeout(resetTimeFilter,0)},true);
 document.addEventListener('input',e=>{if(e.target?.matches?.('#app .home-flight-search input'))setTimeout(applyTimeFilter,0)},true);

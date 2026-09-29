@@ -4,7 +4,8 @@ const UI=String.raw`<style id="alyzia-admin-dashboard-v5-css">
 #app .admin-native .adn-next-plan{display:flex;flex-direction:column;gap:2px;line-height:1.15}
 #app .admin-native .adn-next-plan b{font-size:10px;color:#0a6abf}
 #app .admin-native .adn-next-plan small{font-size:9px;color:#667b91;font-weight:900}
-#app .admin-native .adn-card-next{margin-top:7px;padding-top:7px;border-top:1px solid #edf1f5;font-size:10px;font-weight:900;color:#48657e}
+#app .admin-native .adn-card-next{margin-top:7px;padding-top:7px;border-top:1px solid #edf1f5;font-size:10px;font-weight:900;color:#48657e;min-height:12px;line-height:12px}
+#app .admin-native .adn-cards .adn-card:not(:has(.adn-card-next))::after{content:'\00a0';display:block;margin-top:7px;padding-top:7px;border-top:1px solid #edf1f5;font-size:10px;min-height:12px;line-height:12px}
 .adn-api-timing{border:1px solid #dbe7f3;border-radius:12px;padding:10px;background:#f8fbff;font-size:11px;line-height:1.8;color:#52677d;font-weight:850}
 .adn-api-timing b{color:#153653}.adn-api-timing .api-next{font-size:13px;color:#0874d1;font-weight:950}
 </style><script id="alyzia-admin-dashboard-v5-js">(()=>{'use strict';
@@ -55,14 +56,14 @@ function planFromFlight(x){
 }
 function patchSummaryCards(){
   const cards=[...document.querySelectorAll('#app .admin-native .adn-cards .adn-card')];if(cards.length<2||!adminData)return;
-  cards.forEach(c=>c.querySelector('.adn-card-next')?.remove());
+  
   const groups=[
     {card:cards[0],rows:(adminData.flights||[]).filter(x=>x.date===adminData.date),label:'PROCHAIN TRAITEMENT AUJOURD’HUI'},
     {card:cards[1],rows:(adminData.flights||[]).filter(x=>x.date>adminData.date),label:'PROCHAIN TRAITEMENT FUTUR'}
   ];
   for(const g of groups){
     const plans=g.rows.map(x=>({x,p:planFromFlight(x)})).filter(z=>z.p?.at&&!z.p?.done).sort((a,b)=>a.p.at-b.p.at);
-    if(!plans.length)continue;const z=plans[0],el=document.createElement('div');el.className='adn-card-next';el.textContent=g.label+' : '+fmt(z.p.at)+' · '+z.x.flight+' · '+z.p.provider;g.card.appendChild(el);
+    let el=g.card.querySelector('.adn-card-next');if(!plans.length){el?.remove();continue}const z=plans[0],txt=g.label+' : '+fmt(z.p.at)+' · '+z.x.flight+' · '+z.p.provider;if(!el){el=document.createElement('div');el.className='adn-card-next';g.card.appendChild(el)}if(el.textContent!==txt)el.textContent=txt;
   }
 }
 async function refreshAdminData(){try{const r=await fetch('/api/admin/flight-processing',{cache:'no-store'});const d=await r.json();if(r.ok&&d?.ok)adminData=d}catch{}setTimeout(()=>{patchRows();patchSummaryCards()},0)}
