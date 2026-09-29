@@ -10,17 +10,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Serveur d'authentification (sans identifiants: 400/401 attendu = joignable)
+      - name: "Serveur d'authentification (sans identifiants, 400 ou 401 attendu = joignable)"
         run: |
           curl -s -o /dev/null -w "auth: HTTP %{http_code} en %{time_total}s\n" --max-time 20 \
             -X POST "https://auth.opensky-network.org/auth/realms/opensky-network/protocol/openid-connect/token" \
             -H "Content-Type: application/x-www-form-urlencoded" -d "grant_type=client_credentials" || echo "auth: ECHEC connexion"
-      - name: Positions d'avions autour de CDG (acces anonyme)
+      - name: "Positions d'avions autour de CDG (acces anonyme)"
         run: |
           curl -s -o /tmp/states.json -w "states: HTTP %{http_code} en %{time_total}s\n" --max-time 30 \
             "https://opensky-network.org/api/states/all?lamin=48.70&lamax=49.20&lomin=1.95&lomax=2.85" || echo "states: ECHEC connexion"
           head -c 300 /tmp/states.json || true; echo
-      - name: Base d'immatriculations (exemple icao24)
+      - name: "Base d'immatriculations (exemple icao24)"
         run: |
           curl -s -o /tmp/meta.json -w "metadata: HTTP %{http_code} en %{time_total}s\n" --max-time 20 \
             "https://opensky-network.org/api/metadata/aircraft/icao/3944ef" || echo "metadata: ECHEC connexion"
