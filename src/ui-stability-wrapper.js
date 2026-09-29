@@ -14,6 +14,8 @@ html.alyzia-resume-ready #app .flight-home-row{visibility:visible!important}
   if(root.classList.contains('alyzia-ui-stability-ready'))return;
   let resumed=false;
   try{resumed=sessionStorage.getItem('alyzia-ui-boot-seen')==='1'}catch{}
+  // A browser reload keeps sessionStorage but is a fresh load: keep the whole UI hidden until the list is final.
+  try{const nav=performance.getEntriesByType('navigation')[0];if(nav&&nav.type==='reload')resumed=false}catch{}
   root.classList.add('alyzia-ui-stability-ready');
   if(resumed)root.classList.add('alyzia-resume-silent');
   else root.classList.add('alyzia-ui-stability-loading');
@@ -38,25 +40,26 @@ html.alyzia-resume-ready #app .flight-home-row{visibility:visible!important}
     if(full&&response?.ok&&!fullListSeen){
       // Fallback only: the real reveal comes from bootstrap's final renderHome (__alyziaBootReady).
       fullListSeen=true;clearTimeout(timer);
-      timer=setTimeout(reveal,resumed?1500:3000);
+      timer=setTimeout(reveal,resumed?1500:6000);   // bootstrap can still be busy after the list request; __alyziaBootReady is the real signal
     }
     return response;
   };
   // Home wrappers (time filter, counts, card layout) re-touch the list for ~1s after renderHome.
-  // Wait until #app has been quiet for a moment (max 1.6s) so only the final list is ever shown.
+  // Wait until #app has been quiet for a moment (min 1.35s, max 3s) so only the final list is ever shown.
   window.__alyziaBootReady=()=>{
     if(revealed)return;
     clearTimeout(timer);
     const app=document.getElementById('app');
     let quiet=null,obs=null;
     const done=()=>{if(obs)obs.disconnect();reveal()};
-    const bump=()=>{clearTimeout(quiet);quiet=setTimeout(done,resumed?250:320)};
+    const start=Date.now(),MIN_HOLD=1350;   // home wrappers re-touch the list at up to +1200 ms after renderHome
+    const bump=()=>{clearTimeout(quiet);quiet=setTimeout(done,Math.max(resumed?300:350,MIN_HOLD-(Date.now()-start)))};
     if(app&&typeof MutationObserver==='function'){
       obs=new MutationObserver(bump);
       obs.observe(app,{childList:true,subtree:true,attributes:true,characterData:true});
     }
     bump();
-    timer=setTimeout(done,1600);
+    timer=setTimeout(done,3000);
   };
   window.addEventListener('pageshow',e=>{
     if(e.persisted){root.classList.remove('alyzia-ui-stability-loading','alyzia-flights-loading','alyzia-resume-silent');root.classList.add('alyzia-resume-ready')}
