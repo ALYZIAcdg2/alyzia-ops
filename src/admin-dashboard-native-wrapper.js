@@ -32,9 +32,10 @@ function classify({row,x},now){
       miss.push("ATD");state=late?"À CONTRÔLER":"PARTIEL";
     }
     else if(atd&&!ata){
-      // Airborne is normal: only flag a missing ATA once ETA (else STA) is 20+ min past.
+      // Airborne is normal. Once ETA (else STA) is 20+ min past, the flight is considered arrived (OK)
+      // even without ATA; ATA stays listed as missing and provider recovery keeps chasing it.
       const arrMin=minute(eta)??minute(sta),atdMin=minute(atd),sameDay=arrMin!==null&&atdMin!==null&&arrMin>=atdMin;
-      if(sameDay&&arrMin<=nowMin&&nowMin-arrMin>20){state="À CONTRÔLER";miss.push("ATA")}
+      if(sameDay&&arrMin<=nowMin&&nowMin-arrMin>20)miss.push("ATA")
     }
     else if(delta!==null&&delta<=60){if(!etd&&!atd)miss.push("ETD/ATD");if(!gate&&!atd)miss.push("GATE");if(!reg)miss.push("REG");state=miss.length?"PARTIEL":"OK"}
     else if(!std||!sta)state="PARTIEL";
