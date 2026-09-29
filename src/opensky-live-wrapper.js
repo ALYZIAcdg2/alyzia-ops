@@ -72,8 +72,9 @@ async function cachedToken(env){
 // Registration from the OpenSky aircraft database (icao24 -> registration). Null when unknown/unreachable.
 async function registrationFor(env,icao24){
   try{
-    const t=await cachedToken(env);
-    const r=await fetch(`https://opensky-network.org/api/metadata/aircraft/icao/${encodeURIComponent(clean(icao24).toLowerCase())}`,{headers:{Authorization:`Bearer ${t}`,Accept:"application/json"},signal:AbortSignal.timeout(10000)});
+    let t="";try{t=await cachedToken(env)}catch{}
+    const headers={Accept:"application/json"};if(t)headers.Authorization=`Bearer ${t}`;
+    const r=await fetch(`https://opensky-network.org/api/metadata/aircraft/icao/${encodeURIComponent(clean(icao24).toLowerCase())}`,{headers,signal:AbortSignal.timeout(10000)});
     await bumpUsage(env,r.status);
     if(!r.ok)return {status:r.status,reg:""};
     const j=await r.json().catch(()=>null),reg=upper(j?.registration);
@@ -81,9 +82,11 @@ async function registrationFor(env,icao24){
   }catch{return {status:0,reg:""}}
 }
 async function states(env){
-  let t;try{t=await cachedToken(env)}catch(e){if(/OPENSKY_AUTH_\d{3}$/.test(String(e?.message||"")))throw e;const err=new Error("OPENSKY_AUTH_598");throw err}
+  // If the token server is unreachable (598), try anonymous access (reduced credits, but the API host may still answer).
+  let t="";try{t=await cachedToken(env)}catch(e){if(/OPENSKY_AUTH_\d{3}$/.test(String(e?.message||"")))throw e}
   const q=new URLSearchParams({lamin:"48.70",lamax:"49.20",lomin:"1.95",lomax:"2.85"});
-  return fetch(`https://opensky-network.org/api/states/all?${q}`,{headers:{Authorization:`Bearer ${t}`,Accept:"application/json"},signal:AbortSignal.timeout(20000)}).catch(()=>{throw new Error("OPENSKY_STATES_599")});
+  const headers={Accept:"application/json"};if(t)headers.Authorization=`Bearer ${t}`;
+  return fetch(`https://opensky-network.org/api/states/all?${q}`,{headers,signal:AbortSignal.timeout(20000)}).catch(()=>{throw new Error(t?"OPENSKY_STATES_599":"OPENSKY_AUTH_598")});
 }
 
 async function todayRows(env){
