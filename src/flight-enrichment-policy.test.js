@@ -10,12 +10,16 @@ test("un vol complet coupe tous les providers",()=>{
   assert.equal(providerNeeded("AIRLABS",x,-120),false);
 });
 
-test("ETD et gate ne sont plus demandés après départ mais ATA reste active",()=>{
+test("ETD et gate ne sont plus demandés après départ; ATA demandée seulement à l'approche de l'arrivée",()=>{
   const x={std:"10:00",sta:"12:00",duration:120,atd:"10:11",etd:"",gate:"",ata:"",reg:"9V-SWM"};
-  const n=buildNeeds(x,-30);
-  assert.equal(n.etd,false);
-  assert.equal(n.gate,false);
-  assert.equal(n.ata,true);
+  const airborne=buildNeeds(x,-30);              // arrivée prévue dans 90 min: pas d'appel inutile
+  assert.equal(airborne.etd,false);
+  assert.equal(airborne.gate,false);
+  assert.equal(airborne.ata,false);
+  const approaching=buildNeeds(x,-100);          // arrivée prévue dans 20 min: ATA recherchée
+  assert.equal(approaching.ata,true);
+  const landed=buildNeeds({...x,status:"LANDED"},-30);   // statut atterri sans ATA: on continue jusqu'à l'obtenir
+  assert.equal(landed.ata,true);
 });
 
 test("un statut AIRBORNE ne coupe jamais la recherche ATD",()=>{
