@@ -14,9 +14,9 @@ export const FIELD_MATRIX={
   std:{providers:["OAG_SCHEDULE","AIRLABS","SKYLINK","AERODATABOX"],window:[-1440,10080]},
   sta:{providers:["OAG_SCHEDULE","AIRLABS","SKYLINK","AERODATABOX"],window:[-1440,10080]},
   etd:{providers:["OAG_STATUS","AIRLABS","SKYLINK","AERODATABOX"],window:[-60,240]},
-  eta:{providers:["OAG_STATUS","AIRLABS","SKYLINK","AERODATABOX"],window:[-900,60]},
+  eta:{providers:["OAG_STATUS","AIRLABS","SKYLINK","AERODATABOX"],window:[-1800,60]},
   atd:{providers:["OAG_STATUS","SKYLINK","AIRLABS","AERODATABOX"],window:[-360,30]},
-  ata:{providers:["OAG_STATUS","AIRLABS","AERODATABOX"],window:[-900,-15]},
+  ata:{providers:["OAG_STATUS","AIRLABS","SKYLINK","AERODATABOX"],window:[-360,30]},
   gate:{providers:["OAG_STATUS","SKYLINK","AIRLABS","AERODATABOX"],window:[-60,240]},
   reg:{providers:["OPENSKY","SKYLINK","AIRLABS","AERODATABOX"],window:[-360,180]}
 };
@@ -38,17 +38,35 @@ export function flightComplete(x={}){
 export function stopAll(x={}){return isCancelled(x)||flightComplete(x)}
 
 function inWindow(d,[min,max]){return Number.isFinite(d)&&d>=min&&d<=max}
+function minuteOfDay(v){const m=clean(v).match(/^(\d{2}):(\d{2})$/);return m?Number(m[1])*60+Number(m[2]):null}
+function minuteDelta(a,b){const x=minuteOfDay(a),y=minuteOfDay(b);if(x==null||y==null)return 0;let d=y-x;if(d<-720)d+=1440;if(d>720)d-=1440;return d}
+function durationMinutes(x={}){
+  for(const v of [x.duration,x.durationMinutes,x.flightDuration,x.flight_duration,x.scheduledDuration,x.scheduled_duration]){
+    if(typeof v==="number"&&Number.isFinite(v)&&v>0)return Math.round(v);
+    const s=clean(v),m=s.match(/^(\d{1,2}):(\d{2})$/);if(m)return Number(m[1])*60+Number(m[2]);
+  }
+  return null;
+}
+export function arrivalDelta(x={},departureDelta=99999){
+  const duration=durationMinutes(x);
+  if(!Number.isFinite(departureDelta)||duration==null)return null;
+  return departureDelta+duration+minuteDelta(x.sta,x.eta);
+}
 
 export function buildNeeds(x={},d=99999){
   if(stopAll(x))return {std:false,sta:false,etd:false,eta:false,atd:false,ata:false,gate:false,reg:false,any:false};
-  const departed=hasDeparted(x),arrived=hasArrived(x);
+  const departed=hasDeparted(x),arrived=hasArrived(x),arrD=arrivalDelta(x,d);
+  const atdWindow=inWindow(d,FIELD_MATRIX.atd.window);
+  const ataWindow=arrD==null?false:inWindow(arrD,FIELD_MATRIX.ata.window);
   const needs={
     std:isMissing(x.std),
     sta:isMissing(x.sta),
     etd:!departed&&isMissing(x.etd)&&inWindow(d,FIELD_MATRIX.etd.window),
     eta:departed&&!arrived&&isMissing(x.eta)&&inWindow(d,FIELD_MATRIX.eta.window),
-    atd:!departed&&isMissing(x.atd)&&inWindow(d,FIELD_MATRIX.atd.window),
-    ata:departed&&!arrived&&isMissing(x.ata)&&inWindow(d,FIELD_MATRIX.ata.window),
+    // A provider status is evidence, not the final timestamp: keep chasing ATD until ATD exists.
+    atd:isMissing(x.atd)&&(departed||atdWindow),
+    // Same rule for arrival: ARRIVED/LANDED must not stop ATA recovery while ATA is missing.
+    ata:isMissing(x.ata)&&(arrived||ataWindow),
     gate:!departed&&isMissing(x.gate)&&inWindow(d,FIELD_MATRIX.gate.window),
     reg:isMissing(x.reg)&&inWindow(d,FIELD_MATRIX.reg.window)
   };
@@ -60,7 +78,7 @@ const PROVIDER_FIELDS={
   OAG_SCHEDULE:["std","sta"],
   OAG_STATUS:["etd","eta","atd","ata","gate"],
   AIRLABS:["sta","etd","eta","atd","ata","gate","reg"],
-  SKYLINK:["sta","etd","eta","atd","gate","reg"],
+  SKYLINK:["sta","etd","eta","atd","ata","gate","reg"],
   OPENSKY:["atd","reg"],
   AERODATABOX:["std","sta","etd","eta","atd","ata","gate","reg"]
 };
@@ -76,12 +94,11 @@ export function neededFields(provider,x={},d=99999){
 
 export function cadenceMinutes(provider,x={},d=99999){
   if(stopAll(x))return Infinity;
+  const n=buildNeeds(x,d);
   if(provider==="OPENSKY")return d<=20&&d>=-75?10:Infinity;
-  if(provider==="AIRLABS"){
-    const n=buildNeeds(x,d);return d<=30&&d>=-240&&(n.atd||n.etd||n.gate||n.reg)?20:90;
-  }
-  if(provider==="SKYLINK")return d<=30&&d>=-240?30:60;
-  if(provider==="OAG_STATUS")return d<=30&&d>=-240?15:(d<=120&&d>=-360?30:60);
+  if(provider==="AIRLABS")return d<=30&&d>=-240&&(n.atd||n.etd||n.gate||n.reg)?20:(n.ata?30:90);
+  if(provider==="SKYLINK")return n.ata?30:(d<=30&&d>=-240?30:60);
+  if(provider==="OAG_STATUS")return n.ata?15:(d<=30&&d>=-240?15:(d<=120&&d>=-360?30:60));
   return 90;
 }
 
