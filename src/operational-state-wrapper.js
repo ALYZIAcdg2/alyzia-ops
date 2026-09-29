@@ -17,14 +17,14 @@ function minuteDelta(a,b){const x=mins(a),y=mins(b);if(x==null||y==null)return n
 function parseDuration(v){if(typeof v==="number"&&Number.isFinite(v)&&v>0)return Math.round(v);const s=clean(v);if(!s)return null;let m=s.match(/^(\d{1,2}):(\d{2})$/);if(m)return Number(m[1])*60+Number(m[2]);m=s.match(/^(\d{1,2})\s*[Hh]\s*(\d{1,2})?$/);if(m)return Number(m[1])*60+Number(m[2]||0);const n=Number(s);return Number.isFinite(n)&&n>0?Math.round(n):null}
 function durationMinutes(x){for(const v of [x.duration,x.durationMinutes,x.flightDuration,x.flight_duration,x.scheduledDuration,x.scheduled_duration]){const n=parseDuration(v);if(n!=null)return n}return null}
 function estimatedArrivalAbs(x,flightDate){const std=mins(x.std),dur=durationMinutes(x),day=dayNumber(flightDate);if(std==null||dur==null||day==null)return null;const delta=minuteDelta(x.sta,x.eta);return day*1440+std+dur+(delta==null?0:delta)}
-function etaPassedBy10(x,now,flightDate){
+function etaPassedBy15(x,now,flightDate){
   const est=estimatedArrivalAbs(x,flightDate),nowDay=dayNumber(now.date);
-  if(est!=null&&nowDay!=null)return nowDay*1440+now.minutes>=est+10;
+  if(est!=null&&nowDay!=null)return nowDay*1440+now.minutes>=est+15;
   const atd=mins(x.atd),eta=mins(x.eta),std=mins(x.std),sta=mins(x.sta),flightDay=dayNumber(flightDate);
   if(atd==null||eta==null||flightDay==null||nowDay==null)return false;
   const nextDay=((std!=null&&sta!=null&&sta<std)||eta<atd);
   const etaAbs=(flightDay+(nextDay?1:0))*1440+eta;
-  return nowDay*1440+now.minutes>=etaAbs+10;
+  return nowDay*1440+now.minutes>=etaAbs+15;
 }
 function apiSource(x,field){return /(AIRLABS|SKYLINK|OAG|AERODATABOX)/i.test(clean(x?.[field+"Source"]))}
 function skylinkSource(x,field){return /SKYLINK/i.test(clean(x?.[field+"Source"]))}
@@ -47,7 +47,7 @@ function normalizedStatus(x,now,flightDate){
   const raw=clean(x.providerStatusRaw||x.status),s=mins(x.std),e=mins(x.etd);
   if(cancelledRaw(raw))return {status:"ANNULÉ",reason:"provider"};
   if(clean(x.ata)||arrivedRaw(raw))return {status:"ARRIVÉ",reason:"actual_arrival"};
-  if(clean(x.atd)&&etaPassedBy10(x,now,flightDate))return {status:"ARRIVÉ",reason:"estimated_arrival_plus_10"};
+  if(clean(x.atd)&&etaPassedBy15(x,now,flightDate))return {status:"ARRIVÉ",reason:"estimated_arrival_plus_15"};
   if(clean(x.atd))return {status:"EN VOL",reason:"actual_departure"};
   if(departedRaw(raw))return {status:"DÉCOLLÉ",reason:"provider_departure_without_atd"};
   if(boardingRaw(raw))return {status:"EMBARQUEMENT",reason:"provider"};
