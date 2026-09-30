@@ -1,14 +1,12 @@
 const key=process.env.RAPIDAPI_KEY;
 const host="quark-aviation-global-flight-tracking-intelligence-api.p.rapidapi.com";
 if(!key){console.log("no key");process.exit(0)}
-async function call(path){
-  try{const r=await fetch(`https://${host}${path}`,{headers:{Accept:"application/json","X-RapidAPI-Key":key,"X-RapidAPI-Host":host}});
-    const t=await r.text();console.log(r.status,path,"\n  ",t.replace(/\s+/g," ").slice(0,1400));
-  }catch(e){console.log("ERR",path,String(e.message).slice(0,100))}
-}
-// 1) sans paramètre : une API FastAPI liste les paramètres requis dans l'erreur 422
-for(const p of ["/route_schedules","/aviation_weather"])await call(p);
-// 2) essais plausibles
-for(const p of [
- "/route_schedules?origin=CDG&destination=BOG","/route_schedules?departure=CDG&arrival=BOG","/route_schedules?origin_iata=CDG&destination_iata=BOG","/route_schedules?dep_iata=CDG&arr_iata=BOG",
- "/aviation_weather?airport=CDG","/aviation_weather?icao=LFPG","/aviation_weather?iata=CDG","/aviation_weather?airport_code=CDG","/aviation_weather?station=LFPG"])await call(p);
+async function get(path){try{const r=await fetch(`https://${host}${path}`,{headers:{Accept:"application/json","X-RapidAPI-Key":key,"X-RapidAPI-Host":host}});return {s:r.status,t:await r.text()}}catch(e){return {s:0,t:String(e.message)}}}
+const wNames=["airport_icao","icao_code","airport_iata","iata_code","code","airport_id","id","ident","location","query","q","station_id","airport_ident","icao_airport","airport_code_icao"];
+const rO=["from","to","origin_airport","destination_airport","departure_airport","arrival_airport","origin_icao","destination_icao","from_airport","to_airport","dep","arr","source","dest","origin_code","destination_code","departure_iata","arrival_iata","departure_icao","arrival_icao","from_iata","to_iata","start","end"];
+let hit=0;
+for(const n of wNames)for(const v of ["LFPG","CDG"]){const r=await get(`/aviation_weather?${n}=${v}`);const j=r.t;if(r.s!==200||!/"icao":"KJFK"/.test(j)){console.log("WEATHER",n,v,r.s,j.replace(/\s+/g," ").slice(0,700));hit++;break}}
+for(const n of rO){const r=await get(`/route_schedules?${n}=LFPG`);if(r.s!==200||!/"iata":"JFK"/.test(r.t)){console.log("ROUTE",n,r.s,r.t.replace(/\s+/g," ").slice(0,500));hit++}}
+// paire complète
+for(const [a,b] of [["origin_icao","destination_icao"],["departure_airport","arrival_airport"],["origin_airport","destination_airport"],["from","to"],["origin","destination"],["departure_icao","arrival_icao"]]){const r=await get(`/route_schedules?${a}=LFPG&${b}=SKBO`);if(!/"iata":"JFK"/.test(r.t)){console.log("ROUTE PAIR",a,b,r.s,r.t.replace(/\s+/g," ").slice(0,700));hit++}}
+console.log("hits",hit);
