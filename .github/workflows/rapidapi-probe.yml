@@ -1,0 +1,27 @@
+name: Test RapidAPI flightradar24-live-api1
+
+on:
+  push:
+    paths:
+      - 'scripts/rapidapi_probe.mjs'
+      - '.github/workflows/rapidapi-probe.yml'
+  workflow_dispatch:
+    inputs:
+      paths:
+        description: "Chemins à appeler, séparés par des virgules"
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Sondage
+        env:
+          RAPIDAPI_KEY: ${{ secrets.RAPIDAPI_KEY || secrets.QUARK_RAPIDAPI_KEY || secrets.AVIATIONDATA_RAPIDAPI_KEY }}
+          PATHS: ${{ github.event.inputs.paths }}
+        run: node scripts/rapidapi_probe.mjs
