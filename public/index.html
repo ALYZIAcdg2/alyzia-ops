@@ -15260,6 +15260,8 @@ const COMPANY_CONFIG_DEFAULT={
 // (aucune règle de classes imposée : les classes viennent du plan cabine).
 const SEATMAP_COMPANY_CODES=['3O','A9','AH','AI','AT','AV','BJ','BM','C3','CTM','DE','EI','ENT','EY','FB','FI','HF','HM','HU','IZ','J2','JU','KK','KU','LA','LO','LS','LY','MH','MS','NH','NO','OZ','PC','RJ','S4','SB','SK','SM','SQ','TB','TK','TS','TU','TW','VF','WB'];
 SEATMAP_COMPANY_CODES.forEach(code=>{
+ // Rubriques de particularités (cartes fiche vol) cochables pour toutes les compagnies, tout visible par défaut.
+ if(!COMPANY_PARTICULARITY_DEFS[code])COMPANY_PARTICULARITY_DEFS[code]=GENERIC_COMPANY_PARTICULARITY_DEFS;
  if(COMPANY_CONFIG_DEFAULT[code])return;
  COMPANY_CONFIG_DEFAULT[code]={
    airline:code,
@@ -15268,7 +15270,7 @@ SEATMAP_COMPANY_CODES.forEach(code=>{
      header:true,config:true,booked:true,upgrade:true,web:true,available:true,standby:true,
      meals:true,particularities:true,inbound:true,outbound:true,notes:true
    },
-   particularities:{}
+   particularities:defaultParticularityVisibility(code)
  };
 });
 // Terminal par défaut de chaque compagnie (modifiable dans CONFIG COMPAGNIE).
