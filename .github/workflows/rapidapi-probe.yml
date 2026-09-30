@@ -9,7 +9,7 @@ on:
     inputs:
       flight:
         description: "Vol en l'air à chercher"
-        default: "SQ335"
+        default: "FI543"
 
 permissions:
   contents: read
