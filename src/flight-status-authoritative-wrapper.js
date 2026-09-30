@@ -7,6 +7,7 @@ const UI=String.raw`<style id="alyzia-flight-status-authoritative-css">
 .flight-detail-status-wrap .v2-status.ops-time-alert{background:#fee8ec!important;color:#d91f34!important}
 .flight-head .duration{font-size:21px!important;font-weight:950!important}
 .flight-detail-status-wrap{display:flex;align-items:center;margin-top:6px;min-height:32px}
+.flight-detail-terminal.term-t1{background:#0a4aa8;border-color:#0a4aa8;color:#fff}.flight-detail-terminal.term-t2{background:#0d7a27;border-color:#0d7a27;color:#fff}.flight-detail-terminal.term-t3{background:#a80c66;border-color:#a80c66;color:#fff}
 .flight-detail-terminal{display:inline-flex;align-items:center;margin-right:8px;padding:8px 13px;border-radius:999px;background:#eef3f8;border:1px solid #dbe5ef;color:#28425f;font:900 14px/1 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap}
 .flight-detail-status-wrap .v2-status{font-size:14px!important;padding:8px 13px!important}
 @media(max-width:620px){
@@ -146,7 +147,7 @@ const UI=String.raw`<style id="alyzia-flight-status-authoritative-css">
     let wrap=id.querySelector('.flight-detail-status-wrap');
     if(!wrap){wrap=document.createElement('div');wrap.className='flight-detail-status-wrap';wrap.innerHTML='<span class="v2-status programme">PROGRAMMÉ</span>';id.appendChild(wrap)}
     const badge=wrap.querySelector('.v2-status'),x=getCurrentFlight();
-    {const term=(x&&typeof window.__alyziaTerminalOf==='function')?window.__alyziaTerminalOf(x):'';let chip=wrap.querySelector('.flight-detail-terminal');if(term){if(!chip){chip=document.createElement('span');chip.className='flight-detail-terminal';wrap.insertBefore(chip,badge)}const t='TERM '+term;if(chip.textContent!==t)chip.textContent=t}else chip?.remove()}
+    {const term=(x&&typeof window.__alyziaTerminalOf==='function')?window.__alyziaTerminalOf(x):'';let chip=wrap.querySelector('.flight-detail-terminal');if(term){if(!chip){chip=document.createElement('span');chip.className='flight-detail-terminal';wrap.insertBefore(chip,badge)}const t='TERM '+term,cls='flight-detail-terminal term-'+term.toLowerCase();if(chip.textContent!==t)chip.textContent=t;if(chip.className!==cls)chip.className=cls}else chip?.remove()}
     const label=statusFromFlight(x);
     if(label)setBadge(badge,label,flightHasRedOperationalTime(x));
   }
