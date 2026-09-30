@@ -7428,7 +7428,7 @@ async function loadFlightsFromCloud({attempts=3}={}){
  for(let attempt=1;attempt<=attempts;attempt++){
    try{
      if(attempt>1)setOpsCloudConnecting(`CONNEXION AU CLOUD · TENTATIVE ${attempt}/${attempts}`);
-     const data=await cloudRequest(`${OPS_CLOUD_API}?_=${Date.now()}`,{method:'GET',cache:'no-store'},4000);
+     const data=await cloudRequest(`${OPS_CLOUD_API}?_=${Date.now()}`,{method:'GET',cache:'no-store'},9000);
      if(data?.ok && Array.isArray(data.flights)){
        syncCompanyConfigFromFlights(data.flights);
        const {flights}=splitCloudRecords(data.flights);
@@ -7566,7 +7566,7 @@ function openOpsFlightDb(){
   req.onerror=()=>reject(req.error||new Error('ERREUR INDEXEDDB'));
  });
 }
-async function saveImportedFlightsPersistent(flights){
+async function saveImportedFlightsPersistent(flights,opts){
  beginOpsCloudWrite();
  try{
    if(Array.isArray(flights)&&flights.length){
@@ -7595,6 +7595,7 @@ async function saveImportedFlightsPersistent(flights){
    }catch(e){}
 
    // Source partagée : D1. Le verrou reste actif jusqu'à la fin réelle du POST.
+   if(opts&&opts.skipCloud)return localSaved;
    const cloudSaved=await syncFlightsToCloud(flights);
    return cloudSaved || localSaved;
  }finally{
@@ -19120,6 +19121,8 @@ async function applyFlightImportChoice(choice){
 
  const existingMap=new Map(FLIGHTS.map(x=>[flightImportIdentity(x),x]));
  const result=[...FLIGHTS];
+ const importStamp=new Date().toISOString();
+ const touchedImport=[];
 
  for(const row of p.rows){
   const identity=flightImportIdentity({date:row[7],airline:row[1],flight:row[2],std:row[4]});
@@ -19130,14 +19133,18 @@ async function applyFlightImportChoice(choice){
     // Même vol / même date : on conserve les données opérationnelles déjà saisies,
     // mais les données de programmation importées sont actualisées.
     mergeImportedRowIntoExisting(old,row);
+    old.importedAt=importStamp;old.importBatch={at:importStamp,file:p.filename||''};
+    touchedImport.push(old);
    }
    // choice keep = rien à faire => aucun doublon.
    continue;
   }
 
   const created=defaultFlightObject(row);
+  created.importedAt=importStamp;created.importBatch={at:importStamp,file:p.filename||''};
   result.push(created);
   existingMap.set(identity,created);
+  touchedImport.push(created);
  }
 
  // sécurité finale anti-doublon
@@ -19150,7 +19157,23 @@ async function applyFlightImportChoice(choice){
 
  FLIGHTS.splice(0,FLIGHTS.length,...finalFlights);
 
- const saved=await saveImportedFlightsPersistent(finalFlights);
+ // Sauvegarde locale complète + envoi cloud UNIQUEMENT des vols importés, par lots :
+ // l'envoi de toute la liste dépassait le délai et n'atteignait jamais D1 (donc pas visible sur mobile).
+ const localOk=await saveImportedFlightsPersistent(finalFlights,{skipCloud:true});
+ let cloudOk=true;
+ beginOpsCloudWrite();
+ try{
+  for(let i=0;i<touchedImport.length;i+=50){
+   const ok=await syncFlightsToCloud(touchedImport.slice(i,i+50));
+   if(!ok){cloudOk=false;break}
+  }
+ }finally{endOpsCloudWrite()}
+ const saved=cloudOk&&(localOk||!touchedImport.length);
+ try{
+  const hist=JSON.parse(localStorage.getItem('alyzia_flight_import_history')||'[]');
+  hist.unshift({at:importStamp,file:p.filename||'',count:touchedImport.length,cloud:cloudOk});
+  localStorage.setItem('alyzia_flight_import_history',JSON.stringify(hist.slice(0,30)));
+ }catch(e){}
  selectedDate=p.rows[0]?.[7]||selectedDate;
  const importedCount=p.importedCount;
  const conflictCount=p.conflicts.length;
@@ -19164,13 +19187,13 @@ async function applyFlightImportChoice(choice){
  if(status){
   status.className=saved?'import-status ok':'import-status err';
   status.innerHTML=saved
-   ? `✓ IMPORT TERMINÉ ET SAUVEGARDÉ<br>
+   ? `✓ IMPORT TERMINÉ ET SAUVEGARDÉ · ${new Date(importStamp).toLocaleString('fr-FR',{timeZone:'Europe/Paris'})}<br>
       <b>${importedCount} VOL(S) VALIDE(S)</b> · ${newCount} NOUVEAU(X) · ${conflictCount} DÉJÀ PRÉSENT(S)<br>
       KL EXCLUS : <b>${p.excludedKL||0}</b> · LIGNES IGNORÉES : <b>${p.ignoredInvalid||0}</b> · DOUBLONS DANS LE FICHIER : <b>${p.duplicatesInsideFile||0}</b><br>
       MODE : <b>${choice==='replace'?'ÉCRASER LES EXISTANTS':'CONSERVER LES EXISTANTS'}</b><br>
       LES VOLS RESTERONT CHARGÉS APRÈS ACTUALISATION DE LA PAGE.<br><br>
       <button class="save" onclick="closeAllModals();renderHome()">AFFICHER LA LISTE DES VOLS</button>`
-   : `IMPORT APPLIQUÉ MAIS LA SAUVEGARDE PERSISTANTE A ÉCHOUÉ.`;
+   : `IMPORT APPLIQUÉ SUR CET APPAREIL MAIS L'ENVOI AU CLOUD A ÉCHOUÉ : LES AUTRES APPAREILS (MOBILE) NE VERRONT PAS CES VOLS. RÉESSAYEZ L'IMPORT.`;
  }
 }
 function openFlightInfo(){
