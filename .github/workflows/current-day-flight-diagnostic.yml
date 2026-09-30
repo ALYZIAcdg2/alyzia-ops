@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+env:
+  CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+  CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+
 jobs:
   diag:
     runs-on: ubuntu-latest
@@ -20,8 +24,8 @@ jobs:
         run: |
           DATE=$(TZ=Europe/Paris date +%F)
           NOW=$(TZ=Europe/Paris date +%H:%M)
-          curl -sS -f "$API/api/flights" -o flights.json
-          curl -sS "$API/api/admin/flight-processing" -o admin.json || true
+          curl -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" -sS -f "$API/api/flights" -o flights.json
+          curl -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" -sS "$API/api/admin/flight-processing" -o admin.json || true
           node - "$DATE" "$NOW" > flight-audit.txt <<'NODE'
           const fs=require('fs');
           const date=process.argv[2], now=process.argv[3];

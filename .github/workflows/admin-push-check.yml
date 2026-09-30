@@ -6,6 +6,10 @@ on:
 permissions:
   contents: read
 
+env:
+  CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+  CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+
 jobs:
   push:
     runs-on: ubuntu-latest
@@ -15,19 +19,19 @@ jobs:
     steps:
       - name: Etat avant
         run: |
-          curl -sS "$API/api/flights" -o before.json
+          curl -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" -sS "$API/api/flights" -o before.json
           node -e "
           const j=require('./before.json');const t=new Date().toISOString().slice(0,10);
           const f=(j.flights||[]).filter(x=>x.date===t);const dep=f.filter(x=>x.atd&&String(x.atd).trim()&&x.atd!=='—');
           console.log('AVANT vols du jour',f.length,'| avec ATD',dep.length,'| avec ATA',f.filter(x=>x.ata&&x.ata!=='—').length)"
       - name: PUSH
         run: |
-          curl -sS -m 60 -X POST "$API/api/admin/push-now" -w "\nHTTP %{http_code}\n"
+          curl -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" -sS -m 60 -X POST "$API/api/admin/push-now" -w "\nHTTP %{http_code}\n"
       - name: Etat après
         run: |
           sleep 5
-          curl -sS "$API/api/flights" -o after.json
-          curl -sS "$API/api/admin/flight-processing" -o admin.json
+          curl -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" -sS "$API/api/flights" -o after.json
+          curl -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" -sS "$API/api/admin/flight-processing" -o admin.json
           node -e "
           const j=require('./after.json'),a=require('./admin.json');const t=new Date().toISOString().slice(0,10);
           const f=(j.flights||[]).filter(x=>x.date===t).sort((x,y)=>String(x.std).localeCompare(String(y.std)));

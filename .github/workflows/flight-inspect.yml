@@ -13,6 +13,10 @@ on:
 permissions:
   contents: read
 
+env:
+  CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+  CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+
 jobs:
   inspect:
     runs-on: ubuntu-latest
@@ -23,7 +27,7 @@ jobs:
       DATE: ${{ github.event.inputs.date }}
     steps:
       - run: |
-          curl -sS "$API/api/flights" -o flights.json
+          curl -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" -sS "$API/api/flights" -o flights.json
           node -e "
           const j=require('./flights.json');const f=(j.flights||[]).filter(x=>String(x.flight||'').toUpperCase()===process.env.FLIGHT.toUpperCase()&&String(x.date)===(process.env.DATE||new Date().toISOString().slice(0,10))).sort((a,b)=>String(b.date).localeCompare(String(a.date))).slice(0,2);
           for(const x of f){console.log('=====',x.date,x.flight);for(const [k,v] of Object.entries(x)){if(/passenger|prepa|common|inbound|outbound|meal|booked|enrichment\$|flightInfoLog|positioning|notes/i.test(k))continue;const s=typeof v==='object'?JSON.stringify(v):String(v);console.log(k,'=',s.slice(0,200))}

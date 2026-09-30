@@ -7,13 +7,17 @@ jobs:
   check:
     runs-on: ubuntu-latest
     timeout-minutes: 3
+    env:
+      CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+      CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
     steps:
       - run: |
           A=https://alyzia-ops.alyzia-cdg2.workers.dev
-          for p in / /api/flights /api/weather?iata=CDG /api/enrichment/status /api/opensky/ingest; do
-            curl -sS -o b.txt -D h.txt -w "GET $p -> %{http_code} " "$A$p"
-            grep -iE "^(location|cf-access|www-authenticate)" h.txt | head -2 | cut -c1-110 | tr -d '\r' | tr '\n' ' '
-            echo
+          if [ -n "$CF_ACCESS_CLIENT_ID" ] && [ -n "$CF_ACCESS_CLIENT_SECRET" ]; then echo "secrets GitHub du jeton de service : présents"; else echo "secrets GitHub du jeton de service : ABSENTS"; fi
+          echo "--- sans jeton de service (doit être refusé : 302 vers la connexion)"
+          for p in / /api/flights; do curl -sS -o /dev/null -w "GET $p -> %{http_code}\n" "$A$p"; done
+          echo "--- avec le jeton de service (doit passer : 200)"
+          for p in /api/enrichment/status "/api/weather?iata=CDG" "/api/flights?identity=2099-12-31%7CSYS%7CCOMPANY_CONFIG"; do
+            curl -sS -o b.txt -w "GET $p -> %{http_code} " -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" "$A$p"; head -c 80 b.txt; echo
           done
-          echo "--- avec le jeton admin (ne doit pas contourner Access)"
-          curl -sS -o b.txt -w "autopilot/status + jeton -> %{http_code}\n" -H "Authorization: Bearer ${{ secrets.ALYZIA_API_SECRET }}" "$A/api/autopilot/status"
+          curl -sS -o /dev/null -w "page d'accueil avec jeton -> %{http_code}\n" -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" "$A/"

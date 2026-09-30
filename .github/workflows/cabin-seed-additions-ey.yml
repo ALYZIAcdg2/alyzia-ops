@@ -14,6 +14,8 @@ permissions:
 
 env:
   ALYZIA_API_SECRET: ${{ secrets.ALYZIA_API_SECRET }}
+  CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+  CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
 
 jobs:
   seed:
@@ -26,8 +28,8 @@ jobs:
       - name: Seed EY reference configs
         run: |
           node -e "const fs=require('fs');const o=JSON.parse(fs.readFileSync('scripts/cabin_seed_additions_ey_20260930.json','utf8'));fs.writeFileSync('payload.json',JSON.stringify({configs:o.configs||[]}));"
-          curl -H "Authorization: Bearer $ALYZIA_API_SECRET" -sS -f -X POST "$API/api/cabin/seed" -H "Content-Type: application/json" --data-binary @payload.json
-          curl -H "Authorization: Bearer $ALYZIA_API_SECRET" -sS -f -X POST "$API/api/cabin/recompute-classes" >/dev/null
+          curl -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" -H "Authorization: Bearer $ALYZIA_API_SECRET" -sS -f -X POST "$API/api/cabin/seed" -H "Content-Type: application/json" --data-binary @payload.json
+          curl -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" -H "Authorization: Bearer $ALYZIA_API_SECRET" -sS -f -X POST "$API/api/cabin/recompute-classes" >/dev/null
       - name: Reapply operational classes
         run: |
           node <<'NODE'
@@ -35,14 +37,14 @@ jobs:
           const lines=(o.configs||[]).map(r=>JSON.stringify({configKey:r.configKey,airline:r.airline,aircraft:r.aircraft,configuration:r.configuration,total:r.operationalTotal,classes:r.operationalClasses,quality:r.quality||'good',sourceLabel:r.sourceLabel||null}));
           fs.writeFileSync('ops.ndjson',lines.join('\n')+'\n');
           NODE
-          while IFS= read -r p; do [ -z "$p" ] && continue; curl -sS -f -X POST "$API/api/cabin/config" -H "Content-Type: application/json" --data "$p" >/dev/null; done < ops.ndjson
+          while IFS= read -r p; do [ -z "$p" ] && continue; curl -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" -sS -f -X POST "$API/api/cabin/config" -H "Content-Type: application/json" --data "$p" >/dev/null; done < ops.ndjson
       - name: Reevaluate existing EY flights
         run: |
-          curl -sS -f "$API/api/flights" -o flights.json
+          curl -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" -sS -f "$API/api/flights" -o flights.json
           node <<'NODE'
           const fs=require('fs');const j=JSON.parse(fs.readFileSync('flights.json','utf8'));
           const rows=(j.flights||[]).filter(f=>['EY'].includes(String(f.airline||'').toUpperCase()) && f.aircraft && !String(f.sariaConfigKey||'').trim());
-          const lines=rows.map(f=>{const identity=[f.date,f.airline,f.flight].join('|');return `curl -sS -f -X PATCH "$API/api/flights" -H "Content-Type: application/json" --data-binary '${JSON.stringify({identity,patch:{}})}' -o /dev/null`;});
+          const lines=rows.map(f=>{const identity=[f.date,f.airline,f.flight].join('|');return `curl -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" -sS -f -X PATCH "$API/api/flights" -H "Content-Type: application/json" --data-binary '${JSON.stringify({identity,patch:{}})}' -o /dev/null`;});
           fs.writeFileSync('reeval.sh',lines.join('\n'));console.log('vols reevalues:',rows.length);
           NODE
           [ -s reeval.sh ] && bash reeval.sh || true

@@ -13,6 +13,10 @@ concurrency:
   group: alyzia-ops-production
   cancel-in-progress: true
 
+env:
+  CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+  CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -66,6 +70,6 @@ jobs:
       - name: Smoke test
         run: |
           sleep 5
-          curl -sS -f "https://alyzia-ops.alyzia-cdg2.workers.dev/api/enrichment/status"
+          curl -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" -sS -f "https://alyzia-ops.alyzia-cdg2.workers.dev/api/enrichment/status"
           echo
-          curl -sSI "https://alyzia-ops.alyzia-cdg2.workers.dev/" | grep -i "x-alyzia-page\|cache-control\|etag" || echo "ATTENTION : page non fabriquée (repli sur le calcul à l'ouverture)"
+          curl -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" -sSI "https://alyzia-ops.alyzia-cdg2.workers.dev/" | grep -i "x-alyzia-page\|cache-control\|etag" || echo "ATTENTION : page non fabriquée (repli sur le calcul à l'ouverture)"

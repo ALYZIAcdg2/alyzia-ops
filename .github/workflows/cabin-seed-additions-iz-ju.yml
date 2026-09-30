@@ -14,6 +14,8 @@ permissions:
 
 env:
   ALYZIA_API_SECRET: ${{ secrets.ALYZIA_API_SECRET }}
+  CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+  CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
 
 jobs:
   seed:
@@ -36,7 +38,7 @@ jobs:
 
       - name: POST /api/cabin/seed
         run: |
-          curl -H "Authorization: Bearer $ALYZIA_API_SECRET" -sS -f -X POST "$API/api/cabin/seed" \
+          curl -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" -H "Authorization: Bearer $ALYZIA_API_SECRET" -sS -f -X POST "$API/api/cabin/seed" \
             -H "Content-Type: application/json" \
             --data-binary @seed_payload.json | tee seed_result.json
           echo
@@ -44,7 +46,7 @@ jobs:
 
       - name: Recalcule classes_json et total
         run: |
-          curl -H "Authorization: Bearer $ALYZIA_API_SECRET" -sS -f -X POST "$API/api/cabin/recompute-classes" | tee recompute_result.json
+          curl -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" -H "Authorization: Bearer $ALYZIA_API_SECRET" -sS -f -X POST "$API/api/cabin/recompute-classes" | tee recompute_result.json
           echo
           cat recompute_result.json
 
@@ -68,7 +70,7 @@ jobs:
           "
           while IFS= read -r payload; do
             [ -z "$payload" ] && continue
-            curl -sS -f -X POST "$API/api/cabin/config" \
+            curl -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" -sS -f -X POST "$API/api/cabin/config" \
               -H "Content-Type: application/json" \
               --data "$payload"
             echo
@@ -76,7 +78,7 @@ jobs:
 
       - name: Vérifie les tris classes
         run: |
-          curl -sS -f "$API/api/cabin/configs" -o all_configs.json
+          curl -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" -sS -f "$API/api/cabin/configs" -o all_configs.json
           node -e "
             const fs=require('fs');
             const all=JSON.parse(fs.readFileSync('all_configs.json','utf8')).configs||[];
@@ -96,7 +98,7 @@ jobs:
 
       - name: Injection directe CONFIG sur les vols IZ et JU déjà en base
         run: |
-          curl -sS -f "$API/api/flights" -o all_flights.json
+          curl -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" -sS -f "$API/api/flights" -o all_flights.json
           node -e "
             const fs=require('fs');
             const j=JSON.parse(fs.readFileSync('all_flights.json','utf8'));
@@ -112,14 +114,14 @@ jobs:
           "
           while IFS= read -r payload; do
             [ -z "$payload" ] && continue
-            curl -sS -f -X PATCH "$API/api/flights" \
+            curl -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" -sS -f -X PATCH "$API/api/flights" \
               -H "Content-Type: application/json" \
               --data "$payload" -o /dev/null
           done < retrofit_targets.ndjson
 
       - name: Vérifie l'injection directe IZ et JU
         run: |
-          curl -sS -f "$API/api/flights" -o all_flights_after.json
+          curl -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" -sS -f "$API/api/flights" -o all_flights_after.json
           node -e "
             const j=JSON.parse(require('fs').readFileSync('all_flights_after.json','utf8'));
             const airlines=new Set(['IZ','JU']);
