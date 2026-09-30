@@ -1,0 +1,45 @@
+name: Check-up fournisseurs et vols à contrôler
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/provider-checkup.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  checkup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      API: https://alyzia-ops.alyzia-cdg2.workers.dev
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check-up
+        run: |
+          curl -sS "$API/api/flights" -o flights.json
+          curl -sS "$API/api/admin/flight-processing" -o admin.json
+          for p in AIRLABS SKYLINK OAG AERODATABOX OPENSKY QUARK AVIATIONDATA; do curl -sS "$API/api/admin/provider-observability/detail?provider=$p" -o "det_$p.json" || true; done
+          node <<'NODE'
+          const fs=require('fs');
+          const rd=f=>{try{return JSON.parse(fs.readFileSync(f,'utf8'))}catch{return null}};
+          const admin=rd('admin.json')||{},fl=(rd('flights.json')||{}).flights||[];
+          console.log('NOW',new Date().toISOString(),'ADMIN date',admin.date,'summary',JSON.stringify(admin.summary?.today));
+          console.log('=== QUOTAS ===');
+          (admin.quotas||[]).forEach(q=>console.log(q.provider,'day',q.today,'month',q.month,'limit',q.limit,'reserve',q.reserve,'remaining',q.remaining,'last',q.lastStatus,q.lastAt));
+          for(const p of ['AIRLABS','SKYLINK','OAG','AERODATABOX','OPENSKY','QUARK','AVIATIONDATA']){
+            const d=rd('det_'+p+'.json');console.log('=== DETAIL',p,'===');
+            console.log(JSON.stringify(d).slice(0,1500));
+          }
+          const ctrl=(admin.flights||[]).filter(x=>x.date===admin.date&&x.state==='À CONTRÔLER');
+          console.log('=== A CONTROLER',ctrl.length,'===');
+          const byId=new Map(fl.map(f=>[(f.date||'')+'|'+(f.flight||f.flight_number),f]));
+          for(const x of ctrl.slice(0,12)){
+            const f=byId.get(x.date+'|'+x.flight)||{};
+            const keys=Object.keys(f).filter(k=>/(check|last|provider|status|source|error|queue|attempt|next)/i.test(k)&&!/passenger|prepa/i.test(k));
+            console.log('--',x.flight,x.std,'missing',x.missing.join(','));
+            keys.forEach(k=>{const v=typeof f[k]==='object'?JSON.stringify(f[k]).slice(0,160):String(f[k]).slice(0,160);console.log('   ',k,'=',v)});
+          }
+          NODE
