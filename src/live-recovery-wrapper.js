@@ -98,8 +98,15 @@ async function airlabsRecovery(env,rows,now,yesterday){
   for(let page=0;page<2;page++){
     if(total+calls>=Math.max(0,limit-reserve))break;
     const q=new URLSearchParams({dep_iata:"CDG",api_key:env.AIRLABS_API_KEY,limit:"50",offset:String(page*50),_fields:fields});
-    let r;try{r=await fetch(`https://airlabs.co/api/v9/schedules?${q}`,{headers:{Accept:"application/json"}})}catch(e){await bump(env,lane,502);return {ok:false,status:502,error:String(e?.message||e)}}
-    calls++;lastStatus=r.status;await bump(env,lane,r.status);const payload=await r.json().catch(()=>null);if(!r.ok)return {ok:false,status:r.status,error:`AIRLABS_${r.status}`,calls};
+    // AirLabs (derrière Cloudflare) renvoie parfois 500/520 de façon passagère : une seule nouvelle tentative après 1,5 s.
+    let r;
+    for(let attempt=0;attempt<2;attempt++){
+      try{r=await fetch(`https://airlabs.co/api/v9/schedules?${q}`,{headers:{Accept:"application/json","User-Agent":"alyzia-ops/1.0"}})}catch(e){await bump(env,lane,502);return {ok:false,status:502,error:String(e?.message||e)}}
+      calls++;lastStatus=r.status;await bump(env,lane,r.status);
+      if(r.status<500||attempt===1)break;
+      await sleep(1500);
+    }
+    const payload=await r.json().catch(()=>null);if(!r.ok)return {ok:false,status:r.status,error:`AIRLABS_${r.status}`,calls};
     const pageRows=airlabsRows(payload);all.push(...pageRows);if(pageRows.length<50)break;if(page===0)await sleep(200);
   }
   const at=new Date().toISOString(),changes=[];
