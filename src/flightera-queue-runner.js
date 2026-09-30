@@ -8,12 +8,12 @@ import {noteAndSwitch} from "./aircraft-change.js";
 const PROVIDER="FLIGHTERA";
 const HOST="flightera-flight-data.p.rapidapi.com";
 const MAX_PER_RUN=1;             // cron toutes les 5 min
-const DAY_CAP=10;
+const DAY_CAP=20;
 const MONTH_CAP=170;             // plan 200/mois, marge pour les essais manuels
 const COOLDOWN_MIN=90;           // par vol
 const MAX_ATTEMPTS_PER_FLIGHT=3;
 const MAX_NOT_FOUND=2;
-const FIELDS=["atd","ata","etd","eta","gate","reg"];
+const FIELDS=["sta","atd","ata","etd","eta","gate","reg"];
 
 const clean=v=>String(v??"").trim();
 const upper=v=>clean(v).toUpperCase();
@@ -57,6 +57,7 @@ export function parseFlightera(payload,date,origin="CDG"){
   const depEst=Boolean(f.actual_departure_is_estimated),arrEst=Boolean(f.actual_arrival_is_estimated);
   const st=upper(f.status);
   return {
+    sta:local(f.scheduled_arrival_local),
     atd:f.actual_departure_local&&!depEst?local(f.actual_departure_local):"",
     etd:f.actual_departure_local&&depEst?local(f.actual_departure_local):"",
     ata:f.actual_arrival_local&&!arrEst?local(f.actual_arrival_local):"",

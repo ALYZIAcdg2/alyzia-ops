@@ -22,7 +22,7 @@ function providerEligible(env,p,x,d){
   if(p==="OAG_SCHEDULE"||p==="OAG_STATUS"||p==="AIRLABS"||p==="OPENSKY"||p==="QUARK")return true;
   if(p==="FR24DEP")return d<=30&&d>=-1800;   // rattrapage groupé : tous les départs de CDG déjà partis ou sur le point de partir
   if(p==="FLIGHTRADAR1"||p==="FLIGHTRADAR8")return d<=30&&d>=-360;   // fiche « live » : vol en l'air, immatriculation + type d'appareil réel
-  if(p==="FLIGHTERA")return d<=0;   // dès l'heure de départ passée : ATD/ATA réels en un seul appel
+  if(p==="FLIGHTERA")return d<=0||(d<=1440&&!clean(x.sta));   // vol parti, ou vol du jour sans STA (aucun autre fournisseur ne la donne)   // dès l'heure de départ passée : ATD/ATA réels en un seul appel
   if(p==="AVIATIONDATA")return d<=0&&(attempted(x,"OAG_STATUS")||attempted(x,"AIRLABS")||attempted(x,"SKYLINK"));   // last resort, flight already scheduled to have departed
   if(p==="SKYLINK")return d<=30||attempted(x,"OAG_STATUS")||attempted(x,"OAG_SCHEDULE")||attempted(x,"AIRLABS")||attempted(x,"OPENSKY");
   if(p==="AERODATABOX"){
