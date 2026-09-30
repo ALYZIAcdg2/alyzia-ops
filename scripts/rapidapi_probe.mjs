@@ -11,4 +11,6 @@ async function call(path){
     console.log(j?JSON.stringify(deep(j)).slice(0,3200):text.slice(0,300));
   }catch(e){console.log(`\n### ${path}\nERREUR ${e.message}`)}
 }
-for(const p of (process.env.PATHS||"/airports/search,/airports/departures/load-earlier-flights,/v2/flights/search").split(","))await call(p);
+await call("/airports/search?q=CDG");
+await call("/airports/departures/load-earlier-flights?airport_id=CDG");
+await call("/v2/flights/search?query=TK1822");
