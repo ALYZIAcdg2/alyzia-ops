@@ -8619,6 +8619,7 @@ function renderHome(){
  updateMobileNav();
  const rows=FLIGHTS.map((x,i)=>({...x,_index:i}))
    .filter(x=>!x.date||x.date===HOME_DATE)
+   .filter(()=>!opsHomeOutsideWindow(HOME_DATE))
    .filter(x=>TERMINAL_FILTER==='ALL'||AIRLINE_TERMINAL[String(x.airline||'').toUpperCase()]===TERMINAL_FILTER)
    .sort((a,b)=>(Number(isFavoriteFlight(b))-Number(isFavoriteFlight(a)))||sortByDeparture(a,b));
  const dateLabel=formatDateLong(HOME_DATE);
@@ -18774,10 +18775,9 @@ function opsScheduleBackgroundAll(){
  setTimeout(go,15000);
 }
 // Navigation vers une date hors de la fenêtre : on charge d'abord cette date, puis on affiche.
-function opsWithDate(date,fn){
- if(!opsNeedRange(date))return fn();
- opsEnsureRange(date,date).then(fn,fn);
-}
+// Liste des vols : hors J-1..J+7 elle reste vide (les vols plus anciens sont archivés, consultables via RECHERCHE VOL) ; aucun chargement déclenché.
+function opsHomeOutsideWindow(date){const t=(typeof APP_TODAY!=='undefined'&&APP_TODAY)||localISO(new Date());return /^\d{4}-\d{2}-\d{2}$/.test(String(date||''))&&(date<addDaysISO(t,-OPS_WINDOW_BACK)||date>addDaysISO(t,OPS_WINDOW_FWD))}
+function opsWithDate(date,fn){return fn()}
 const opsChangeSelectedDate_orig=changeSelectedDate;
 changeSelectedDate=function(delta){
  const cur=currentView==='prepa'?PREPA_DATE:HOME_DATE,target=addDaysISO(cur,delta);
