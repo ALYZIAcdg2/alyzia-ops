@@ -22,7 +22,7 @@ jobs:
           console.log('AVANT vols du jour',f.length,'| avec ATD',dep.length,'| avec ATA',f.filter(x=>x.ata&&x.ata!=='—').length)"
       - name: PUSH
         run: |
-          curl -sS -m 120 -X POST "$API/api/admin/push-now" -w "\nHTTP %{http_code}\n"
+          curl -sS -m 60 -X POST "$API/api/admin/push-now" -w "\nHTTP %{http_code}\n"
       - name: Etat après
         run: |
           sleep 5

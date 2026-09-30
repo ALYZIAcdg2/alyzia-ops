@@ -1,5 +1,8 @@
 import app from "./ui-stability-wrapper.js";
-import providerPolicyScheduler from "./provider-policy-scheduler.js";
+import providerPolicyScheduler,{refreshProviderQueue} from "./provider-policy-scheduler.js";
+import {runFr24DepQueue} from "./fr24dep-queue-runner.js";
+import {runFlighteraQueue} from "./flightera-queue-runner.js";
+import {runFlightradar1Queue,runFlightradar8Queue} from "./flightradar1-queue-runner.js";
 import {handleOpenSkyIngest} from "./opensky-live-wrapper.js";
 
 const FIRST_PAINT=String.raw`<style id="alyzia-first-paint-guard-css">html:not(.alyzia-ui-stability-ready) #app{visibility:hidden!important}</style>`;
@@ -27,12 +30,17 @@ async function adminPushNow(request,env,ctx){
   const snapshot=async()=>{try{const {results=[]}=await env.OPS_DB.prepare(`SELECT provider,calls FROM api_provider_usage WHERE period=?`).bind(day).all();const m={};for(const r of results){const k=String(r.provider||"").toUpperCase().replace(/_.*/,"");m[k]=(m[k]||0)+Number(r.calls||0)}return m}catch{return {}}};
   const before=await snapshot(),t0=Date.now();
   globalThis.__ALYZIA_MANUAL_PUSH=true;
-  try{await Promise.resolve(providerPolicyScheduler.scheduled({cron:"manual",scheduledTime:Date.now()},env,{waitUntil:p=>{ctx?.waitUntil?.(p);globalThis.__ALYZIA_PUSH_PENDING=p}}));if(globalThis.__ALYZIA_PUSH_PENDING)await globalThis.__ALYZIA_PUSH_PENDING}
-  catch(e){return jsonResp({ok:false,error:String(e?.message||e)},500)}
-  finally{globalThis.__ALYZIA_MANUAL_PUSH=false;globalThis.__ALYZIA_PUSH_PENDING=null}
+  // On n'exécute PAS tout le cron (trop long pour une requête HTTP : il ne répondait pas) mais l'essentiel : mise à jour de la file
+  // puis les fournisseurs qui rattrapent ATD/ATA/ETD/ETA/STA/porte/immat., dans l'ordre d'efficacité, avec un budget de 25 s.
+  const steps=[["QUEUE",refreshProviderQueue],["FR24DEP",runFr24DepQueue],["FLIGHTERA",runFlighteraQueue],["FLIGHTRADAR8",runFlightradar8Queue],["FLIGHTRADAR1",runFlightradar1Queue]];
+  const results={},started=Date.now();
+  const work=(async()=>{for(const [name,fn] of steps){if(Date.now()-started>22000){results[name]="ignoré (temps)";continue}try{const r=await fn(env);results[name]=r?.skipped||"ok"}catch(e){results[name]="erreur: "+String(e?.message||e).slice(0,80)}}})();
+  const timedOut=await Promise.race([work.then(()=>false),new Promise(r=>setTimeout(()=>r(true),26000))]);
+  if(timedOut){ctx?.waitUntil?.(work.finally(()=>{globalThis.__ALYZIA_MANUAL_PUSH=false}))}
+  else globalThis.__ALYZIA_MANUAL_PUSH=false;
   const after=await snapshot(),calls={};
   for(const k of Object.keys(after)){const d=after[k]-(before[k]||0);if(d>0&&k!=="ADMIN")calls[k]=d}
-  return jsonResp({ok:true,durationMs:Date.now()-t0,calls});
+  return jsonResp({ok:true,durationMs:Date.now()-t0,calls,steps:results,partial:timedOut});
 }
 
 export default {
