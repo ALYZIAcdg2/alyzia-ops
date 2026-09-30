@@ -12,8 +12,8 @@ jobs:
           A=https://alyzia-ops.alyzia-cdg2.workers.dev
           for i in 1 2 3; do curl -sS -H "Accept-Encoding: br" -o /dev/null -w "PAGE br  ttfb=%{time_starttransfer}s total=%{time_total}s size=%{size_download}B\n" $A/; done
           curl -sS -H "Accept-Encoding: gzip" -o /dev/null -w "PAGE gzip size=%{size_download}B total=%{time_total}s\n" $A/
-          curl -sSI $A/ | grep -iE "cache-control|content-encoding|cf-cache|server-timing|etag" || true
-          for i in 1 2 3; do curl -sS -H "Accept-Encoding: br" -o f.json -w "FLIGHTS ttfb=%{time_starttransfer}s total=%{time_total}s size=%{size_download}B\n" $A/api/flights; done
+          curl -sSI $A/api/flights -H "Accept-Encoding: br" | grep -iE "content-encoding|content-length|cache-control" || true; curl -sSI $A/ | grep -iE "cache-control|content-encoding|cf-cache|server-timing|etag" || true
+          for i in 1 2 3; do curl -sS --compressed -o f.json -w "FLIGHTS ttfb=%{time_starttransfer}s total=%{time_total}s size=%{size_download}B\n" $A/api/flights; done
           node -e "const j=require('./f.json');const f=j.flights||[];const sz=f.map(x=>JSON.stringify(x).length).sort((a,b)=>b-a);const keys={};for(const x of f)for(const [k,v] of Object.entries(x)){keys[k]=(keys[k]||0)+JSON.stringify(v).length}
           console.log('nb vols',f.length,'octets JSON',JSON.stringify(j).length,'moyen',Math.round(JSON.stringify(j).length/Math.max(1,f.length)),'max',sz[0]);
           console.log('top champs:',Object.entries(keys).sort((a,b)=>b[1]-a[1]).slice(0,10).map(([k,v])=>k+'='+v).join(' '))"
