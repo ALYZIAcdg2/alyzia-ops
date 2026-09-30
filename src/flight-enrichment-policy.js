@@ -84,7 +84,7 @@ const PROVIDER_FIELDS={
   QUARK:["etd","eta","gate"],
   AVIATIONDATA:["atd","ata"],
   FLIGHTERA:["sta","etd","eta","atd","ata","gate","reg"],
-  FLIGHTRADAR1:["reg"],
+  FLIGHTRADAR1:["reg","atd","ata","etd","eta","sta","gate"],
   FLIGHTRADAR8:["reg","atd","ata","etd","eta","sta","gate"],
   FR24DEP:["etd","eta","atd","ata","gate","reg"]
 };

@@ -78,8 +78,8 @@ function timing(provider,q){
     QUARK:{min:5,cadence:'5 MIN · 4 VOLS MAX PAR PASSAGE',condition:'ETD / ETA / GATE MANQUANTS · 1 ESSAI PAR HEURE ET PAR VOL'},
     AVIATIONDATA:{min:5,cadence:'1 VOL PAR PASSAGE · 12 APPELS PAR JOUR',condition:'DERNIER RECOURS ATD / ATA · 3 ESSAIS MAX PAR VOL'},
     FR24DEP:{min:45,cadence:'1 PASSAGE / 45 MIN · 100 DÉPARTS CDG PAR APPEL · 12 APPELS PAR JOUR',condition:'RATTRAPAGE GROUPÉ ATD / ATA / ETD / ETA / PORTE / IMMAT. + STATUT ANNULÉ'},
-    FLIGHTRADAR8:{min:5,cadence:'1 VOL PAR PASSAGE · 15 APPELS PAR JOUR',condition:'ATD ESTIMÉ (VOL EN L\'AIR) + IMMATRICULATION + APPAREIL RÉEL · TOUS LES VOLS SANS ATD'},
-    FLIGHTRADAR1:{min:5,cadence:'1 VOL PAR PASSAGE · 15 APPELS PAR JOUR',condition:'IMMATRICULATION + APPAREIL RÉEL D\'UN VOL EN L\'AIR'},
+    FLIGHTRADAR8:{min:5,cadence:'1 VOL PAR PASSAGE · 25 APPELS PAR JOUR',condition:'VOL EN L\'AIR : ATD / ATA / ETD / ETA / STA / PORTE / IMMAT. / APPAREIL (MOITIÉ DES VOLS)'},
+    FLIGHTRADAR1:{min:5,cadence:'1 VOL PAR PASSAGE · 25 APPELS PAR JOUR',condition:'VOL EN L\'AIR : ATD / ATA / ETD / ETA / STA / PORTE / IMMAT. / APPAREIL (MOITIÉ DES VOLS)'},
     FLIGHTERA:{min:5,cadence:'1 VOL PAR PASSAGE · 10 APPELS PAR JOUR',condition:'DÉPART PASSÉ SANS ATD / ATA · 3 ESSAIS MAX PAR VOL'}
   }[provider]||{min:5,cadence:'SELON LOGIQUE FOURNISSEUR',condition:'SI CANDIDAT'};
   let eligible=cron;if(last&&Number.isFinite(last.getTime())){const e=new Date(last.getTime()+cfg.min*60000);eligible=ceilFive(e>now?e:now)}

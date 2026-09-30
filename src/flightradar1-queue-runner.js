@@ -7,8 +7,8 @@ import {flighteraKey} from "./flightera-queue-runner.js";
 // Pour un vol EN L'AIR, la recherche renvoie une entrée type "live" avec l'immatriculation (reg) et le type d'appareil réel (ac_type).
 // Un vol au sol ou terminé n'a qu'une entrée "schedule" : pas de données, on n'insiste pas.
 const CONFIGS={
-  FLIGHTRADAR1:{PROVIDER:"FLIGHTRADAR1",HOST:"flight-radar1.p.rapidapi.com",slot:0,fields:["reg"],prefix:"flightradar1",keyEnv:"FLIGHTRADAR1_RAPIDAPI_KEY"},
-  FLIGHTRADAR8:{PROVIDER:"FLIGHTRADAR8",HOST:"flight-radar8.p.rapidapi.com",slot:1,fields:["reg","atd","ata","etd","eta","sta","gate"],atd:true,details:true,prefix:"flightradar8",keyEnv:"FLIGHTRADAR8_RAPIDAPI_KEY"}
+  FLIGHTRADAR1:{PROVIDER:"FLIGHTRADAR1",HOST:"flight-radar1.p.rapidapi.com",slot:0,fields:["reg","atd","ata","etd","eta","sta","gate"],atd:true,details:true,detailPath:"/flights/detail",prefix:"flightradar1",keyEnv:"FLIGHTRADAR1_RAPIDAPI_KEY"},
+  FLIGHTRADAR8:{PROVIDER:"FLIGHTRADAR8",HOST:"flight-radar8.p.rapidapi.com",slot:1,fields:["reg","atd","ata","etd","eta","sta","gate"],atd:true,details:true,detailPath:"/flights/details",prefix:"flightradar8",keyEnv:"FLIGHTRADAR8_RAPIDAPI_KEY"}
 };
 const MAX_PER_RUN=1;
 const DAY_CAP=25;
@@ -54,7 +54,7 @@ async function fetchSearch(env,flight,cfg){
 async function fetchDetails(env,id,cfg){
   const HOST=cfg.HOST;
   try{
-    const r=await fetch(`https://${HOST}/flights/details?flight=${encodeURIComponent(id)}`,{headers:{Accept:"application/json","x-rapidapi-key":frKey(env,cfg),"x-rapidapi-host":HOST},signal:AbortSignal.timeout(10000)});
+    const r=await fetch(`https://${HOST}${cfg.detailPath}?flight=${encodeURIComponent(id)}`,{headers:{Accept:"application/json","x-rapidapi-key":frKey(env,cfg),"x-rapidapi-host":HOST},signal:AbortSignal.timeout(10000)});
     const payload=await r.json().catch(()=>null);
     return {ok:r.ok,status:r.status,payload};
   }catch(e){return {ok:false,status:502,error:String(e?.message||e)}}
@@ -106,9 +106,8 @@ async function runFlightradarQueue(env,cfg){
     if(!cfg.fields.some(f=>allowed.has(f)&&needs[f]))continue;
     if(d>30)continue;
     // Deux API équivalentes (mêmes données) : on répartit les vols entre elles selon la parité du numéro de vol.
-    // Flightradar8 traite en plus TOUS les vols dont l'ATD manque (rattrapage du départ), quelle que soit la parité.
-    const needsAtd=Boolean(cfg.atd&&allowed.has("atd")&&needs.atd);
-    if(!needsAtd&&[...fullFlight(x,row)].reduce((a,c)=>a+c.charCodeAt(0),0)%2!==cfg.slot)continue;                                   // au sol avant le départ : pas de fiche « live »
+    // Deux API équivalentes : les vols sont répartis entre elles selon la parité du numéro de vol.
+    if([...fullFlight(x,row)].reduce((a,c)=>a+c.charCodeAt(0),0)%2!==cfg.slot)continue;                                   // au sol avant le départ : pas de fiche « live »
     if(!globalThis.__ALYZIA_MANUAL_PUSH&&ageMs(x[P+"LastCheckedAt"])<COOLDOWN_MIN*60000)continue;
     if(Number(x[P+"NotLiveAttempts"]||0)>=MAX_NOT_LIVE)continue;
     if(Number(x[P+"Attempts"]||0)>=MAX_ATTEMPTS_PER_FLIGHT)continue;
