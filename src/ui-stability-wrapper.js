@@ -83,7 +83,7 @@ const NAV_STABILITY=String.raw`<script id="alyzia-ui-stability-nav-js">(()=>{
   const isFlightOpenControl=el=>Boolean(el?.closest?.('#app .flight-home-row,#app [data-flight-index],#app .ops-search-flight'));
 
   document.addEventListener('click',e=>{
-    if(isFlightOpenControl(e.target)&&!detailVisible())lastHomeScroll=window.scrollY||0;
+    if(isFlightOpenControl(e.target)&&!detailVisible()){lastHomeScroll=window.scrollY||0;homeLockUntil=0;window.__alyziaHomeNavigationLockUntil=0}   // ouvrir un vol = intention explicite : lève le verrou de retour à la liste
     if(isHomeReturnControl(e.target))lockHome();
   },true);
 
@@ -103,7 +103,8 @@ const NAV_STABILITY=String.raw`<script id="alyzia-ui-stability-nav-js">(()=>{
           if(homeLocked()&&!detailVisible())return;
           const wasDetail=detailVisible(),y=window.scrollY||0;
           const out=original.apply(this,args);
-          if(wasDetail&&!homeLocked())restoreDetailScroll(y);
+          if(!wasDetail){window.scrollTo(0,0);requestAnimationFrame(()=>{if(detailVisible())window.scrollTo(0,0)})}   // arrivée sur une fiche : toujours en haut (la liste garde sa position)
+          else if(!homeLocked())restoreDetailScroll(y);
           else if(homeLocked())restoreHomeScroll();
           return out;
         };

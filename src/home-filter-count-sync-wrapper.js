@@ -1,7 +1,7 @@
 import app from "./home-time-filter-v2-specificity-wrapper.js";
 
 const UI=String.raw`<style id="alyzia-home-combined-count-css">
-#app .alyzia-native-flight-count{display:none!important}
+#app .alyzia-native-flight-count,#app #homeVisibleFlightCount:not(.alyzia-combined-flight-count){display:none!important}
 </style><script id="alyzia-home-filter-count-sync">(()=>{'use strict';
 if(window.__alyziaHomeFilterCountSyncV4)return;window.__alyziaHomeFilterCountSyncV4=true;
 const norm=v=>String(v||'').toUpperCase().trim();
