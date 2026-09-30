@@ -18674,7 +18674,8 @@ async function cacheCloudFlightsLocally(list){
    });
    db.close();
  }catch(e){}
- try{localStorage.setItem('alyzia_ops_imported_flights_v19',JSON.stringify(list))}catch(e){}
+ // Une grosse liste dépasse de toute façon le quota de localStorage (5 Mo) : on évite de la sérialiser pour rien.
+ try{if((Array.isArray(list)?list.length:0)<400)localStorage.setItem('alyzia_ops_imported_flights_v19',JSON.stringify(list))}catch(e){}
 }
 
 const OPS_DELTA={all:null,token:'',epoch:'',fullAt:0};
@@ -18803,15 +18804,57 @@ function opsInstallNeedsAllWrappers(){
 }
 window.addEventListener('load',()=>{setTimeout(opsInstallNeedsAllWrappers,0);setTimeout(opsInstallNeedsAllWrappers,2500)});
 
+// Applique un lot de vols modifiés (synchro par différences) sans toucher au reste de la liste.
+// Les vols sont remplacés À LEUR PLACE : l'ordre de FLIGHTS et l'index "selected" restent valides.
+function opsApplyDelta(records,{selectedIdentity,forceRender}={}){
+ const beforeConfigHash=stableCompanyConfigHash();
+ syncCompanyConfigFromFlights(records);
+ const afterConfigHash=stableCompanyConfigHash();
+ const configChanged=beforeConfigHash!==afterConfigHash;
+ const {flights}=splitCloudRecords(records);
+ normalizeLegacyImportedDurations(flights);
+ // liste de référence (toutes les plages chargées, enregistrements système compris)
+ const idxAll=new Map();OPS_DELTA.all.forEach((f,i)=>idxAll.set(opsDeltaKey(f),i));
+ for(const r of records){const k=opsDeltaKey(r);if(!k)continue;if(idxAll.has(k))OPS_DELTA.all[idxAll.get(k)]=r;else{idxAll.set(k,OPS_DELTA.all.length);OPS_DELTA.all.push(r)}}
+ // mémoire de l'écran
+ const idxF=new Map();FLIGHTS.forEach((f,i)=>idxF.set(opsDeltaKey(f),i));
+ let flightChanged=false;
+ for(const f of flights){
+   const k=opsDeltaKey(f);if(!k)continue;
+   if(idxF.has(k))FLIGHTS[idxF.get(k)]=f;else{idxF.set(k,FLIGHTS.length);FLIGHTS.push(f)}
+   flightChanged=true;
+   try{OPS_CLOUD_SNAPSHOT.set(flightImportIdentity(f),JSON.parse(JSON.stringify(f)))}catch(e){}
+ }
+ OPS_REALTIME_LAST_HASH=null; // inconnu : le prochain chargement complet de sécurité ré-évaluera
+ OPS_REALTIME_LAST_CONFIG_HASH=afterConfigHash;
+ OPS_REALTIME_LAST_PULL=Date.now();
+ setOpsCloudState(true);
+ const changed=flightChanged||configChanged;
+ if(changed){
+   opsCacheLater();
+   const skipDetailBounce=currentView==='detail'&&selectedIdentity&&idxF.get(selectedIdentity)===undefined;
+   if(!skipDetailBounce&&(!modalIsOpen()||forceRender)&&!hasFocusedEditableInput())renderCurrentViewPreserved();
+ }else if(forceRender&&!modalIsOpen()&&!hasFocusedEditableInput()){
+   renderCurrentViewPreserved();
+ }
+ return changed;
+}
+// Copie locale (lecture hors ligne) : écrite au plus toutes les 45 s et quand l'onglet passe en arrière-plan, au lieu de toute la liste à chaque changement.
+let OPS_CACHE_TIMER=null;
+function opsCacheNow(){clearTimeout(OPS_CACHE_TIMER);OPS_CACHE_TIMER=null;try{cacheCloudFlightsLocally(FLIGHTS.slice())}catch(e){}}
+function opsCacheLater(){if(OPS_CACHE_TIMER)return;OPS_CACHE_TIMER=setTimeout(()=>{OPS_CACHE_TIMER=null;(window.requestIdleCallback||((f)=>setTimeout(f,200)))(opsCacheNow,{timeout:10000})},45000)}
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&OPS_CACHE_TIMER)opsCacheNow()});
+window.addEventListener('pagehide',()=>{if(OPS_CACHE_TIMER)opsCacheNow()});
+
 async function silentCloudRefresh({forceRender=false}={}){
  if(OPS_REALTIME_RUNNING || opsCloudWriteInProgress() || !navigator.onLine)return false;
  OPS_REALTIME_RUNNING=true;
  const selectedIdentity=currentSelectedIdentity();
  try{
    // Synchro par différences : après un chargement complet, on ne redemande que les vols modifiés (?since=jeton serveur).
-   // Chargement complet de sécurité toutes les 3 min, ou si la base signale une suppression (epoch différent).
+   // Chargement complet de sécurité toutes les 15 min, ou si la base signale une suppression (epoch différent).
    if(OPS_RANGE.busy)return false; // chargement d'une autre plage de dates en cours
-   const canDelta=Boolean(OPS_DELTA.token&&OPS_DELTA.all&&Date.now()-OPS_DELTA.fullAt<180000);
+   const canDelta=Boolean(OPS_DELTA.token&&OPS_DELTA.all&&Date.now()-OPS_DELTA.fullAt<900000);
    const rangeAtRequest=opsRangeKey();
    const data=await cloudRequest(canDelta?`${OPS_CLOUD_API}?since=${encodeURIComponent(OPS_DELTA.token)}&_=${Date.now()}${opsRangeQuery()}`:`${OPS_CLOUD_API}?_=${Date.now()}${opsRangeQuery()}`,{method:'GET',cache:'no-store'},canDelta?10000:60000);
    if(!(data?.ok&&Array.isArray(data.flights)))return false;
@@ -18820,9 +18863,9 @@ async function silentCloudRefresh({forceRender=false}={}){
      if(String(data.epoch||'')!==OPS_DELTA.epoch){OPS_DELTA.token='';return false} // suppression côté serveur : prochain cycle = chargement complet
      OPS_DELTA.token=data.syncToken||OPS_DELTA.token;
      if(!data.flights.length){OPS_REALTIME_LAST_PULL=Date.now();setOpsCloudState(true);return false} // rien de nouveau : aucun calcul
-     const idx=new Map();OPS_DELTA.all.forEach((f,i)=>idx.set(opsDeltaKey(f),i));
-     for(const f of data.flights){const k=opsDeltaKey(f);if(!k)continue;if(idx.has(k))OPS_DELTA.all[idx.get(k)]=f;else{idx.set(k,OPS_DELTA.all.length);OPS_DELTA.all.push(f)}}
-     data.flights=OPS_DELTA.all.slice();
+     // Traitement INCRÉMENTAL : seuls les vols reçus sont traités (avant : copie, empreinte et écriture locale de toute la liste
+     // à chaque changement, soit ~1,8 s de blocage de l'écran avec 9 000 vols).
+     return opsApplyDelta(data.flights,{selectedIdentity,forceRender});
    }else{
      OPS_DELTA.all=data.flights.slice();OPS_DELTA.fullAt=Date.now();OPS_DELTA.epoch=String(data.epoch||'');OPS_DELTA.token=data.syncToken||'';
    }
@@ -18847,7 +18890,7 @@ async function silentCloudRefresh({forceRender=false}={}){
    if(changed){
      FLIGHTS.splice(0,FLIGHTS.length,...filtered);
      const stillSelected=remapSelectedAfterCloud(selectedIdentity);
-     cacheCloudFlightsLocally(filtered);
+     opsCacheLater();
 
      /*
       * Bug corrigé : si le vol actuellement affiché en détail n'est pas

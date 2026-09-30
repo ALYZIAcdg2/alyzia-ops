@@ -1,0 +1,15 @@
+import {chromium} from "playwright";
+const b=await chromium.launch();
+const p=await (await b.newContext({viewport:{width:1300,height:900}})).newPage();
+const errs=[];p.on("pageerror",e=>errs.push(String(e).slice(0,160)));
+await p.addInitScript(()=>{window.__long=[];try{new PerformanceObserver(l=>l.getEntries().forEach(e=>window.__long.push([Math.round(performance.now()/1000),Math.round(e.duration)]))).observe({entryTypes:["longtask"]})}catch(e){}});
+await p.goto("https://alyzia-ops.alyzia-cdg2.workers.dev/",{waitUntil:"load",timeout:60000});
+await p.waitForFunction(()=>document.querySelectorAll(".flight-home-row").length>0,null,{timeout:40000}).catch(()=>{});
+await p.waitForTimeout(25000);
+const a=await p.evaluate(()=>({n:FLIGHTS.length,range:opsRangeKey(),rows:document.querySelectorAll(".flight-home-row").length}));
+console.log("après 25 s :",JSON.stringify(a),"| erreurs JS:",errs.length,errs.slice(0,2));
+await p.evaluate(()=>{window.__long.length=0});
+await p.waitForTimeout(60000);
+const l=await p.evaluate(()=>window.__long);
+console.log("60 s de fonctionnement normal avec tous les vols en mémoire : tâches longues (>50 ms):",l.length,"| détail [seconde, ms]:",JSON.stringify(l.slice(0,12)),"| plus longue:",Math.max(0,...l.map(x=>x[1])),"ms");
+await b.close();
