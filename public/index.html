@@ -7898,10 +7898,10 @@ async function paintWeather(){
  if(need.length){
   WX_BUSY=true;
   try{
-   for(let k=0;k<need.length;k+=4){
-    const part=need.slice(k,k+4);
+   const parts=[];for(let k=0;k<need.length;k+=8)parts.push(need.slice(k,k+8));
+   await Promise.all(parts.map(async part=>{
     try{const r=await fetch('/api/weather?iata='+part.join(','));const j=await r.json();part.forEach(i=>{WX_CACHE[i]={t:Date.now(),d:j[i]||null}})}catch(e){part.forEach(i=>{WX_CACHE[i]={t:Date.now()-800000,d:WX_CACHE[i]?.d||null}})}
-   }
+   }));
    try{localStorage.setItem('alyzia_wx',JSON.stringify(WX_CACHE))}catch(e){}
   }finally{WX_BUSY=false}
  }

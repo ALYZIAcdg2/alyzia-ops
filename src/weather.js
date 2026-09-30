@@ -27,7 +27,7 @@ export function describe(m){
 }
 export async function handleWeather(request,ctx){
   const url=new URL(request.url);
-  const iatas=[...new Set(clean(url.searchParams.get("iata")).toUpperCase().split(",").map(clean).filter(v=>/^[A-Z]{3}$/.test(v)))].slice(0,4);
+  const iatas=[...new Set(clean(url.searchParams.get("iata")).toUpperCase().split(",").map(clean).filter(v=>/^[A-Z]{3}$/.test(v)))].slice(0,10);
   const pairs=iatas.map(i=>[i,ICAO[i]]).filter(p=>p[1]);
   const headers={"content-type":"application/json;charset=utf-8","cache-control":"public,max-age=300","access-control-allow-origin":"*"};
   if(!pairs.length)return new Response("{}",{headers});
