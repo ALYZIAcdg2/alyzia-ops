@@ -4,6 +4,7 @@ import {runQuarkQueue} from "./quark-queue-runner.js";
 import {runAviationDataQueue} from "./aviationdata-queue-runner.js";
 import {runFlighteraQueue,flighteraKey} from "./flightera-queue-runner.js";
 import {runFlightradar1Queue,frKey} from "./flightradar1-queue-runner.js";
+import {runFr24DepQueue,fr24Key} from "./fr24dep-queue-runner.js";
 import {buildNeeds,neededFields,providerNeeded,stopAll} from "./flight-enrichment-policy.js";
 
 const clean=v=>String(v??"").trim();
@@ -13,12 +14,13 @@ function parisNow(){const p=new Intl.DateTimeFormat("fr-CA",{timeZone:"Europe/Pa
 function dayNumber(d){const m=clean(d).match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?Math.floor(Date.UTC(Number(m[1]),Number(m[2])-1,Number(m[3]))/86400000):null}
 function delta(flightDate,std,now){const h=hhmm(std),fd=dayNumber(flightDate),nd=dayNumber(now.date);if(!h||fd==null||nd==null)return 99999;const [a,b]=h.split(":").map(Number);return (fd-nd)*1440+a*60+b-now.minutes}
 
-const PROVIDERS=["OAG_SCHEDULE","OAG_STATUS","AIRLABS","SKYLINK","OPENSKY","QUARK","AVIATIONDATA","FLIGHTERA","FLIGHTRADAR1","AERODATABOX"];
-function available(env,p){if(p==="FLIGHTRADAR1")return Boolean(frKey(env));if(p==="FLIGHTERA")return Boolean(flighteraKey(env));if(p==="AVIATIONDATA")return Boolean(env.AVIATIONDATA_RAPIDAPI_KEY);if(p==="QUARK")return Boolean(env.QUARK_RAPIDAPI_KEY);if(p.startsWith("OAG_"))return Boolean(env.OAG_API_KEY);if(p==="AIRLABS")return Boolean(env.AIRLABS_API_KEY);if(p==="SKYLINK")return Boolean(env.SKYLINK_API_KEY);if(p==="OPENSKY")return Boolean(env.OPENSKY_CLIENT_ID&&env.OPENSKY_CLIENT_SECRET);if(p==="AERODATABOX")return Boolean(env.AERODATABOX);return false}
+const PROVIDERS=["OAG_SCHEDULE","OAG_STATUS","AIRLABS","SKYLINK","OPENSKY","QUARK","AVIATIONDATA","FLIGHTERA","FLIGHTRADAR1","FR24DEP","AERODATABOX"];
+function available(env,p){if(p==="FR24DEP")return Boolean(fr24Key(env));if(p==="FLIGHTRADAR1")return Boolean(frKey(env));if(p==="FLIGHTERA")return Boolean(flighteraKey(env));if(p==="AVIATIONDATA")return Boolean(env.AVIATIONDATA_RAPIDAPI_KEY);if(p==="QUARK")return Boolean(env.QUARK_RAPIDAPI_KEY);if(p.startsWith("OAG_"))return Boolean(env.OAG_API_KEY);if(p==="AIRLABS")return Boolean(env.AIRLABS_API_KEY);if(p==="SKYLINK")return Boolean(env.SKYLINK_API_KEY);if(p==="OPENSKY")return Boolean(env.OPENSKY_CLIENT_ID&&env.OPENSKY_CLIENT_SECRET);if(p==="AERODATABOX")return Boolean(env.AERODATABOX);return false}
 function attempted(x,p){if(p.startsWith("OAG_"))return Boolean(clean(x.oagH2LastCheckedAt)||clean(x.oagLastCheckedAt)||clean(x.oagCoverageCheckedDate));if(p==="AIRLABS")return Boolean(clean(x.airlabsRecoveryLastCheckedAt)||clean(x.airlabsLastCheckedAt)||clean(x.airlabsRegBatchCheckedAt));if(p==="SKYLINK")return Boolean(clean(x.skylinkRecoveryLastCheckedAt)||clean(x.entAliasLastCheckedAt));if(p==="OPENSKY")return Boolean(clean(x.openSkyLastSeenAt)||clean(x.openSkyAirborneConfirmedAt));if(p==="AERODATABOX")return Boolean(clean(x.aeroDataBoxLastCheckedAt));return false}
 function providerEligible(env,p,x,d){
   if(!available(env,p))return false;
   if(p==="OAG_SCHEDULE"||p==="OAG_STATUS"||p==="AIRLABS"||p==="OPENSKY"||p==="QUARK")return true;
+  if(p==="FR24DEP")return d<=30&&d>=-1800;   // rattrapage groupé : tous les départs de CDG déjà partis ou sur le point de partir
   if(p==="FLIGHTRADAR1")return d<=30&&d>=-360;   // fiche « live » : vol en l'air, immatriculation + type d'appareil réel
   if(p==="FLIGHTERA")return d<=0;   // dès l'heure de départ passée : ATD/ATA réels en un seul appel
   if(p==="AVIATIONDATA")return d<=0&&(attempted(x,"OAG_STATUS")||attempted(x,"AIRLABS")||attempted(x,"SKYLINK"));   // last resort, flight already scheduled to have departed
@@ -100,6 +102,7 @@ export default {
       try{await refreshProviderQueue(env)}catch(_){}
       if(typeof h2Recovery.scheduled==="function")await h2Recovery.scheduled(controller,env,ctx);
       try{await runQuarkQueue(env)}catch(_){}
+      try{await runFr24DepQueue(env)}catch(_){}
       try{await runFlighteraQueue(env)}catch(_){}
       try{await runFlightradar1Queue(env)}catch(_){}
       try{await runAviationDataQueue(env)}catch(_){}
