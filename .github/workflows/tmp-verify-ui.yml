@@ -16,3 +16,4 @@ jobs:
           cd .. && git config user.name v && git config user.email v@v
           git checkout --orphan verify-out && git rm -rfq . && cp t/verify-ui-result.txt . 2>/dev/null || echo "no result" > verify-ui-result.txt
           git add verify-ui-result.txt && git commit -qm result && git push -f origin verify-out
+# rerun 2
