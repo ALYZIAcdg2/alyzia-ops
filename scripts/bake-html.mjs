@@ -17,5 +17,4 @@ const html=await res.text();
 if(res.status!==200||!/text\/html/i.test(res.headers.get("content-type")||"")||html.length<source.length*0.9||!html.includes("alyzia-first-paint-guard-css"))
   throw new Error(`Fabrication invalide : statut ${res.status}, ${html.length} octets (source ${source.length})`);
 writeFileSync(new URL("../public/baked-index",import.meta.url),html);
-writeFileSync(new URL("../public/baked-version",import.meta.url),createHash("sha1").update(html).digest("hex").slice(0,16)+" "+Math.floor(Date.now()/1000));
 console.log(`page fabriquée : ${html.length} octets (source ${source.length}), empreinte ${createHash("sha1").update(html).digest("hex").slice(0,12)}`);

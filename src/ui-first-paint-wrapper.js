@@ -50,35 +50,20 @@ export default {
     const denied=guardApi(request,env);
     if(denied)return denied;
     // Page finale fabriquée au déploiement (scripts/bake-html.mjs) : servie telle quelle, sans repasser par les wrappers.
-    // "no-cache" = revalidation à chaque ouverture (ETag) : jamais une ancienne version, mais 304 sans téléchargement si rien n'a changé.
+    // Pas de validateur (ETag / Last-Modified) volontairement : Cloudflare retire l'ETag, et un validateur calculé à part du fichier
+    // pourrait, le temps de la propagation d'un déploiement, étiqueter une ancienne page avec le nouveau jeton (page figée côté navigateur).
+    // Si le fichier n'est pas (encore) disponible sur ce point de présence, repli automatique sur le calcul à l'ouverture.
     let bakeFallback="";
     if(!globalThis.__ALYZIA_BAKING&&(request.method==="GET"||request.method==="HEAD")){
       const path=new URL(request.url).pathname;
       if(path==="/"||path==="/index.html"){
         try{
-          // ETag = empreinte écrite à la fabrication (public/baked-version, quelques octets) : si le navigateur a déjà cette version,
-          // on répond 304 sans même lire la page de 5 Mo.
-          let etag="",lastMod="";
-          try{
-            const v=await env.ASSETS.fetch(new Request(new URL("/baked-version",request.url)));
-            if(v.status===200){
-              const m=String(await v.text()).trim().match(/^([0-9a-f]{8,64})(?: (\d{9,11}))?$/);
-              if(m){etag=`"b-${m[1]}"`;if(m[2])lastMod=new Date(Number(m[2])*1000).toUTCString()}
-              else bakeFallback+="version-invalide;";
-            }else bakeFallback+=`version-${v.status};`;
-          }catch(e){bakeFallback+="version-erreur:"+String(e?.message||e).slice(0,60)+";"}
-          // Revalidation : If-None-Match (ETag) ou, si Cloudflare retire l'ETag, If-Modified-Since (date de fabrication).
-          const inm=String(request.headers.get("if-none-match")||"").split(",").map(x=>x.trim().replace(/^W\//,""));
-          const ims=Date.parse(request.headers.get("if-modified-since")||"");
-          const base={"cache-control":"no-cache","x-alyzia-page":"baked",...(etag?{etag}:{}),...(lastMod?{"last-modified":lastMod}:{})};
-          if((etag&&inm.includes(etag))||(lastMod&&Number.isFinite(ims)&&ims>=Date.parse(lastMod)&&!request.headers.get("if-none-match")))return new Response(null,{status:304,headers:base});
           const r=await env.ASSETS.fetch(new Request(new URL("/baked-index",request.url),{method:request.method}));
           if(r.status===200){
-            const h=new Headers(base);h.set("content-type","text/html; charset=UTF-8");
-            return new Response(r.body,{status:200,headers:h});
+            return new Response(r.body,{status:200,headers:{"content-type":"text/html; charset=UTF-8","cache-control":"no-cache","x-alyzia-page":"baked"}});
           }
-          bakeFallback+=`page-${r.status};`;
-        }catch(e){bakeFallback+="page-erreur:"+String(e?.message||e).slice(0,60)+";"}
+          bakeFallback=`page-${r.status};`;
+        }catch(e){bakeFallback="page-erreur:"+String(e?.message||e).slice(0,60)+";"}
       }
     }
     if(new URL(request.url).pathname==="/api/opensky/ingest")return handleOpenSkyIngest(request,env);

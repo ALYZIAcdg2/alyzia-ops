@@ -10,11 +10,11 @@ jobs:
     steps:
       - run: |
           A=https://alyzia-ops.alyzia-cdg2.workers.dev
-          curl -sS -H "Accept-Encoding: br" -D h.txt -o /dev/null -w "GET ttfb=%{time_starttransfer}s taille=%{size_download}B\n" "$A/"
-          grep -iE "^(etag|last-modified|cache-control|x-alyzia)" h.txt | tr -d '\r'
-          LM=$(grep -i "^last-modified" h.txt | tr -d '\r' | cut -d' ' -f2-)
-          E=$(grep -i "^etag" h.txt | tr -d '\r' | cut -d' ' -f2-)
-          echo "last-modified=[$LM] etag=[$E]"
-          if [ -n "$LM" ]; then curl -sS -H "If-Modified-Since: $LM" -D h2.txt -o /dev/null -w "REVALIDATION (date) -> %{http_code} ttfb=%{time_starttransfer}s taille=%{size_download}B\n" "$A/"; fi
-          if [ -n "$E" ]; then curl -sS -H "If-None-Match: $E" -o /dev/null -w "REVALIDATION (etag) -> %{http_code} taille=%{size_download}B\n" "$A/"; fi
-          curl -sS -H "If-Modified-Since: Mon, 01 Jan 2024 00:00:00 GMT" -o /dev/null -w "DATE ANCIENNE -> %{http_code} taille=%{size_download}B (doit être 200 et la page complète)\n" "$A/"
+          for i in $(seq 1 12); do
+            curl -sS -H "Accept-Encoding: br" -D h.txt -o /dev/null -w "ttfb=%{time_starttransfer}s total=%{time_total}s " "$A/?r=$i$RANDOM"
+            RAY=$(grep -i "^cf-ray" h.txt | tr -d '\r' | awk '{print $2}')
+            PG=$(grep -i "^x-alyzia-page" h.txt | tr -d '\r' | awk '{print $2}')
+            FB=$(grep -i "^x-alyzia-bake-fallback" h.txt | tr -d '\r' | awk '{print $2}')
+            echo "ray=$RAY page=[$PG] fallback=[$FB]"
+            sleep 1
+          done
