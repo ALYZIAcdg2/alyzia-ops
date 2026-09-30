@@ -29784,6 +29784,42 @@ console.log('BUILD143 R9 — R3.13 SQ CONTROLLED BRIDGE READY');
 })();
 </script>
 
+<style id="top-back-btn-css">
+#app .flight-head .flight-back-btn{display:none!important}
+body:not(.has-flight-sheet) .top-back-btn{display:none!important}
+.top-back-btn.flight-back-btn{display:inline-flex;align-items:center;justify-content:center;height:36px;margin:0;padding:0 13px;border-radius:999px;font-size:12px;font-weight:950;letter-spacing:.02em;white-space:nowrap;flex:0 0 auto}
+@media(max-width:620px){.top-back-btn.flight-back-btn{height:34px;padding:0 11px;font-size:11px}}
+</style>
+<script id="top-back-btn-js">(()=>{
+ 'use strict';
+ // « Retour liste » de la fiche vol: dans la barre du haut, à gauche du bouton actualiser (mobile/tablette)
+ // ou à gauche de l'heure (PC). Visible seulement quand une fiche de vol est affichée.
+ const desktop=()=>window.matchMedia('(min-width:1024px)').matches;
+ function ensure(){
+  const right=document.querySelector('.top-right');if(!right)return null;
+  let btn=document.getElementById('topBackBtn');
+  if(!btn){
+   btn=document.createElement('button');btn.type='button';btn.id='topBackBtn';btn.className='flight-back-btn top-back-btn';
+   btn.textContent='‹ RETOUR';btn.title='Retour à la liste des vols';btn.setAttribute('aria-label','Retour à la liste des vols');
+   btn.addEventListener('click',()=>{try{backToFlightListSamePosition()}catch(e){try{renderHome()}catch(_){}}});
+  }
+  const anchor=desktop()?right.querySelector('.clock'):document.getElementById('topSyncBtn');
+  if(anchor&&anchor.parentElement===right&&btn.nextElementSibling!==anchor)right.insertBefore(btn,anchor);
+  return btn;
+ }
+ function sync(){
+  ensure();
+  const on=!!document.querySelector('#app .flight-head');
+  if(document.body.classList.contains('has-flight-sheet')!==on)document.body.classList.toggle('has-flight-sheet',on);
+ }
+ function start(){
+  sync();
+  const app=document.getElementById('app');
+  if(app)new MutationObserver(sync).observe(app,{childList:true});
+  window.addEventListener('resize',sync,{passive:true});
+ }
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
+})();</script>
 <div style="text-align:center;padding:14px 10px;font-size:11px;color:#8fa0b3">Texte de test — bas de page ALYZIA OPS</div>
 </body></html>
 <!-- V50.03: cloud status is debounced; 3 startup retries; transient sync failures no longer force immediate local mode. -->
