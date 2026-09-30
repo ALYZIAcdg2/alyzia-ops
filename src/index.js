@@ -423,6 +423,13 @@ async function handleFlights(request,env,url){
   if(url.pathname==="/api/flights" && request.method==="GET"){
     const identity=String(url.searchParams.get("identity")||"").trim();
     if(identity){
+      // Requête conditionnelle (fiche ouverte, toutes les 0,5 s) : si le vol n'a pas changé depuis ifUpdated, réponse minuscule.
+      // "settled" : on ne répond "inchangé" que si la dernière écriture date de plus de 3 s (updated_at a une précision d'1 s).
+      const ifUpdated=String(url.searchParams.get("ifUpdated")||"").trim();
+      if(ifUpdated){
+        const m=await env.OPS_DB.prepare(`SELECT updated_at, (updated_at<datetime('now','-3 seconds')) AS settled FROM flights WHERE identity=? LIMIT 1`).bind(identity).first().catch(()=>null);
+        if(m&&Number(m.settled)===1&&String(m.updated_at||"")===ifUpdated)return json({ok:true,unchanged:true});
+      }
       const flight=await getFlightByIdentity(env,identity);
       if(!flight)return json({ok:false,error:"VOL INTROUVABLE"},404);
       return json({ok:true,flight});

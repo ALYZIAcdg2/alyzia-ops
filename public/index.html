@@ -7497,12 +7497,13 @@ async function upsertFlightToCloud(flight){
 }
 
 
-async function getOneFlightFromCloud(identity){
+async function getOneFlightFromCloud(identity,ifUpdated=''){
  try{
    if(!identity)return null;
-   const data=await cloudRequest(`${OPS_CLOUD_API}?identity=${encodeURIComponent(identity)}&_=${Date.now()}`,{
+   const data=await cloudRequest(`${OPS_CLOUD_API}?identity=${encodeURIComponent(identity)}${ifUpdated?`&ifUpdated=${encodeURIComponent(ifUpdated)}`:''}&_=${Date.now()}`,{
      method:'GET',cache:'no-store'
    },3500);
+   if(data?.ok&&data.unchanged){setOpsCloudState(true);return {__unchanged:true}}
    if(data?.ok&&data.flight){
      setOpsCloudState(true);
      return data.flight;
@@ -18753,6 +18754,7 @@ const OPS_SELECTED_FLIGHT_INTERVAL=500;
 let OPS_SELECTED_FLIGHT_TIMER=null;
 let OPS_SELECTED_FLIGHT_RUNNING=false;
 
+const OPS_SEL_STAMP={id:'',at:''};
 async function syncSelectedFlightFast(){
  if(OPS_SELECTED_FLIGHT_RUNNING||opsCloudWriteInProgress()||document.hidden||currentView!=='detail'||modalIsOpen()||hasFocusedEditableInput()||!navigator.onLine)return false;
  const identity=currentSelectedIdentity();
@@ -18760,8 +18762,10 @@ async function syncSelectedFlightFast(){
 
  OPS_SELECTED_FLIGHT_RUNNING=true;
  try{
-   const cloudRaw=await getOneFlightFromCloud(identity);
+   const cloudRaw=await getOneFlightFromCloud(identity,OPS_SEL_STAMP.id===identity?OPS_SEL_STAMP.at:'');
    if(!cloudRaw)return false;
+   if(cloudRaw.__unchanged)return false; // vol inchangé côté serveur : rien à télécharger ni à comparer
+   OPS_SEL_STAMP.id=identity;OPS_SEL_STAMP.at=String(cloudRaw._serverUpdatedAt||'');
 
    const idx=FLIGHTS.findIndex(x=>flightImportIdentity(x)===identity);
    if(idx<0)return false;
