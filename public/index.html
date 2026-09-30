@@ -61,10 +61,10 @@ button{cursor:pointer}
 .class-mini div{display:flex;justify-content:space-between;gap:8px}
 .blue{color:var(--blue)} .green{color:var(--green)} .purple{color:var(--purple)} .orange{color:var(--orange)} .cyan{color:var(--cyan)} .pink{color:var(--pink)}
 .terminal-filter-bar{display:flex;gap:6px;margin-top:8px}
-.terminal-filter-btn{min-height:26px;padding:3px 12px;border-radius:999px;font-size:11px;font-weight:950;letter-spacing:.03em;border:2px solid transparent;background:#e7edf5;color:#5b6b80;opacity:.55}
-.terminal-filter-btn.t1{background:var(--blue);color:#fff}
-.terminal-filter-btn.t2{background:var(--green);color:#fff}
-.terminal-filter-btn.t3{background:var(--pink);color:#fff}
+.terminal-filter-btn{min-height:26px;padding:3px 12px;border-radius:999px;font-size:11px;font-weight:950;letter-spacing:.03em;border:2px solid transparent;background:#e7edf5;color:#5b6b80;opacity:.85}
+.terminal-filter-btn.t1{background:#0a4aa8;color:#fff}
+.terminal-filter-btn.t2{background:#0d7a27;color:#fff}
+.terminal-filter-btn.t3{background:#a80c66;color:#fff}
 .terminal-filter-btn.tall{background:#fff;color:#33475b;border-color:#cfd9e6}
 .terminal-filter-btn.active{opacity:1;border-color:#173a5d;box-shadow:0 0 0 2px rgba(23,58,93,.15)}
 .gauge{height:9px;background:#e8edf3;border-radius:999px;overflow:hidden}
@@ -794,6 +794,12 @@ button{min-height:36px}
 }
 .modal-head-actions{display:flex;align-items:center}
 .tools-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:16px}
+.prepa-page .tools-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+.prepa-page .tools-grid .tool-card{min-height:104px}
+@media(max-width:900px){.prepa-page .tools-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.prepa-page .tools-grid{grid-template-columns:1fr}}
+.tools-danger-zone{display:flex;justify-content:flex-end;margin-top:14px}
+.tools-danger-zone .clear-all-flights-btn{width:auto!important;min-height:0!important;height:32px;padding:0 14px!important;font-size:10px!important;border-radius:999px!important}
 .tool-card{
  border:1px solid #dfe7ef;background:#fafcff;border-radius:10px;padding:15px;
  cursor:pointer;text-align:left;color:#17243a
@@ -3302,6 +3308,9 @@ body{
  border-radius:10px;padding:12px 11px;cursor:pointer
 }
 .cabin-airline-card:hover{border-color:#80b7ee;background:#f9fcff}
+.cabin-airline-card .cabin-airline-logo{display:flex;align-items:center;justify-content:center;height:36px;margin-bottom:4px}
+.cabin-airline-card .cabin-airline-logo .airline-logo{width:64px;height:34px}
+.cabin-airline-card .cabin-airline-logo .airline-logo-fallback{font-size:15px;font-weight:950;color:#5b6f84}
 .cabin-airline-card b{font-size:14px;color:#13263c;letter-spacing:.02em}
 .cabin-airline-card span{font-size:8.5px;color:#6a7c90;font-weight:800;line-height:1.4}
 .cabin-report-badge{
@@ -18780,7 +18789,6 @@ async function openTools(){
    <button class="tool-card company-config-tool" onclick="openCompanyConfig()"><span class="tool-icon">⚙</span><b>CONFIG COMPAGNIE</b><span>CONFIGURER LES CLASSES PAR NUMÉRO DE VOL ET LES BLOCS VISIBLES SUR LA FICHE. TK / SQ.</span></button>
    <button class="tool-card" onclick="openToolsSeatmap()"><span class="tool-icon">▦</span><b>SEATMAP</b><span>OUVRIR LE PLAN CABINE DU VOL ACTUEL.</span></button>
    <button class="tool-card" onclick="openSeatmapCoverage()"><span class="tool-icon">🗂</span><b>SEATMAP · COMPAGNIES</b><span>VÉRIFIER TOUTES LES CONFIGURATIONS PAR COMPAGNIE, VOIR LE PLAN, SIGNALER UN BUG.</span></button>
-   <button class="tool-card" onclick="openSariaApp()"><span class="tool-icon">✈</span><b>SARIA</b><span>OUVRIR DIRECTEMENT L’OUTIL SARIA CABIN / SEATMAP.</span></button>
    <div class="ops-cloud-card">
      ${(()=>{const st=opsCloudStatusMarkup();return `<div id="opsCloudStatusBox" class="ops-cloud-status ${st.cls}">${st.text}</div>`})()}
      <div class="ops-cloud-help">D1 PARTAGÉ · 3 TENTATIVES AU DÉMARRAGE · RECONNEXION AUTOMATIQUE · PC, TABLETTE ET TÉLÉPHONE.<br><b style="color:#087749">V50.27 · PAX CLEAN UI + TOOLS HARD STOP</b></div>
@@ -21214,7 +21222,7 @@ async function openSeatmapCoverage(){
   const cardsHtml=airlines.map(a=>{
    const list=byAirline[a];
    const aircraftCount=new Set(list.map(c=>c.aircraft)).size;
-   return `<button class="cabin-airline-card" onclick="openSeatmapCoverageAirline('${escapeHtml(a)}')"><b>${escapeHtml(a)}</b><span>${aircraftCount} type${aircraftCount>1?'s':''} A/C · ${list.length} config${list.length>1?'s':''}</span></button>`;
+   return `<button class="cabin-airline-card" onclick="openSeatmapCoverageAirline('${escapeHtml(a)}')"><span class="cabin-airline-logo">${airlineLogo(a)}</span><b>${escapeHtml(a)}</b><span>${aircraftCount} type${aircraftCount>1?'s':''} A/C · ${list.length} config${list.length>1?'s':''}</span></button>`;
   }).join('');
   replaceModal('SEATMAP · COMPAGNIES',`${airlines.length} COMPAGNIES · ${configs.length} CONFIGS`,`
    ${reportBadge}
@@ -21429,7 +21437,6 @@ async function openTools(){
     <button class="tool-card company-config-tool" onclick="openCompanyConfig()"><span class="tool-icon">⚙</span><b>CONFIG COMPAGNIE</b><span>Classes et modules</span></button>
     <button class="tool-card" onclick="openToolsSeatmap()"><span class="tool-icon">▦</span><b>SEATMAP</b><span>Plan cabine</span></button>
     <button class="tool-card" onclick="openSeatmapCoverage()"><span class="tool-icon">🗂</span><b>SEATMAP · COMPAGNIES</b><span>Vérifier toutes les configs</span></button>
-    <button class="tool-card" onclick="openSariaApp()"><span class="tool-icon">✈</span><b>SARIA</b><span>Cabin / Seatmap</span></button>
     <div class="ops-cloud-card">${(()=>{const st=opsCloudStatusMarkup();return `<div id="opsCloudStatusBox" class="ops-cloud-status ${st.cls}">${st.text}</div>`})()}<div class="ops-cloud-help"><b style="color:#087749">V50.15 · IMPORT BACKGROUND + PREPA MULTI-COMPAGNIES</b></div><button class="live-refresh" onclick="manualCloudRefresh()">↻ SYNCHRONISER</button></div>
     <div class="adb-usage-card"><div id="adbUsageBox"><button class="live-refresh" onclick="loadAeroUsage()">AERODATABOX</button></div></div>
     <button class="clear-all-flights-btn" onclick="openFullReset()">🗑 REMETTRE TOUT À ZÉRO</button>
@@ -23207,9 +23214,6 @@ openTools=async function(){
         <span class="tool-icon">▦</span><b>SEATMAP</b><span>PLAN CABINE</span>
       </button>
 
-      <button class="tool-card" onclick="openSariaApp()">
-        <span class="tool-icon">✈</span><b>SARIA</b><span>CABIN / SEATMAP</span>
-      </button>
 
       ${opsCloudToolCardHtml()}
     </div>`
@@ -23423,9 +23427,6 @@ openTools=async function(){
         <span class="tool-icon">▦</span><b>SEATMAP</b><span>PLAN CABINE</span>
       </button>
 
-      <button class="tool-card" onclick="openSariaApp()">
-        <span class="tool-icon">✈</span><b>SARIA</b><span>CABIN / SEATMAP</span>
-      </button>
 
       ${opsCloudToolCardHtml()}
     </div>`
@@ -23499,9 +23500,6 @@ openTools=async function(){
         <span class="tool-icon">▦</span><b>SEATMAP</b><span>PLAN CABINE</span>
       </button>
 
-      <button class="tool-card" onclick="openSariaApp()">
-        <span class="tool-icon">✈</span><b>SARIA</b><span>CABIN / SEATMAP</span>
-      </button>
 
       ${opsCloudToolCardHtml()}
     </div>`
@@ -23737,9 +23735,6 @@ openTools=async function(){
         <span class="tool-icon">▦</span><b>SEATMAP</b><span>PLAN CABINE</span>
       </button>
 
-      <button class="tool-card" onclick="openSariaApp()">
-        <span class="tool-icon">✈</span><b>SARIA</b><span>CABIN / SEATMAP</span>
-      </button>
 
       ${opsCloudToolCardHtml()}
     </div>`
@@ -25767,9 +25762,14 @@ window.renderTools=async function(){
     <button class="tool-card" onclick="openCreateFlight()"><span class="tool-icon">＋</span><b>CRÉER VOL</b><span>AJOUT MANUEL</span></button>
     <button class="tool-card company-config-tool" onclick="openCompanyConfig()"><span class="tool-icon">⚙</span><b>CONFIG COMPAGNIE</b><span>CLASSES ET MODULES</span></button>
     <button class="tool-card" onclick="openToolsSeatmap()"><span class="tool-icon">▦</span><b>SEATMAP</b><span>PLAN CABINE</span></button>
-    <button class="tool-card" onclick="openSariaApp()"><span class="tool-icon">✈</span><b>SARIA</b><span>CABIN / SEATMAP</span></button>${opsCloudToolCardHtml()}
+${opsCloudToolCardHtml()}
    </div>
   </section>`;
+  // Le bouton « remettre tout à zéro » sort de la grille: petit bouton discret sous les cartes.
+  try{
+   const grid=document.querySelector('#app .prepa-page .tools-grid'),reset=grid?.querySelector('.clear-all-flights-btn');
+   if(reset){const zone=document.createElement('div');zone.className='tools-danger-zone';reset.textContent='🗑 REMETTRE À ZÉRO';zone.appendChild(reset);grid.insertAdjacentElement('afterend',zone)}
+  }catch(e){}
   updateClocks();
 }
 openTools=renderTools;
@@ -26506,7 +26506,7 @@ window.openTools=async function(){
       <button class="tool-card" onclick="openCreateFlight()"><span class="tool-icon">＋</span><b>CRÉER VOL</b><span>AJOUT MANUEL</span></button>
       <button class="tool-card company-config-tool" onclick="openCompanyConfig()"><span class="tool-icon">⚙</span><b>CONFIG COMPAGNIE</b><span>CLASSES ET MODULES</span></button>
       <button class="tool-card" onclick="openToolsSeatmap()"><span class="tool-icon">▦</span><b>SEATMAP</b><span>PLAN CABINE</span></button>
-      <button class="tool-card" onclick="openSariaApp()"><span class="tool-icon">✈</span><b>SARIA</b><span>CABIN / SEATMAP</span></button>${opsCloudToolCardHtml()}
+${opsCloudToolCardHtml()}
     </div>`);
   }catch(e){return oldOpenTools143?.()}
 };
