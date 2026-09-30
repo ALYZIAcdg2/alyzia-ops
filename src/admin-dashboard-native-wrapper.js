@@ -63,8 +63,8 @@ function quotaLimit(env,key){
   return {period:"day",limit:Number(env.OPENSKY_DAILY_LIMIT||4000),reserve:0};
 }
 async function dashboard(env){
-  const now=parisParts(),until=addDays(now.date,7);
-  const {results=[]}=await env.OPS_DB.prepare(`SELECT flight_date,flight_number,std,updated_at,data_json FROM flights WHERE flight_date>=? AND flight_date<=? ORDER BY flight_date,std,flight_number`).bind(now.date,until).all();
+  const now=parisParts(),since=addDays(now.date,-1),until=addDays(now.date,2);
+  const {results=[]}=await env.OPS_DB.prepare(`SELECT flight_date,flight_number,std,updated_at,data_json FROM flights WHERE flight_date>=? AND flight_date<=? ORDER BY flight_date,std,flight_number`).bind(since,until).all();
   const flights=results.map(parseRow).map(z=>classify(z,now));
   const today=flights.filter(x=>x.date===now.date),future=flights.filter(x=>x.date>now.date);
   const summarize=list=>({total:list.length,ok:list.filter(x=>x.state==="OK").length,partial:list.filter(x=>x.state==="PARTIEL").length,check:list.filter(x=>x.state==="À CONTRÔLER").length,untreated:list.filter(x=>x.state==="NON TRAITÉ").length});
@@ -75,7 +75,7 @@ async function dashboard(env){
     for(const r of q){const k=baseProvider(r.provider);if(!map.has(k))map.set(k,{provider:k,today:0,month:0,lastStatus:null,lastAt:""});const o=map.get(k);if(r.period===now.date)o.today+=Number(r.calls||0);if(r.period===month)o.month+=Number(r.calls||0);if(!o.lastAt||clean(r.last_at)>o.lastAt){o.lastAt=clean(r.last_at);o.lastStatus=r.last_status}}
     quotas=["AIRLABS","SKYLINK","OAG","AERODATABOX","OPENSKY","QUARK","AVIATIONDATA","FLIGHTERA","FLIGHTRADAR1","FLIGHTRADAR8","FR24DEP"].map(k=>{const o=map.get(k)||{provider:k,today:0,month:0,lastStatus:null,lastAt:""},cfg=quotaLimit(env,k),used=cfg.period==="day"?o.today:o.month;return {...o,...cfg,remaining:cfg.limit?Math.max(0,cfg.limit-cfg.reserve-used):null}});
   }catch{}
-  return {ok:true,generatedAt:new Date().toISOString(),date:now.date,until,summary:{today:summarize(today),future:summarize(future)},flights,quotas};
+  return {ok:true,generatedAt:new Date().toISOString(),date:now.date,since,until,summary:{today:summarize(today),future:summarize(future)},flights,quotas};
 }
 
 const UI=String.raw`<style id="alyzia-admin-native-css">
@@ -101,7 +101,7 @@ window.adminPushNow=async function(){
 window.renderAdminDashboard=async function(){
   const app=document.getElementById('app');if(!app)return;
   document.querySelectorAll('[data-mobile-nav]').forEach(b=>b.classList.toggle('active',b.dataset.mobileNav==='admin'));
-  app.innerHTML='<section class="admin-native"><div class="adn-head"><div><div class="adn-title">TABLEAU DE BORD ADMIN</div><div class="adn-sub">TRAITEMENT DES VOLS · AUJOURD’HUI + 7 JOURS</div></div></div><div class="adn-section"><b>CHARGEMENT DU TRAITEMENT DES VOLS…</b></div></section>';
+  app.innerHTML='<section class="admin-native"><div class="adn-head"><div><div class="adn-title">TABLEAU DE BORD ADMIN</div><div class="adn-sub">TRAITEMENT DES VOLS · HIER + AUJOURD’HUI + 2 JOURS</div></div></div><div class="adn-section"><b>CHARGEMENT DU TRAITEMENT DES VOLS…</b></div></section>';
   try{
     const r=await fetch('/api/admin/flight-processing',{cache:'no-store'}),d=await r.json();if(!r.ok||!d?.ok)throw new Error(d?.error||('HTTP '+r.status));
     const rows=(d.flights||[]).slice(0,220);

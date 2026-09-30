@@ -18681,12 +18681,12 @@ async function cacheCloudFlightsLocally(list){
 const OPS_DELTA={all:null,token:'',epoch:'',fullAt:0};
 function opsDeltaKey(f){return f&&f.date&&f.airline&&f.flight?`${String(f.date)}|${String(f.airline).toUpperCase()}|${String(f.flight).toUpperCase()}`:''}
 // ===== Chargement par dates =====
-// Au démarrage on ne charge que la fenêtre utile (J-7 à J+14) + la configuration des compagnies ; le reste est chargé
+// Au démarrage on ne charge que la fenêtre utile (J-1 à J+7) + la configuration des compagnies ; le reste est chargé
 //  - à la demande (navigation vers une autre date, recherche, import), ou
 //  - en arrière-plan ~15 s après l'affichage (pour que tous les écrans voient l'ensemble, comme avant).
 // Désactivation : ajouter ?full=1 à l'adresse, ou localStorage alyzia_full_load=1.
 const OPS_RANGE={from:'',to:'',all:false,busy:false,ready:false};
-const OPS_WINDOW_BACK=7,OPS_WINDOW_FWD=14,OPS_MAX_GAP_DAYS=45;
+const OPS_WINDOW_BACK=1,OPS_WINDOW_FWD=7,OPS_MAX_GAP_DAYS=400;
 function opsRangeKey(){return OPS_RANGE.all?'all':OPS_RANGE.from+'>'+OPS_RANGE.to}
 function opsInitRange(){
  if(OPS_RANGE.ready)return;OPS_RANGE.ready=true;
@@ -20986,7 +20986,7 @@ async function bootstrapAlyziaOps(){
  updateClocks();
  OPS_REALTIME_LAST_HASH=stableCloudHash(FLIGHTS);
  startRealtimeSync();
- opsScheduleBackgroundAll();
+ // Fenêtre J-1..J+7 seulement : plus de chargement complet en arrière-plan (les dates plus anciennes se chargent à la demande, depuis D1).
  startPrepaInboxAutoImport();
  fetchRecentPrepaImports().then(()=>v5004AutoRecoverProcessedGenericShells()).then(()=>v5006AutoRecoverNamedGeneric()).catch(()=>{});
  loadSariaCatalog().then(()=>{if(currentView==='detail')render();}).catch(()=>{});
