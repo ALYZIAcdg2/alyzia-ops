@@ -16,13 +16,15 @@ async function call(name,host,path,key){
     console.log(j?JSON.stringify(shape(j)).slice(0,1400):text.slice(0,300));
   }catch(e){console.log(`\n### ${name} ${path}: ERREUR ${e.message}`)}
 }
-const deep=(v,d=0)=>{if(Array.isArray(v))return d>4?`[${v.length}]`:[`len${v.length}`,...v.slice(0,2).map(x=>deep(x,d+1))];if(v&&typeof v==="object")return d>5?"{…}":Object.fromEntries(Object.entries(v).slice(0,40).map(([k,x])=>[k,deep(x,d+1)]));return typeof v==="string"?v.slice(0,40):v};
+const deep=(v,d=0)=>{if(Array.isArray(v))return d>4?`[${v.length}]`:[`len${v.length}`,...v.slice(0,3).map(x=>deep(x,d+1))];if(v&&typeof v==="object")return d>6?"{…}":Object.fromEntries(Object.entries(v).slice(0,40).map(([k,x])=>[k,deep(x,d+1)]));return typeof v==="string"?v.slice(0,50):v};
 async function callDeep(name,host,path,key,pick){
-  const url=`https://${host}${path}`;
-  const r=await fetch(url,{headers:{"x-rapidapi-key":key,"x-rapidapi-host":host,Accept:"application/json"},signal:AbortSignal.timeout(20000)});
+  const r=await fetch(`https://${host}${path}`,{headers:{"x-rapidapi-key":key,"x-rapidapi-host":host,Accept:"application/json"},signal:AbortSignal.timeout(20000)});
   const j=await r.json().catch(()=>null);
   console.log(`\n### ${name} ${path}\nHTTP ${r.status} restant=${r.headers.get("x-ratelimit-requests-remaining")}/${r.headers.get("x-ratelimit-requests-limit")}`);
-  console.log(JSON.stringify(deep(pick?pick(j):j)).slice(0,3500));
+  console.log(JSON.stringify(deep(pick?pick(j):j)).slice(0,3000));
 }
-await callDeep("flightradar24-data","flightradar24-data.p.rapidapi.com",`/flights/flight-info?query=${FL}`,keys.fr24,j=>j?.data?.response?.data);
-await callDeep("flight-radar8","flight-radar8.p.rapidapi.com",`/flights/flight-by-route?airportFrom=${ROUTE[0]}&airportTo=${ROUTE[1]}`,keys.fr8);
+await callDeep("flight-radar1","flight-radar1.p.rapidapi.com",`/flights/search?query=LO332&limit=5`,keys.fr1,j=>j?.results);
+await callDeep("flight-radar8","flight-radar8.p.rapidapi.com",`/flights/search?query=LO332&limit=5`,keys.fr8,j=>j?.results);
+await callDeep("flightera","flightera-flight-data.p.rapidapi.com",`/flight/info?flnr=LO332&date=${today}`,keys.flightera);
+await callDeep("flightera","flightera-flight-data.p.rapidapi.com",`/flight/info?flnr=EI521&date=${today}`,keys.flightera);
+await callDeep("flightradar24-data","flightradar24-data.p.rapidapi.com",`/flights/flight-info?query=LO332`,keys.fr24,j=>(j?.data?.response?.data||[]).map(x=>({n:x.identification?.number?.default,st:x.status?.text,gen:x.status?.generic?.status?.text,real:x.time?.real,est:x.time?.estimated,sched:x.time?.scheduled,reg:x.aircraft?.registration,o:x.airport?.origin?.code?.iata,d:x.airport?.destination?.code?.iata})));
