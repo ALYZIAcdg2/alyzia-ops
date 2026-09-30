@@ -44,7 +44,7 @@ button{cursor:pointer}
 .delay{font-size:12px;color:var(--red);font-weight:900;margin-left:10px}
 .local-clock{font-size:14px;margin-top:19px;display:flex;gap:8px;align-items:center}
 .local-clock small{font-size:11px;color:#576a81;display:block;margin-top:2px}
-.wx-line{margin-top:6px;font-size:13px;font-weight:800;color:#33475f;min-height:20px;white-space:nowrap}.wx-i{display:inline-flex;align-items:center;gap:4px}.wx-svg{flex:none}.wx-line small{font-size:10px;color:#576a81;font-weight:700;margin-left:2px}.wx-mini{margin-top:2px;min-height:18px;font-size:12px}.wx-mini .wx-svg{width:16px;height:16px}.wx-mini small{display:none}
+.wx-line{margin-top:6px;font-size:13px;font-weight:800;color:#33475f;min-height:20px;white-space:nowrap}.wx-i{display:inline-flex;align-items:center;gap:4px}.wx-svg{flex:none}.wx-line small{font-size:10px;color:#576a81;font-weight:700;margin-left:2px}.home-time-line{display:flex;align-items:center;gap:8px;flex-wrap:nowrap}.home-time-line .wx-line{margin-top:0}.home-sta{font-size:12px;font-weight:800;color:#576a81}.home-sta-line{margin-top:2px}.wx-mini{margin-top:2px;min-height:18px;font-size:12px}.wx-mini .wx-svg{width:16px;height:16px}.wx-mini small{display:none}
 @media(max-width:700px){.wx-line small{display:none}}
 .duration{font-size:17px;font-weight:900;margin-top:27px}
 .duration .timer{font-size:20px}
@@ -8660,12 +8660,12 @@ function renderHome(){
       const avail=cap-booked-nok,pct=cap?Math.round(booked/cap*100):0;
       const statusDot=flightListStatusDot(x);
       return `<div class="flight-home-row" data-flight-search="${flightListSearchText(x).replace(/"/g,'&quot;')}" onclick="openFlightFromHomeList(${x._index})">
-        <div class="home-time">${x.std}${x.edt?`<span class="etd-small">ETD ${x.edt}</span>`:''}</div>
+        <div class="home-time"><div class="home-time-line"><span>${x.std}</span><div class="wx-line wx-mini" data-wx="${x.dep}">${wxInner(x.dep)}</div></div>${x.edt?`<span class="etd-small">ETD ${x.edt}</span>`:''}<div class="home-time-line home-sta-line"><span class="home-sta">STA ${x.sta||'—'}</span><div class="wx-line wx-mini" data-wx="${x.dest}">${wxInner(x.dest)}</div></div></div>
         <div class="home-flight-cell"><span class="home-airline-logo-slot">${airlineLogo(x.airline)}</span><div>
           <div class="home-flight-top">${statusDot?`<span class="home-status-dot ${statusDot}" title="${statusDot==='green'?'Vol injecté et fiche complète':'Type A/C ou config manquant'}"></span>`:''}<div class="home-flight">${x.flight}</div></div>
           <div class="home-flight-actions">${prepaBadge(x,HOME_DATE)}</div>
         </div></div>
-        <div><div class="home-route">${x.dep} → ${x.dest}</div><div class="home-sub">${x.airline} · ${CITY[x.dest]||x.dest}</div><div class="wx-line wx-mini" data-wx="${x.dest}">${wxInner(x.dest)}</div></div>
+        <div><div class="home-route">${x.dep} → ${x.dest}</div><div class="home-sub">${x.airline} · ${CITY[x.dest]||x.dest}</div></div>
         <div class="home-mini home-aircraft"><small>A/C</small><b>${x.aircraft||'—'}</b></div>
         <div class="home-mini home-gate"><small>GATE</small><b>${x.gate&&x.gate!=='—'?x.gate:'—'}</b></div>
         <div class="home-config-booking">
