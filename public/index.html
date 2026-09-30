@@ -7882,8 +7882,13 @@ const AIRLINE_TERMINAL={
 let TERMINAL_FILTER='ALL';
 function setTerminalFilter(t){TERMINAL_FILTER=['T1','T2','T3','ALL'].includes(t)?t:'ALL';renderHome()}
 let modalStack=[];
-let HOME_DATE=localStorage.getItem('alyzia_ops_home_date')||localISO(new Date());
-let PREPA_DATE=localStorage.getItem('alyzia_ops_prepa_date')||localISO(new Date());
+// Date "du jour" = date de Paris (le personnel CDG travaille en heure de Paris).
+function parisTodayISO(){try{return new Intl.DateTimeFormat('fr-CA',{timeZone:'Europe/Paris',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date())}catch(e){return localISO(new Date())}}
+// Une date consultée n'est conservée que pendant la journée où elle a été choisie: après minuit, on repart sur aujourd'hui.
+function storedViewDate(key){try{const v=localStorage.getItem(key),day=localStorage.getItem(key+'_day');return v&&day===parisTodayISO()?v:null}catch(e){return null}}
+let APP_TODAY=parisTodayISO();
+let HOME_DATE=storedViewDate('alyzia_ops_home_date')||APP_TODAY;
+let PREPA_DATE=storedViewDate('alyzia_ops_prepa_date')||APP_TODAY;
 let selectedDate=HOME_DATE;
 const PREPA_RULES={LA:1,TK:1,SQ:3,BJ:1,LY:1,MH:1,SB:2,TW:0};
 let PREPA_STATE=loadPrepaState();
@@ -8403,10 +8408,24 @@ function formatDateLong(v){
 function syncViewDate(){
  selectedDate=currentView==='prepa'?PREPA_DATE:HOME_DATE;
 }
+// Passage de minuit application ouverte: les vues qui étaient sur « aujourd'hui » suivent le nouveau jour.
+function rolloverToday(){
+ const t=parisTodayISO();if(t===APP_TODAY)return;
+ const old=APP_TODAY;APP_TODAY=t;
+ if(HOME_DATE===old)HOME_DATE=t;
+ if(PREPA_DATE===old)PREPA_DATE=t;
+ if(currentView==='home'||currentView==='prepa')selectedDate=currentView==='prepa'?PREPA_DATE:HOME_DATE;
+ saveViewDates();
+ if(currentView==='home'){try{renderHome()}catch(e){}}
+}
+setInterval(()=>{if(!document.hidden)rolloverToday()},60000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)rolloverToday()});
 function saveViewDates(){
  try{
   localStorage.setItem('alyzia_ops_home_date',HOME_DATE);
   localStorage.setItem('alyzia_ops_prepa_date',PREPA_DATE);
+  localStorage.setItem('alyzia_ops_home_date_day',parisTodayISO());
+  localStorage.setItem('alyzia_ops_prepa_date_day',parisTodayISO());
  }catch(e){}
 }
 function changeSelectedDate(delta){
