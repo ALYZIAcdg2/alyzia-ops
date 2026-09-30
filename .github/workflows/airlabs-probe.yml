@@ -9,14 +9,15 @@ permissions:
 jobs:
   probe:
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 4
     env:
       AIRLABS_API_KEY: ${{ secrets.AIRLABS_API_KEY }}
     steps:
       - run: |
           if [ -z "$AIRLABS_API_KEY" ]; then echo "AIRLABS_API_KEY absente de GitHub"; exit 0; fi
-          for i in 1 2 3; do
-            curl -sS -o /tmp/r.json "https://airlabs.co/api/v9/schedules?dep_iata=CDG&limit=1&_fields=flight_iata&api_key=$AIRLABS_API_KEY"
-            node -e "const j=require('/tmp/r.json');const k=(j.request||{}).key||{};delete k.api_key;console.log(new Date().toISOString(),JSON.stringify(k))"
-            sleep 3
-          done
+          F="airline_iata,flight_iata,flight_number,dep_iata,dep_gate,dep_time,dep_estimated,dep_actual,arr_iata,arr_time,arr_estimated,arr_actual,reg_number"
+          try(){ echo "--- $1"; curl -sS -m 40 -o /tmp/r.json -w "HTTP %{http_code} en %{time_total}s taille %{size_download}\n" "https://airlabs.co/api/v9/schedules?dep_iata=CDG&api_key=$AIRLABS_API_KEY$2"; head -c 160 /tmp/r.json | sed "s/$AIRLABS_API_KEY/***/g"; echo; }
+          try "requête du serveur p1 (limit 50, champs)" "&limit=50&offset=0&_fields=$F"
+          try "requête du serveur p2 (offset 50)" "&limit=50&offset=50&_fields=$F"
+          try "sans _fields limit 50" "&limit=50"
+          try "limit 20 champs" "&limit=20&_fields=$F"
