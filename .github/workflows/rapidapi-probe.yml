@@ -1,0 +1,27 @@
+name: Test RapidAPI détail vol (flight-radar1/8)
+
+on:
+  push:
+    paths:
+      - 'scripts/rapidapi_probe.mjs'
+      - '.github/workflows/rapidapi-probe.yml'
+  workflow_dispatch:
+    inputs:
+      flight:
+        description: "Vol en l'air à chercher"
+        default: "SQ335"
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Sondage
+        env:
+          RAPIDAPI_KEY: ${{ secrets.RAPIDAPI_KEY || secrets.QUARK_RAPIDAPI_KEY || secrets.AVIATIONDATA_RAPIDAPI_KEY }}
+          FLIGHT: ${{ github.event.inputs.flight }}
+        run: node scripts/rapidapi_probe.mjs
