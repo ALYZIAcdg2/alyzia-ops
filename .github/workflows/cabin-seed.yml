@@ -19,8 +19,6 @@ permissions:
 
 env:
   ALYZIA_API_SECRET: ${{ secrets.ALYZIA_API_SECRET }}
-  CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
-  CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
 
 jobs:
   seed:
@@ -30,7 +28,7 @@ jobs:
       API: https://alyzia-ops.alyzia-cdg2.workers.dev
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Prépare les suppressions de config_key
         run: |
@@ -51,7 +49,7 @@ jobs:
           while IFS= read -r key; do
             [ -z "$key" ] && continue
             echo "DELETE $key"
-            curl -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" -sS -f -X DELETE "$API/api/cabin/layout?key=$(node -e "console.log(encodeURIComponent(process.argv[1]))" "$key")"
+            curl -sS -f -X DELETE "$API/api/cabin/layout?key=$(node -e "console.log(encodeURIComponent(process.argv[1]))" "$key")"
           done < delete_keys.txt
 
       - name: Construit le payload effectif {configs:[...]}
@@ -74,7 +72,7 @@ jobs:
 
       - name: POST /api/cabin/seed
         run: |
-          curl -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" -H "Authorization: Bearer $ALYZIA_API_SECRET" -sS -f -X POST "$API/api/cabin/seed" \
+          curl -H "Authorization: Bearer $ALYZIA_API_SECRET" -sS -f -X POST "$API/api/cabin/seed" \
             -H "Content-Type: application/json" \
             --data-binary @seed_payload.json | tee seed_result.json
           echo
@@ -82,7 +80,7 @@ jobs:
 
       - name: Recalcule classes_json et total
         run: |
-          curl -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" -H "Authorization: Bearer $ALYZIA_API_SECRET" -sS -f -X POST "$API/api/cabin/recompute-classes" | tee recompute_result.json
+          curl -H "Authorization: Bearer $ALYZIA_API_SECRET" -sS -f -X POST "$API/api/cabin/recompute-classes" | tee recompute_result.json
           echo
           node -e "
             const j=JSON.parse(require('fs').readFileSync('recompute_result.json','utf8'));
@@ -112,7 +110,7 @@ jobs:
           while IFS= read -r payload; do
             [ -z "$payload" ] && continue
             echo "$payload"
-            curl -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" -sS -f -X POST "$API/api/cabin/config" \
+            curl -sS -f -X POST "$API/api/cabin/config" \
               -H "Content-Type: application/json" \
               --data "$payload"
             echo
@@ -120,7 +118,7 @@ jobs:
 
       - name: Vérifie les tris classes opérationnels déclarés
         run: |
-          curl -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" -sS -f "$API/api/cabin/configs" -o all_configs.json
+          curl -sS -f "$API/api/cabin/configs" -o all_configs.json
           node -e "
             const fs=require('fs');
             const all=JSON.parse(fs.readFileSync('all_configs.json','utf8')).configs||[];
@@ -142,7 +140,7 @@ jobs:
 
       - name: Vérifie LY 777 et la disparition de LY 772
         run: |
-          curl -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" -sS -f "$API/api/cabin/configs" -o all_configs.json
+          curl -sS -f "$API/api/cabin/configs" -o all_configs.json
           node -e "
             const j=JSON.parse(require('fs').readFileSync('all_configs.json','utf8'));
             const configs=j.configs||[];
@@ -155,7 +153,7 @@ jobs:
 
       - name: Vérifie le plan LY 777 complet
         run: |
-          curl -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" -sS -f "$API/api/cabin/layout?key=LY%7C777%7C28C32W253Y" | node -e "
+          curl -sS -f "$API/api/cabin/layout?key=LY%7C777%7C28C32W253Y" | node -e "
             let data='';process.stdin.on('data',d=>data+=d);process.stdin.on('end',()=>{
               const j=JSON.parse(data);
               console.log('ok=',j.ok,'zones=',(j.zones||[]).length);

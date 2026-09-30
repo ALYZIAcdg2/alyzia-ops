@@ -17,10 +17,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 355
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
-          node-version: "20"
+          node-version: "22"
       - name: Mois courant (clé du cache)
         id: month
         run: echo "m=$(date -u +%Y-%m)" >> "$GITHUB_OUTPUT"
@@ -40,8 +40,6 @@ jobs:
         env:
           ALYZIA_INGEST_URL: ${{ secrets.ALYZIA_INGEST_URL }}
           OPENSKY_INGEST_TOKEN: ${{ secrets.OPENSKY_INGEST_TOKEN }}
-          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
-          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
           OPENSKY_CLIENT_ID: ${{ secrets.OPENSKY_CLIENT_ID }}
           OPENSKY_CLIENT_SECRET: ${{ secrets.OPENSKY_CLIENT_SECRET }}
           AIRCRAFT_DB: aircraftDatabase.csv

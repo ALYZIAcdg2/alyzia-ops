@@ -13,17 +13,13 @@ concurrency:
   group: alyzia-ops-production
   cancel-in-progress: true
 
-env:
-  CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
-  CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Normalise les codes appareil pour l'auto-config cabine
         run: |
@@ -50,7 +46,7 @@ jobs:
           NODE
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: "22"
 
@@ -70,6 +66,6 @@ jobs:
       - name: Smoke test
         run: |
           sleep 5
-          curl -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" -sS -f "https://alyzia-ops.alyzia-cdg2.workers.dev/api/enrichment/status"
+          curl -sS -f "https://alyzia-ops.alyzia-cdg2.workers.dev/api/enrichment/status"
           echo
-          curl -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" -sSI "https://alyzia-ops.alyzia-cdg2.workers.dev/" | grep -i "x-alyzia-page\|cache-control\|etag" || echo "ATTENTION : page non fabriquée (repli sur le calcul à l'ouverture)"
+          curl -sSI "https://alyzia-ops.alyzia-cdg2.workers.dev/" | grep -i "x-alyzia-page\|cache-control\|etag" || echo "ATTENTION : page non fabriquée (repli sur le calcul à l'ouverture)"

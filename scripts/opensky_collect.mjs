@@ -70,9 +70,7 @@ console.log("avions:",states.length);
 const registrations=await lookupRegistrations(process.env.AIRCRAFT_DB||"aircraftDatabase.csv",states.map(x=>String(x[0]).toLowerCase()));
 console.log("immatriculations trouvées:",Object.keys(registrations).length);
 
-// Cloudflare Access (jeton de service) : nécessaire dès que l'application est protégée par Access.
-const accessHeaders=(process.env.CF_ACCESS_CLIENT_ID&&process.env.CF_ACCESS_CLIENT_SECRET)?{"CF-Access-Client-Id":process.env.CF_ACCESS_CLIENT_ID,"CF-Access-Client-Secret":process.env.CF_ACCESS_CLIENT_SECRET}:{};
-const res=await fetch(ALYZIA_INGEST_URL,{method:"POST",headers:{"content-type":"application/json",...accessHeaders,Authorization:`Bearer ${OPENSKY_INGEST_TOKEN}`},body:JSON.stringify({states,registrations}),signal:AbortSignal.timeout(30000)});
+const res=await fetch(ALYZIA_INGEST_URL,{method:"POST",headers:{"content-type":"application/json",Authorization:`Bearer ${OPENSKY_INGEST_TOKEN}`},body:JSON.stringify({states,registrations}),signal:AbortSignal.timeout(30000)});
 const out=await res.text();
 console.log("application:",res.status,out.slice(0,400));
 if(!res.ok)process.exit(1);

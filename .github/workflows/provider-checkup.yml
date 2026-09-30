@@ -2,16 +2,9 @@ name: Check-up fournisseurs et vols à contrôler
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - '.github/workflows/provider-checkup.yml'
 
 permissions:
   contents: read
-
-env:
-  CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
-  CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
 
 jobs:
   checkup:
@@ -20,12 +13,12 @@ jobs:
     env:
       API: https://alyzia-ops.alyzia-cdg2.workers.dev
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Check-up
         run: |
-          curl -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" -sS "$API/api/flights" -o flights.json
-          curl -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" -sS "$API/api/admin/flight-processing" -o admin.json
-          for p in AIRLABS SKYLINK OAG AERODATABOX OPENSKY QUARK AVIATIONDATA; do curl -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" -sS "$API/api/admin/provider-observability/detail?provider=$p" -o "det_$p.json" || true; done
+          curl -sS "$API/api/flights" -o flights.json
+          curl -sS "$API/api/admin/flight-processing" -o admin.json
+          for p in AIRLABS SKYLINK OAG AERODATABOX OPENSKY QUARK AVIATIONDATA; do curl -sS "$API/api/admin/provider-observability/detail?provider=$p" -o "det_$p.json" || true; done
           node <<'NODE'
           const fs=require('fs');
           const rd=f=>{try{return JSON.parse(fs.readFileSync(f,'utf8'))}catch{return null}};
