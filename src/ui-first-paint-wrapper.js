@@ -1,5 +1,6 @@
 import app from "./ui-stability-wrapper.js";
 import {handleWeather} from "./weather.js";
+import {guardApi} from "./api-guard.js";
 import providerPolicyScheduler,{refreshProviderQueue} from "./provider-policy-scheduler.js";
 import {runFr24DepQueue} from "./fr24dep-queue-runner.js";
 import {runFlighteraQueue} from "./flightera-queue-runner.js";
@@ -46,6 +47,8 @@ async function adminPushNow(request,env,ctx){
 
 export default {
   async fetch(request,env,ctx){
+    const denied=guardApi(request,env);
+    if(denied)return denied;
     if(new URL(request.url).pathname==="/api/opensky/ingest")return handleOpenSkyIngest(request,env);
     if(new URL(request.url).pathname==="/api/weather")return handleWeather(request,ctx);
     if(new URL(request.url).pathname==="/api/admin/push-now")return adminPushNow(request,env,ctx);

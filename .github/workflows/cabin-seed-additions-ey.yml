@@ -12,6 +12,9 @@ on:
 permissions:
   contents: read
 
+env:
+  ALYZIA_API_SECRET: ${{ secrets.ALYZIA_API_SECRET }}
+
 jobs:
   seed:
     runs-on: ubuntu-latest
@@ -23,8 +26,8 @@ jobs:
       - name: Seed EY reference configs
         run: |
           node -e "const fs=require('fs');const o=JSON.parse(fs.readFileSync('scripts/cabin_seed_additions_ey_20260930.json','utf8'));fs.writeFileSync('payload.json',JSON.stringify({configs:o.configs||[]}));"
-          curl -sS -f -X POST "$API/api/cabin/seed" -H "Content-Type: application/json" --data-binary @payload.json
-          curl -sS -f -X POST "$API/api/cabin/recompute-classes" >/dev/null
+          curl -H "Authorization: Bearer $ALYZIA_API_SECRET" -sS -f -X POST "$API/api/cabin/seed" -H "Content-Type: application/json" --data-binary @payload.json
+          curl -H "Authorization: Bearer $ALYZIA_API_SECRET" -sS -f -X POST "$API/api/cabin/recompute-classes" >/dev/null
       - name: Reapply operational classes
         run: |
           node <<'NODE'

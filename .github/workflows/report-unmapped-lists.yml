@@ -21,6 +21,9 @@ on:
 permissions:
   contents: read
 
+env:
+  ALYZIA_API_SECRET: ${{ secrets.ALYZIA_API_SECRET }}
+
 jobs:
   full_reset_and_resync:
     runs-on: ubuntu-latest
@@ -30,22 +33,22 @@ jobs:
     steps:
       - name: 1) Arrête un éventuel AUTO PILOT en cours
         run: |
-          curl -sS -X POST "$BASE/api/autopilot/stop" -H "Content-Type: application/json" || true
+          curl -H "Authorization: Bearer $ALYZIA_API_SECRET" -sS -X POST "$BASE/api/autopilot/stop" -H "Content-Type: application/json" || true
           echo
 
       - name: 2) Supprime les libellés Gmail ALYZIA
         run: |
-          curl -sS -f -X POST "$BASE/api/autopilot/delete-labels" -H "Content-Type: application/json"
+          curl -H "Authorization: Bearer $ALYZIA_API_SECRET" -sS -f -X POST "$BASE/api/autopilot/delete-labels" -H "Content-Type: application/json"
           echo
 
       - name: 3) Vide l'archive Google Drive
         run: |
-          curl -sS -f -X POST "$BASE/api/autopilot/clear-drive" -H "Content-Type: application/json"
+          curl -H "Authorization: Bearer $ALYZIA_API_SECRET" -sS -f -X POST "$BASE/api/autopilot/clear-drive" -H "Content-Type: application/json"
           echo
 
       - name: 4) Remise à zéro complète de la base
         run: |
-          curl -sS -f -X POST "$BASE/api/autopilot/full-reset" \
+          curl -H "Authorization: Bearer $ALYZIA_API_SECRET" -sS -f -X POST "$BASE/api/autopilot/full-reset" \
             -H "Content-Type: application/json" \
             -d '{"confirm":"YES_WIPE_EVERYTHING"}'
           echo
@@ -60,11 +63,11 @@ jobs:
             ITER=$((ITER+1))
             echo "---- sync-now itération $ITER (pageToken=[${TOKEN:0:12}...]) ----"
             BODY=$(node -e "console.log(JSON.stringify({query:'in:anywhere',maxMessages:120,pageToken:process.argv[1]||''}))" "$TOKEN")
-            RESP=$(curl -sS -f -X POST "$BASE/api/gmail/sync-now" -H "Content-Type: application/json" -d "$BODY") || { echo "ÉCHEC sync-now, on retente dans 5s"; sleep 5; continue; }
+            RESP=$(curl -H "Authorization: Bearer $ALYZIA_API_SECRET" -sS -f -X POST "$BASE/api/gmail/sync-now" -H "Content-Type: application/json" -d "$BODY") || { echo "ÉCHEC sync-now, on retente dans 5s"; sleep 5; continue; }
             echo "$RESP" | node -e 'let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>{try{const j=JSON.parse(d);console.log(JSON.stringify({processed:j?.sync?.processed,attempted:j?.sync?.attempted,skippedKnown:j?.sync?.skippedKnown,failed:j?.sync?.failed,jobsProcessed:j?.jobsProcessed,injected:j?.inject?.injected,nextPageToken:!!j?.sync?.nextPageToken}))})'
             NEXT=$(echo "$RESP" | node -e 'let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>{try{const j=JSON.parse(d);process.stdout.write(String(j?.sync?.nextPageToken||""))}catch(e){}})')
 
-            curl -sS -f -X POST "$BASE/api/autopilot/limit-airline-dates" \
+            curl -H "Authorization: Bearer $ALYZIA_API_SECRET" -sS -f -X POST "$BASE/api/autopilot/limit-airline-dates" \
               -H "Content-Type: application/json" \
               -d '{"airline":"SQ","keepDates":3}' | node -e 'let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>{try{const j=JSON.parse(d);console.log("SQ limit-airline-dates:",JSON.stringify({keptDates:j.keptDates,deferred:j.deferred}))}catch(e){}})'
 
@@ -83,7 +86,7 @@ jobs:
           MAX_ITER=200
           while [ "$ITER" -lt "$MAX_ITER" ]; do
             ITER=$((ITER+1))
-            RESP=$(curl -sS -f -X POST "$BASE/api/import-pipeline/process-next" -H "Content-Type: application/json" -d '{"limit":50}') || { echo "ÉCHEC process-next, retente"; sleep 3; continue; }
+            RESP=$(curl -H "Authorization: Bearer $ALYZIA_API_SECRET" -sS -f -X POST "$BASE/api/import-pipeline/process-next" -H "Content-Type: application/json" -d '{"limit":50}') || { echo "ÉCHEC process-next, retente"; sleep 3; continue; }
             FOUND=$(echo "$RESP" | node -e 'let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>{try{const j=JSON.parse(d);process.stdout.write(String(j?.found||0))}catch(e){process.stdout.write("0")}})')
             echo "process-next itération $ITER : found=$FOUND"
             if [ "$FOUND" = "0" ]; then echo "== File LOT2 vidée =="; break; fi
@@ -96,7 +99,7 @@ jobs:
           MAX_ITER=25
           while [ "$ITER" -lt "$MAX_ITER" ]; do
             ITER=$((ITER+1))
-            RESP=$(curl -sS -f -X POST "$BASE/api/autopilot/run" -H "Content-Type: application/json" -d '{"maxMessages":1}') || { echo "ÉCHEC autopilot/run, retente dans 5s"; sleep 5; continue; }
+            RESP=$(curl -H "Authorization: Bearer $ALYZIA_API_SECRET" -sS -f -X POST "$BASE/api/autopilot/run" -H "Content-Type: application/json" -d '{"maxMessages":1}') || { echo "ÉCHEC autopilot/run, retente dans 5s"; sleep 5; continue; }
             echo "$RESP" | node -e 'let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>{try{const j=JSON.parse(d);console.log(JSON.stringify({alreadyRunning:!!j.alreadyRunning,jobsProcessed:j.jobsProcessed,resultsInjected:j.resultsInjected}))}catch(e){console.log("parse_error")}})'
             STABLE=$(echo "$RESP" | node -e 'let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>{try{const j=JSON.parse(d);process.stdout.write((!j.alreadyRunning&&Number(j.jobsProcessed||0)===0&&Number(j.resultsInjected||0)===0)?"1":"0")}catch(e){process.stdout.write("0")}})')
             if [ "$STABLE" = "1" ]; then echo "== Plus rien à classer/injecter =="; break; fi
@@ -105,7 +108,7 @@ jobs:
 
       - name: Sécurité finale — replafonne SQ à 3 dates
         run: |
-          curl -sS -f -X POST "$BASE/api/autopilot/limit-airline-dates" \
+          curl -H "Authorization: Bearer $ALYZIA_API_SECRET" -sS -f -X POST "$BASE/api/autopilot/limit-airline-dates" \
             -H "Content-Type: application/json" \
             -d '{"airline":"SQ","keepDates":3}'
           echo

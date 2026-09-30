@@ -12,6 +12,9 @@ on:
 permissions:
   contents: read
 
+env:
+  ALYZIA_API_SECRET: ${{ secrets.ALYZIA_API_SECRET }}
+
 jobs:
   seed:
     runs-on: ubuntu-latest
@@ -28,11 +31,11 @@ jobs:
 
       - name: POST /api/cabin/seed
         run: |
-          curl -sS -f -X POST "$API/api/cabin/seed" -H "Content-Type: application/json" --data-binary @seed_payload.json
+          curl -H "Authorization: Bearer $ALYZIA_API_SECRET" -sS -f -X POST "$API/api/cabin/seed" -H "Content-Type: application/json" --data-binary @seed_payload.json
 
       - name: Recalcule classes_json et total
         run: |
-          curl -sS -f -X POST "$API/api/cabin/recompute-classes"
+          curl -H "Authorization: Bearer $ALYZIA_API_SECRET" -sS -f -X POST "$API/api/cabin/recompute-classes"
 
       - name: Réapplique les tris classes opérationnels
         run: |

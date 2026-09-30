@@ -12,6 +12,9 @@ on:
 permissions:
   contents: read
 
+env:
+  ALYZIA_API_SECRET: ${{ secrets.ALYZIA_API_SECRET }}
+
 jobs:
   seed:
     runs-on: ubuntu-latest
@@ -29,8 +32,8 @@ jobs:
           const o=JSON.parse(fs.readFileSync('scripts/cabin_seed_additions_la.json','utf8'));
           fs.writeFileSync('seed_payload.json',JSON.stringify({configs:o.configs||[]}));
           NODE
-          curl -sS -f -X POST "$API/api/cabin/seed" -H "Content-Type: application/json" --data-binary @seed_payload.json
-          curl -sS -f -X POST "$API/api/cabin/recompute-classes" > /dev/null
+          curl -H "Authorization: Bearer $ALYZIA_API_SECRET" -sS -f -X POST "$API/api/cabin/seed" -H "Content-Type: application/json" --data-binary @seed_payload.json
+          curl -H "Authorization: Bearer $ALYZIA_API_SECRET" -sS -f -X POST "$API/api/cabin/recompute-classes" > /dev/null
 
       - name: Réapplique les tris classes LA
         run: |
