@@ -21182,7 +21182,25 @@ function cabinMasterGroups(items){
 const CABIN_CLASS_COLOR={F:'#7c3aed',C:'#d97706',J:'#d97706',W:'#0891b2',S:'#0891b2',Y:'#1d6fd6',M:'#1d6fd6'};
 const CABIN_EQUIPMENT_ICON={GALLEY:'🍽',LAVATORY:'🚻',TOILET:'🚻',EXIT:'🚪',STAIRS:'🪜',CREW:'👤',BAR:'🍸',OTHER:'•'};
 const CABIN_SEAT_W=25;
-function cabinPlanBodyHtml(configRow,zones,equipment){
+function cabinDeckOf(zone){
+ const d=String(zone&&zone.deck||'').trim().toUpperCase();
+ return /^(U|UD|UPPER|UPPER DECK|SUP|SUPERIEUR|SUPÉRIEUR)$/.test(d)?'UPPER DECK':'MAIN DECK';
+}
+function cabinPlanBodyHtml(configRow,zones,equipment,_deckPart){
+ // Avions à deux ponts (A380, B747…) : un plan par pont, titré MAIN DECK / UPPER DECK.
+ if(!_deckPart&&zones.some(z=>String(z.deck||'').trim())){
+  const decks=['MAIN DECK','UPPER DECK'].filter(d=>zones.some(z=>cabinDeckOf(z)===d));
+  if(decks.length>1){
+   const parts=decks.map(d=>{
+    const dz=zones.filter(z=>cabinDeckOf(z)===d);
+    return `<div class="cabin-deck-title" style="margin:12px 0 6px;font-size:12px;font-weight:950;letter-spacing:.06em;color:#173a5d;border-bottom:2px solid #cfe0f2;padding-bottom:4px">${d}</div>${cabinPlanBodyHtml(configRow,dz,equipment,true)}`;
+   }).join('');
+   return parts+`<div class="cabin-plan-actions">
+    <button onclick="openCabinBugReport('${escapeHtml(configRow.config_key)}')">⚠ SIGNALER UN BUG</button>
+    <button onclick="openCabinZoneEditor('${escapeHtml(configRow.config_key)}')">✎ MODIFIER LES ZONES</button>
+  </div>`;
+  }
+ }
  if(!zones.length){
   return `<div class="cabin-plan-empty">AUCUN PLAN ENREGISTRÉ POUR CETTE CONFIGURATION.<br><button class="primary" onclick="openCabinZoneEditor('${escapeHtml(configRow.config_key)}')">＋ AJOUTER UNE ZONE</button></div>`;
  }
@@ -21263,11 +21281,11 @@ function cabinPlanBodyHtml(configRow,zones,equipment){
  return `<div class="cabin-plan-meta">
     <div class="cabin-legend">${legend}</div>
   </div>
-  <div class="cabin-plan-scroll">${rowsHtml}</div>
+  <div class="cabin-plan-scroll">${rowsHtml}</div>${_deckPart?'':`
   <div class="cabin-plan-actions">
     <button onclick="openCabinBugReport('${escapeHtml(configRow.config_key)}')">⚠ SIGNALER UN BUG</button>
     <button onclick="openCabinZoneEditor('${escapeHtml(configRow.config_key)}')">✎ MODIFIER LES ZONES</button>
-  </div>`;
+  </div>`}`;
 }
 function openCabinBugReport(configKey){
  showModal('SIGNALER UN BUG',configKey,`

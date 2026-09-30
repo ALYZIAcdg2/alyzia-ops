@@ -12945,6 +12945,8 @@ async function ensureCabinTables(env){
    * avale l'erreur, comme une migration idempotente classique.
    */
   await env.OPS_DB.prepare(`ALTER TABLE cabin_zones ADD COLUMN sort_order INTEGER`).run().catch(()=>{});
+  // Pont (MAIN / UPPER) pour les avions à deux ponts ; vide = pont unique.
+  await env.OPS_DB.prepare(`ALTER TABLE cabin_zones ADD COLUMN deck TEXT`).run().catch(()=>{});
 }
 
 // Etend un motif "AC|DEFG|HK" (+ exceptions "13=SKIP" / "38=AB||JK") en un
@@ -13047,9 +13049,9 @@ async function handleCabin(request,env,url){
     }
 
     const result=await env.OPS_DB.prepare(`
-      INSERT INTO cabin_zones (config_key,class,row_start,row_end,pattern,placement_mode,exceptions,created_at)
-      VALUES (?,?,?,?,?,?,?,CURRENT_TIMESTAMP)
-    `).bind(configKey,cls,rowStart,rowEnd,pattern,String(body?.placementMode||"ALIGNE"),String(body?.exceptions||"")).run();
+      INSERT INTO cabin_zones (config_key,class,row_start,row_end,pattern,placement_mode,exceptions,deck,created_at)
+      VALUES (?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)
+    `).bind(configKey,cls,rowStart,rowEnd,pattern,String(body?.placementMode||"ALIGNE"),String(body?.exceptions||""),String(body?.deck||"").trim().toUpperCase()||null).run();
 
     return json({ok:true,id:Number(result.meta?.last_row_id||0)});
   }
@@ -13076,8 +13078,8 @@ async function handleCabin(request,env,url){
       return json({ok:false,error:"ZONE INVALIDE (class/rowStart/rowEnd/pattern requis)"},400);
     }
     await env.OPS_DB.prepare(`
-      UPDATE cabin_zones SET class=?,row_start=?,row_end=?,pattern=?,placement_mode=?,exceptions=? WHERE id=?
-    `).bind(cls,rowStart,rowEnd,pattern,String(body?.placementMode||"ALIGNE"),String(body?.exceptions||""),id).run();
+      UPDATE cabin_zones SET class=?,row_start=?,row_end=?,pattern=?,placement_mode=?,exceptions=?,deck=COALESCE(?,deck) WHERE id=?
+    `).bind(cls,rowStart,rowEnd,pattern,String(body?.placementMode||"ALIGNE"),String(body?.exceptions||""),body?.deck===undefined?null:String(body.deck||"").trim().toUpperCase(),id).run();
     return json({ok:true,id});
   }
 
@@ -13197,9 +13199,9 @@ async function handleCabin(request,env,url){
         const pattern=String(z?.pattern||"").trim().toUpperCase();
         if(!cls||!Number.isFinite(rowStart)||!Number.isFinite(rowEnd)||!pattern)continue;
         await env.OPS_DB.prepare(`
-          INSERT INTO cabin_zones (config_key,class,row_start,row_end,pattern,placement_mode,exceptions,created_at)
-          VALUES (?,?,?,?,?,?,?,CURRENT_TIMESTAMP)
-        `).bind(configKey,cls,rowStart,rowEnd,pattern,"ALIGNE",String(z?.exceptions||"")).run();
+          INSERT INTO cabin_zones (config_key,class,row_start,row_end,pattern,placement_mode,exceptions,deck,created_at)
+          VALUES (?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)
+        `).bind(configKey,cls,rowStart,rowEnd,pattern,"ALIGNE",String(z?.exceptions||""),String(z?.deck||"").trim().toUpperCase()||null).run();
         zonesWritten++;
       }
 
