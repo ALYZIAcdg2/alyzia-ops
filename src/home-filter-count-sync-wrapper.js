@@ -7,10 +7,10 @@ if(window.__alyziaHomeFilterCountSyncV4)return;window.__alyziaHomeFilterCountSyn
 const norm=v=>String(v||'').toUpperCase().trim();
 function nativeBadge(){const els=[...document.querySelectorAll('#app *')].filter(el=>!el.classList.contains('alyzia-combined-flight-count')&&el.children.length===0&&/^\s*\d+\s+VOLS?\s*$/i.test(String(el.textContent||'')));return els.find(el=>/badge|count|pill|chip/i.test(String(el.className||'')))||els[0]||null}
 function ensureCombinedBadge(){let own=document.querySelector('#app .alyzia-combined-flight-count');const native=nativeBadge();if(!native)return own;if(!own){own=native.cloneNode(false);own.classList.add('alyzia-combined-flight-count');own.removeAttribute('id');native.insertAdjacentElement('afterend',own)}native.classList.add('alyzia-native-flight-count');return own}
-function visibleRows(){return [...document.querySelectorAll('#app .flight-home-row')].filter(row=>{if(row.hidden||row.getAttribute('aria-hidden')==='true')return false;for(let el=row;el&&el!==document.body;el=el.parentElement){const cs=getComputedStyle(el);if(cs.display==='none'||cs.visibility==='hidden')return false;if(el.id==='app')break}return true})}
+function visibleRows(){return [...document.querySelectorAll('#app .flight-home-row')].filter(row=>{if(row.hidden||row.getAttribute('aria-hidden')==='true')return false;for(let el=row;el&&el!==document.body;el=el.parentElement){const cs=getComputedStyle(el);if(cs.display==='none')return false;if(el.id==='app')break}return true})}
 function updateCount(){const b=ensureCombinedBadge();if(!b)return;const n=visibleRows().length;b.textContent=n+' VOL'+(n>1?'S':'')}
 let timer=0;
-function schedule(){clearTimeout(timer);[0,40,120,300,700].forEach(ms=>setTimeout(updateCount,ms));timer=setTimeout(updateCount,1200)}
+function schedule(){clearTimeout(timer);[0,40,120,300,700,1500,2500].forEach(ms=>setTimeout(updateCount,ms));timer=setTimeout(updateCount,1200)}
 document.addEventListener('click',e=>{const b=e.target?.closest?.('#app button');if(!b)return;const t=norm(b.textContent);if(/^(T1|T2|T3|ALL|★|☆)$/.test(t)||b.classList.contains('alyzia-time-choice')||b.classList.contains('alyzia-home-clear'))schedule()},true);
 document.addEventListener('input',e=>{if(e.target?.matches?.('#app .home-flight-search input'))schedule()},true);
 const baseHome=window.renderHome;if(typeof baseHome==='function')window.renderHome=function(...args){const r=baseHome.apply(this,args);try{updateCount()}catch{}schedule();return r};
