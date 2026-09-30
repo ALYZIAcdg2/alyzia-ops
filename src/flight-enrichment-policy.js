@@ -6,7 +6,7 @@ const API_SOURCES=[
   "OAG","OAG_STATUS","OAG_SCHEDULE","OAG_H2_RECOVERY",
   "AIRLABS","AIRLABS_LIVE_RECOVERY","AIRLABS_ROUTE","AIRLABS_ROUTE_TODAY",
   "SKYLINK","SKYLINK_LIVE_RECOVERY","SKYLINK_J0_BACKFILL","SKYLINK_ENT_ALIAS",
-  "AERODATABOX","AERODATABOX_REG","QUARK","AVIATIONDATA","FLIGHTERA","OPENSKY_ADSB","ALYZIA_OPS_STATE"
+  "AERODATABOX","AERODATABOX_REG","QUARK","AVIATIONDATA","FLIGHTERA","FLIGHTRADAR1","OPENSKY_ADSB","ALYZIA_OPS_STATE"
 ];
 const FINAL_FIELDS=new Set(["std","sta","atd","ata","gate","reg"]);
 
@@ -83,7 +83,8 @@ const PROVIDER_FIELDS={
   AERODATABOX:["std","sta","etd","eta","atd","ata","gate","reg"],
   QUARK:["etd","eta","gate"],
   AVIATIONDATA:["atd","ata"],
-  FLIGHTERA:["etd","eta","atd","ata","gate","reg"]
+  FLIGHTERA:["etd","eta","atd","ata","gate","reg"],
+  FLIGHTRADAR1:["reg"]
 };
 export function providerNeeded(provider,x={},d=99999){
   if(stopAll(x))return false;
