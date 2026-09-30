@@ -1,0 +1,23 @@
+name: Test AirLabs schedules (champs)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    env:
+      AIRLABS_API_KEY: ${{ secrets.AIRLABS_API_KEY }}
+    steps:
+      - run: |
+          if [ -z "$AIRLABS_API_KEY" ]; then echo "AIRLABS_API_KEY absente de GitHub"; exit 0; fi
+          F="airline_iata,flight_iata,flight_number,dep_iata,dep_gate,dep_time,dep_estimated,dep_actual,arr_iata,arr_time,arr_estimated,arr_actual,reg_number"
+          for extra in "" ",aircraft_icao"; do
+            echo "--- champs de base${extra}"
+            curl -sS -o /tmp/r.json -w "HTTP %{http_code}\n" "https://airlabs.co/api/v9/schedules?dep_iata=CDG&limit=2&_fields=$F$extra&api_key=$AIRLABS_API_KEY"
+            head -c 400 /tmp/r.json | sed "s/$AIRLABS_API_KEY/***/g"; echo
+          done
