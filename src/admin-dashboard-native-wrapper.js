@@ -41,7 +41,7 @@ function classify({row,x},now){
       const arrMin=minute(eta)??minute(sta),atdMin=minute(atd),sameDay=arrMin!==null&&atdMin!==null&&arrMin>=atdMin;
       if(sameDay&&arrMin<=nowMin&&nowMin-arrMin>20)miss.push("ATA")
     }
-    else if(delta!==null&&delta<=60){const noDep=!etd&&!atd;if(noDep)miss.push("ETD/ATD");if(!gate&&!atd)miss.push("GATE");if(!reg)miss.push("REG");state=noDep?"À CONTRÔLER":miss.length?"PARTIEL":"OK"}
+    else if(delta!==null&&delta<=60){const noDep=!etd&&!atd;if(noDep)miss.push("ETD/ATD");if(!gate&&!atd)miss.push("GATE");if(!reg)miss.push("REG");state=noDep?(delta<=30?"À CONTRÔLER":"PARTIEL"):miss.length?"PARTIEL":"OK"}   // sans ETD/ATD : À CONTRÔLER seulement à 30 min du départ (ou passé), PARTIEL avant
     else if(!std||!sta)state="PARTIEL";
     if(!sta&&!etd&&!atd&&!eta&&!ata&&!gate&&!reg)state="NON TRAITÉ";
   }
