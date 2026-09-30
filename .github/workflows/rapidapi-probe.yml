@@ -1,11 +1,11 @@
-name: Test des API RapidAPI (flightera, flight-radar1/8, flightradar24-data)
+name: Test RapidAPI flight-radar1 (recherche vol)
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - '.github/workflows/rapidapi-probe.yml'
-      - 'scripts/rapidapi_probe.mjs'
+    inputs:
+      queries:
+        description: "Vols à chercher, séparés par des virgules"
+        default: "TK1822,LO332"
 
 permissions:
   contents: read
@@ -13,14 +13,12 @@ permissions:
 jobs:
   probe:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 3
     steps:
       - uses: actions/checkout@v4
       - name: Sondage
         env:
           RAPIDAPI_KEY: ${{ secrets.RAPIDAPI_KEY || secrets.QUARK_RAPIDAPI_KEY || secrets.AVIATIONDATA_RAPIDAPI_KEY }}
-          RAPIDAPI_KEY_FLIGHTERA: ${{ secrets.FLIGHTERA_RAPIDAPI_KEY }}
           RAPIDAPI_KEY_FR1: ${{ secrets.FLIGHT_RADAR1_RAPIDAPI_KEY }}
-          RAPIDAPI_KEY_FR8: ${{ secrets.FLIGHT_RADAR8_RAPIDAPI_KEY }}
-          RAPIDAPI_KEY_FR24: ${{ secrets.FLIGHTRADAR24_DATA_RAPIDAPI_KEY }}
+          QUERIES: ${{ github.event.inputs.queries }}
         run: node scripts/rapidapi_probe.mjs
