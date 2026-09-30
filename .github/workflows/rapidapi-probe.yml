@@ -1,6 +1,10 @@
 name: Test RapidAPI flight-radar1 (recherche vol)
 
 on:
+  push:
+    paths:
+      - 'scripts/rapidapi_probe.mjs'
+      - '.github/workflows/rapidapi-probe.yml'
   workflow_dispatch:
     inputs:
       queries:
