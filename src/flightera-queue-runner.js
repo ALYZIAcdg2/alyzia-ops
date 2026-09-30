@@ -9,7 +9,7 @@ import {providerPause,recordProviderResult} from "./provider-errors.js";
 const PROVIDER="FLIGHTERA";
 const HOST="flightera-flight-data.p.rapidapi.com";
 const MAX_PER_RUN=1;             // cron toutes les 5 min
-const DAY_CAP=20;
+const DAY_CAP=40;
 const MONTH_CAP=170;             // plan 200/mois, marge pour les essais manuels
 const COOLDOWN_MIN=90;           // par vol
 const MAX_ATTEMPTS_PER_FLIGHT=3;
