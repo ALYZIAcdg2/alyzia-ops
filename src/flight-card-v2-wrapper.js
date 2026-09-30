@@ -46,7 +46,20 @@ const UI=String.raw`
   const rawBooking=(x,airline)=>airline==='HF'?mergeHF(x.booked||x.booking||x.load?.booked):(x.booked||x.booking||x.load?.booked);
   const cabinParts=v=>{const values={},order=[];if(v&&typeof v==='object'){for(const [k0,n0] of Object.entries(v)){const k=up(k0);if(!k)continue;const n=Number(n0);if(!Number.isFinite(n))continue;if(!order.includes(k))order.push(k);values[k]=n}return {order,values}}txt(v).replace(/\b([A-Z])\s*(\d+)\b/g,(_,k0,n0)=>{const k=up(k0);if(!order.includes(k))order.push(k);values[k]=Number(n0)});return {order,values}};
   const config=(x,airline)=>objText(rawConfig(x,airline));
-  const booking=(x,airline)=>{const c=cabinParts(rawConfig(x,airline)),b=cabinParts(rawBooking(x,airline));if(c.order.length)return c.order.map(k=>k+Number(b.values[k]||0)).join(' ');return objText(rawBooking(x,airline))};
+  // Single source of truth for the BOOKING text (also used by the other home-list wrappers, which used to rewrite it
+  // in different orders / without the empty cabins and made the value flicker: "Y0 C0" / "Y0" / "C0 Y0").
+  const CABIN_RANK={F:0,J:1,C:2,S:3,W:4,E:5,Y:6,M:7};
+  const PAIRS=[['J','C'],['Y','M']];
+  const canonBooking=x=>{
+    const airline=up(x.airline||flightNo(x.flight||x.flight_number||'').replace(/\d.*$/,''));
+    const c=cabinParts(rawConfig(x,airline)),b=cabinParts(rawBooking(x,airline));
+    const keys=c.order.length?[...c.order]:[...b.order];
+    if(!keys.length)return objText(rawBooking(x,airline));
+    const val=k=>{if(k in b.values)return Number(b.values[k]||0);for(const [p,q] of PAIRS){const o=k===p?q:k===q?p:null;if(o&&(o in b.values)&&!keys.includes(o))return Number(b.values[o]||0)}return 0};
+    return keys.sort((p,q)=>(CABIN_RANK[p]??50)-(CABIN_RANK[q]??50)).map(k=>k+val(k)).join(' ');
+  };
+  window.__alyziaCanonBooking=canonBooking;
+  const booking=(x,airline)=>canonBooking(x);
   const available=(x,airline)=>{const a=x.available??x.availability??x.load?.availability;if(typeof a==='number'&&Number.isFinite(a))return String(a);if(a&&typeof a==='object'){const vals=Object.values(a).map(Number).filter(Number.isFinite);if(vals.length)return String(vals.reduce((s,n)=>s+n,0))}const c=cabinParts(rawConfig(x,airline)),b=cabinParts(rawBooking(x,airline));if(c.order.length){const bookedTotal=c.order.reduce((s,k)=>s+Number(b.values[k]||0),0),capacity=c.order.reduce((s,k)=>s+Number(c.values[k]||0),0);if(bookedTotal===0&&capacity>0)return String(capacity)}return '—'};
   const normalizeStatus=(x,atd,ata,eta,std,sta,sched)=>{const raw=up(x.opsStatus||x.status||x.flight_status||x.providerStatusRaw);if(raw.includes('CANCEL')||raw.includes('ANNUL'))return 'ANNULÉ';if(ata||raw.includes('ARRIV')||raw.includes('LANDED')||raw.includes('COMPLETED'))return 'ARRIVÉ';if(atd&&etaPassed10(x,atd,eta,std,sta,sched))return 'ARRIVÉ';if(atd)return 'EN VOL';if(raw.includes('DEPART')||raw.includes('DÉCOLL')||raw.includes('DECOLL')||raw.includes('AIRBORNE')||raw.includes('IN FLIGHT')||raw.includes('EN ROUTE'))return 'DÉCOLLÉ';if(raw.includes('BOARD')||raw.includes('EMBAR'))return 'EMBARQUEMENT';if(raw.includes('DELAY')||raw.includes('RETARD'))return 'RETARDÉ';if(raw.includes('CONFIRM'))return 'À CONFIRMER';return 'PROGRAMMÉ'};
   const cityFromRow=row=>{const s=txt(row.querySelector('.home-sub')?.textContent);const p=s.split('·');return txt(p[p.length-1]||'')};
