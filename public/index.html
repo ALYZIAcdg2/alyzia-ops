@@ -7440,6 +7440,8 @@ async function loadFlightsFromCloud({attempts=3}={}){
        const {flights}=splitCloudRecords(data.flights);
        const changed=normalizeLegacyImportedDurations(flights);
        rebuildCloudSnapshot(flights);
+       // La première synchro périodique repart de ce chargement (par différences) au lieu de retélécharger la même liste.
+       if(data.syncToken&&!OPS_DELTA.all){OPS_DELTA.all=data.flights.slice();OPS_DELTA.token=data.syncToken;OPS_DELTA.epoch=String(data.epoch||'');OPS_DELTA.fullAt=Date.now()}
        setOpsCloudState(true);
        // Corrige automatiquement les anciens imports D1 comportant le faux 03:00.
        if(changed)setTimeout(()=>syncFlightsToCloud(flights),50);
