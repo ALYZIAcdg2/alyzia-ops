@@ -1,4 +1,5 @@
 import app from "./flight-card-v2-wrapper.js";
+import {shiftToParis} from "./airport-tz.js";
 
 const clean=v=>String(v??"").trim();
 const upper=v=>clean(v).toUpperCase();
@@ -32,13 +33,13 @@ function classify({row,x},now){
       // Fenêtre H-1 / H+1 : sans ETD ni ATD, le vol est à contrôler (voir plus bas pour H+1).
       miss.push("ATD");state=late?"À CONTRÔLER":"PARTIEL";
       // Sans ATD mais heure d'arrivée (ETA, sinon STA) dépassée de 20+ min (même jour) : le vol a forcément volé, il est considéré arrivé.
-      const arrMin0=minute(eta)??minute(sta);
+      const shift=shiftToParis(x.dest||x.destination),am0=minute(eta)??minute(sta),arrMin0=am0===null?null:am0-shift;
       if(arrMin0!==null&&stdMin!==null&&arrMin0>=stdMin&&arrMin0<=nowMin&&nowMin-arrMin0>20){state="OK";miss.push("ATA")}
     }
     else if(atd&&!ata){
       // Airborne is normal. Once ETA (else STA) is 20+ min past, the flight is considered arrived (OK)
       // even without ATA; ATA stays listed as missing and provider recovery keeps chasing it.
-      const arrMin=minute(eta)??minute(sta),atdMin=minute(atd),sameDay=arrMin!==null&&atdMin!==null&&arrMin>=atdMin;
+      const shift=shiftToParis(x.dest||x.destination),am=minute(eta)??minute(sta),atdMin=minute(atd);let arrMin=am===null?null:am-shift;if(arrMin!==null&&atdMin!==null)while(arrMin<atdMin)arrMin+=1440;const sameDay=arrMin!==null&&atdMin!==null&&arrMin>=atdMin;
       if(sameDay&&arrMin<=nowMin&&nowMin-arrMin>20)miss.push("ATA")
     }
     else if(delta!==null&&delta<=60){const noDep=!etd&&!atd;if(noDep)miss.push("ETD/ATD");if(!gate&&!atd)miss.push("GATE");if(!reg)miss.push("REG");state=noDep?(delta<=30?"À CONTRÔLER":"PARTIEL"):miss.length?"PARTIEL":"OK"}   // sans ETD/ATD : À CONTRÔLER seulement à 30 min du départ (ou passé), PARTIEL avant

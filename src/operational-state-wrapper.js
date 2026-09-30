@@ -1,4 +1,5 @@
 import app from "./registration-enrichment-wrapper.js";
+import {shiftToParis} from "./airport-tz.js";
 
 const clean=v=>String(v??"").trim();
 const upper=v=>clean(v).toUpperCase();
@@ -22,8 +23,10 @@ function etaPassedBy15(x,now,flightDate){
   if(est!=null&&nowDay!=null)return nowDay*1440+now.minutes>=est+15;
   const atd=mins(x.atd),eta=mins(x.eta),std=mins(x.std),sta=mins(x.sta),flightDay=dayNumber(flightDate);
   if(atd==null||eta==null||flightDay==null||nowDay==null)return false;
-  const nextDay=((std!=null&&sta!=null&&sta<std)||eta<atd);
-  const etaAbs=(flightDay+(nextDay?1:0))*1440+eta;
+  // ETA/STA sont en heure locale de destination : on les ramène à l'heure de Paris avant de comparer.
+  const shift=shiftToParis(x.dest||x.destination);
+  let etaAbs=flightDay*1440+eta-shift;const atdAbs=flightDay*1440+atd;
+  while(etaAbs<atdAbs)etaAbs+=1440;
   return nowDay*1440+now.minutes>=etaAbs+15;
 }
 function apiSource(x,field){return /(AIRLABS|SKYLINK|OAG|AERODATABOX)/i.test(clean(x?.[field+"Source"]))}
