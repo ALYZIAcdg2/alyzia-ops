@@ -7433,7 +7433,8 @@ async function loadFlightsFromCloud({attempts=3}={}){
  for(let attempt=1;attempt<=attempts;attempt++){
    try{
      if(attempt>1)setOpsCloudConnecting(`CONNEXION AU CLOUD · TENTATIVE ${attempt}/${attempts}`);
-     const data=await cloudRequest(`${OPS_CLOUD_API}?_=${Date.now()}`,{method:'GET',cache:'no-store'},9000);
+     opsInitRange();
+     const data=await cloudRequest(`${OPS_CLOUD_API}?_=${Date.now()}${opsRangeQuery()}`,{method:'GET',cache:'no-store'},OPS_RANGE.all?60000:15000);
      if(data?.ok && Array.isArray(data.flights)){
        syncCompanyConfigFromFlights(data.flights);
        const {flights}=splitCloudRecords(data.flights);
@@ -18676,6 +18677,130 @@ async function cacheCloudFlightsLocally(list){
 
 const OPS_DELTA={all:null,token:'',epoch:'',fullAt:0};
 function opsDeltaKey(f){return f&&f.date&&f.airline&&f.flight?`${String(f.date)}|${String(f.airline).toUpperCase()}|${String(f.flight).toUpperCase()}`:''}
+// ===== Chargement par dates =====
+// Au démarrage on ne charge que la fenêtre utile (J-7 à J+14) + la configuration des compagnies ; le reste est chargé
+//  - à la demande (navigation vers une autre date, recherche, import), ou
+//  - en arrière-plan ~15 s après l'affichage (pour que tous les écrans voient l'ensemble, comme avant).
+// Désactivation : ajouter ?full=1 à l'adresse, ou localStorage alyzia_full_load=1.
+const OPS_RANGE={from:'',to:'',all:false,busy:false,ready:false};
+const OPS_WINDOW_BACK=7,OPS_WINDOW_FWD=14,OPS_MAX_GAP_DAYS=45;
+function opsRangeKey(){return OPS_RANGE.all?'all':OPS_RANGE.from+'>'+OPS_RANGE.to}
+function opsInitRange(){
+ if(OPS_RANGE.ready)return;OPS_RANGE.ready=true;
+ let full=false;try{full=/[?&]full=1\b/.test(location.search)||localStorage.getItem('alyzia_full_load')==='1'}catch(e){}
+ if(full){OPS_RANGE.all=true;return}
+ const t=(typeof APP_TODAY!=='undefined'&&APP_TODAY)||localISO(new Date());
+ OPS_RANGE.from=addDaysISO(t,-OPS_WINDOW_BACK);OPS_RANGE.to=addDaysISO(t,OPS_WINDOW_FWD);
+}
+function opsRangeQuery(){return (OPS_RANGE.all||!OPS_RANGE.from)?'':`&from=${OPS_RANGE.from}&to=${OPS_RANGE.to}`}
+function opsNeedRange(date){opsInitRange();return !OPS_RANGE.all&&/^\d{4}-\d{2}-\d{2}$/.test(String(date||''))&&(date<OPS_RANGE.from||date>OPS_RANGE.to)}
+function opsDayDiff(a,b){return Math.round((Date.parse(b)-Date.parse(a))/86400000)}
+// Ajoute des vols reçus du cloud à la mémoire sans jamais toucher à l'ordre ni aux vols déjà présents (l'index "selected" reste valide).
+function opsMergeLoaded(records){
+ const {flights}=splitCloudRecords(records);
+ normalizeLegacyImportedDurations(flights);
+ if(!OPS_DELTA.all)OPS_DELTA.all=FLIGHTS.slice();
+ const inAll=new Map();OPS_DELTA.all.forEach((f,i)=>inAll.set(opsDeltaKey(f),i));
+ const present=new Set(FLIGHTS.map(opsDeltaKey));
+ let added=0;
+ for(const f of flights){
+   const k=opsDeltaKey(f);if(!k)continue;
+   if(inAll.has(k))OPS_DELTA.all[inAll.get(k)]=f;else{inAll.set(k,OPS_DELTA.all.length);OPS_DELTA.all.push(f)}
+   if(!present.has(k)){FLIGHTS.push(f);present.add(k);added++}
+   try{OPS_CLOUD_SNAPSHOT.set(flightImportIdentity(f),JSON.parse(JSON.stringify(f)))}catch(e){}
+ }
+ return added;
+}
+async function opsWaitIdle(){for(let i=0;i<100&&(OPS_REALTIME_RUNNING||OPS_RANGE.busy);i++)await new Promise(r=>setTimeout(r,100))}
+let OPS_RANGE_PROMISE=null;
+async function opsEnsureRange(from,to){
+ opsInitRange();
+ if(OPS_RANGE.all)return;
+ const lo=from<OPS_RANGE.from?from:OPS_RANGE.from,hi=to>OPS_RANGE.to?to:OPS_RANGE.to;
+ if(lo===OPS_RANGE.from&&hi===OPS_RANGE.to)return;
+ // un trou trop grand (saut de plusieurs mois) : on charge tout plutôt qu'une plage énorme
+ if((from<OPS_RANGE.from&&opsDayDiff(from,OPS_RANGE.from)>OPS_MAX_GAP_DAYS)||(to>OPS_RANGE.to&&opsDayDiff(OPS_RANGE.to,to)>OPS_MAX_GAP_DAYS))return opsEnsureAll();
+ while(OPS_RANGE_PROMISE)await OPS_RANGE_PROMISE.catch(()=>{});
+ if(OPS_RANGE.all)return;
+ OPS_RANGE_PROMISE=(async()=>{
+   await opsWaitIdle();OPS_RANGE.busy=true;
+   try{
+     const segs=[];
+     if(from<OPS_RANGE.from)segs.push([from,addDaysISO(OPS_RANGE.from,-1)]);
+     if(to>OPS_RANGE.to)segs.push([addDaysISO(OPS_RANGE.to,1),to]);
+     setOpsCloudConnecting('CHARGEMENT DES VOLS…');
+     let ok=true;
+     for(const [a,b] of segs){
+       const data=await cloudRequest(`${OPS_CLOUD_API}?from=${a}&to=${b}&_=${Date.now()}`,{method:'GET',cache:'no-store'},60000);
+       if(!(data?.ok&&Array.isArray(data.flights))){ok=false;break}
+       opsMergeLoaded(data.flights);
+     }
+     if(ok){OPS_RANGE.from=lo;OPS_RANGE.to=hi}
+     setOpsCloudState(true);
+   }catch(e){console.warn('CHARGEMENT PLAGE',e);setOpsCloudState(true)}
+   finally{OPS_RANGE.busy=false}
+ })();
+ try{await OPS_RANGE_PROMISE}finally{OPS_RANGE_PROMISE=null}
+}
+async function opsEnsureAll(){
+ opsInitRange();
+ if(OPS_RANGE.all)return;
+ while(OPS_RANGE_PROMISE)await OPS_RANGE_PROMISE.catch(()=>{});
+ if(OPS_RANGE.all)return;
+ OPS_RANGE_PROMISE=(async()=>{
+   await opsWaitIdle();OPS_RANGE.busy=true;
+   try{
+     setOpsCloudConnecting('CHARGEMENT DES VOLS…');
+     const data=await cloudRequest(`${OPS_CLOUD_API}?_=${Date.now()}`,{method:'GET',cache:'no-store'},120000);
+     if(data?.ok&&Array.isArray(data.flights)){
+       opsMergeLoaded(data.flights);
+       // Ne touche ni au jeton, ni à l'époque, ni à l'âge du dernier chargement complet : la synchro normale constate seule une suppression.
+       OPS_RANGE.all=true;
+     }
+     setOpsCloudState(true);
+   }catch(e){console.warn('CHARGEMENT COMPLET',e);setOpsCloudState(true)}
+   finally{OPS_RANGE.busy=false}
+ })();
+ try{await OPS_RANGE_PROMISE}finally{OPS_RANGE_PROMISE=null}
+}
+// Complétion en arrière-plan : tous les écrans finissent par voir l'ensemble des vols, sans ralentir le démarrage.
+function opsScheduleBackgroundAll(){
+ if(OPS_RANGE.all)return;
+ const go=()=>{if(OPS_RANGE.all)return;if(document.hidden){document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(go,2000)},{once:true});return}
+   (window.requestIdleCallback||((f)=>setTimeout(f,300)))(()=>{opsEnsureAll().catch(()=>{})},{timeout:5000})};
+ setTimeout(go,15000);
+}
+// Navigation vers une date hors de la fenêtre : on charge d'abord cette date, puis on affiche.
+function opsWithDate(date,fn){
+ if(!opsNeedRange(date))return fn();
+ opsEnsureRange(date,date).then(fn,fn);
+}
+const opsChangeSelectedDate_orig=changeSelectedDate;
+changeSelectedDate=function(delta){
+ const cur=currentView==='prepa'?PREPA_DATE:HOME_DATE,target=addDaysISO(cur,delta);
+ opsWithDate(target,()=>opsChangeSelectedDate_orig(delta));
+};
+const opsApplyCalendarDate_orig=applyCalendarDate;
+applyCalendarDate=function(){
+ const val=document.getElementById('calendarDateInput')?.value;
+ opsWithDate(val,()=>opsApplyCalendarDate_orig());
+};
+// Import et recherche passager regardent toutes les dates : on charge tout avant de les ouvrir.
+// (La page RECHERCHE VOL, elle, navigue par date : elle demande seulement la date affichée, voir dayRows() dans ops-ui-fixes-wrapper.js.)
+// Installé après le chargement complet des scripts (des correctifs ajoutés à l'exécution redéfinissent openFlightSearch, etc.).
+function opsInstallNeedsAllWrappers(){
+ for(const name of ['openFlightImport','openPassengerSearchModal']){
+   const orig=window[name];if(typeof orig!=='function'||orig.__opsNeedsAll)continue;
+   const w=function(...args){
+     if(OPS_RANGE.all||!OPS_RANGE.ready)return orig.apply(this,args);
+     try{showModal('CHARGEMENT DES VOLS','TOUTES LES DATES','<div style="padding:22px;text-align:center;font-weight:900;color:#576a81">Chargement de l\'historique…</div>')}catch(e){}
+     return opsEnsureAll().then(()=>{try{closeModal()}catch(e){}return orig.apply(this,args)},()=>{try{closeModal()}catch(e){}return orig.apply(this,args)});
+   };
+   w.__opsNeedsAll=true;window[name]=w;
+ }
+}
+window.addEventListener('load',()=>{setTimeout(opsInstallNeedsAllWrappers,0);setTimeout(opsInstallNeedsAllWrappers,2500)});
+
 async function silentCloudRefresh({forceRender=false}={}){
  if(OPS_REALTIME_RUNNING || opsCloudWriteInProgress() || !navigator.onLine)return false;
  OPS_REALTIME_RUNNING=true;
@@ -18683,9 +18808,12 @@ async function silentCloudRefresh({forceRender=false}={}){
  try{
    // Synchro par différences : après un chargement complet, on ne redemande que les vols modifiés (?since=jeton serveur).
    // Chargement complet de sécurité toutes les 3 min, ou si la base signale une suppression (epoch différent).
+   if(OPS_RANGE.busy)return false; // chargement d'une autre plage de dates en cours
    const canDelta=Boolean(OPS_DELTA.token&&OPS_DELTA.all&&Date.now()-OPS_DELTA.fullAt<180000);
-   const data=await cloudRequest(canDelta?`${OPS_CLOUD_API}?since=${encodeURIComponent(OPS_DELTA.token)}&_=${Date.now()}`:`${OPS_CLOUD_API}?_=${Date.now()}`,{method:'GET',cache:'no-store'},canDelta?10000:60000);
+   const rangeAtRequest=opsRangeKey();
+   const data=await cloudRequest(canDelta?`${OPS_CLOUD_API}?since=${encodeURIComponent(OPS_DELTA.token)}&_=${Date.now()}${opsRangeQuery()}`:`${OPS_CLOUD_API}?_=${Date.now()}${opsRangeQuery()}`,{method:'GET',cache:'no-store'},canDelta?10000:60000);
    if(!(data?.ok&&Array.isArray(data.flights)))return false;
+   if(rangeAtRequest!==opsRangeKey())return false; // la plage chargée a changé pendant la requête : résultat périmé, on l'ignore
    if(data.delta&&canDelta){
      if(String(data.epoch||'')!==OPS_DELTA.epoch){OPS_DELTA.token='';return false} // suppression côté serveur : prochain cycle = chargement complet
      OPS_DELTA.token=data.syncToken||OPS_DELTA.token;
@@ -20813,6 +20941,7 @@ async function bootstrapAlyziaOps(){
  updateClocks();
  OPS_REALTIME_LAST_HASH=stableCloudHash(FLIGHTS);
  startRealtimeSync();
+ opsScheduleBackgroundAll();
  startPrepaInboxAutoImport();
  fetchRecentPrepaImports().then(()=>v5004AutoRecoverProcessedGenericShells()).then(()=>v5006AutoRecoverNamedGeneric()).catch(()=>{});
  loadSariaCatalog().then(()=>{if(currentView==='detail')render();}).catch(()=>{});

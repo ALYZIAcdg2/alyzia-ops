@@ -44,7 +44,10 @@ function companyLogo(code){try{if(typeof airlineLogo==='function')return airline
 
 let SEARCH_STATE={date:'',company:'',query:''};
 function ensureSearchDate(){if(SEARCH_STATE.date)return;try{SEARCH_STATE.date=String(selectedDate||HOME_DATE||'').slice(0,10)}catch{}if(!SEARCH_STATE.date)SEARCH_STATE.date=todayIso()}
-function dayRows(){ensureSearchDate();return flights().map((f,i)=>({f,i})).filter(z=>flightDate(z.f)===SEARCH_STATE.date)}
+function dayRows(){ensureSearchDate();
+ // Chargement par dates : une date hors de la fenêtre chargée au démarrage est demandée au serveur, puis la page est redessinée.
+ try{if(typeof opsNeedRange==='function'&&opsNeedRange(SEARCH_STATE.date)&&SEARCH_STATE.failed!==SEARCH_STATE.date&&!SEARCH_STATE.loading){const d=SEARCH_STATE.date;SEARCH_STATE.loading=true;opsEnsureRange(d,d).then(()=>{if(opsNeedRange(d))SEARCH_STATE.failed=d}).catch(()=>{SEARCH_STATE.failed=d}).finally(()=>{SEARCH_STATE.loading=false;try{if(currentView==='search')drawSearchPage()}catch{}})}}catch{}
+ return flights().map((f,i)=>({f,i})).filter(z=>flightDate(z.f)===SEARCH_STATE.date)}
 function searchMatch(f){const q=norm(SEARCH_STATE.query);if(!q)return true;return norm([airlineCode(f),flightNo(f),destination(f),city(f),f?.airlineName,f?.destinationName].filter(Boolean).join(' ')).includes(q)}
 function drawSearchPage(){
  setView('search');window.__alyziaFlightOriginView='search';activeMobile('search');normalizeClassOrder();ensureSearchDate();

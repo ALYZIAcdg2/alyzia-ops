@@ -63,6 +63,7 @@ async function ensureFlightsSyncSchema(env){
   try{
     await env.OPS_DB.prepare(`CREATE TABLE IF NOT EXISTS ops_meta(k TEXT PRIMARY KEY,v TEXT)`).run();
     await env.OPS_DB.prepare(`CREATE INDEX IF NOT EXISTS idx_flights_updated_at ON flights(updated_at)`).run();
+    await env.OPS_DB.prepare(`CREATE INDEX IF NOT EXISTS idx_flights_flight_date ON flights(flight_date)`).run();
     FLIGHTS_SYNC_READY=true;
   }catch(_){}
 }
@@ -95,14 +96,21 @@ async function getFlightsResponse(env,url){
   const full=url?.searchParams?.get("full")==="1";
   const dataSql=full?"data_json":FLIGHT_LIST_DATA_SQL;
   const delta=/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(since);
+  // Chargement par dates : ?from=AAAA-MM-JJ&to=AAAA-MM-JJ (inclus). Les enregistrements système (airline SYS : configuration des
+  // compagnies, date 2099-12-31) sont TOUJOURS inclus, quelle que soit la plage.
+  const isDay=v=>/^\d{4}-\d{2}-\d{2}$/.test(String(v||""));
+  const from=String(url?.searchParams?.get("from")||"").trim(),to=String(url?.searchParams?.get("to")||"").trim();
+  const ranged=isDay(from)&&isDay(to)&&from<=to;
+  const rangeSql=ranged?` (flight_date BETWEEN ? AND ? OR airline='SYS')`:"";
+  const rangeArgs=ranged?[from,to]:[];
   const {results=[]}=delta
-    ? await env.OPS_DB.prepare(`SELECT ${dataSql} AS data_json FROM flights WHERE updated_at>? ORDER BY updated_at`).bind(since).all()
+    ? await env.OPS_DB.prepare(`SELECT ${dataSql} AS data_json FROM flights WHERE updated_at>?${ranged?" AND"+rangeSql:""} ORDER BY updated_at`).bind(since,...rangeArgs).all()
     : await env.OPS_DB.prepare(`SELECT ${dataSql} AS data_json
-              FROM flights
-              ORDER BY flight_date, std, flight_number`).all();
+              FROM flights${ranged?" WHERE"+rangeSql:""}
+              ORDER BY flight_date, std, flight_number`).bind(...rangeArgs).all();
 
   const payload =
-    `{"ok":true,"delta":${delta},"syncToken":${JSON.stringify(syncToken)},"epoch":${JSON.stringify(epoch)},"count":${results.length},"flights":[` +
+    `{"ok":true,"delta":${delta},"ranged":${ranged},"syncToken":${JSON.stringify(syncToken)},"epoch":${JSON.stringify(epoch)},"count":${results.length},"flights":[` +
     results
       .map(row => String(row.data_json || "{}"))
       .join(",") +
