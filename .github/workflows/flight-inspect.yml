@@ -6,6 +6,9 @@ on:
       flight:
         description: "Numéro de vol (ex. TK1822)"
         default: "TK1822"
+      date:
+        description: "Date AAAA-MM-JJ (vide = aujourd'hui)"
+        default: ""
 
 permissions:
   contents: read
@@ -17,10 +20,11 @@ jobs:
     env:
       API: https://alyzia-ops.alyzia-cdg2.workers.dev
       FLIGHT: ${{ github.event.inputs.flight || 'TK1822' }}
+      DATE: ${{ github.event.inputs.date }}
     steps:
       - run: |
           curl -sS "$API/api/flights" -o flights.json
           node -e "
-          const j=require('./flights.json');const f=(j.flights||[]).filter(x=>String(x.flight||'').toUpperCase()===process.env.FLIGHT.toUpperCase()).sort((a,b)=>String(b.date).localeCompare(String(a.date))).slice(0,2);
+          const j=require('./flights.json');const f=(j.flights||[]).filter(x=>String(x.flight||'').toUpperCase()===process.env.FLIGHT.toUpperCase()&&String(x.date)===(process.env.DATE||new Date().toISOString().slice(0,10))).sort((a,b)=>String(b.date).localeCompare(String(a.date))).slice(0,2);
           for(const x of f){console.log('=====',x.date,x.flight);for(const [k,v] of Object.entries(x)){if(/passenger|prepa|common|inbound|outbound|meal|booked|enrichment\$|flightInfoLog|positioning|notes/i.test(k))continue;const s=typeof v==='object'?JSON.stringify(v):String(v);console.log(k,'=',s.slice(0,200))}
           console.log('--- LOG'); (x.flightInfoLog||[]).slice(0,25).forEach(l=>console.log(JSON.stringify(l).slice(0,200)))}"
