@@ -1,0 +1,19 @@
+name: Test Cloudflare Access
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - run: |
+          A=https://alyzia-ops.alyzia-cdg2.workers.dev
+          for p in / /api/flights /api/weather?iata=CDG /api/enrichment/status /api/opensky/ingest; do
+            curl -sS -o b.txt -D h.txt -w "GET $p -> %{http_code} " "$A$p"
+            grep -iE "^(location|cf-access|www-authenticate)" h.txt | head -2 | cut -c1-110 | tr -d '\r' | tr '\n' ' '
+            echo
+          done
+          echo "--- avec le jeton admin (ne doit pas contourner Access)"
+          curl -sS -o b.txt -w "autopilot/status + jeton -> %{http_code}\n" -H "Authorization: Bearer ${{ secrets.ALYZIA_API_SECRET }}" "$A/api/autopilot/status"
