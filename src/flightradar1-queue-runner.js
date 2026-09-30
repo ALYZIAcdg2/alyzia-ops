@@ -2,6 +2,7 @@ import {queuedFieldMap} from "./provider-queue-authority.js";
 import {buildNeeds,mayWriteField,priorityScore,stopAll} from "./flight-enrichment-policy.js";
 import {noteAndSwitch} from "./aircraft-change.js";
 import {flighteraKey} from "./flightera-queue-runner.js";
+import {providerPause,recordProviderResult} from "./provider-errors.js";
 
 // "Flightradar1" (apidojo) via RapidAPI : GET /flights/search?query=<vol>. Plan : 500 requêtes/mois.
 // Pour un vol EN L'AIR, la recherche renvoie une entrée type "live" avec l'immatriculation (reg) et le type d'appareil réel (ac_type).
@@ -91,6 +92,8 @@ async function runFlightradarQueue(env,cfg){
   const PROVIDER=cfg.PROVIDER,P=cfg.prefix;
   if(!frKey(env,cfg)||!env?.OPS_DB)return {ok:true,skipped:`${PROVIDER}_NON_CONFIGURE`};
   const now=parisNow(),yesterday=parisDateAt(Date.now()-86400000);
+  const pause=await providerPause(env,cfg.PROVIDER,frKey(env,cfg));
+  if(pause.paused&&!globalThis.__ALYZIA_MANUAL_PUSH)return {ok:true,skipped:cfg.PROVIDER+"_PAUSE_"+pause.status,until:pause.until,message:pause.message};
   const maps=await Promise.all([queuedFieldMap(env,PROVIDER,now.date),queuedFieldMap(env,PROVIDER,yesterday)]),authority=new Map();
   for(const map of maps)for(const [id,fields] of map){if(!authority.has(id))authority.set(id,new Set());for(const f of fields)authority.get(id).add(f)}
   if(!authority.size)return {ok:true,skipped:`${PROVIDER}_QUEUE_VIDE`};
@@ -124,7 +127,7 @@ async function runFlightradarQueue(env,cfg){
     let id=cfg.details?clean(z.x.fr24LiveId):"",lastStatus=0,stop=false;
     if(!id){
       const r=await fetchSearch(env,flight,cfg);
-      await bump(env,now,r.status,PROVIDER);lastStatus=r.status;
+      await bump(env,now,r.status,PROVIDER);await recordProviderResult(env,PROVIDER,r.status,r.payload,frKey(env,cfg));lastStatus=r.status;
       if([401,403,429].includes(r.status)||r.status>=500)stop=true;
       if(r.ok){
         const live=parseLive(r.payload,flight,upper(z.x.origin||"CDG"));
@@ -146,7 +149,7 @@ async function runFlightradarQueue(env,cfg){
     // Fiche détaillée (vraies heures) : uniquement Flightradar8, pour les vols dont on connaît l'id « live ».
     if(cfg.details&&id&&!stop){
       const dr=await fetchDetails(env,id,cfg);
-      await bump(env,now,dr.status,PROVIDER);lastStatus=dr.status;
+      await bump(env,now,dr.status,PROVIDER);await recordProviderResult(env,PROVIDER,dr.status,dr.payload,frKey(env,cfg));lastStatus=dr.status;
       if(dr.ok){
         const d=parseDetail(dr.payload);
         if(d){

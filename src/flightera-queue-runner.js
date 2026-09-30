@@ -1,6 +1,7 @@
 import {queuedFieldMap} from "./provider-queue-authority.js";
 import {buildNeeds,mayWriteField,priorityScore,stopAll} from "./flight-enrichment-policy.js";
 import {noteAndSwitch} from "./aircraft-change.js";
+import {providerPause,recordProviderResult} from "./provider-errors.js";
 
 // "Flightera Flight Data" via RapidAPI (GET /flight/info?flnr=&date=). Plan: 200 requests/month.
 // Une seule réponse donne ATD / ATA réels, ETD / ETA estimés, porte et immatriculation (heures locales avec décalage).
@@ -76,6 +77,8 @@ function apply(x,field,value,at){
 export async function runFlighteraQueue(env){
   if(!flighteraKey(env)||!env?.OPS_DB)return {ok:true,skipped:"FLIGHTERA_NON_CONFIGURE"};
   const now=parisNow(),yesterday=parisDateAt(Date.now()-86400000);
+  const pause=await providerPause(env,PROVIDER,flighteraKey(env));
+  if(pause.paused&&!globalThis.__ALYZIA_MANUAL_PUSH)return {ok:true,skipped:"FLIGHTERA_PAUSE_"+pause.status,until:pause.until,message:pause.message};
   const maps=await Promise.all([queuedFieldMap(env,PROVIDER,now.date),queuedFieldMap(env,PROVIDER,yesterday)]),authority=new Map();
   for(const map of maps)for(const [id,fields] of map){if(!authority.has(id))authority.set(id,new Set());for(const f of fields)authority.get(id).add(f)}
   if(!authority.size)return {ok:true,skipped:"FLIGHTERA_QUEUE_VIDE"};
@@ -100,6 +103,7 @@ export async function runFlighteraQueue(env){
     const flight=fullFlight(z.x,z.row);if(!flight)continue;
     const r=await fetchFlight(env,flight,z.row.flight_date),at=new Date().toISOString();
     await bump(env,now,r.status);
+    await recordProviderResult(env,PROVIDER,r.status,r.payload,flighteraKey(env));
     z.x.flighteraAttempts=Number(z.x.flighteraAttempts||0)+1;
     z.x.flighteraLastCheckedAt=at;z.x.flighteraLastStatus=r.status;
     const changed=[];
