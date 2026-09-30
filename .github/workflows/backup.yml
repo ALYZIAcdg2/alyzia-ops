@@ -1,0 +1,41 @@
+name: Sauvegarde complète
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Préparation
+        run: |
+          npm install --no-audit --no-fund >/dev/null 2>&1
+          echo "D=$(date -u +%Y-%m-%d_%H%M)" >> $GITHUB_ENV
+      - name: Code complet (bundle git, tout l'historique)
+        run: |
+          git bundle create code.bundle --all
+          ls -l code.bundle
+      - name: Export base D1 (toutes les tables)
+        run: |
+          npx wrangler d1 export alyzia-ops-db --remote --output=db.sql
+          ls -l db.sql
+          grep -c "^INSERT" db.sql || true
+          grep -o "^CREATE TABLE [^ (]*" db.sql | head -40
+          gzip -9 db.sql
+          ls -l db.sql.gz
+      - name: Envoi dans R2 privé (jamais dans un artefact public)
+        run: |
+          for f in code.bundle db.sql.gz wrangler.jsonc; do
+            npx wrangler r2 object put "alyzia-ops-files/backups/$D/$f" --file="$f" --remote
+          done
+          echo "OK backups/$D"
