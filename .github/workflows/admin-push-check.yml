@@ -1,0 +1,40 @@
+name: PUSH admin + contrôle des ATA
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      API: https://alyzia-ops.alyzia-cdg2.workers.dev
+    steps:
+      - name: Etat avant
+        run: |
+          curl -sS "$API/api/flights" -o before.json
+          node -e "
+          const j=require('./before.json');const t=new Date().toISOString().slice(0,10);
+          const f=(j.flights||[]).filter(x=>x.date===t);const dep=f.filter(x=>x.atd&&String(x.atd).trim()&&x.atd!=='—');
+          console.log('AVANT vols du jour',f.length,'| avec ATD',dep.length,'| avec ATA',f.filter(x=>x.ata&&x.ata!=='—').length)"
+      - name: PUSH
+        run: |
+          curl -sS -m 120 -X POST "$API/api/admin/push-now" -w "\nHTTP %{http_code}\n"
+      - name: Etat après
+        run: |
+          sleep 5
+          curl -sS "$API/api/flights" -o after.json
+          curl -sS "$API/api/admin/flight-processing" -o admin.json
+          node -e "
+          const j=require('./after.json'),a=require('./admin.json');const t=new Date().toISOString().slice(0,10);
+          const f=(j.flights||[]).filter(x=>x.date===t).sort((x,y)=>String(x.std).localeCompare(String(y.std)));
+          const has=v=>v&&String(v).trim()&&v!=='—';
+          console.log('APRES vols du jour',f.length,'| avec ATD',f.filter(x=>has(x.atd)).length,'| avec ATA',f.filter(x=>has(x.ata)).length);
+          console.log('STD|VOL|DEST|ATD(source)|ETA|ATA(source)|statut|fr24depCheck|attempts');
+          for(const x of f.filter(x=>has(x.atd))) console.log([x.std,x.flight,x.dest||x.destination,(x.atd||'-')+'('+(x.atdSource||'')+')',x.eta||'-',(x.ata||'-')+'('+(x.ataSource||'')+')',x.providerStatusRaw||x.status||'-',(x.fr24depLastCheckedAt||'-').slice(11,16)].join('|'));
+          console.log('--- quotas');
+          for(const q of (a.quotas||[]).filter(q=>/FR24|FLIGHTERA|FLIGHTRADAR/.test(q.provider))) console.log(q.provider,'jour',q.today,'mois',q.month,'dernier',q.lastStatus,q.lastAt);
+          console.log('summary',JSON.stringify(a.summary&&a.summary.today))"
