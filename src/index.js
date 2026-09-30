@@ -40,22 +40,50 @@ function validFlight(x){
     String(x.airline||"").trim().toUpperCase()!=="KL";
 }
 
-async function getFlightsResponse(env){
+let FLIGHTS_SYNC_READY=false;
+async function ensureFlightsSyncSchema(env){
+  if(FLIGHTS_SYNC_READY)return;
+  try{
+    await env.OPS_DB.prepare(`CREATE TABLE IF NOT EXISTS ops_meta(k TEXT PRIMARY KEY,v TEXT)`).run();
+    await env.OPS_DB.prepare(`CREATE INDEX IF NOT EXISTS idx_flights_updated_at ON flights(updated_at)`).run();
+    FLIGHTS_SYNC_READY=true;
+  }catch(_){}
+}
+// Toute suppression de vols change l'époque : les clients refont alors un chargement complet (la synchro par différences ne voit pas les suppressions).
+export async function bumpFlightsEpoch(env){
+  try{
+    await ensureFlightsSyncSchema(env);
+    await env.OPS_DB.prepare(`INSERT INTO ops_meta(k,v) VALUES('flights_epoch',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v`).bind(String(Date.now())).run();
+  }catch(_){}
+}
+
+async function getFlightsResponse(env,url){
   /*
    * V49.90 RESOURCE FIX
    * Les vols sont déjà stockés en JSON valide dans data_json.
    * On évite de JSON.parse() puis JSON.stringify() chaque vol,
    * ce qui consommait beaucoup de CPU lorsque D1 contenait
    * plusieurs dizaines de fiches volumineuses.
+   *
+   * Synchro par différences : ?since=<syncToken> ne renvoie que les vols modifiés depuis ce jeton (avec 15 s de recouvrement).
+   * Les réponses portent syncToken + epoch ; sans ?since= c'est la liste complète, comme avant.
    */
-  const {results=[]}=await env.OPS_DB
-    .prepare(`SELECT data_json
+  await ensureFlightsSyncSchema(env);
+  let syncToken="",epoch="";
+  try{
+    const m=await env.OPS_DB.prepare(`SELECT datetime('now','-15 seconds') AS t,(SELECT v FROM ops_meta WHERE k='flights_epoch') AS e`).first();
+    syncToken=String(m?.t||"");epoch=String(m?.e||"");
+  }catch(_){}
+  const since=String(url?.searchParams?.get("since")||"").trim();
+  const delta=/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(since);
+  const {results=[]}=delta
+    ? await env.OPS_DB.prepare(`SELECT data_json FROM flights WHERE updated_at>? ORDER BY updated_at`).bind(since).all()
+    : await env.OPS_DB.prepare(`SELECT data_json
               FROM flights
-              ORDER BY flight_date, std, flight_number`)
-    .all();
+              ORDER BY flight_date, std, flight_number`).all();
 
   const payload =
-    `{"ok":true,"count":${results.length},"flights":[` +
+    `{"ok":true,"delta":${delta},"syncToken":${JSON.stringify(syncToken)},"epoch":${JSON.stringify(epoch)},"count":${results.length},"flights":[` +
     results
       .map(row => String(row.data_json || "{}"))
       .join(",") +
@@ -400,7 +428,7 @@ async function handleFlights(request,env,url){
       return json({ok:true,flight});
     }
 
-    return await getFlightsResponse(env);
+    return await getFlightsResponse(env,url);
   }
 
   if(url.pathname==="/api/flights" && request.method==="POST"){
@@ -434,6 +462,7 @@ async function handleFlights(request,env,url){
 
   if(url.pathname==="/api/flights" && request.method==="DELETE"){
     await env.OPS_DB.prepare("DELETE FROM flights").run();
+    await bumpFlightsEpoch(env);
     return json({ok:true,cleared:true});
   }
 
@@ -10161,6 +10190,7 @@ async function gmailCleanHistoricalSqPurgeR310(env,{dryRun=true,confirm='' }={})
         AND flight_date=?
     `).bind(id.flightNumber,id.flightDate).run().catch(()=>null);
     flightsDeleted+=Number(fres?.meta?.changes||0);
+    if(fres?.meta?.changes)await bumpFlightsEpoch(env);
 
     // remove any remaining prepa rows for this historical-only identity
     await env.OPS_DB.prepare(`
@@ -12847,6 +12877,7 @@ async function handlePrepa(request, env, url) {
         AND UPPER(REPLACE(flight_number,' ',''))=?
         AND flight_date=?
     `).bind(airline,flightNumber,flightDate).run();
+    if(fdel?.meta?.changes)await bumpFlightsEpoch(env);
 
     const pdel=await env.OPS_DB.prepare(`
       DELETE FROM prepa_inbox

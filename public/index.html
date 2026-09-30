@@ -18673,13 +18673,28 @@ async function cacheCloudFlightsLocally(list){
  try{localStorage.setItem('alyzia_ops_imported_flights_v19',JSON.stringify(list))}catch(e){}
 }
 
+const OPS_DELTA={all:null,token:'',epoch:'',fullAt:0};
+function opsDeltaKey(f){return f&&f.date&&f.airline&&f.flight?`${String(f.date)}|${String(f.airline).toUpperCase()}|${String(f.flight).toUpperCase()}`:''}
 async function silentCloudRefresh({forceRender=false}={}){
  if(OPS_REALTIME_RUNNING || opsCloudWriteInProgress() || !navigator.onLine)return false;
  OPS_REALTIME_RUNNING=true;
  const selectedIdentity=currentSelectedIdentity();
  try{
-   const data=await cloudRequest(`${OPS_CLOUD_API}?_=${Date.now()}`,{method:'GET',cache:'no-store'},4500);
+   // Synchro par différences : après un chargement complet, on ne redemande que les vols modifiés (?since=jeton serveur).
+   // Chargement complet de sécurité toutes les 3 min, ou si la base signale une suppression (epoch différent).
+   const canDelta=Boolean(OPS_DELTA.token&&OPS_DELTA.all&&Date.now()-OPS_DELTA.fullAt<180000);
+   const data=await cloudRequest(canDelta?`${OPS_CLOUD_API}?since=${encodeURIComponent(OPS_DELTA.token)}&_=${Date.now()}`:`${OPS_CLOUD_API}?_=${Date.now()}`,{method:'GET',cache:'no-store'},canDelta?10000:60000);
    if(!(data?.ok&&Array.isArray(data.flights)))return false;
+   if(data.delta&&canDelta){
+     if(String(data.epoch||'')!==OPS_DELTA.epoch){OPS_DELTA.token='';return false} // suppression côté serveur : prochain cycle = chargement complet
+     OPS_DELTA.token=data.syncToken||OPS_DELTA.token;
+     if(!data.flights.length){OPS_REALTIME_LAST_PULL=Date.now();setOpsCloudState(true);return false} // rien de nouveau : aucun calcul
+     const idx=new Map();OPS_DELTA.all.forEach((f,i)=>idx.set(opsDeltaKey(f),i));
+     for(const f of data.flights){const k=opsDeltaKey(f);if(!k)continue;if(idx.has(k))OPS_DELTA.all[idx.get(k)]=f;else{idx.set(k,OPS_DELTA.all.length);OPS_DELTA.all.push(f)}}
+     data.flights=OPS_DELTA.all.slice();
+   }else{
+     OPS_DELTA.all=data.flights.slice();OPS_DELTA.fullAt=Date.now();OPS_DELTA.epoch=String(data.epoch||'');OPS_DELTA.token=data.syncToken||'';
+   }
    const beforeConfigHash=stableCompanyConfigHash();
    syncCompanyConfigFromFlights(data.flights);
    const afterConfigHash=stableCompanyConfigHash();
