@@ -1,6 +1,6 @@
 import {queuedFieldMap} from "./provider-queue-authority.js";
 import {buildNeeds,mayWriteField,priorityScore,stopAll} from "./flight-enrichment-policy.js";
-import {noteActualAircraft} from "./aircraft-change.js";
+import {noteAndSwitch} from "./aircraft-change.js";
 
 // "Flightera Flight Data" via RapidAPI (GET /flight/info?flnr=&date=). Plan: 200 requests/month.
 // Une seule réponse donne ATD / ATA réels, ETD / ETA estimés, porte et immatriculation (heures locales avec décalage).
@@ -107,7 +107,7 @@ export async function runFlighteraQueue(env){
       if(data){
         for(const f of FIELDS)if(z.allowed.has(f)&&apply(z.x,f,data[f],at))changed.push(f);
         if(data.status){z.x.flighteraStatusRaw=data.status}
-        if(noteActualAircraft(z.x,data.model,PROVIDER,at))changed.push("aircraft");
+        if(await noteAndSwitch(env,z.x,data.model,PROVIDER,at))changed.push("aircraft");
       }else z.x.flighteraNotFoundAttempts=Number(z.x.flighteraNotFoundAttempts||0)+1;
     }else if(r.status===404)z.x.flighteraNotFoundAttempts=Number(z.x.flighteraNotFoundAttempts||0)+1;
     await env.OPS_DB.prepare(`UPDATE flights SET data_json=?,updated_at=CURRENT_TIMESTAMP WHERE identity=?`).bind(JSON.stringify(z.x),z.row.identity).run();

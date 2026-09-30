@@ -1,5 +1,5 @@
 import app from "./ent-alias-wrapper.js";
-import {noteActualAircraft} from "./aircraft-change.js";
+import {noteActualAircraft,noteAndSwitch} from "./aircraft-change.js";
 
 const clean=v=>String(v??"").trim();
 const upper=v=>clean(v).toUpperCase();
@@ -66,7 +66,7 @@ async function enrichRegistrations(env){
       return (aliasOk||numberOk)&&destOk;
     });
     if(match&&clean(match.reg_number)){
-      const fieldsChanged=[];if(setField(z.x,"reg",match.reg_number,"AIRLABS_LIVE",at))fieldsChanged.push("reg");if(setField(z.x,"modeS",match.hex,"AIRLABS_LIVE",at))fieldsChanged.push("modeS");if(setField(z.x,"aircraft",match.aircraft_icao,"AIRLABS_LIVE",at)||noteActualAircraft(z.x,match.aircraft_icao,"AIRLABS_LIVE",at))fieldsChanged.push("aircraft");
+      const fieldsChanged=[];if(setField(z.x,"reg",match.reg_number,"AIRLABS_LIVE",at))fieldsChanged.push("reg");if(setField(z.x,"modeS",match.hex,"AIRLABS_LIVE",at))fieldsChanged.push("modeS");if(setField(z.x,"aircraft",match.aircraft_icao,"AIRLABS_LIVE",at)||await noteAndSwitch(env,z.x,match.aircraft_icao,"AIRLABS_LIVE",at))fieldsChanged.push("aircraft");
       if(fieldsChanged.length)changed.push({flight:z.aliases[0]||z.row.flight_number,registration:clean(match.reg_number),changed:fieldsChanged});
     }
     await save(env,z.row,z.x);

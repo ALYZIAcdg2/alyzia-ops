@@ -26,9 +26,14 @@ export function sameAircraft(a,b){
   return STRICT.some(g=>g.includes(x)&&g.includes(y));
 }
 // Retourne true si x a été modifié. N'écrase jamais x.aircraft (import) : le type réel est ajouté à côté.
+export async function noteAndSwitch(env,x,rawType,source,at){
+  const changed=noteActualAircraft(x,rawType,source,at);
+  if(x.aircraftChange){try{const m=await import("./index.js");if(await m.applyCabinConfigForActualAircraft(env,x))return true}catch(_){}}
+  return changed;
+}
 export function noteActualAircraft(x,rawType,source,at){
   const actual=toIata(rawType);if(!actual)return false;
-  const imported=upper(x.aircraft);
+  const imported=upper(x.aircraftImported||x.aircraft);
   let changed=false;
   if(upper(x.aircraftActual)!==actual){x.aircraftActual=actual;x.aircraftActualSource=source;x.aircraftActualUpdatedAt=at;changed=true}
   const differs=imported&&imported!=="NON RENSEIGNÉ"&&!sameAircraft(imported,actual);

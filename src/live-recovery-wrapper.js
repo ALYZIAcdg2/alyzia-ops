@@ -1,6 +1,6 @@
 import app from "./operational-state-wrapper.js";
 import {queuedFieldMap} from "./provider-queue-authority.js";
-import {noteActualAircraft} from "./aircraft-change.js";
+import {noteAndSwitch} from "./aircraft-change.js";
 
 const clean=v=>String(v??"").trim();
 const upper=v=>clean(v).toUpperCase();
@@ -80,7 +80,7 @@ async function save(env,row,x){await env.OPS_DB.prepare(`UPDATE flights SET data
 function airlabsRows(payload){if(Array.isArray(payload))return payload;if(Array.isArray(payload?.response))return payload.response;if(Array.isArray(payload?.data))return payload.data;return []}
 function parseAirlabs(r){return {
   sta:hhmm(r?.arr_time),etd:hhmm(r?.dep_estimated),atd:hhmm(r?.dep_actual),eta:hhmm(r?.arr_estimated),ata:hhmm(r?.arr_actual),
-  gate:clean(r?.dep_gate),reg:clean(r?.reg_number),aircraft:clean(r?.aircraft_icao)
+  gate:clean(r?.dep_gate),reg:clean(r?.reg_number)
 }}
 async function airlabsRecovery(env,rows,now,yesterday){
   if(!env.AIRLABS_API_KEY)return {ok:true,skipped:"AIRLABS_API_KEY_NON_CONFIGURE"};
@@ -93,7 +93,7 @@ async function airlabsRecovery(env,rows,now,yesterday){
   const urgent=candidates.some(z=>z.d<=30&&z.d>=-360&&(missing(z.x.atd)||missing(z.x.etd)||missing(z.x.gate)||missing(z.x.reg)||missing(z.x.ata)));
   const cadence=urgent?20:60;if(ageMs(u.lastAt)<cadence*60000)return {ok:true,skipped:"AIRLABS_LIVE_CADENCE",cadence};
   const wanted=new Map(candidates.map(z=>[flightKey(z.x,z.row),z]).filter(([k])=>k));
-  const fields="airline_iata,flight_iata,flight_number,dep_iata,dep_gate,dep_time,dep_estimated,dep_actual,arr_iata,arr_time,arr_estimated,arr_actual,reg_number,aircraft_icao";
+  const fields="airline_iata,flight_iata,flight_number,dep_iata,dep_gate,dep_time,dep_estimated,dep_actual,arr_iata,arr_time,arr_estimated,arr_actual,reg_number";
   const all=[];let calls=0,lastStatus=0;
   for(let page=0;page<2;page++){
     if(total+calls>=Math.max(0,limit-reserve))break;
@@ -109,7 +109,6 @@ async function airlabsRecovery(env,rows,now,yesterday){
     const allowed=authority.get(z.row.identity)||new Set(),d=parseAirlabs(r),changed=[];
     for(const field of ["sta","etd","atd","eta","ata","gate"]){if(allowed.has(field)&&apply(z.x,field,d[field],"AIRLABS_LIVE_RECOVERY",at,{refresh:field!=="sta"}))changed.push(field)}
     if(allowed.has("reg")&&apply(z.x,"reg",d.reg,"AIRLABS_LIVE_RECOVERY",at,{refresh:false}))changed.push("reg");
-    if(noteActualAircraft(z.x,d.aircraft,"AIRLABS_LIVE_RECOVERY",at))changed.push("aircraft");
     z.x.airlabsRecoveryLastCheckedAt=at;z.x.airlabsRecoveryLastStatus=lastStatus;
     if(changed.length){await save(env,z.row,z.x);changes.push({flight:key,date:z.row.flight_date,changed})}
   }
@@ -150,7 +149,7 @@ async function skylinkRecovery(env,rows,now,yesterday){
     const allowed=authority.get(z.row.identity)||new Set(),d=parseSkylink(payload),changed=[];
     for(const field of ["sta","etd","atd","eta","ata","gate"]){if(allowed.has(field)&&apply(z.x,field,d[field],"SKYLINK_LIVE_RECOVERY",at,{refresh:field!=="sta"}))changed.push(field)}
     if(allowed.has("reg")&&apply(z.x,"reg",d.reg,"SKYLINK_LIVE_RECOVERY",at,{refresh:false}))changed.push("reg");
-    if(noteActualAircraft(z.x,d.aircraft,"SKYLINK_LIVE_RECOVERY",at))changed.push("aircraft");
+    if(await noteAndSwitch(env,z.x,d.aircraft,"SKYLINK_LIVE_RECOVERY",at))changed.push("aircraft");
     await save(env,z.row,z.x);results.push({ok:true,flight,date:z.row.flight_date,changed});
     await sleep(300);
   }

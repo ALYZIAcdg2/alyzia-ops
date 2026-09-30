@@ -179,6 +179,33 @@ function assignAutoCabinConfigToFlight(x,match){
   return x;
 }
 
+// Changement d'appareil détecté (x.aircraftChange, voir aircraft-change.js) : bascule le vol sur la config cabine du type RÉEL.
+// - config choisie à la main (sariaConfigKey sans cabinConfigAuto) : jamais touchée, seul le badge reste ;
+// - classes déjà réservées dans l'ancienne config mais absentes de la nouvelle : conservées ;
+// - aucune config cabine connue pour le type réel : rien n'est changé (marqué pour ne pas réessayer).
+export async function applyCabinConfigForActualAircraft(env,x){
+  try{
+    const ch=x?.aircraftChange;
+    if(!ch?.to||x.aircraftChangeCabinApplied===ch.to)return false;
+    if(x.sariaConfigKey&&x.cabinConfigAuto!==true)return false;
+    x.aircraftChangeCabinApplied=ch.to;
+    const match=await findAutoCabinConfig(env,x.airline,ch.to,x.flight);
+    if(!match){x.aircraftChangeNoCabinConfig=true;return true}
+    delete x.aircraftChangeNoCabinConfig;
+    const oldConfig=(x.config&&typeof x.config==="object")?x.config:{},booked=(x.booked&&typeof x.booked==="object")?x.booked:{};
+    const next={...normalizedAutoCabinClasses(match)};
+    for(const [k,v] of Object.entries(oldConfig)){if(!(k in next)&&Number(booked[k]||0)>0)next[k]=v}
+    x.aircraftImported=x.aircraftImported||ch.from;
+    x.aircraft=ch.to;x.aircraftSource=ch.source;
+    x.sariaConfigKey=match.config_key;
+    x.sariaCabinConfig=String(match.configuration||"").trim().toUpperCase();
+    x.config=next;x.cabinConfigAuto=true;
+    const log=Array.isArray(x.flightInfoLog)?x.flightInfoLog:[];
+    log.unshift({at:new Date().toISOString(),source:"ALYZIA_CABIN_AUTO",field:"sariaConfigKey",from:ch.from,to:match.config_key});x.flightInfoLog=log.slice(0,160);
+    return true;
+  }catch(e){console.warn("AUTO CABIN ACTUAL",e);return false}
+}
+
 // Version "un seul vol" (POST/PATCH /api/flights, injection LOT3) : interroge
 // cabin_configs directement, cout negligeable pour un vol a la fois.
 async function applyAutoCabinConfig(env,x){
