@@ -86,14 +86,14 @@ async function runFlightradarQueue(env,cfg){
     if(d>30)continue;
     // Deux API équivalentes (mêmes données) : on répartit les vols entre elles selon la parité du numéro de vol.
     if([...fullFlight(x,row)].reduce((a,c)=>a+c.charCodeAt(0),0)%2!==cfg.slot)continue;                                   // au sol avant le départ : pas de fiche « live »
-    if(ageMs(x[P+"LastCheckedAt"])<COOLDOWN_MIN*60000)continue;
+    if(!globalThis.__ALYZIA_MANUAL_PUSH&&ageMs(x[P+"LastCheckedAt"])<COOLDOWN_MIN*60000)continue;
     if(Number(x[P+"NotLiveAttempts"]||0)>=MAX_NOT_LIVE)continue;
     if(Number(x[P+"Attempts"]||0)>=MAX_ATTEMPTS_PER_FLIGHT)continue;
     candidates.push({row,x,d,allowed,prio:priorityScore(x,d)});
   }
   // Vols partis le plus récemment d'abord (probablement encore en l'air).
   candidates.sort((a,b)=>Math.abs(a.d)-Math.abs(b.d));
-  const room=Math.max(0,Math.min(MAX_PER_RUN,DAY_CAP-u.day,MONTH_CAP-u.month)),items=[];
+  const room=Math.max(0,Math.min(globalThis.__ALYZIA_MANUAL_PUSH?3:MAX_PER_RUN,DAY_CAP-u.day,MONTH_CAP-u.month)),items=[];
   for(const z of candidates.slice(0,room)){
     const flight=fullFlight(z.x,z.row);if(!flight)continue;
     const r=await fetchSearch(env,flight,cfg),at=new Date().toISOString();

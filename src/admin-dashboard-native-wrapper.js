@@ -83,6 +83,20 @@ const UI=String.raw`<style id="alyzia-admin-native-css">
 const esc=v=>String(v??'').replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c]));
 const cls=s=>s==='OK'?'OK':s==='PARTIEL'?'PARTIEL':String(s).includes('CONTRÔLER')?'CTRL':'NONE';
 const card=(title,s)=>'<div class="adn-card"><b>'+title+' · '+(s?.total||0)+'</b><div class="adn-mini"><span class="ok">OK '+(s?.ok||0)+'</span><span class="part">PARTIEL '+(s?.partial||0)+'</span><span class="check">À CONTRÔLER '+(s?.check||0)+'</span><span class="none">NON TRAITÉ '+(s?.untreated||0)+'</span></div></div>';
+window.adminPushNow=async function(){
+  const btn=document.getElementById('adminPushBtn'),msg=document.getElementById('adnPushMsg');
+  if(btn){btn.disabled=true;btn.textContent='⚡ EN COURS…'}
+  if(msg)msg.textContent='Contrôle en cours, cela peut durer 10 à 30 secondes…';
+  try{
+    const r=await fetch('/api/admin/push-now',{method:'POST',cache:'no-store'}),j=await r.json().catch(()=>null);
+    let text;
+    if(j&&j.ok){const c=Object.entries(j.calls||{}).map(([k,v])=>k+' +'+v).join(' · ');text='✓ PUSH TERMINÉ en '+Math.round(j.durationMs/1000)+' s · '+(c||'aucun appel nécessaire (rien à compléter ou plafond atteint)')}
+    else if(r.status===429)text='Attendez '+((j&&j.retryInSeconds)||60)+' s avant un nouveau push.';
+    else text='Échec du push : '+((j&&j.error)||('HTTP '+r.status));
+    await window.renderAdminDashboard();
+    const m2=document.getElementById('adnPushMsg');if(m2)m2.textContent=text;
+  }catch(e){if(msg)msg.textContent='Échec du push : '+(e&&e.message||e);if(btn){btn.disabled=false;btn.textContent='⚡ PUSH'}}
+};
 window.renderAdminDashboard=async function(){
   const app=document.getElementById('app');if(!app)return;
   document.querySelectorAll('[data-mobile-nav]').forEach(b=>b.classList.toggle('active',b.dataset.mobileNav==='admin'));

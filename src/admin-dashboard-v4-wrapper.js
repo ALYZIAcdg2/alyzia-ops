@@ -33,7 +33,7 @@ function patchAdmin(){
    const actions=document.createElement('div');actions.className='adn-v4-actions';
    if(logBtn){logBtn.textContent='LOGS';logBtn.classList.add('adn-v4-btn');actions.appendChild(logBtn)}
    const reset=document.createElement('button');reset.type='button';reset.className='adn-v4-btn reset';reset.textContent='RESET FILTRES';reset.addEventListener('click',()=>resetFilters(root));actions.appendChild(reset);
-   const refresh=head.querySelector('#adminRefreshBtn');if(refresh)actions.appendChild(refresh);head.appendChild(actions);
+   const push=head.querySelector('#adminPushBtn');if(push)actions.appendChild(push);const refresh=head.querySelector('#adminRefreshBtn');if(refresh)actions.appendChild(refresh);head.appendChild(actions);
  }
  root.querySelectorAll('.adn-cards .adn-mini span').forEach(s=>{if(s.dataset.v4Bound)return;s.dataset.v4Bound='1';s.addEventListener('click',()=>{const k=statusKey(s.textContent);if(k)triggerStatus(root,k)})});
  syncTopKpis(root);

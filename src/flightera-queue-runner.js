@@ -89,13 +89,13 @@ export async function runFlighteraQueue(env){
     if(stopAll(x))continue;
     const d=delta(row.flight_date,x.std||row.std,now),needs=buildNeeds(x,d);
     if(!FIELDS.some(f=>allowed.has(f)&&needs[f]))continue;
-    if(ageMs(x.flighteraLastCheckedAt)<COOLDOWN_MIN*60000)continue;
+    if(!globalThis.__ALYZIA_MANUAL_PUSH&&ageMs(x.flighteraLastCheckedAt)<COOLDOWN_MIN*60000)continue;
     if(Number(x.flighteraNotFoundAttempts||0)>=MAX_NOT_FOUND)continue;
     if(Number(x.flighteraAttempts||0)>=MAX_ATTEMPTS_PER_FLIGHT)continue;
     candidates.push({row,x,d,allowed,prio:priorityScore(x,d)});
   }
   candidates.sort((a,b)=>a.prio-b.prio||Math.abs(a.d)-Math.abs(b.d));
-  const room=Math.max(0,Math.min(MAX_PER_RUN,DAY_CAP-u.day,MONTH_CAP-u.month)),items=[];
+  const room=Math.max(0,Math.min(globalThis.__ALYZIA_MANUAL_PUSH?3:MAX_PER_RUN,DAY_CAP-u.day,MONTH_CAP-u.month)),items=[];
   for(const z of candidates.slice(0,room)){
     const flight=fullFlight(z.x,z.row);if(!flight)continue;
     const r=await fetchFlight(env,flight,z.row.flight_date),at=new Date().toISOString();

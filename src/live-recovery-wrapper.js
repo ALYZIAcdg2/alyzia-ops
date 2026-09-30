@@ -91,7 +91,7 @@ async function airlabsRecovery(env,rows,now,yesterday){
   const candidates=rows.filter(z=>authority.has(z.row.identity)&&z.d<=180&&z.d>=-1800&&!isFinal(z.x)&&liveIncomplete(z.x));
   if(!candidates.length)return {ok:true,skipped:"AIRLABS_LIVE_AUCUN_VOL_QUEUE"};
   const urgent=candidates.some(z=>z.d<=30&&z.d>=-360&&(missing(z.x.atd)||missing(z.x.etd)||missing(z.x.gate)||missing(z.x.reg)||missing(z.x.ata)));
-  const cadence=urgent?20:60;if(ageMs(u.lastAt)<cadence*60000)return {ok:true,skipped:"AIRLABS_LIVE_CADENCE",cadence};
+  const cadence=urgent?20:60;if(!globalThis.__ALYZIA_MANUAL_PUSH&&ageMs(u.lastAt)<cadence*60000)return {ok:true,skipped:"AIRLABS_LIVE_CADENCE",cadence};
   const wanted=new Map(candidates.map(z=>[flightKey(z.x,z.row),z]).filter(([k])=>k));
   const fields="airline_iata,flight_iata,flight_number,dep_iata,dep_gate,dep_time,dep_estimated,dep_actual,arr_iata,arr_time,arr_estimated,arr_actual,reg_number";
   const all=[];let calls=0,lastStatus=0;
@@ -143,7 +143,7 @@ async function skylinkRecovery(env,rows,now,yesterday){
   if(total>=Math.max(0,limit-reserve))return {ok:true,skipped:"SKYLINK_QUOTA_RESERVE",total};
   // Cadence 10 min, jusqu'à 3 vols par passage (avant : 1 vol / 30 min, trop lent pour rattraper les ATD manquants), plafond 40 appels/jour.
   if(u.day>=40)return {ok:true,skipped:"SKYLINK_PLAFOND_JOUR",day:u.day};
-  if(ageMs(u.lastAt)<10*60000)return {ok:true,skipped:"SKYLINK_LIVE_CADENCE"};
+  if(!globalThis.__ALYZIA_MANUAL_PUSH&&ageMs(u.lastAt)<10*60000)return {ok:true,skipped:"SKYLINK_LIVE_CADENCE"};
   const candidates=rows.filter(z=>authority.has(z.row.identity)&&z.d<=120&&z.d>=-1800&&!isFinal(z.x)&&liveIncomplete(z.x)&&ageMs(z.x.skylinkRecoveryLastCheckedAt)>=30*60000).sort((a,b)=>priority(a)-priority(b)||Math.abs(a.d)-Math.abs(b.d));
   if(!candidates.length)return {ok:true,skipped:"SKYLINK_LIVE_AUCUN_VOL_QUEUE"};
   const base=clean(env.SKYLINK_BASE_URL)||"https://data.skylinkapi.com/v2",headers={Accept:"application/json","x-api-key":env.SKYLINK_API_KEY};

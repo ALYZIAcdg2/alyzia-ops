@@ -90,7 +90,7 @@ export async function runFr24DepQueue(env){
   if(!authority.size)return {ok:true,skipped:"FR24DEP_QUEUE_VIDE"};
   const u=await usage(env,now);
   if(u.day>=DAY_CAP||u.month>=MONTH_CAP)return {ok:true,skipped:"FR24DEP_QUOTA",day:u.day,month:u.month};
-  if(ageMs(u.lastAt)<MIN_INTERVAL_MIN*60000)return {ok:true,skipped:"FR24DEP_CADENCE"};
+  if(!globalThis.__ALYZIA_MANUAL_PUSH&&ageMs(u.lastAt)<MIN_INTERVAL_MIN*60000)return {ok:true,skipped:"FR24DEP_CADENCE"};
   const {results=[]}=await env.OPS_DB.prepare(`SELECT identity,flight_date,airline,flight_number,std,data_json FROM flights WHERE flight_date IN (?,?) ORDER BY flight_date,std,flight_number`).bind(yesterday,now.date).all();
   const wanted=new Map();   // "VOL|date" -> candidat
   let earliest=Infinity;
