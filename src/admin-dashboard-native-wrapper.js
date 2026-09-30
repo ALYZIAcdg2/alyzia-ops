@@ -28,7 +28,8 @@ function classify({row,x},now){
     if(cancelled||final)state="OK";
     else if(delta!==null&&delta<0&&!atd){
       // Grace period: only flag once the expected departure (ETD, else STD) is 20+ min past.
-      const depMin=minute(etd)??stdMin,late=depMin!==null&&depMin<=nowMin&&nowMin-depMin>20;
+      const depMin=minute(etd)??stdMin,late=(depMin!==null&&depMin<=nowMin&&nowMin-depMin>20)||(!etd&&delta>=-60);
+      // Fenêtre H-1 / H+1 : sans ETD ni ATD, le vol est à contrôler (voir plus bas pour H+1).
       miss.push("ATD");state=late?"À CONTRÔLER":"PARTIEL";
     }
     else if(atd&&!ata){
@@ -37,7 +38,7 @@ function classify({row,x},now){
       const arrMin=minute(eta)??minute(sta),atdMin=minute(atd),sameDay=arrMin!==null&&atdMin!==null&&arrMin>=atdMin;
       if(sameDay&&arrMin<=nowMin&&nowMin-arrMin>20)miss.push("ATA")
     }
-    else if(delta!==null&&delta<=60){if(!etd&&!atd)miss.push("ETD/ATD");if(!gate&&!atd)miss.push("GATE");if(!reg)miss.push("REG");state=miss.length?"PARTIEL":"OK"}
+    else if(delta!==null&&delta<=60){const noDep=!etd&&!atd;if(noDep)miss.push("ETD/ATD");if(!gate&&!atd)miss.push("GATE");if(!reg)miss.push("REG");state=noDep?"À CONTRÔLER":miss.length?"PARTIEL":"OK"}
     else if(!std||!sta)state="PARTIEL";
     if(!sta&&!etd&&!atd&&!eta&&!ata&&!gate&&!reg)state="NON TRAITÉ";
   }
