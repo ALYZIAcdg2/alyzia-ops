@@ -58,15 +58,20 @@ export default {
         try{
           // ETag = empreinte écrite à la fabrication (public/baked-version, quelques octets) : si le navigateur a déjà cette version,
           // on répond 304 sans même lire la page de 5 Mo.
-          let etag="";
+          let etag="",lastMod="";
           try{
             const v=await env.ASSETS.fetch(new Request(new URL("/baked-version",request.url)));
-            if(v.status===200){const t=String(await v.text()).trim();if(/^[0-9a-f]{8,64}$/.test(t))etag=`"b-${t}"`;else bakeFallback+="version-invalide;"}
-            else bakeFallback+=`version-${v.status};`;
+            if(v.status===200){
+              const m=String(await v.text()).trim().match(/^([0-9a-f]{8,64})(?: (\d{9,11}))?$/);
+              if(m){etag=`"b-${m[1]}"`;if(m[2])lastMod=new Date(Number(m[2])*1000).toUTCString()}
+              else bakeFallback+="version-invalide;";
+            }else bakeFallback+=`version-${v.status};`;
           }catch(e){bakeFallback+="version-erreur:"+String(e?.message||e).slice(0,60)+";"}
+          // Revalidation : If-None-Match (ETag) ou, si Cloudflare retire l'ETag, If-Modified-Since (date de fabrication).
           const inm=String(request.headers.get("if-none-match")||"").split(",").map(x=>x.trim().replace(/^W\//,""));
-          const base={"cache-control":"no-cache","x-alyzia-page":"baked",...(etag?{etag}:{})};
-          if(etag&&inm.includes(etag))return new Response(null,{status:304,headers:base});
+          const ims=Date.parse(request.headers.get("if-modified-since")||"");
+          const base={"cache-control":"no-cache","x-alyzia-page":"baked",...(etag?{etag}:{}),...(lastMod?{"last-modified":lastMod}:{})};
+          if((etag&&inm.includes(etag))||(lastMod&&Number.isFinite(ims)&&ims>=Date.parse(lastMod)&&!request.headers.get("if-none-match")))return new Response(null,{status:304,headers:base});
           const r=await env.ASSETS.fetch(new Request(new URL("/baked-index",request.url),{method:request.method}));
           if(r.status===200){
             const h=new Headers(base);h.set("content-type","text/html; charset=UTF-8");
