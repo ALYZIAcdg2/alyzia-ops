@@ -11,7 +11,7 @@ const UI=String.raw`<style id="alyzia-admin-dashboard-v5-css">
 </style><script id="alyzia-admin-dashboard-v5-js">(()=>{'use strict';
 if(window.__alyziaAdminV5)return;window.__alyziaAdminV5=true;
 let adminData=null;
-const PROVIDERS=['AIRLABS','SKYLINK','OAG','AERODATABOX','OPENSKY','QUARK','AVIATIONDATA'];
+const PROVIDERS=['AIRLABS','SKYLINK','OAG','AERODATABOX','OPENSKY','QUARK','AVIATIONDATA','FLIGHTERA'];
 const esc=v=>String(v??'').replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c]));
 const missing=v=>!v||v==='—'||v==='-'||v==='N/A';
 const fmt=d=>d&&Number.isFinite(d.getTime())?d.toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';
@@ -76,7 +76,8 @@ function timing(provider,q){
     AERODATABOX:{min:75,cadence:'75 MIN GLOBAL',condition:'DERNIER RECOURS IMMATRICULATION / MODE-S'},
     OPENSKY:{min:10,cadence:'10 MIN',condition:'SI VOL CANDIDAT PROCHE DU DÉPART ET ATD MANQUANT'},
     QUARK:{min:5,cadence:'5 MIN · 4 VOLS MAX PAR PASSAGE',condition:'ETD / ETA / GATE MANQUANTS · 1 ESSAI PAR HEURE ET PAR VOL'},
-    AVIATIONDATA:{min:5,cadence:'1 VOL PAR PASSAGE · 12 APPELS PAR JOUR',condition:'DERNIER RECOURS ATD / ATA · 3 ESSAIS MAX PAR VOL'}
+    AVIATIONDATA:{min:5,cadence:'1 VOL PAR PASSAGE · 12 APPELS PAR JOUR',condition:'DERNIER RECOURS ATD / ATA · 3 ESSAIS MAX PAR VOL'},
+    FLIGHTERA:{min:5,cadence:'1 VOL PAR PASSAGE · 10 APPELS PAR JOUR',condition:'DÉPART PASSÉ SANS ATD / ATA · 3 ESSAIS MAX PAR VOL'}
   }[provider]||{min:5,cadence:'SELON LOGIQUE FOURNISSEUR',condition:'SI CANDIDAT'};
   let eligible=cron;if(last&&Number.isFinite(last.getTime())){const e=new Date(last.getTime()+cfg.min*60000);eligible=ceilFive(e>now?e:now)}
   return {cron,eligible,cfg,last};
