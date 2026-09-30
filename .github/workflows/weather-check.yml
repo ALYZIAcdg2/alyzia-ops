@@ -1,0 +1,12 @@
+name: Test météo
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - run: |
+          curl -sS -m 30 "https://alyzia-ops.alyzia-cdg2.workers.dev/api/weather?iata=CDG,BOG,IST,JFK" | head -c 1500

@@ -44,6 +44,7 @@ button{cursor:pointer}
 .delay{font-size:12px;color:var(--red);font-weight:900;margin-left:10px}
 .local-clock{font-size:14px;margin-top:19px;display:flex;gap:8px;align-items:center}
 .local-clock small{font-size:11px;color:#576a81;display:block;margin-top:2px}
+.wx-line{margin-top:6px;font-size:13px;font-weight:800;color:#33475f;min-height:18px;white-space:nowrap}.wx-line small{font-size:10px;color:#576a81;font-weight:700;margin-left:4px}
 .duration{font-size:17px;font-weight:900;margin-top:27px}
 .duration .timer{font-size:20px}
 .edit-link{border:0;background:transparent;color:#0868e8;font-weight:900;padding:0 4px}
@@ -7872,6 +7873,14 @@ function airportTzOffsetHours(iata,date=new Date()){
 // TZ conservé en compatibilité : accès par clé calcule maintenant le décalage
 // réel (heure d'été/hiver incluse) au lieu d'un nombre figé en dur.
 const TZ=new Proxy({},{get:(_,iata)=>airportTzOffsetHours(String(iata))});
+const WX_CACHE={};
+async function paintWeather(){
+ const nodes=[...document.querySelectorAll('.wx-line[data-wx]')];if(!nodes.length)return;
+ const need=[...new Set(nodes.map(n=>n.dataset.wx).filter(i=>i&&(!WX_CACHE[i]||Date.now()-WX_CACHE[i].t>900000)))];
+ if(need.length){try{const r=await fetch('/api/weather?iata='+need.join(','));const j=await r.json();need.forEach(i=>{WX_CACHE[i]={t:Date.now(),d:j[i]||null}})}catch(e){}}
+ nodes.forEach(n=>{const w=WX_CACHE[n.dataset.wx]?.d;n.innerHTML=w?`<span title="${String(w.raw||'').replace(/["<>&]/g,' ')}">${w.icon} ${w.temp!=null?w.temp+'°C':'—'}<small>${w.label}</small></span>`:''});
+}
+setInterval(()=>{try{paintWeather()}catch(e){}},2500);
 function gmtLabel(iata){
  const off=Number(TZ[iata]);
  if(!Number.isFinite(off))return '';
@@ -15734,6 +15743,7 @@ function render(){
     ${adbState(x)?.data?.departure?.etd?`<span class="adb-value adb-red">ADB ETD ${adbState(x).data.departure.etd}${adbState(x).data.delayMinutes!=null?` · ${adbState(x).data.delayMinutes>=0?'+':''}${adbState(x).data.delayMinutes} MIN`:''}</span>`:''}
     ${adbState(x)?.data?.departure?.atd?`<span class="adb-value adb-green">ATD ${adbState(x).data.departure.atd}</span>`:''}
     <div class="local-clock">◷ <div><span id="depClock">${liveFor(x.dep)}</span><small>${x.dep} LOCAL · ${gmtLabel(x.dep)}</small></div></div>
+    <div class="wx-line" data-wx="${x.dep}"></div>
    </div>
    <div class="fh-stat">
     <div class="head-label">STA <button class="edit-link" onclick="openEdit('sta')">✎</button></div>
@@ -15742,6 +15752,7 @@ function render(){
     ${adbState(x)?.data?.arrival?.eta?`<span class="adb-value adb-red">ADB ETA ${adbState(x).data.arrival.eta}</span>`:''}
     ${adbState(x)?.data?.arrival?.ata?`<span class="adb-value adb-green">ATA ${adbState(x).data.arrival.ata}</span>`:''}
     <div class="local-clock">◷ <div><span id="arrClock">${liveFor(x.dest)}</span><small>${x.dest} LOCAL · ${gmtLabel(x.dest)}</small></div></div>
+    <div class="wx-line" data-wx="${x.dest}"></div>
    </div>
    <div class="fh-stat">
     <div class="head-label">DURÉE</div><div class="time-big duration"><span class="timer">◷</span> ${durationText(x.duration)}</div>
