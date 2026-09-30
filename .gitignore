@@ -1,2 +1,4 @@
 public/baked-index
 public/baked-version
+node_modules/
+package-lock.json
