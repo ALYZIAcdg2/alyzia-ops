@@ -71,6 +71,7 @@ export async function refreshProviderQueue(env){
   const {results=[]}=await env.OPS_DB.prepare(`SELECT identity,flight_date,airline,flight_number,std,data_json FROM flights WHERE flight_date IN (?,?) ORDER BY flight_date,std,flight_number`).bind(yesterday,now.date).all();
   await env.OPS_DB.prepare(`DELETE FROM provider_enrichment_queue WHERE flight_date IN (?,?)`).bind(yesterday,now.date).run();
   let queued=0,stopped=0;
+  const stmts=[];   // écritures regroupées (batch D1) : des centaines d'appels séquentiels dépassaient 25 s
   const providerCounts=Object.fromEntries(PROVIDERS.map(p=>[p,0]));
   const potentialCounts=Object.fromEntries(PROVIDERS.map(p=>[p,0]));
   const avoidedCounts=Object.fromEntries(PROVIDERS.map(p=>[p,0]));
@@ -84,12 +85,13 @@ export async function refreshProviderQueue(env){
       if(!providerEligible(env,provider,x,d)){avoidedCounts[provider]++;continue}
       const fields=eligibleFields(env,provider,x,d);
       if(!fields.length){avoidedCounts[provider]++;continue}
-      await env.OPS_DB.prepare(`INSERT INTO provider_enrichment_queue(flight_identity,flight_date,provider,fields_json,delta_minutes,stop_all,evaluated_at) VALUES(?,?,?,?,?,0,?) ON CONFLICT(flight_identity,provider) DO UPDATE SET flight_date=excluded.flight_date,fields_json=excluded.fields_json,delta_minutes=excluded.delta_minutes,stop_all=0,evaluated_at=excluded.evaluated_at`).bind(row.identity,row.flight_date,provider,JSON.stringify(fields),d,at).run();
+      stmts.push(env.OPS_DB.prepare(`INSERT INTO provider_enrichment_queue(flight_identity,flight_date,provider,fields_json,delta_minutes,stop_all,evaluated_at) VALUES(?,?,?,?,?,0,?) ON CONFLICT(flight_identity,provider) DO UPDATE SET flight_date=excluded.flight_date,fields_json=excluded.fields_json,delta_minutes=excluded.delta_minutes,stop_all=0,evaluated_at=excluded.evaluated_at`).bind(row.identity,row.flight_date,provider,JSON.stringify(fields),d,at));
       providerCounts[provider]++;queued++;
     }
     x.enrichmentNeeds=needs;x.enrichmentPolicyEvaluatedAt=at;
-    await env.OPS_DB.prepare(`UPDATE flights SET data_json=? WHERE identity=?`).bind(JSON.stringify(x),row.identity).run();
+    stmts.push(env.OPS_DB.prepare(`UPDATE flights SET data_json=? WHERE identity=?`).bind(JSON.stringify(x),row.identity));
   }
+  for(let i=0;i<stmts.length;i+=40)await env.OPS_DB.batch(stmts.slice(i,i+40));
   for(const provider of PROVIDERS){
     await env.OPS_DB.prepare(`INSERT INTO provider_observability_snapshot(flight_date,provider,potential,waiting,avoided,stop_all,evaluated_at) VALUES(?,?,?,?,?,?,?) ON CONFLICT(flight_date,provider) DO UPDATE SET potential=excluded.potential,waiting=excluded.waiting,avoided=excluded.avoided,stop_all=excluded.stop_all,evaluated_at=excluded.evaluated_at`).bind(now.date,provider,potentialCounts[provider],providerCounts[provider],avoidedCounts[provider],stopped,at).run();
   }

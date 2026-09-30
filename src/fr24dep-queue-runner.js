@@ -99,7 +99,8 @@ export async function runFr24DepQueue(env){
     let x={};try{x=JSON.parse(row.data_json||"{}")}catch{}
     if(stopAll(x))continue;
     const d=delta(row.flight_date,x.std||row.std,now),needs=buildNeeds(x,d);
-    if(d>30||!FIELDS.some(f=>allowed.has(f)&&(needs[f]||(f==="ata"&&needs.ata_late))))continue;
+    if(d>30||d<-480||!FIELDS.some(f=>allowed.has(f)&&(needs[f]||(f==="ata"&&needs.ata_late))))continue;   // les pages couvrent ~8 h en arrière
+    if(Number(x.fr24depMisses||0)>=2)continue;    // vol introuvable dans la liste deux fois de suite : on n'insiste plus (il faisait remonter 4 pages à chaque passage)
     const key=`${fullFlight(x,row)}|${row.flight_date}`;
     wanted.set(key,{row,x,allowed,changed:[]});
     const m=clean(x.std||row.std).match(/^(\d{2}):(\d{2})$/);
@@ -109,6 +110,7 @@ export async function runFr24DepQueue(env){
   const room=Math.max(0,Math.min(MAX_PAGES,DAY_CAP-u.day,MONTH_CAP-u.month));
   const at=new Date().toISOString(),summary={pages:0,seen:0,matched:0,changedFlights:0};
   const touched=new Set();
+  let coveredFrom=Infinity;   // plus ancien départ programmé effectivement lu (epoch UTC)
   for(let page=1;page<=room;page++){
     const r=await fetchPage(env,page);
     await bump(env,now,r.status);summary.pages++;
@@ -127,9 +129,17 @@ export async function runFr24DepQueue(env){
       z.x.fr24depLastCheckedAt=at;
       touched.add(`${p.number}|${p.date}`);
     }
+    coveredFrom=Math.min(coveredFrom,minSched);
     // Page la plus ancienne atteinte : inutile de remonter plus loin que le premier vol à compléter.
     if(!(minSched>earliest-offO-1800))break;   // earliest = STD local lu comme UTC : on retire le décalage Paris
     if(list.length<100)break;
+  }
+  // Vols à compléter dont l'horaire tombe dans la zone lue mais absents de la liste : on compte l'échec (2 échecs = abandon).
+  for(const [key,z] of wanted){
+    if(touched.has(key))continue;
+    const m=clean(z.x.std||z.row.std).match(/^(\d{2}):(\d{2})$/);if(!m)continue;
+    const stdUtc=Date.parse(`${z.row.flight_date}T${m[1]}:${m[2]}:00Z`)/1000-7200;
+    if(stdUtc>=coveredFrom){z.x.fr24depMisses=Number(z.x.fr24depMisses||0)+1;touched.add(key)}
   }
   for(const key of touched){
     const z=wanted.get(key);
