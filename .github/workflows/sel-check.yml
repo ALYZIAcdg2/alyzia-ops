@@ -1,0 +1,20 @@
+name: Test fiche conditionnelle
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - run: |
+          A=https://alyzia-ops.alyzia-cdg2.workers.dev
+          curl -sS --compressed -o f.json "$A/api/flights"
+          ID=$(node -e "const j=require('./f.json');const f=j.flights.filter(x=>x.date&&x.airline&&x.flight).sort((a,b)=>String(b.date).localeCompare(String(a.date)))[0];console.log(f.date+'|'+f.airline+'|'+f.flight)")
+          echo "vol=$ID"
+          curl -sS --compressed -G --data-urlencode "identity=$ID" -o one.json -w "COMPLET ttfb=%{time_starttransfer}s size=%{size_download}B\n" "$A/api/flights"
+          U=$(node -e "console.log(require('./one.json').flight._serverUpdatedAt||'')")
+          echo "updated_at=$U"
+          sleep 4
+          for i in 1 2 3; do curl -sS --compressed -G --data-urlencode "identity=$ID" --data-urlencode "ifUpdated=$U" -o c.json -w "CONDITIONNEL ttfb=%{time_starttransfer}s size=%{size_download}B  " "$A/api/flights"; cat c.json | head -c 80; echo; done
