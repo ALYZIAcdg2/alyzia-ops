@@ -49,6 +49,23 @@ export default {
   async fetch(request,env,ctx){
     const denied=guardApi(request,env);
     if(denied)return denied;
+    // Page finale fabriquée au déploiement (scripts/bake-html.mjs) : servie telle quelle, sans repasser par les wrappers.
+    // "no-cache" = revalidation à chaque ouverture (ETag) : jamais une ancienne version, mais 304 sans téléchargement si rien n'a changé.
+    if(!globalThis.__ALYZIA_BAKING&&(request.method==="GET"||request.method==="HEAD")){
+      const path=new URL(request.url).pathname;
+      if(path==="/"||path==="/index.html"){
+        try{
+          const r=await env.ASSETS.fetch(new Request(new URL("/baked-index",request.url),{method:request.method,headers:request.headers}));
+          if(r.status===200||r.status===304){
+            const h=new Headers(r.headers);
+            h.set("content-type","text/html; charset=UTF-8");
+            h.set("cache-control","no-cache");
+            h.set("x-alyzia-page","baked");
+            return new Response(r.status===304?null:r.body,{status:r.status,headers:h});
+          }
+        }catch(_){}
+      }
+    }
     if(new URL(request.url).pathname==="/api/opensky/ingest")return handleOpenSkyIngest(request,env);
     if(new URL(request.url).pathname==="/api/weather")return handleWeather(request,ctx);
     if(new URL(request.url).pathname==="/api/admin/push-now")return adminPushNow(request,env,ctx);

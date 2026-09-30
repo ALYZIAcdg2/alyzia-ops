@@ -53,6 +53,10 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
+      - name: Fabrique la page finale (évite 1,5 à 2,5 s de calcul à chaque ouverture)
+        continue-on-error: true
+        run: node scripts/bake-html.mjs
+
       - name: Deploy Worker
         run: npx wrangler deploy
         env:
@@ -63,3 +67,5 @@ jobs:
         run: |
           sleep 5
           curl -sS -f "https://alyzia-ops.alyzia-cdg2.workers.dev/api/enrichment/status"
+          echo
+          curl -sSI "https://alyzia-ops.alyzia-cdg2.workers.dev/" | grep -i "x-alyzia-page\|cache-control\|etag" || echo "ATTENTION : page non fabriquée (repli sur le calcul à l'ouverture)"
