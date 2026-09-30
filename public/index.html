@@ -6780,6 +6780,9 @@ html,body{
 .imports-flight-status.create{background:#eef6ff;color:#075fc8;border:1px solid #b8d6f7}.imports-flight-status.identified{background:#f2f7ff;color:#315f91;border:1px solid #c8d9eb}
 .v5002-resume-btn{border:1px solid #d4ad5f!important;background:#fff7e8!important;color:#8b5b00!important}.imports-company-grid{align-items:stretch}
 @media(max-width:700px){.v5002-leg-strip{padding:7px 8px}.v5002-leg{font-size:7px;padding:5px 7px}}
+
+.company-terminal-pill{display:inline-block;padding:1px 7px;border-radius:999px;color:#fff;font-size:10px}
+.company-terminal-pill.t1{background:#0b4ea2}.company-terminal-pill.t2{background:#1b8a4a}.company-terminal-pill.t3{background:#c2185b}
 </style>
 <style>
 .imports-main-card{border:1px solid #d8e3ee;background:#fff;border-radius:14px;padding:14px;cursor:pointer;text-align:left;width:100%;box-shadow:0 7px 20px rgba(15,39,68,.06);transition:.16s ease;color:#18283a}
@@ -7887,7 +7890,8 @@ function backToFlightListSamePosition(){renderHome();requestAnimationFrame(()=>r
 const AIRLINE_TERMINAL={
  EI:'T1',MS:'T1',SQ:'T1',HU:'T1',FB:'T1',KU:'T1',VF:'T1',S4:'T1',FI:'T1',OZ:'T1',TW:'T1',TK:'T1',J2:'T1',AV:'T1',WB:'T1',NH:'T1',
  AH:'T2',MH:'T2',AT:'T2',A9:'T2',LY:'T2',SB:'T2',AI:'T2',HM:'T2',SK:'T2',LO:'T2',JU:'T2',LA:'T2',RJ:'T2',
- BJ:'T3',LS:'T3','3O':'T3',IZ:'T3',TS:'T3',DE:'T3',SM:'https://upload.wikimedia.org/wikipedia/commons/6/60/Air_Cairo_logo.svg',TB:'T3',ENT:'T3'
+ BJ:'T3',LS:'T3','3O':'T3',IZ:'T3',TS:'T3',DE:'T3',TB:'T3',ENT:'T3',
+ CTM:'T3',TU:'T3',PC:'T3',HF:'T2'
 };
 let TERMINAL_FILTER='ALL';
 function setTerminalFilter(t){TERMINAL_FILTER=['T1','T2','T3','ALL'].includes(t)?t:'ALL';renderHome()}
@@ -14973,8 +14977,10 @@ function syncCompanyConfigFromFlights(records){
    Object.keys(COMPANY_CONFIG_DEFAULT).forEach(a=>{
      if(incoming[a]){
        COMPANY_CONFIG[a]=JSON.parse(JSON.stringify(incoming[a]));
+       if(typeof COMPANY_CONFIG[a].terminal!=='string')COMPANY_CONFIG[a].terminal=COMPANY_CONFIG_DEFAULT[a].terminal||'';
      }
    });
+   applyCompanyTerminals();
    localStorage.setItem(COMPANY_CONFIG_KEY,JSON.stringify(COMPANY_CONFIG));
    return true;
  }catch(e){return false}
@@ -15250,6 +15256,27 @@ const COMPANY_CONFIG_DEFAULT={
 // Base par défaut pour les compagnies génériques du fichier CONFIGURATION_COMPAGNIES.xlsx :
 // tout visible (identique au comportement sans config), prêt à recevoir les vraies valeurs
 // une fois le fichier rempli et renvoyé par l'utilisateur.
+// Compagnies disposant d'un plan cabine (SEATMAP) : toutes listées dans CONFIG COMPAGNIE
+// (aucune règle de classes imposée : les classes viennent du plan cabine).
+const SEATMAP_COMPANY_CODES=['3O','A9','AH','AI','AT','AV','BJ','BM','C3','CTM','DE','EI','ENT','EY','FB','FI','HF','HM','HU','IZ','J2','JU','KK','KU','LA','LO','LS','LY','MH','MS','NH','NO','OZ','PC','RJ','S4','SB','SK','SM','SQ','TB','TK','TS','TU','TW','VF','WB'];
+SEATMAP_COMPANY_CODES.forEach(code=>{
+ if(COMPANY_CONFIG_DEFAULT[code])return;
+ COMPANY_CONFIG_DEFAULT[code]={
+   airline:code,
+   rules:[],
+   modules:{
+     header:true,config:true,booked:true,upgrade:true,web:true,available:true,standby:true,
+     meals:true,particularities:true,inbound:true,outbound:true,notes:true
+   },
+   particularities:{}
+ };
+});
+// Terminal par défaut de chaque compagnie (modifiable dans CONFIG COMPAGNIE).
+Object.keys(COMPANY_CONFIG_DEFAULT).forEach(code=>{
+ const t=AIRLINE_TERMINAL[code];
+ if(COMPANY_CONFIG_DEFAULT[code].terminal===undefined)COMPANY_CONFIG_DEFAULT[code].terminal=/^T[123]$/.test(t)?t:'';
+});
+
 GENERIC_COMPANY_AIRLINE_CODES.forEach(code=>{
  COMPANY_CONFIG_DEFAULT[code]={
    airline:code,
@@ -15262,6 +15289,18 @@ GENERIC_COMPANY_AIRLINE_CODES.forEach(code=>{
  };
 });
 
+Object.keys(COMPANY_CONFIG_DEFAULT).forEach(code=>{
+ const t=AIRLINE_TERMINAL[code];
+ if(COMPANY_CONFIG_DEFAULT[code].terminal===undefined)COMPANY_CONFIG_DEFAULT[code].terminal=/^T[123]$/.test(t)?t:'';
+});
+// Applique le terminal choisi dans CONFIG COMPAGNIE à la table utilisée par les filtres et pastilles.
+function applyCompanyTerminals(){
+ try{Object.keys(COMPANY_CONFIG||{}).forEach(a=>{
+  const t=String(COMPANY_CONFIG[a]?.terminal||'').toUpperCase();
+  if(/^T[123]$/.test(t))AIRLINE_TERMINAL[a]=t;
+  else if(COMPANY_CONFIG[a]&&COMPANY_CONFIG[a].terminal==='')delete AIRLINE_TERMINAL[a];
+ })}catch(e){}
+}
 function deepCloneCompanyConfig(o){
  return JSON.parse(JSON.stringify(o));
 }
@@ -15274,6 +15313,7 @@ function loadCompanyConfig(){
      Object.keys(COMPANY_CONFIG_DEFAULT).forEach(a=>{
        if(raw[a]){
          if(Array.isArray(raw[a].rules)&&raw[a].rules.length)cfg[a].rules=raw[a].rules;
+         if(typeof raw[a].terminal==='string')cfg[a].terminal=raw[a].terminal;
          if(raw[a].modules)cfg[a].modules={...cfg[a].modules,...raw[a].modules};
          if(raw[a].particularities)cfg[a].particularities={...cfg[a].particularities,...raw[a].particularities};
        }
@@ -15285,6 +15325,7 @@ function loadCompanyConfig(){
  }
 }
 let COMPANY_CONFIG=loadCompanyConfig();
+applyCompanyTerminals();
 // V50.33 — Horodatage de la dernière sauvegarde LOCALE de COMPANY_CONFIG :
 // silentCloudRefresh() interroge le cloud toutes les 1.5s. Sans ce garde-fou,
 // un ENREGISTRER dans CONFIG COMPAGNIE pouvait être immédiatement écrasé par
@@ -15463,7 +15504,7 @@ function applyCompanyConfigToKnownFlights(airline){
 
 function openCompanyConfig(){
  const codes=Object.keys(COMPANY_CONFIG).sort((a,b)=>a.localeCompare(b));
- showModal('CONFIG COMPAGNIE',`${codes.length} COMPAGNIES CONFIGURÉES`,`
+ showModal('CONFIG COMPAGNIE',`${codes.length} COMPAGNIES · ORDRE ALPHABÉTIQUE`,`
    <div class="company-config-cards">
      ${codes.map(a=>{
        const cfg=COMPANY_CONFIG[a];
@@ -15472,7 +15513,7 @@ function openCompanyConfig(){
          <div class="company-config-logo">${airlineLogo(a,'large')}</div>
          <div class="company-config-info">
            <b>${airlineDisplayName(a)}</b>
-           <span>${cfg.rules.length} RÈGLE${cfg.rules.length>1?'S':''} DE CLASSES</span>
+           <span>${cfg.terminal&&/^T[123]$/.test(cfg.terminal)?`<b class="company-terminal-pill t${cfg.terminal[1]}">${cfg.terminal}</b> · `:''}${cfg.rules.length?`${cfg.rules.length} RÈGLE${cfg.rules.length>1?'S':''} DE CLASSES`:'CLASSES SELON PLAN CABINE'}</span>
            <small>${rules}</small>
          </div>
          <div class="company-config-arrow">›</div>
@@ -15542,6 +15583,15 @@ function openAirlineConfig(airline){
 
      <div class="airline-config-section">
        <div class="airline-config-section-title">
+         <div><b>TERMINAL</b><small>TERMINAL DE ${airline} (FILTRES, PASTILLES, FICHES)</small></div>
+       </div>
+       <div class="airline-terminal-choice" style="display:flex;gap:8px;flex-wrap:wrap">
+         ${['T1','T2','T3',''].map(t=>`<label class="airline-module-toggle" style="flex:1;min-width:70px;justify-content:center"><input type="radio" name="companyTerminal" data-company-terminal value="${t}" ${(cfg.terminal||'')===t?'checked':''}><span>${t||'AUCUN'}</span></label>`).join('')}
+       </div>
+     </div>
+
+     <div class="airline-config-section">
+       <div class="airline-config-section-title">
          <div><b>AFFICHAGE FICHE VOL</b><small>CHOISIR LES BLOCS VISIBLES POUR ${airline}</small></div>
        </div>
        <div class="airline-module-grid">
@@ -15593,7 +15643,7 @@ function addCompanyRule(airline){
 function deleteCompanyRule(airline,index){
  const cfg=COMPANY_CONFIG[airline];
  if(!cfg)return;
- if(cfg.rules.length<=1){alert('IL FAUT CONSERVER AU MOINS UNE RÈGLE.');return}
+ if(cfg.rules.length<=1&&(COMPANY_CONFIG_DEFAULT[airline]?.rules||[]).length){alert('IL FAUT CONSERVER AU MOINS UNE RÈGLE.');return}
  cfg.rules.splice(index,1);
  saveCompanyConfig();
  const snap=currentModalSnapshot();
@@ -15615,9 +15665,11 @@ async function saveAirlineConfig(airline){
      pattern,classes
    });
  });
- if(!newRules.length){alert('AU MOINS UNE RÈGLE DE CLASSES EST OBLIGATOIRE.');return}
+ if(!newRules.length&&(COMPANY_CONFIG_DEFAULT[airline]?.rules||[]).length){alert('AU MOINS UNE RÈGLE DE CLASSES EST OBLIGATOIRE.');return}
 
  cfg.rules=newRules;
+ const termEl=document.querySelector('[data-company-terminal]:checked');
+ if(termEl)cfg.terminal=termEl.value;
  document.querySelectorAll('[data-company-module]').forEach(el=>{
    cfg.modules[el.dataset.companyModule]=!!el.checked;
  });
@@ -15627,6 +15679,7 @@ async function saveAirlineConfig(airline){
  });
 
  COMPANY_CONFIG[airline]=cfg;
+ applyCompanyTerminals();
  saveCompanyConfig();
  const count=applyCompanyConfigToKnownFlights(airline);
  publishCompanyConfigToCloud().catch(e=>console.warn('CONFIG COMPAGNIE CLOUD',e));
