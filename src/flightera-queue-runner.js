@@ -88,7 +88,7 @@ export async function runFlighteraQueue(env){
     let x={};try{x=JSON.parse(row.data_json||"{}")}catch{}
     if(stopAll(x))continue;
     const d=delta(row.flight_date,x.std||row.std,now),needs=buildNeeds(x,d);
-    if(!FIELDS.some(f=>allowed.has(f)&&needs[f]))continue;
+    if(!FIELDS.some(f=>allowed.has(f)&&(needs[f]||(f==="ata"&&needs.ata_late))))continue;
     if(!globalThis.__ALYZIA_MANUAL_PUSH&&ageMs(x.flighteraLastCheckedAt)<COOLDOWN_MIN*60000)continue;
     if(Number(x.flighteraNotFoundAttempts||0)>=MAX_NOT_FOUND)continue;
     if(Number(x.flighteraAttempts||0)>=MAX_ATTEMPTS_PER_FLIGHT)continue;

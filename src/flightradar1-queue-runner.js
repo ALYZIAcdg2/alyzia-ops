@@ -103,7 +103,7 @@ async function runFlightradarQueue(env,cfg){
     let x={};try{x=JSON.parse(row.data_json||"{}")}catch{}
     if(stopAll(x))continue;
     const d=delta(row.flight_date,x.std||row.std,now),needs=buildNeeds(x,d);
-    if(!cfg.fields.some(f=>allowed.has(f)&&needs[f]))continue;
+    if(!cfg.fields.some(f=>allowed.has(f)&&(needs[f]||(f==="ata"&&needs.ata_late))))continue;
     if(d>30)continue;
     // Deux API équivalentes (mêmes données) : on répartit les vols entre elles selon la parité du numéro de vol.
     // Deux API équivalentes : les vols sont répartis entre elles selon la parité du numéro de vol.

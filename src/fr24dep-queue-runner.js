@@ -99,7 +99,7 @@ export async function runFr24DepQueue(env){
     let x={};try{x=JSON.parse(row.data_json||"{}")}catch{}
     if(stopAll(x))continue;
     const d=delta(row.flight_date,x.std||row.std,now),needs=buildNeeds(x,d);
-    if(d>30||!FIELDS.some(f=>allowed.has(f)&&needs[f]))continue;
+    if(d>30||!FIELDS.some(f=>allowed.has(f)&&(needs[f]||(f==="ata"&&needs.ata_late))))continue;
     const key=`${fullFlight(x,row)}|${row.flight_date}`;
     wanted.set(key,{row,x,allowed,changed:[]});
     const m=clean(x.std||row.std).match(/^(\d{2}):(\d{2})$/);

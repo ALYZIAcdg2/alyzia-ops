@@ -67,6 +67,9 @@ export function buildNeeds(x={},d=99999){
     atd:isMissing(x.atd)&&(departed||atdWindow),
     // Same rule for arrival: ARRIVED/LANDED must not stop ATA recovery while ATA is missing.
     ata:isMissing(x.ata)&&(arrived||ataWindow),
+    // ATA « tardif » : les vols importés n'ont pas de durée, donc ataWindow est toujours faux. On considère qu'un vol parti depuis 45 min (STD) mérite une recherche d'ATA,
+    // mais SEULEMENT pour les fournisseurs en lot / peu coûteux (FR24 départs, Flightera, Flightradar1/8) via le champ "ata_late" : AirLabs & co ne sont pas sollicités davantage.
+    ata_late:isMissing(x.ata)&&departed&&!arrived&&d<=-45&&d>=-1080,
     gate:!departed&&isMissing(x.gate)&&inWindow(d,FIELD_MATRIX.gate.window),
     reg:isMissing(x.reg)&&inWindow(d,FIELD_MATRIX.reg.window)
   };
@@ -83,10 +86,10 @@ const PROVIDER_FIELDS={
   AERODATABOX:["std","sta","etd","eta","atd","ata","gate","reg"],
   QUARK:["etd","eta","gate"],
   AVIATIONDATA:["atd","ata"],
-  FLIGHTERA:["sta","etd","eta","atd","ata","gate","reg"],
-  FLIGHTRADAR1:["reg","atd","ata","etd","eta","sta","gate"],
-  FLIGHTRADAR8:["reg","atd","ata","etd","eta","sta","gate"],
-  FR24DEP:["etd","eta","atd","ata","gate","reg"]
+  FLIGHTERA:["sta","etd","eta","atd","ata","ata_late","gate","reg"],
+  FLIGHTRADAR1:["reg","atd","ata","ata_late","etd","eta","sta","gate"],
+  FLIGHTRADAR8:["reg","atd","ata","ata_late","etd","eta","sta","gate"],
+  FR24DEP:["etd","eta","atd","ata","ata_late","gate","reg"]
 };
 export function providerNeeded(provider,x={},d=99999){
   if(stopAll(x))return false;
@@ -95,7 +98,7 @@ export function providerNeeded(provider,x={},d=99999){
 }
 export function neededFields(provider,x={},d=99999){
   const needs=buildNeeds(x,d),fields=PROVIDER_FIELDS[provider]||[];
-  return fields.filter(f=>needs[f]);
+  return [...new Set(fields.filter(f=>needs[f]).map(f=>f==="ata_late"?"ata":f))];
 }
 
 export function cadenceMinutes(provider,x={},d=99999){
