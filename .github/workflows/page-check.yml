@@ -10,7 +10,7 @@ jobs:
     steps:
       - run: |
           A=https://alyzia-ops.alyzia-cdg2.workers.dev
-          for i in 1 2 3; do curl -sS -H "Accept-Encoding: br" -o /dev/null -w "PAGE ttfb=%{time_starttransfer}s total=%{time_total}s transfert=%{size_download}B\n" $A/; done
+          for i in 1 2 3 4 5 6; do curl -sS -H "Accept-Encoding: br" -o /dev/null -w "PAGE ttfb=%{time_starttransfer}s total=%{time_total}s transfert=%{size_download}B\n" $A/; done
           curl -sS -H "Accept-Encoding: br" -D h.txt -o /dev/null $A/; grep -iE "^(etag|cache-control|content-encoding|x-alyzia-page|cf-cache-status|last-modified)" h.txt
           E=$(grep -i "^etag" h.txt | head -1 | cut -d' ' -f2- | tr -d '\r')
           echo "etag=[$E]"

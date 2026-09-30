@@ -55,15 +55,22 @@ export default {
       const path=new URL(request.url).pathname;
       if(path==="/"||path==="/index.html"){
         try{
-          const r=await env.ASSETS.fetch(new Request(new URL("/baked-index",request.url),{method:request.method,headers:request.headers}));
-          if(r.status===200||r.status===304){
-            const h=new Headers(r.headers);
-            h.set("content-type","text/html; charset=UTF-8");
-            h.set("cache-control","no-cache");
-            h.set("x-alyzia-page","baked");
-            return new Response(r.status===304?null:r.body,{status:r.status,headers:h});
+          // ETag = empreinte écrite à la fabrication (public/baked-version, quelques octets) : si le navigateur a déjà cette version,
+          // on répond 304 sans même lire la page de 5 Mo.
+          let etag="";
+          try{
+            const v=await env.ASSETS.fetch(new Request(new URL("/baked-version",request.url)));
+            if(v.status===200){const t=String(await v.text()).trim();if(/^[0-9a-f]{8,64}$/.test(t))etag=`"b-${t}"`}
+          }catch(_){}
+          const inm=String(request.headers.get("if-none-match")||"").split(",").map(x=>x.trim().replace(/^W\//,""));
+          const base={"cache-control":"no-cache","x-alyzia-page":"baked",...(etag?{etag}:{})};
+          if(etag&&inm.includes(etag))return new Response(null,{status:304,headers:base});
+          const r=await env.ASSETS.fetch(new Request(new URL("/baked-index",request.url),{method:request.method}));
+          if(r.status===200){
+            const h=new Headers(base);h.set("content-type","text/html; charset=UTF-8");
+            return new Response(r.body,{status:200,headers:h});
           }
-        }catch(_){}
+                }catch(_){}
       }
     }
     if(new URL(request.url).pathname==="/api/opensky/ingest")return handleOpenSkyIngest(request,env);
