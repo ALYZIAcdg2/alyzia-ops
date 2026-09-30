@@ -10,14 +10,14 @@ async function get(host,path){
   }catch(e){return {status:0,j:null,text:String(e.message)}}
 }
 const fl=process.env.FLIGHT||"SQ335";
-for(const host of ["flight-radar1.p.rapidapi.com","flight-radar8.p.rapidapi.com"]){
+for(const host of ["flight-radar1.p.rapidapi.com"]){
   console.log(`\n===== ${host} =====`);
   const s=await get(host,`/flights/search?query=${fl}&limit=10`);
   const live=(s.j?.results||[]).find(r=>r.type==="live");
   console.log(`search ${fl}: HTTP ${s.status} restant=${s.remaining} | live: ${live?live.id+" "+live.label:"aucun"}`);
   if(!live)continue;
   const id=live.id;
-  for(const p of [`/flights/get-more-info?query=${id}`,`/flights/detail?flight=${id}`,`/flights/details?flight=${id}`,`/flights/get-detail?flight=${id}`,`/flights/flight-details?flight=${id}`,`/flights/info?flight=${id}`,`/flights/get-info?flight=${id}`,`/flights/live?flight=${id}`]){
+  for(const p of [`/flights/details?flight=${id}`,`/flights/detail?flight=${id}`,`/flights/get-more-info?flight=${id}`,`/flights/get-more-info?query=${id}&limit=1`,`/flights/get-flight?flight=${id}`,`/flights/flight-info?flight=${id}`,`/flights/get-details?flight=${id}`,`/flights/live-details?flight=${id}`]){
     const r=await get(host,p);
     const ok=r.status===200;
     console.log(`${ok?"OK  ":"    "}${p} -> HTTP ${r.status}${ok?" restant="+r.remaining:""} ${ok?"":(r.j?.message||r.text).slice(0,80)}`);

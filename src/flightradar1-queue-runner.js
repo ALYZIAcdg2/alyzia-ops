@@ -8,10 +8,10 @@ import {flighteraKey} from "./flightera-queue-runner.js";
 // Un vol au sol ou terminé n'a qu'une entrée "schedule" : pas de données, on n'insiste pas.
 const CONFIGS={
   FLIGHTRADAR1:{PROVIDER:"FLIGHTRADAR1",HOST:"flight-radar1.p.rapidapi.com",slot:0,fields:["reg"],prefix:"flightradar1",keyEnv:"FLIGHTRADAR1_RAPIDAPI_KEY"},
-  FLIGHTRADAR8:{PROVIDER:"FLIGHTRADAR8",HOST:"flight-radar8.p.rapidapi.com",slot:1,fields:["reg","atd"],atd:true,prefix:"flightradar8",keyEnv:"FLIGHTRADAR8_RAPIDAPI_KEY"}
+  FLIGHTRADAR8:{PROVIDER:"FLIGHTRADAR8",HOST:"flight-radar8.p.rapidapi.com",slot:1,fields:["reg","atd","ata","etd","eta","sta","gate"],atd:true,details:true,prefix:"flightradar8",keyEnv:"FLIGHTRADAR8_RAPIDAPI_KEY"}
 };
 const MAX_PER_RUN=1;
-const DAY_CAP=15;
+const DAY_CAP=25;
 const MONTH_CAP=430;            // plan 500/mois, marge pour les essais
 const COOLDOWN_MIN=60;          // par vol
 const MAX_ATTEMPTS_PER_FLIGHT=4;
@@ -51,12 +51,33 @@ async function fetchSearch(env,flight,cfg){
   }catch(e){return {ok:false,status:502,error:String(e?.message||e)}}
 }
 
+async function fetchDetails(env,id,cfg){
+  const HOST=cfg.HOST;
+  try{
+    const r=await fetch(`https://${HOST}/flights/details?flight=${encodeURIComponent(id)}`,{headers:{Accept:"application/json","x-rapidapi-key":frKey(env,cfg),"x-rapidapi-host":HOST},signal:AbortSignal.timeout(10000)});
+    const payload=await r.json().catch(()=>null);
+    return {ok:r.ok,status:r.status,payload};
+  }catch(e){return {ok:false,status:502,error:String(e?.message||e)}}
+}
+const localHM=(epoch,offset)=>epoch?new Date((Number(epoch)+Number(offset||0))*1000).toISOString().slice(11,16):"";
+// Fiche détaillée FR24 : heures réelles / estimées / programmées (epoch UTC) converties à l'heure locale de chaque aéroport.
+export function parseDetail(j){
+  const t=j?.time;if(!t||!j?.identification)return null;
+  const offO=j.airport?.origin?.timezone?.offset??7200,offD=j.airport?.destination?.timezone?.offset??0;
+  const real=t.real||{},est=t.estimated||{},sch=t.scheduled||{};
+  return {
+    atd:localHM(real.departure,offO),ata:localHM(real.arrival,offD),
+    etd:real.departure?"":localHM(est.departure,offO),eta:real.arrival?"":localHM(est.arrival,offD),
+    sta:localHM(sch.arrival,offD),gate:clean(j.airport?.origin?.info?.gate),
+    reg:upper(j.aircraft?.registration),acType:upper(j.aircraft?.model?.code)
+  };
+}
 // Entrée "live" du bon vol au départ de l'aéroport attendu ; null si le vol n'est pas en l'air.
 export function parseLive(payload,flight,origin="CDG"){
   const list=Array.isArray(payload?.results)?payload.results:[];
   const hit=list.find(r=>r?.type==="live"&&upper(r?.detail?.flight)===flight&&(!origin||!upper(r?.detail?.schd_from)||upper(r.detail.schd_from)===origin));
   if(!hit)return null;
-  return {reg:upper(hit.detail?.reg),acType:upper(hit.detail?.ac_type)};
+  return {id:clean(hit.id),reg:upper(hit.detail?.reg),acType:upper(hit.detail?.ac_type)};
 }
 function apply(x,field,value,at,PROVIDER){
   const next=clean(value),from=clean(x[field]);
@@ -98,29 +119,48 @@ async function runFlightradarQueue(env,cfg){
   const room=Math.max(0,Math.min(globalThis.__ALYZIA_MANUAL_PUSH?3:MAX_PER_RUN,DAY_CAP-u.day,MONTH_CAP-u.month)),items=[];
   for(const z of candidates.slice(0,room)){
     const flight=fullFlight(z.x,z.row);if(!flight)continue;
-    const r=await fetchSearch(env,flight,cfg),at=new Date().toISOString();
-    await bump(env,now,r.status,PROVIDER);
+    const at=new Date().toISOString(),changed=[];
     z.x[P+"Attempts"]=Number(z.x[P+"Attempts"]||0)+1;
-    z.x[P+"LastCheckedAt"]=at;z.x[P+"LastStatus"]=r.status;
-    const changed=[];
-    if(r.ok){
-      const live=parseLive(r.payload,flight,upper(z.x.origin||"CDG"));
-      if(live){
-        if(z.allowed.has("reg")&&apply(z.x,"reg",live.reg,at,PROVIDER))changed.push("reg");
-        // Fiche « live » = l'avion a décollé. Sans heure réelle chez le fournisseur, on pose un ATD ESTIMÉ (ETD sinon STD, jamais plus tard que maintenant)
-        // avec la source FLIGHTRADAR8_EST : tout fournisseur qui donne le vrai ATD le remplacera.
-        if(cfg.atd&&z.allowed.has("atd")&&(!clean(z.x.atd)||["—","-"].includes(clean(z.x.atd)))){
-          const base=/^\d{2}:\d{2}$/.test(clean(z.x.etd))?clean(z.x.etd):clean(z.x.std||z.row.std),m=base.match(/^(\d{2}):(\d{2})$/);
-          if(m){const est=Math.min(Number(m[1])*60+Number(m[2]),now.minutes),hm=String(Math.floor(est/60)).padStart(2,"0")+":"+String(est%60).padStart(2,"0");
-            const log=Array.isArray(z.x.flightInfoLog)?z.x.flightInfoLog:[];log.unshift({at,source:PROVIDER+"_EST",field:"atd",from:"",to:hm,reason:"départ prouvé (vol en l'air), heure estimée"});z.x.flightInfoLog=log.slice(0,160);
-            z.x.atd=hm;z.x.atdSource=PROVIDER+"_EST";z.x.atdUpdatedAt=at;z.x.providerStatusRaw=clean(z.x.providerStatusRaw)&&/CANCEL|LANDED|ARRIV/i.test(z.x.providerStatusRaw)?z.x.providerStatusRaw:"AIRBORNE";changed.push("atd~")}
-        }
-        if(live.acType&&await noteAndSwitch(env,z.x,live.acType,PROVIDER,at))changed.push("aircraft");
-      }else z.x[P+"NotLiveAttempts"]=Number(z.x[P+"NotLiveAttempts"]||0)+1;
+    z.x[P+"LastCheckedAt"]=at;
+    let id=cfg.details?clean(z.x.fr24LiveId):"",lastStatus=0,stop=false;
+    if(!id){
+      const r=await fetchSearch(env,flight,cfg);
+      await bump(env,now,r.status,PROVIDER);lastStatus=r.status;
+      if([401,403,429].includes(r.status)||r.status>=500)stop=true;
+      if(r.ok){
+        const live=parseLive(r.payload,flight,upper(z.x.origin||"CDG"));
+        if(live){
+          id=live.id;if(cfg.details&&id)z.x.fr24LiveId=id;
+          if(z.allowed.has("reg")&&apply(z.x,"reg",live.reg,at,PROVIDER))changed.push("reg");
+          // Fiche « live » = l'avion a décollé. Sans heure réelle chez le fournisseur, on pose un ATD ESTIMÉ (ETD sinon STD, jamais plus tard que maintenant)
+          // avec la source FLIGHTRADAR8_EST : tout fournisseur qui donne le vrai ATD le remplacera.
+          if(cfg.atd&&z.allowed.has("atd")&&(!clean(z.x.atd)||["—","-"].includes(clean(z.x.atd)))){
+            const base=/^\d{2}:\d{2}$/.test(clean(z.x.etd))?clean(z.x.etd):clean(z.x.std||z.row.std),m=base.match(/^(\d{2}):(\d{2})$/);
+            if(m){const est=Math.min(Number(m[1])*60+Number(m[2]),now.minutes),hm=String(Math.floor(est/60)).padStart(2,"0")+":"+String(est%60).padStart(2,"0");
+              const log=Array.isArray(z.x.flightInfoLog)?z.x.flightInfoLog:[];log.unshift({at,source:PROVIDER+"_EST",field:"atd",from:"",to:hm,reason:"départ prouvé (vol en l'air), heure estimée"});z.x.flightInfoLog=log.slice(0,160);
+              z.x.atd=hm;z.x.atdSource=PROVIDER+"_EST";z.x.atdUpdatedAt=at;z.x.providerStatusRaw=clean(z.x.providerStatusRaw)&&/CANCEL|LANDED|ARRIV/i.test(z.x.providerStatusRaw)?z.x.providerStatusRaw:"AIRBORNE";changed.push("atd~")}
+          }
+          if(live.acType&&await noteAndSwitch(env,z.x,live.acType,PROVIDER,at))changed.push("aircraft");
+        }else z.x[P+"NotLiveAttempts"]=Number(z.x[P+"NotLiveAttempts"]||0)+1;
+      }
     }
+    // Fiche détaillée (vraies heures) : uniquement Flightradar8, pour les vols dont on connaît l'id « live ».
+    if(cfg.details&&id&&!stop){
+      const dr=await fetchDetails(env,id,cfg);
+      await bump(env,now,dr.status,PROVIDER);lastStatus=dr.status;
+      if(dr.ok){
+        const d=parseDetail(dr.payload);
+        if(d){
+          for(const f of ["atd","ata","etd","eta","sta","gate","reg"])if(z.allowed.has(f)&&apply(z.x,f,d[f],at,PROVIDER))changed.push(f);
+          if(d.acType&&await noteAndSwitch(env,z.x,d.acType,PROVIDER,at))changed.push("aircraft");
+        }
+      }else if(dr.status===404||dr.status===400)delete z.x.fr24LiveId;
+      if([401,403,429].includes(dr.status)||dr.status>=500)stop=true;
+    }
+    z.x[P+"LastStatus"]=lastStatus;
     await env.OPS_DB.prepare(`UPDATE flights SET data_json=?,updated_at=CURRENT_TIMESTAMP WHERE identity=?`).bind(JSON.stringify(z.x),z.row.identity).run();
-    items.push({flight,status:r.status,changed});
-    if([401,403,429].includes(r.status)||r.status>=500)break;
+    items.push({flight,status:lastStatus,changed});
+    if(stop)break;
   }
   return {ok:true,processed:items.length,items};
 }

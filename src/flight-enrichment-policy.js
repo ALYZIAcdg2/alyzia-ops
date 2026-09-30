@@ -85,7 +85,7 @@ const PROVIDER_FIELDS={
   AVIATIONDATA:["atd","ata"],
   FLIGHTERA:["sta","etd","eta","atd","ata","gate","reg"],
   FLIGHTRADAR1:["reg"],
-  FLIGHTRADAR8:["reg","atd"],
+  FLIGHTRADAR8:["reg","atd","ata","etd","eta","sta","gate"],
   FR24DEP:["etd","eta","atd","ata","gate","reg"]
 };
 export function providerNeeded(provider,x={},d=99999){
