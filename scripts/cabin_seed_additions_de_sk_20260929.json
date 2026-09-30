@@ -71,7 +71,7 @@
       "operationalClasses": {"C": 22, "M": 156},
       "operationalTotal": 178,
       "zones": [
-        {"class": "C", "row_start": 1, "row_end": 6, "pattern": "ABC|DEF", "exceptions": ""},
+        {"class": "C", "row_start": 1, "row_end": 6, "pattern": "AC|DF", "exceptions": "1=AC|"},
         {"class": "M", "row_start": 7, "row_end": 32, "pattern": "ABC|DEF", "exceptions": ""}
       ]
     },
