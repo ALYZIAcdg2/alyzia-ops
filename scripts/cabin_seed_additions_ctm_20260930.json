@@ -1,0 +1,9 @@
+{"configs":[
+{"configKey":"CTM|332|16F262Y","airline":"CTM","aircraft":"332","configuration":"16F262Y","label":"CTM 332 · 16F262Y","sourceLabel":"CTM21 29SEP CDG-MAD Generic Report (SEAT MAP CTM21 CABIN F)","quality":"exact","operationalClasses":{"F":16,"Y":262},"operationalTotal":278,
+"zones":[
+{"class":"F","row_start":1,"row_end":4,"pattern":"A|DE|K","exceptions":""},
+{"class":"Y","row_start":5,"row_end":40,"pattern":"AC|DEFG|JK","exceptions":"13=SKIP\n24=AC||JK\n25=|DEFG|\n35=AC|DEF|JK\n36=AC|DEF|JK\n37=AC|DEF|JK\n38=AC|DEF|JK\n39=AC|DEF|JK\n40=|DEF|"}]},
+{"configKey":"CTM|332|280Y","airline":"CTM","aircraft":"332","configuration":"280Y","label":"CTM 332 · 280Y","sourceLabel":"CTM21 25SEP CDG-XXX Generic Report (SEAT MAP CTM21 CABIN Y)","quality":"exact","operationalClasses":{"Y":280},"operationalTotal":280,
+"zones":[
+{"class":"Y","row_start":1,"row_end":38,"pattern":"AC|DEFG|JK","exceptions":"13=SKIP\n26=AC||JK\n27=AC||JK\n35=AC|DEF|JK\n36=AC|DEF|JK\n37=AC|DEF|JK\n38=|DEF|"}]}
+]}
