@@ -10,11 +10,12 @@ jobs:
     steps:
       - run: |
           A=https://alyzia-ops.alyzia-cdg2.workers.dev
-          show() { echo "=== $1"; curl -sS -H "Accept-Encoding: br" -D - -o /dev/null -w "HTTP ttfb=%{time_starttransfer}s total=%{time_total}s taille=%{size_download}B\n" "$1" | grep -iE "^(HTTP|etag|cache-control|x-alyzia|cf-cache-status|age|content-length|content-type|last-modified|cf-ray)" | tr -d '\r'; }
-          show "$A/"
-          show "$A/?r=$RANDOM"
-          show "$A/index.html"
-          show "$A/baked-version"
-          curl -sS "$A/baked-version" | head -c 60; echo
-          show "$A/baked-index"
-          show "$A/api/weather?iata=CDG"
+          for i in $(seq 1 16); do
+            curl -sS -H "Accept-Encoding: br" -D h.txt -o /dev/null -w "ttfb=%{time_starttransfer}s " "$A/?r=$i$RANDOM"
+            RAY=$(grep -i "^cf-ray" h.txt | tr -d '\r' | awk '{print $2}')
+            PG=$(grep -i "^x-alyzia-page" h.txt | tr -d '\r' | awk '{print $2}')
+            FB=$(grep -i "^x-alyzia-bake-fallback" h.txt | tr -d '\r' | awk '{print $2}')
+            ET=$(grep -i "^etag" h.txt | tr -d '\r' | awk '{print $2}')
+            echo "ray=$RAY page=[$PG] fallback=[$FB] etag=[$ET]"
+            sleep 1
+          done
