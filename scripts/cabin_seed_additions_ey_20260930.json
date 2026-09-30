@@ -1,0 +1,54 @@
+{
+ "configs": [
+  {
+   "configKey": "EY|388|2R9F70J415Y",
+   "airline": "EY",
+   "aircraft": "388",
+   "configuration": "2R9F70J415Y",
+   "label": "EY 388 · 2R9F70J415Y",
+   "sourceLabel": "EY019 25SEP AUH-LHR (SEAT MAP EY019, transcription texte) — plan à vérifier vs PDF d'origine : rangs dessinés R2 F8 J68 Y450 vs capacité 2R 9F 70J 415Y",
+   "quality": "summary",
+   "operationalClasses": {
+    "R": 2,
+    "F": 9,
+    "J": 70,
+    "Y": 415
+   },
+   "operationalTotal": 496,
+   "zones": [
+    {
+     "class": "R",
+     "deck": "UPPER",
+     "row_start": 1,
+     "row_end": 1,
+     "pattern": "A|CH|K",
+     "exceptions": "1=A||K"
+    },
+    {
+     "class": "F",
+     "deck": "UPPER",
+     "row_start": 2,
+     "row_end": 5,
+     "pattern": "A|CH|K",
+     "exceptions": "2=|CH|\n3=A||K\n4=|CH|\n5=A||K"
+    },
+    {
+     "class": "J",
+     "deck": "UPPER",
+     "row_start": 8,
+     "row_end": 26,
+     "pattern": "A|DG|K",
+     "exceptions": "8=A||K\n9=C|EF|H\n10=A|DG|K\n11=C|EF|H\n12=A|DG|K\n13=SKIP\n14=C|EF|H\n15=A|DG|K\n16=C|EF|H\n17=A|DG|K\n18=C|EF|H\n19=A|DG|K\n20=C|EF|H\n21=A|DG|K\n22=C|EF|H\n23=A|DG|K\n24=C|EF|H\n25=A|DG|K\n26=C||H"
+    },
+    {
+     "class": "Y",
+     "deck": "MAIN",
+     "row_start": 40,
+     "row_end": 88,
+     "pattern": "ABC|DEFG|HJK",
+     "exceptions": "40=|DEFG|\n53=ABC||HJK\n54=|DEFG|\n67=ABC||HJK\n68=|DEFG|\n80=ABC||HJK\n81=|DEFG|\n87=AC|DEFG|HK\n88=AC|DEFG|HK"
+    }
+   ]
+  }
+ ]
+}
