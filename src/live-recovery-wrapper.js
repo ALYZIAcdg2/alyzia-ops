@@ -132,18 +132,25 @@ async function skylinkRecovery(env,rows,now,yesterday){
   if(!authority.size)return {ok:true,skipped:"SKYLINK_QUEUE_VIDE"};
   const lane="SKYLINK_LIVE_RECOVERY",u=await usageLane(env,lane),total=await usageTotal(env,"SKYLINK"),limit=Number(env.SKYLINK_MONTHLY_LIMIT||1000),reserve=Number(env.SKYLINK_MONTHLY_RESERVE||220);
   if(total>=Math.max(0,limit-reserve))return {ok:true,skipped:"SKYLINK_QUOTA_RESERVE",total};
-  if(ageMs(u.lastAt)<30*60000)return {ok:true,skipped:"SKYLINK_LIVE_CADENCE"};
+  // Cadence 10 min, jusqu'à 3 vols par passage (avant : 1 vol / 30 min, trop lent pour rattraper les ATD manquants), plafond 40 appels/jour.
+  if(u.day>=40)return {ok:true,skipped:"SKYLINK_PLAFOND_JOUR",day:u.day};
+  if(ageMs(u.lastAt)<10*60000)return {ok:true,skipped:"SKYLINK_LIVE_CADENCE"};
   const candidates=rows.filter(z=>authority.has(z.row.identity)&&z.d<=120&&z.d>=-1800&&!isFinal(z.x)&&liveIncomplete(z.x)&&ageMs(z.x.skylinkRecoveryLastCheckedAt)>=30*60000).sort((a,b)=>priority(a)-priority(b)||Math.abs(a.d)-Math.abs(b.d));
-  const z=candidates[0];if(!z)return {ok:true,skipped:"SKYLINK_LIVE_AUCUN_VOL_QUEUE"};
-  const flight=flightKey(z.x,z.row);if(!flight)return {ok:false,error:"SKYLINK_IDENTITE_INCOMPLETE"};
+  if(!candidates.length)return {ok:true,skipped:"SKYLINK_LIVE_AUCUN_VOL_QUEUE"};
   const base=clean(env.SKYLINK_BASE_URL)||"https://data.skylinkapi.com/v2",headers={Accept:"application/json","x-api-key":env.SKYLINK_API_KEY};
-  let r;try{r=await fetch(`${base.replace(/\/$/,"")}/flight_status/${encodeURIComponent(flight)}`,{headers})}catch(e){await bump(env,lane,502);return {ok:false,status:502,error:String(e?.message||e),flight}}
-  await bump(env,lane,r.status);const payload=await r.json().catch(()=>null),at=new Date().toISOString();z.x.skylinkRecoveryLastCheckedAt=at;z.x.skylinkRecoveryLastStatus=r.status;
-  if(!r.ok){await save(env,z.row,z.x);return {ok:false,status:r.status,error:`SKYLINK_${r.status}`,flight}}
-  const allowed=authority.get(z.row.identity)||new Set(),d=parseSkylink(payload),changed=[];
-  for(const field of ["sta","etd","atd","eta","ata","gate"]){if(allowed.has(field)&&apply(z.x,field,d[field],"SKYLINK_LIVE_RECOVERY",at,{refresh:field!=="sta"}))changed.push(field)}
-  if(allowed.has("reg")&&apply(z.x,"reg",d.reg,"SKYLINK_LIVE_RECOVERY",at,{refresh:false}))changed.push("reg");
-  await save(env,z.row,z.x);return {ok:true,flight,date:z.row.flight_date,changed};
+  const results=[];
+  for(const z of candidates.slice(0,Math.min(3,40-u.day))){
+    const flight=flightKey(z.x,z.row);if(!flight){results.push({ok:false,error:"SKYLINK_IDENTITE_INCOMPLETE"});continue}
+    let r;try{r=await fetch(`${base.replace(/\/$/,"")}/flight_status/${encodeURIComponent(flight)}`,{headers})}catch(e){await bump(env,lane,502);results.push({ok:false,status:502,error:String(e?.message||e),flight});break}
+    await bump(env,lane,r.status);const payload=await r.json().catch(()=>null),at=new Date().toISOString();z.x.skylinkRecoveryLastCheckedAt=at;z.x.skylinkRecoveryLastStatus=r.status;
+    if(!r.ok){await save(env,z.row,z.x);results.push({ok:false,status:r.status,error:`SKYLINK_${r.status}`,flight});if(r.status===429||r.status===401||r.status===403)break;continue}
+    const allowed=authority.get(z.row.identity)||new Set(),d=parseSkylink(payload),changed=[];
+    for(const field of ["sta","etd","atd","eta","ata","gate"]){if(allowed.has(field)&&apply(z.x,field,d[field],"SKYLINK_LIVE_RECOVERY",at,{refresh:field!=="sta"}))changed.push(field)}
+    if(allowed.has("reg")&&apply(z.x,"reg",d.reg,"SKYLINK_LIVE_RECOVERY",at,{refresh:false}))changed.push("reg");
+    await save(env,z.row,z.x);results.push({ok:true,flight,date:z.row.flight_date,changed});
+    await sleep(300);
+  }
+  return {ok:true,results};
 }
 
 async function recover(env){

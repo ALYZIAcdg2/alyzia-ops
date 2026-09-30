@@ -31,6 +31,9 @@ function classify({row,x},now){
       const depMin=minute(etd)??stdMin,late=(depMin!==null&&depMin<=nowMin&&nowMin-depMin>20)||(!etd&&delta>=-60);
       // Fenêtre H-1 / H+1 : sans ETD ni ATD, le vol est à contrôler (voir plus bas pour H+1).
       miss.push("ATD");state=late?"À CONTRÔLER":"PARTIEL";
+      // Sans ATD mais heure d'arrivée (ETA, sinon STA) dépassée de 20+ min (même jour) : le vol a forcément volé, il est considéré arrivé.
+      const arrMin0=minute(eta)??minute(sta);
+      if(arrMin0!==null&&stdMin!==null&&arrMin0>=stdMin&&arrMin0<=nowMin&&nowMin-arrMin0>20){state="OK";miss.push("ATA")}
     }
     else if(atd&&!ata){
       // Airborne is normal. Once ETA (else STA) is 20+ min past, the flight is considered arrived (OK)
