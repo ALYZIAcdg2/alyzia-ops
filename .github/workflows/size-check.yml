@@ -1,0 +1,14 @@
+name: Test poids page
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - run: |
+          A=https://alyzia-ops.alyzia-cdg2.workers.dev
+          for i in 1 2 3 4 5; do curl -sS -H "Accept-Encoding: br" -D h.txt -o p.html -w "ttfb=%{time_starttransfer}s total=%{time_total}s transfert=%{size_download}B " "$A/?r=$i$RANDOM"; grep -ihE "^(x-alyzia-page|x-alyzia-bake-fallback)" h.txt | tr -d '\r' | tr '\n' ' '; echo; sleep 1; done
+          curl -sS --compressed "$A/" -o p.html; echo "page décompressée: $(wc -c < p.html) octets"
