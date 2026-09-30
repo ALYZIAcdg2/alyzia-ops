@@ -44,7 +44,8 @@ button{cursor:pointer}
 .delay{font-size:12px;color:var(--red);font-weight:900;margin-left:10px}
 .local-clock{font-size:14px;margin-top:19px;display:flex;gap:8px;align-items:center}
 .local-clock small{font-size:11px;color:#576a81;display:block;margin-top:2px}
-.wx-line{margin-top:6px;font-size:13px;font-weight:800;color:#33475f;min-height:18px;white-space:nowrap}.wx-line small{font-size:10px;color:#576a81;font-weight:700;margin-left:4px}
+.wx-line{margin-top:6px;font-size:13px;font-weight:800;color:#33475f;min-height:20px;white-space:nowrap}.wx-i{display:inline-flex;align-items:center;gap:4px}.wx-svg{flex:none}.wx-line small{font-size:10px;color:#576a81;font-weight:700;margin-left:2px}.wx-mini{margin-top:2px;min-height:18px;font-size:12px}.wx-mini .wx-svg{width:16px;height:16px}.wx-mini small{display:none}
+@media(max-width:700px){.wx-line small{display:none}}
 .duration{font-size:17px;font-weight:900;margin-top:27px}
 .duration .timer{font-size:20px}
 .edit-link{border:0;background:transparent;color:#0868e8;font-weight:900;padding:0 4px}
@@ -7873,14 +7874,41 @@ function airportTzOffsetHours(iata,date=new Date()){
 // TZ conservé en compatibilité : accès par clé calcule maintenant le décalage
 // réel (heure d'été/hiver incluse) au lieu d'un nombre figé en dur.
 const TZ=new Proxy({},{get:(_,iata)=>airportTzOffsetHours(String(iata))});
-const WX_CACHE={};
-async function paintWeather(){
- const nodes=[...document.querySelectorAll('.wx-line[data-wx]')];if(!nodes.length)return;
- const need=[...new Set(nodes.map(n=>n.dataset.wx).filter(i=>i&&(!WX_CACHE[i]||Date.now()-WX_CACHE[i].t>900000)))];
- if(need.length){try{const r=await fetch('/api/weather?iata='+need.join(','));const j=await r.json();need.forEach(i=>{WX_CACHE[i]={t:Date.now(),d:j[i]||null}})}catch(e){}}
- nodes.forEach(n=>{const w=WX_CACHE[n.dataset.wx]?.d;n.innerHTML=w?`<span title="${String(w.raw||'').replace(/["<>&]/g,' ')}">${w.icon} ${w.temp!=null?w.temp+'°C':'—'}<small>${w.label}</small></span>`:''});
+const WX_CACHE=(()=>{try{return JSON.parse(localStorage.getItem('alyzia_wx')||'{}')||{}}catch(e){return {}}})();
+const WX_CLOUD='<path d="M7 19h10a4 4 0 0 0 .6-7.96A5.5 5.5 0 0 0 7.1 10.2 4.4 4.4 0 0 0 7 19z" fill="CLOUDCOL"/>';
+const WX_SVG={
+ 'DÉGAGÉ':'<circle cx="12" cy="12" r="5" fill="#f5a300"/><g stroke="#f5a300" stroke-width="2" stroke-linecap="round"><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></g>',
+ 'NUAGEUX':'<circle cx="9" cy="9" r="4" fill="#f5a300"/><g stroke="#f5a300" stroke-width="1.6" stroke-linecap="round"><path d="M9 1.5v2M2 9h2M3.8 3.8l1.4 1.4M14.2 3.8l-1.4 1.4"/></g>'+WX_CLOUD.replace('CLOUDCOL','#9fb2c8'),
+ 'COUVERT':WX_CLOUD.replace('CLOUDCOL','#7c8ea6'),
+ 'PLUIE':WX_CLOUD.replace('CLOUDCOL','#7c8ea6').replace('M7 19h10','M7 16h10').replace('4.4 4.4 0 0 0 7 19','4.4 4.4 0 0 0 7 16').replace('0 0 0 .6-7.96','0 0 0 .6-7.96')+'<g stroke="#2f7fd8" stroke-width="2" stroke-linecap="round"><path d="M8 19l-1 3M12 19l-1 3M16 19l-1 3"/></g>',
+ 'NEIGE':WX_CLOUD.replace('CLOUDCOL','#9fb2c8').replace('M7 19h10','M7 16h10').replace('4.4 4.4 0 0 0 7 19','4.4 4.4 0 0 0 7 16')+'<g fill="#38bdf8"><circle cx="8" cy="20" r="1.4"/><circle cx="12" cy="21.5" r="1.4"/><circle cx="16" cy="20" r="1.4"/></g>',
+ 'ORAGE':WX_CLOUD.replace('CLOUDCOL','#5b6478').replace('M7 19h10','M7 16h10').replace('4.4 4.4 0 0 0 7 19','4.4 4.4 0 0 0 7 16')+'<path d="M12.5 13l-3 5h2.5l-1 4 4-6h-2.5z" fill="#facc15" stroke="#e0a800" stroke-width=".6"/>',
+ 'BRUME':'<g stroke="#94a3b8" stroke-width="2.2" stroke-linecap="round"><path d="M4 8h16M6 12.5h14M4 17h16"/></g>'
+};
+function wxInner(iata){
+ const w=WX_CACHE[iata]?.d;if(!w)return '';
+ const svg=WX_SVG[w.label]||WX_SVG['COUVERT'];
+ return `<span class="wx-i" title="${String(w.raw||'').replace(/["<>&]/g,' ')}"><svg class="wx-svg" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">${svg}</svg><b>${w.temp!=null?w.temp+'°':'—'}</b><small>${w.label}</small></span>`;
 }
-setInterval(()=>{try{paintWeather()}catch(e){}},2500);
+let WX_BUSY=false;
+async function paintWeather(){
+ if(WX_BUSY)return;
+ const nodes=[...document.querySelectorAll('.wx-line[data-wx]')];if(!nodes.length)return;
+ const need=[...new Set(nodes.map(n=>n.dataset.wx).filter(i=>/^[A-Z]{3}$/.test(i||'')&&(!WX_CACHE[i]||Date.now()-WX_CACHE[i].t>900000)))];
+ if(need.length){
+  WX_BUSY=true;
+  try{
+   for(let k=0;k<need.length;k+=4){
+    const part=need.slice(k,k+4);
+    try{const r=await fetch('/api/weather?iata='+part.join(','));const j=await r.json();part.forEach(i=>{WX_CACHE[i]={t:Date.now(),d:j[i]||null}})}catch(e){part.forEach(i=>{WX_CACHE[i]={t:Date.now()-800000,d:WX_CACHE[i]?.d||null}})}
+   }
+   try{localStorage.setItem('alyzia_wx',JSON.stringify(WX_CACHE))}catch(e){}
+  }finally{WX_BUSY=false}
+ }
+ document.querySelectorAll('.wx-line[data-wx]').forEach(n=>{const h=wxInner(n.dataset.wx);if(n.dataset.wxh!==h){n.innerHTML=h;n.dataset.wxh=h}});
+}
+setInterval(()=>{try{paintWeather()}catch(e){}},3000);
+setTimeout(()=>{try{paintWeather()}catch(e){}},600);
 function gmtLabel(iata){
  const off=Number(TZ[iata]);
  if(!Number.isFinite(off))return '';
@@ -8637,7 +8665,7 @@ function renderHome(){
           <div class="home-flight-top">${statusDot?`<span class="home-status-dot ${statusDot}" title="${statusDot==='green'?'Vol injecté et fiche complète':'Type A/C ou config manquant'}"></span>`:''}<div class="home-flight">${x.flight}</div></div>
           <div class="home-flight-actions">${prepaBadge(x,HOME_DATE)}</div>
         </div></div>
-        <div><div class="home-route">${x.dep} → ${x.dest}</div><div class="home-sub">${x.airline} · ${CITY[x.dest]||x.dest}</div></div>
+        <div><div class="home-route">${x.dep} → ${x.dest}</div><div class="home-sub">${x.airline} · ${CITY[x.dest]||x.dest}</div><div class="wx-line wx-mini" data-wx="${x.dest}">${wxInner(x.dest)}</div></div>
         <div class="home-mini home-aircraft"><small>A/C</small><b>${x.aircraft||'—'}</b></div>
         <div class="home-mini home-gate"><small>GATE</small><b>${x.gate&&x.gate!=='—'?x.gate:'—'}</b></div>
         <div class="home-config-booking">
@@ -15743,7 +15771,7 @@ function render(){
     ${adbState(x)?.data?.departure?.etd?`<span class="adb-value adb-red">ADB ETD ${adbState(x).data.departure.etd}${adbState(x).data.delayMinutes!=null?` · ${adbState(x).data.delayMinutes>=0?'+':''}${adbState(x).data.delayMinutes} MIN`:''}</span>`:''}
     ${adbState(x)?.data?.departure?.atd?`<span class="adb-value adb-green">ATD ${adbState(x).data.departure.atd}</span>`:''}
     <div class="local-clock">◷ <div><span id="depClock">${liveFor(x.dep)}</span><small>${x.dep} LOCAL · ${gmtLabel(x.dep)}</small></div></div>
-    <div class="wx-line" data-wx="${x.dep}"></div>
+    <div class="wx-line" data-wx="${x.dep}">${wxInner(x.dep)}</div>
    </div>
    <div class="fh-stat">
     <div class="head-label">STA <button class="edit-link" onclick="openEdit('sta')">✎</button></div>
@@ -15752,7 +15780,7 @@ function render(){
     ${adbState(x)?.data?.arrival?.eta?`<span class="adb-value adb-red">ADB ETA ${adbState(x).data.arrival.eta}</span>`:''}
     ${adbState(x)?.data?.arrival?.ata?`<span class="adb-value adb-green">ATA ${adbState(x).data.arrival.ata}</span>`:''}
     <div class="local-clock">◷ <div><span id="arrClock">${liveFor(x.dest)}</span><small>${x.dest} LOCAL · ${gmtLabel(x.dest)}</small></div></div>
-    <div class="wx-line" data-wx="${x.dest}"></div>
+    <div class="wx-line" data-wx="${x.dest}">${wxInner(x.dest)}</div>
    </div>
    <div class="fh-stat">
     <div class="head-label">DURÉE</div><div class="time-big duration"><span class="timer">◷</span> ${durationText(x.duration)}</div>
