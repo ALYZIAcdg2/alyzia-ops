@@ -15503,21 +15503,14 @@ function applyCompanyConfigToKnownFlights(airline){
 }
 
 function openCompanyConfig(){
- const codes=Object.keys(COMPANY_CONFIG).sort((a,b)=>a.localeCompare(b));
- showModal('CONFIG COMPAGNIE',`${codes.length} COMPAGNIES · ORDRE ALPHABÉTIQUE`,`
-   <div class="company-config-cards">
+ const codes=Object.keys(COMPANY_CONFIG).sort();
+ showModal('CONFIG COMPAGNIE',`${codes.length} COMPAGNIES`,`
+   <div class="cabin-airline-grid">
      ${codes.map(a=>{
        const cfg=COMPANY_CONFIG[a];
-       const rules=(cfg.rules||[]).map(r=>`${r.pattern} → ${r.classes.join(' / ')}`).join(' · ');
-       return `<button class="company-config-card ${a.toLowerCase()}" onclick="openAirlineConfig('${a}')">
-         <div class="company-config-logo">${airlineLogo(a,'large')}</div>
-         <div class="company-config-info">
-           <b>${airlineDisplayName(a)}</b>
-           <span>${cfg.terminal&&/^T[123]$/.test(cfg.terminal)?`<b class="company-terminal-pill t${cfg.terminal[1]}">${cfg.terminal}</b> · `:''}${cfg.rules.length?`${cfg.rules.length} RÈGLE${cfg.rules.length>1?'S':''} DE CLASSES`:'CLASSES SELON PLAN CABINE'}</span>
-           <small>${rules}</small>
-         </div>
-         <div class="company-config-arrow">›</div>
-       </button>`;
+       const t=/^T[123]$/.test(cfg.terminal||'')?cfg.terminal:'';
+       const n=(cfg.rules||[]).length;
+       return `<button class="cabin-airline-card" onclick="openAirlineConfig('${a}')"><span class="cabin-airline-logo">${airlineLogo(a)}</span><b>${a}</b><span>${t?`<em class="company-terminal-pill t${t[1]}" style="font-style:normal">${t}</em> · `:''}${n?`${n} règle${n>1?'s':''}`:'plan cabine'}</span></button>`;
      }).join('')}
    </div>
  `);
