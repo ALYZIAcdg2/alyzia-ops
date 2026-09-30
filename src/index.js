@@ -40,6 +40,23 @@ function validFlight(x){
     String(x.airline||"").trim().toUpperCase()!=="KL";
 }
 
+// Champs de travail du serveur (résultats d'import PREPA, journal des changements) : jamais utilisés par l'interface,
+// mais 45 % du poids de la liste des vols (jusqu'à 1,4 Mo par vol). Ils ne sont plus envoyés aux clients (?full=1 pour tout obtenir)
+// et sont conservés à l'écriture quand un client renvoie un vol sans eux.
+const FLIGHT_SERVER_ONLY_FIELDS=["imports","flightInfoLog"];
+const FLIGHT_LIST_DATA_SQL=`CASE WHEN json_valid(data_json) THEN json_remove(data_json,${FLIGHT_SERVER_ONLY_FIELDS.map(f=>`'$.${f}'`).join(",")}) ELSE data_json END`;
+const FLIGHT_UPSERT_DATA_SQL=(()=>{
+  let expr="excluded.data_json";
+  for(const f of FLIGHT_SERVER_ONLY_FIELDS){
+    expr=`CASE WHEN json_type(excluded.data_json,'$.${f}') IS NULL AND json_type(flights.data_json,'$.${f}') IS NOT NULL THEN json_set(${expr},'$.${f}',json(json_extract(flights.data_json,'$.${f}'))) ELSE ${expr} END`;
+  }
+  return `CASE WHEN json_valid(excluded.data_json) AND json_valid(flights.data_json) THEN ${expr} ELSE excluded.data_json END`;
+})();
+function stripFlightServerOnly(x){
+  if(x&&typeof x==="object")for(const f of FLIGHT_SERVER_ONLY_FIELDS)delete x[f];
+  return x;
+}
+
 let FLIGHTS_SYNC_READY=false;
 async function ensureFlightsSyncSchema(env){
   if(FLIGHTS_SYNC_READY)return;
@@ -75,10 +92,12 @@ async function getFlightsResponse(env,url){
     syncToken=String(m?.t||"");epoch=String(m?.e||"");
   }catch(_){}
   const since=String(url?.searchParams?.get("since")||"").trim();
+  const full=url?.searchParams?.get("full")==="1";
+  const dataSql=full?"data_json":FLIGHT_LIST_DATA_SQL;
   const delta=/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(since);
   const {results=[]}=delta
-    ? await env.OPS_DB.prepare(`SELECT data_json FROM flights WHERE updated_at>? ORDER BY updated_at`).bind(since).all()
-    : await env.OPS_DB.prepare(`SELECT data_json
+    ? await env.OPS_DB.prepare(`SELECT ${dataSql} AS data_json FROM flights WHERE updated_at>? ORDER BY updated_at`).bind(since).all()
+    : await env.OPS_DB.prepare(`SELECT ${dataSql} AS data_json
               FROM flights
               ORDER BY flight_date, std, flight_number`).all();
 
@@ -290,7 +309,7 @@ async function upsertFlight(env,x){
       airline=excluded.airline,
       flight_number=excluded.flight_number,
       std=excluded.std,
-      data_json=excluded.data_json,
+      data_json=${FLIGHT_UPSERT_DATA_SQL},
       updated_at=CURRENT_TIMESTAMP
   `).bind(
     identity,
@@ -400,7 +419,7 @@ async function syncFlights(env,flights){
           airline=excluded.airline,
           flight_number=excluded.flight_number,
           std=excluded.std,
-          data_json=excluded.data_json,
+          data_json=${FLIGHT_UPSERT_DATA_SQL},
           updated_at=CURRENT_TIMESTAMP
       `).bind(
         flightIdentity(x),
@@ -432,6 +451,7 @@ async function handleFlights(request,env,url){
       }
       const flight=await getFlightByIdentity(env,identity);
       if(!flight)return json({ok:false,error:"VOL INTROUVABLE"},404);
+      if(url.searchParams.get("full")!=="1")stripFlightServerOnly(flight);
       return json({ok:true,flight});
     }
 
@@ -443,7 +463,7 @@ async function handleFlights(request,env,url){
     if(!validFlight(body?.flight))return json({ok:false,error:"VOL INVALIDE"},400);
     await upsertFlight(env,body.flight);
     const identity=flightIdentity(body.flight);
-    const flight=await getFlightByIdentity(env,identity);
+    const flight=stripFlightServerOnly(await getFlightByIdentity(env,identity));
     return json({ok:true,identity,flight});
   }
 
@@ -457,6 +477,7 @@ async function handleFlights(request,env,url){
 
     const flight=await patchFlight(env,identity,patch);
     if(!flight)return json({ok:false,error:"VOL INTROUVABLE"},404);
+    stripFlightServerOnly(flight);
     return json({ok:true,identity,flight});
   }
 
