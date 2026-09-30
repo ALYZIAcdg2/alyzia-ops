@@ -186,8 +186,10 @@ function assignAutoCabinConfigToFlight(x,match){
 export async function applyCabinConfigForActualAircraft(env,x){
   try{
     const ch=x?.aircraftChange;
-    if(!ch?.to||x.aircraftChangeCabinApplied===ch.to)return false;
-    if(x.sariaConfigKey&&x.cabinConfigAuto!==true)return false;
+    if(!ch?.to)return false;
+    // déjà basculé : appareil = type réel ; ou déjà tenté sans config connue. Un import qui remet l'ancien type déclenche à nouveau la bascule.
+    if(x.aircraftChangeCabinApplied===ch.to&&(String(x.aircraft||"").toUpperCase()===ch.to||x.aircraftChangeNoCabinConfig))return false;
+    if(x.sariaConfigKey&&x.cabinConfigAuto!==true&&String(x.aircraft||"").toUpperCase()===ch.to)return false;
     x.aircraftChangeCabinApplied=ch.to;
     const match=await findAutoCabinConfig(env,x.airline,ch.to,x.flight);
     if(!match){x.aircraftChangeNoCabinConfig=true;return true}
@@ -244,6 +246,11 @@ async function upsertFlight(env,x){
   if(!validFlight(x))return false;
 
   x=await applyAutoCabinConfig(env,x);
+  // Import/sync : si le type réel est déjà connu et diffère de l'appareil importé, bascule la cabine (ex. import 320/180Y, réel 32N/186Y).
+  try{
+    if(x.aircraftActual&&(await import("./aircraft-change.js")).noteActualAircraft(x,x.aircraftActual,x.aircraftActualSource||"IMPORT",new Date().toISOString()))void 0;
+    if(x.aircraftChange)await applyCabinConfigForActualAircraft(env,x);
+  }catch(e){console.warn("AUTO CABIN ACTUAL UPSERT",e)}
 
   const identity=flightIdentity(x);
   await env.OPS_DB.prepare(`

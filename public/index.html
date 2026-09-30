@@ -19541,7 +19541,7 @@ function restoreSariaFlightSelections(){
  FLIGHTS.forEach(x=>{
   try{
    const s=JSON.parse(localStorage.getItem(`alyzia_saria_config|${x.flight}|${x.activeDate||x.date||''}`)||'null');
-   if(s){x.sariaConfigKey=s.key||'';x.sariaCabinConfig=s.config||'';if(s.ac)x.aircraft=s.ac}
+   if(s&&!(x.aircraftChange&&String(s.ac||'').toUpperCase()!==String(x.aircraftChange.to).toUpperCase())){x.sariaConfigKey=s.key||'';x.sariaCabinConfig=s.config||'';if(s.ac)x.aircraft=s.ac}
   }catch(e){}
  });
 }
