@@ -7907,7 +7907,7 @@ async function paintWeather(){
  }
  document.querySelectorAll('.wx-line[data-wx]').forEach(n=>{const h=wxInner(n.dataset.wx);if(n.dataset.wxh!==h){n.innerHTML=h;n.dataset.wxh=h}});
 }
-setInterval(()=>{try{paintWeather()}catch(e){}},3000);
+setInterval(()=>{try{paintWeather()}catch(e){}},1000);
 setTimeout(()=>{try{paintWeather()}catch(e){}},600);
 function gmtLabel(iata){
  const off=Number(TZ[iata]);
