@@ -67,7 +67,7 @@ async function recentAuthority(env,provider,now,yesterday){
 }
 function canRefresh(x,field){
   if(missing(x[field]))return true;
-  return ["AIRLABS","AIRLABS_LIVE_RECOVERY","AIRLABS_ROUTE","SKYLINK","SKYLINK_LIVE_RECOVERY","SKYLINK_J0_BACKFILL","SKYLINK_ENT_ALIAS","OAG_STATUS","OAG_SCHEDULE","AERODATABOX","AERODATABOX_REG","ALYZIA_OPS_STATE","OPENSKY_ADSB"].includes(upper(x[field+"Source"]));
+  return ["AIRLABS","AIRLABS_LIVE_RECOVERY","AIRLABS_ROUTE","SKYLINK","SKYLINK_LIVE_RECOVERY","SKYLINK_J0_BACKFILL","SKYLINK_ENT_ALIAS","OAG_STATUS","OAG_SCHEDULE","AERODATABOX","AERODATABOX_REG","ALYZIA_OPS_STATE","OPENSKY_ADSB","FLIGHTRADAR8_EST"].includes(upper(x[field+"Source"]));
 }
 function apply(x,field,value,source,at,{refresh=true}={}){
   const next=clean(value),from=clean(x[field]);if(!next||next===from)return false;

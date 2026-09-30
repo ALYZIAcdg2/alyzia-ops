@@ -85,7 +85,7 @@ const PROVIDER_FIELDS={
   AVIATIONDATA:["atd","ata"],
   FLIGHTERA:["sta","etd","eta","atd","ata","gate","reg"],
   FLIGHTRADAR1:["reg"],
-  FLIGHTRADAR8:["reg"],
+  FLIGHTRADAR8:["reg","atd"],
   FR24DEP:["etd","eta","atd","ata","gate","reg"]
 };
 export function providerNeeded(provider,x={},d=99999){
@@ -110,6 +110,8 @@ export function cadenceMinutes(provider,x={},d=99999){
 
 export function mayWriteField(x={},field,source=""){
   if(isMissing(x[field]))return true;
+  // ATD estimé (départ prouvé par une fiche « live » sans heure réelle) : n'importe quelle vraie source peut le remplacer.
+  if(field==="atd"&&/_EST$/.test(upper(x.atdSource)))return true;
   if(FINAL_FIELDS.has(field))return false;
   if(field==="etd"&&hasDeparted(x))return false;
   if(field==="eta"&&hasArrived(x))return false;
