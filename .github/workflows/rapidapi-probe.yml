@@ -1,0 +1,26 @@
+name: Test des API RapidAPI (flightera, flight-radar1/8, flightradar24-data)
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/rapidapi-probe.yml'
+      - 'scripts/rapidapi_probe.mjs'
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Sondage
+        env:
+          RAPIDAPI_KEY: ${{ secrets.RAPIDAPI_KEY || secrets.QUARK_RAPIDAPI_KEY || secrets.AVIATIONDATA_RAPIDAPI_KEY }}
+          RAPIDAPI_KEY_FLIGHTERA: ${{ secrets.FLIGHTERA_RAPIDAPI_KEY }}
+          RAPIDAPI_KEY_FR1: ${{ secrets.FLIGHT_RADAR1_RAPIDAPI_KEY }}
+          RAPIDAPI_KEY_FR8: ${{ secrets.FLIGHT_RADAR8_RAPIDAPI_KEY }}
+          RAPIDAPI_KEY_FR24: ${{ secrets.FLIGHTRADAR24_DATA_RAPIDAPI_KEY }}
+        run: node scripts/rapidapi_probe.mjs
