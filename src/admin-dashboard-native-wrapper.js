@@ -45,7 +45,7 @@ function classify({row,x},now){
     else if(!std||!sta)state="PARTIEL";
     if(!sta&&!etd&&!atd&&!eta&&!ata&&!gate&&!reg)state="NON TRAITÉ";
   }
-  return {date,flight,destination,std,sta,etd,atd,eta,ata,gate,reg,state,missing:[...new Set(miss)],checkedAt:clean(x.liveLastCheckedAt||x.oagLastCheckedAt||x.skylinkRecoveryLastCheckedAt||x.updatedAt||row.updated_at)};
+  return {date,flight,destination,airline:upper(x.airline||row.airline||""),flightStatus:upper(clean(x.opsStatus||x.status||"")),std,sta,etd,atd,eta,ata,gate,reg,state,missing:[...new Set(miss)],checkedAt:clean(x.liveLastCheckedAt||x.oagLastCheckedAt||x.skylinkRecoveryLastCheckedAt||x.updatedAt||row.updated_at)};
 }
 function baseProvider(v){const p=upper(v);if(p.startsWith("AIRLABS"))return "AIRLABS";if(p.startsWith("SKYLINK"))return "SKYLINK";if(p.startsWith("OAG"))return "OAG";if(p.includes("AERODATABOX")||p.startsWith("ADB"))return "AERODATABOX";if(p.startsWith("OPENSKY"))return "OPENSKY";if(p.startsWith("QUARK"))return "QUARK";if(p.startsWith("AVIATIONDATA"))return "AVIATIONDATA";if(p.startsWith("FLIGHTERA"))return "FLIGHTERA";if(p.startsWith("FLIGHTRADAR1"))return "FLIGHTRADAR1";if(p.startsWith("FLIGHTRADAR8"))return "FLIGHTRADAR8";if(p.startsWith("FR24DEP"))return "FR24DEP";return p}
 function quotaLimit(env,key){

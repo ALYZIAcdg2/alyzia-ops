@@ -20,7 +20,7 @@ function nextFive(d=new Date()){const x=new Date(d);x.setSeconds(0,0);const m=x.
 function ceilFive(d){return nextFive(new Date(d.getTime()-1))}
 function atLocal(date,hhmm='00:00'){const [h,m]=String(hhmm||'00:00').split(':').map(Number);const d=new Date(date+'T00:00:00');d.setHours(Number.isFinite(h)?h:0,Number.isFinite(m)?m:0,0,0);return d}
 function stateText(tr){return String(tr.cells?.[11]?.textContent||'').trim().toUpperCase()}
-function missText(tr){return String(tr.cells?.[12]?.textContent||'').toUpperCase()}
+function missText(tr){return String(tr.cells?.[13]?.textContent||'').toUpperCase()}
 function futureBaseTime(date,std,now){
   if(/^\d{2}:\d{2}$/.test(std)){const at=atLocal(date,std);at.setMinutes(at.getMinutes()-180);return at>now?ceilFive(at):nextFive(now)}
   return atLocal(date,'00:05');
@@ -94,6 +94,7 @@ if(typeof baseShow==='function')window.showModal=function(title,subtitle,html,..
   }
   return baseShow.call(this,title,subtitle,html,...rest)
 };
+window.addEventListener('adn:repaint',()=>setTimeout(()=>{patchRows();patchSummaryCards()},20));
 const baseRender=window.renderAdminDashboard;
 if(typeof baseRender==='function')window.renderAdminDashboard=async function(...args){const r=await baseRender.apply(this,args);await refreshAdminData();return r};
 document.addEventListener('click',e=>{const c=e.target?.closest?.('#adminPrev,#adminNext,#adminDateBtn,[data-terminal],#adminRefreshBtn,.adn-status-active,.adn-mini span,.adn-v4-btn');if(c)setTimeout(()=>{patchRows();patchSummaryCards()},20)},true);

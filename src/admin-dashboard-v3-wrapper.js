@@ -43,6 +43,7 @@ function enhance(){
  if(logSection&&!logSection.querySelector('.adn-log-btn')){const h=logSection.querySelector('h3');if(h){const wrap=document.createElement('div');wrap.className='adn-log-head';h.parentNode.insertBefore(wrap,h);wrap.appendChild(h);const b=document.createElement('button');b.className='adn-log-btn';b.type='button';b.textContent='AFFICHER LES VOLS';b.addEventListener('click',openLogModal);wrap.appendChild(b)}}
  applyFilters();
 }
+window.addEventListener('adn:repaint',()=>setTimeout(enhance,0));
 const original=window.renderAdminDashboard;
 if(typeof original==='function')window.renderAdminDashboard=async function(...args){const r=await original.apply(this,args);enhance();return r};
 document.addEventListener('click',e=>{

@@ -38,6 +38,7 @@ function patchAdmin(){
  root.querySelectorAll('.adn-cards .adn-mini span').forEach(s=>{if(s.dataset.v4Bound)return;s.dataset.v4Bound='1';s.addEventListener('click',()=>{const k=statusKey(s.textContent);if(k)triggerStatus(root,k)})});
  syncTopKpis(root);
 }
+window.addEventListener('adn:repaint',()=>setTimeout(()=>{setView('admin');patchAdmin()},0));
 const baseRender=window.renderAdminDashboard;
 if(typeof baseRender==='function')window.renderAdminDashboard=async function(...args){
  setView('admin');
