@@ -6,8 +6,10 @@ import {flighteraKey} from "./flightera-queue-runner.js";
 // "Flightradar1" (apidojo) via RapidAPI : GET /flights/search?query=<vol>. Plan : 500 requêtes/mois.
 // Pour un vol EN L'AIR, la recherche renvoie une entrée type "live" avec l'immatriculation (reg) et le type d'appareil réel (ac_type).
 // Un vol au sol ou terminé n'a qu'une entrée "schedule" : pas de données, on n'insiste pas.
-const PROVIDER="FLIGHTRADAR1";
-const HOST="flight-radar1.p.rapidapi.com";
+const CONFIGS={
+  FLIGHTRADAR1:{PROVIDER:"FLIGHTRADAR1",HOST:"flight-radar1.p.rapidapi.com",slot:0,prefix:"flightradar1",keyEnv:"FLIGHTRADAR1_RAPIDAPI_KEY"},
+  FLIGHTRADAR8:{PROVIDER:"FLIGHTRADAR8",HOST:"flight-radar8.p.rapidapi.com",slot:1,prefix:"flightradar8",keyEnv:"FLIGHTRADAR8_RAPIDAPI_KEY"}
+};
 const MAX_PER_RUN=1;
 const DAY_CAP=15;
 const MONTH_CAP=430;            // plan 500/mois, marge pour les essais
@@ -25,24 +27,25 @@ function delta(flightDate,std,now){const m=clean(std).match(/^(\d{2}):(\d{2})$/)
 const ageMs=v=>{const t=Date.parse(clean(v))||0;return t?Date.now()-t:Infinity};
 function flightNo(v,carrier=""){let s=upper(v),c=upper(carrier);if(c&&s.startsWith(c))s=s.slice(c.length);else s=s.replace(/^[A-Z]{2,3}/,"");const m=s.match(/(\d+[A-Z]?)$/);return m?m[1]:s}
 function fullFlight(x,row){const carrier=upper(x.airline||row.airline),n=flightNo(x.flight||row.flight_number,carrier);return carrier&&n?(carrier==="ENT"?"E4":carrier)+n:upper(x.flight||row.flight_number)}
-export function frKey(env){return clean(env?.FLIGHTRADAR1_RAPIDAPI_KEY)||flighteraKey(env)}
+export function frKey(env,cfg=CONFIGS.FLIGHTRADAR1){return clean(env?.[cfg.keyEnv])||flighteraKey(env)}
 
 async function ensureUsage(env){await env.OPS_DB.prepare(`CREATE TABLE IF NOT EXISTS api_provider_usage(provider TEXT NOT NULL,period TEXT NOT NULL,calls INTEGER NOT NULL DEFAULT 0,successes INTEGER NOT NULL DEFAULT 0,errors INTEGER NOT NULL DEFAULT 0,last_status INTEGER,last_at TEXT,PRIMARY KEY(provider,period))`).run()}
-async function usage(env,now){
+async function usage(env,now,PROVIDER){
   await ensureUsage(env);
   const month=now.date.slice(0,7),{results=[]}=await env.OPS_DB.prepare(`SELECT period,calls FROM api_provider_usage WHERE provider=? AND period IN (?,?)`).bind(PROVIDER,month,now.date).all();
   return {day:Number(results.find(r=>r.period===now.date)?.calls||0),month:Number(results.find(r=>r.period===month)?.calls||0)};
 }
-async function bump(env,now,status){
+async function bump(env,now,status,PROVIDER){
   try{
     await ensureUsage(env);const at=new Date().toISOString(),ok=status>=200&&status<300?1:0;
     for(const period of [now.date.slice(0,7),now.date])await env.OPS_DB.prepare(`INSERT INTO api_provider_usage(provider,period,calls,successes,errors,last_status,last_at) VALUES(?,?,1,?,?,?,?) ON CONFLICT(provider,period) DO UPDATE SET calls=calls+1,successes=successes+excluded.successes,errors=errors+excluded.errors,last_status=excluded.last_status,last_at=excluded.last_at`).bind(PROVIDER,period,ok,ok?0:1,status,at).run();
   }catch(_){}
 }
 
-async function fetchSearch(env,flight){
+async function fetchSearch(env,flight,cfg){
+  const HOST=cfg.HOST;
   try{
-    const r=await fetch(`https://${HOST}/flights/search?query=${encodeURIComponent(flight)}&limit=10`,{headers:{Accept:"application/json","x-rapidapi-key":frKey(env),"x-rapidapi-host":HOST},signal:AbortSignal.timeout(8000)});
+    const r=await fetch(`https://${HOST}/flights/search?query=${encodeURIComponent(flight)}&limit=10`,{headers:{Accept:"application/json","x-rapidapi-key":frKey(env,cfg),"x-rapidapi-host":HOST},signal:AbortSignal.timeout(8000)});
     const payload=await r.json().catch(()=>null);
     return {ok:r.ok,status:r.status,payload};
   }catch(e){return {ok:false,status:502,error:String(e?.message||e)}}
@@ -55,7 +58,7 @@ export function parseLive(payload,flight,origin="CDG"){
   if(!hit)return null;
   return {reg:upper(hit.detail?.reg),acType:upper(hit.detail?.ac_type)};
 }
-function apply(x,field,value,at){
+function apply(x,field,value,at,PROVIDER){
   const next=clean(value),from=clean(x[field]);
   if(!next||next===from||!mayWriteField(x,field,PROVIDER))return false;
   const log=Array.isArray(x.flightInfoLog)?x.flightInfoLog:[];log.unshift({at,source:PROVIDER,field,from,to:next});x.flightInfoLog=log.slice(0,160);
@@ -63,14 +66,15 @@ function apply(x,field,value,at){
   return true;
 }
 
-export async function runFlightradar1Queue(env){
-  if(!frKey(env)||!env?.OPS_DB)return {ok:true,skipped:"FLIGHTRADAR1_NON_CONFIGURE"};
+async function runFlightradarQueue(env,cfg){
+  const PROVIDER=cfg.PROVIDER,P=cfg.prefix;
+  if(!frKey(env,cfg)||!env?.OPS_DB)return {ok:true,skipped:`${PROVIDER}_NON_CONFIGURE`};
   const now=parisNow(),yesterday=parisDateAt(Date.now()-86400000);
   const maps=await Promise.all([queuedFieldMap(env,PROVIDER,now.date),queuedFieldMap(env,PROVIDER,yesterday)]),authority=new Map();
   for(const map of maps)for(const [id,fields] of map){if(!authority.has(id))authority.set(id,new Set());for(const f of fields)authority.get(id).add(f)}
-  if(!authority.size)return {ok:true,skipped:"FLIGHTRADAR1_QUEUE_VIDE"};
-  const u=await usage(env,now);
-  if(u.day>=DAY_CAP||u.month>=MONTH_CAP)return {ok:true,skipped:"FLIGHTRADAR1_QUOTA",day:u.day,month:u.month};
+  if(!authority.size)return {ok:true,skipped:`${PROVIDER}_QUEUE_VIDE`};
+  const u=await usage(env,now,PROVIDER);
+  if(u.day>=DAY_CAP||u.month>=MONTH_CAP)return {ok:true,skipped:`${PROVIDER}_QUOTA`,day:u.day,month:u.month};
   const {results=[]}=await env.OPS_DB.prepare(`SELECT identity,flight_date,airline,flight_number,std,data_json FROM flights WHERE flight_date IN (?,?) ORDER BY flight_date,std,flight_number`).bind(yesterday,now.date).all();
   const candidates=[];
   for(const row of results){
@@ -79,10 +83,12 @@ export async function runFlightradar1Queue(env){
     if(stopAll(x))continue;
     const d=delta(row.flight_date,x.std||row.std,now),needs=buildNeeds(x,d);
     if(!FIELDS.some(f=>allowed.has(f)&&needs[f]))continue;
-    if(d>30)continue;                                   // au sol avant le départ : pas de fiche « live »
-    if(ageMs(x.flightradar1LastCheckedAt)<COOLDOWN_MIN*60000)continue;
-    if(Number(x.flightradar1NotLiveAttempts||0)>=MAX_NOT_LIVE)continue;
-    if(Number(x.flightradar1Attempts||0)>=MAX_ATTEMPTS_PER_FLIGHT)continue;
+    if(d>30)continue;
+    // Deux API équivalentes (mêmes données) : on répartit les vols entre elles selon la parité du numéro de vol.
+    if([...fullFlight(x,row)].reduce((a,c)=>a+c.charCodeAt(0),0)%2!==cfg.slot)continue;                                   // au sol avant le départ : pas de fiche « live »
+    if(ageMs(x[P+"LastCheckedAt"])<COOLDOWN_MIN*60000)continue;
+    if(Number(x[P+"NotLiveAttempts"]||0)>=MAX_NOT_LIVE)continue;
+    if(Number(x[P+"Attempts"]||0)>=MAX_ATTEMPTS_PER_FLIGHT)continue;
     candidates.push({row,x,d,allowed,prio:priorityScore(x,d)});
   }
   // Vols partis le plus récemment d'abord (probablement encore en l'air).
@@ -90,17 +96,17 @@ export async function runFlightradar1Queue(env){
   const room=Math.max(0,Math.min(MAX_PER_RUN,DAY_CAP-u.day,MONTH_CAP-u.month)),items=[];
   for(const z of candidates.slice(0,room)){
     const flight=fullFlight(z.x,z.row);if(!flight)continue;
-    const r=await fetchSearch(env,flight),at=new Date().toISOString();
-    await bump(env,now,r.status);
-    z.x.flightradar1Attempts=Number(z.x.flightradar1Attempts||0)+1;
-    z.x.flightradar1LastCheckedAt=at;z.x.flightradar1LastStatus=r.status;
+    const r=await fetchSearch(env,flight,cfg),at=new Date().toISOString();
+    await bump(env,now,r.status,PROVIDER);
+    z.x[P+"Attempts"]=Number(z.x[P+"Attempts"]||0)+1;
+    z.x[P+"LastCheckedAt"]=at;z.x[P+"LastStatus"]=r.status;
     const changed=[];
     if(r.ok){
       const live=parseLive(r.payload,flight,upper(z.x.origin||"CDG"));
       if(live){
-        if(z.allowed.has("reg")&&apply(z.x,"reg",live.reg,at))changed.push("reg");
+        if(z.allowed.has("reg")&&apply(z.x,"reg",live.reg,at,PROVIDER))changed.push("reg");
         if(live.acType&&await noteAndSwitch(env,z.x,live.acType,PROVIDER,at))changed.push("aircraft");
-      }else z.x.flightradar1NotLiveAttempts=Number(z.x.flightradar1NotLiveAttempts||0)+1;
+      }else z.x[P+"NotLiveAttempts"]=Number(z.x[P+"NotLiveAttempts"]||0)+1;
     }
     await env.OPS_DB.prepare(`UPDATE flights SET data_json=?,updated_at=CURRENT_TIMESTAMP WHERE identity=?`).bind(JSON.stringify(z.x),z.row.identity).run();
     items.push({flight,status:r.status,changed});
@@ -108,3 +114,6 @@ export async function runFlightradar1Queue(env){
   }
   return {ok:true,processed:items.length,items};
 }
+
+export const runFlightradar1Queue=env=>runFlightradarQueue(env,CONFIGS.FLIGHTRADAR1);
+export const runFlightradar8Queue=env=>runFlightradarQueue(env,CONFIGS.FLIGHTRADAR8);
