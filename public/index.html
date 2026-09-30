@@ -19278,7 +19278,7 @@ function openFlightInfo(){
     <div class="flight-info-item"><small>DURÉE</small><b>${durationText(x.duration)}</b></div>
     <div class="flight-info-item"><small>GATE</small><b>${x.gate||'—'}</b>${sourceBadgeHtml(x,'gate')}</div>
 
-    <div class="flight-info-item"><small>TYPE APPAREIL</small><b>${x.aircraft}</b>${sourceBadgeHtml(x,'aircraft')}</div>
+    <div class="flight-info-item"><small>TYPE APPAREIL</small><b>${x.aircraft}</b>${sourceBadgeHtml(x,'aircraft')}${x.aircraftChange?`<div style="margin-top:4px;color:#b3261e;font-weight:900;font-size:11px">⚠ APPAREIL RÉEL : ${x.aircraftChange.to} (import ${x.aircraftChange.from}) · ${x.aircraftChange.source}</div>`:''}</div>
     <div class="flight-info-item"><small>IMMATRICULATION</small><b>${x.reg}</b>${sourceBadgeHtml(x,'reg')}</div>
     <div class="flight-info-item"><small>CONFIGURATION</small><b>${Object.entries(x.config).map(([k,v])=>k+' '+v).join(' · ')}</b>${sourceBadgeHtml(x,'config')}</div>
     <div class="flight-info-item"><small>CAPACITY / BOOKED / AVAILABLE</small><b>${cap} / ${booked} / ${avail}</b>${sourceBadgeHtml(x,'booked')}</div>

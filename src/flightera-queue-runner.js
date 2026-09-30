@@ -1,5 +1,6 @@
 import {queuedFieldMap} from "./provider-queue-authority.js";
 import {buildNeeds,mayWriteField,priorityScore,stopAll} from "./flight-enrichment-policy.js";
+import {noteActualAircraft} from "./aircraft-change.js";
 
 // "Flightera Flight Data" via RapidAPI (GET /flight/info?flnr=&date=). Plan: 200 requests/month.
 // Une seule réponse donne ATD / ATA réels, ETD / ETA estimés, porte et immatriculation (heures locales avec décalage).
@@ -60,7 +61,7 @@ export function parseFlightera(payload,date,origin="CDG"){
     etd:f.actual_departure_local&&depEst?local(f.actual_departure_local):"",
     ata:f.actual_arrival_local&&!arrEst?local(f.actual_arrival_local):"",
     eta:f.actual_arrival_local&&arrEst?local(f.actual_arrival_local):"",
-    gate:clean(f.departure_gate),reg:upper(f.reg),status:st
+    gate:clean(f.departure_gate),reg:upper(f.reg),model:upper(f.model),status:st
   };
 }
 function apply(x,field,value,at){
@@ -106,6 +107,7 @@ export async function runFlighteraQueue(env){
       if(data){
         for(const f of FIELDS)if(z.allowed.has(f)&&apply(z.x,f,data[f],at))changed.push(f);
         if(data.status){z.x.flighteraStatusRaw=data.status}
+        if(noteActualAircraft(z.x,data.model,PROVIDER,at))changed.push("aircraft");
       }else z.x.flighteraNotFoundAttempts=Number(z.x.flighteraNotFoundAttempts||0)+1;
     }else if(r.status===404)z.x.flighteraNotFoundAttempts=Number(z.x.flighteraNotFoundAttempts||0)+1;
     await env.OPS_DB.prepare(`UPDATE flights SET data_json=?,updated_at=CURRENT_TIMESTAMP WHERE identity=?`).bind(JSON.stringify(z.x),z.row.identity).run();
