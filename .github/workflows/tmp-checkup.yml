@@ -1,0 +1,79 @@
+name: tmp checkup
+on:
+  push:
+    paths: [".github/workflows/tmp-checkup.yml"]
+permissions:
+  contents: write
+jobs:
+  v:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          U=https://alyzia-ops.alyzia-cdg2.workers.dev
+          : > out.txt
+          say(){ echo "$*" | tee -a out.txt; }
+          F=$(date -u -d "-1 day" +%F); T=$(date -u -d "+7 day" +%F)
+          say "== PAGE (3 mesures) =="
+          for i in 1 2 3; do curl -sS -m 40 --compressed -D h.txt -o p.html -w "page: %{http_code} ttfb=%{time_starttransfer}s total=%{time_total}s transfert=%{size_download} octets\n" $U/ | tee -a out.txt; done
+          grep -i "x-alyzia\|cache-control\|content-encoding" h.txt | tee -a out.txt
+          say "taille page décompressée: $(wc -c < p.html) octets"
+          say "== API VOLS (fenêtre J-1..J+7) =="
+          curl -sS -m 60 --compressed -o f.json -w "liste: %{http_code} %{time_total}s transfert=%{size_download}\n" "$U/api/flights?from=$F&to=$T" | tee -a out.txt
+          python3 - <<'P' | tee -a out.txt
+          import json
+          d=json.load(open("f.json")); fl=d["flights"]
+          print("enregistrements",len(fl),"| jeton",d.get("syncToken"),"| epoch",d.get("epoch"))
+          big=sorted(fl,key=lambda x:-len(json.dumps(x)))[:1]
+          print("plus gros vol:",len(json.dumps(big[0])) if big else 0,"octets")
+          json.dump({"t":d.get("syncToken"),"e":d.get("epoch")},open("tok.json","w"))
+          P
+          TOK=$(python3 -c "import json;print(json.load(open('tok.json'))['t'])")
+          curl -sS -m 60 --compressed -G --data-urlencode "since=$TOK" -o d.json -w "delta au repos: %{http_code} %{time_total}s transfert=%{size_download}\n" "$U/api/flights?from=$F&to=$T" | tee -a out.txt
+          say "== ADMIN / ENRICHISSEMENT =="
+          curl -sS -m 60 --compressed -o /dev/null -w "enrichment/status: %{http_code} %{time_total}s\n" $U/api/enrichment/status | tee -a out.txt
+          curl -sS -m 60 --compressed -o a.json -w "admin flight-processing: %{http_code} %{time_total}s transfert=%{size_download}\n" $U/api/admin/flight-processing | tee -a out.txt
+          curl -sS -m 60 --compressed -o o.json -w "provider-observability: %{http_code} %{time_total}s\n" $U/api/admin/provider-observability | tee -a out.txt
+          python3 - <<'P' | tee -a out.txt
+          import json
+          a=json.load(open("a.json")); print("admin: since",a.get("since"),"until",a.get("until"),"lignes",len(a.get("flights",[])),"résumé",a.get("summary"))
+          o=json.load(open("o.json"))
+          for r in o.get("rows",[]): print("  ",r["provider"].ljust(13),"appels",str(r.get("performed")).rjust(3),"HTTP",r.get("lastStatus"),"attente",r.get("waiting"),"erreur",(r.get("lastError") or {}).get("message"))
+          P
+          say "== PROTECTION =="
+          curl -s -o /dev/null -w "POST push-now sans jeton: %{http_code}\n" -X POST $U/api/admin/push-now | tee -a out.txt
+          curl -s -o /dev/null -w "POST /api/flights sans jeton: %{http_code}\n" -X POST -H "content-type: application/json" -d '{}' $U/api/flights | tee -a out.txt
+          mkdir t && cd t && npm init -y >/dev/null && npm i playwright >/dev/null 2>&1 && npx playwright install --with-deps chromium >/dev/null 2>&1
+          cat > c.mjs <<'J'
+          import {chromium} from "playwright";
+          const U="https://alyzia-ops.alyzia-cdg2.workers.dev/";
+          const b=await chromium.launch();
+          for(const [name,opts] of [["MOBILE",{viewport:{width:400,height:800},isMobile:true,hasTouch:true}],["PC",{viewport:{width:1400,height:900}}]]){
+            const ctx=await b.newContext(opts);const p=await ctx.newPage();
+            const errs=[],bad=[];let bytes=0,reqs=0;
+            p.on("pageerror",e=>errs.push(String(e).slice(0,140)));
+            p.on("console",m=>{if(m.type()==="error")errs.push("console: "+m.text().slice(0,140))});
+            p.on("response",async r=>{reqs++;if(r.status()>=400)bad.push(r.status()+" "+r.url().replace(/^https?:\/\/[^/]+/,"").slice(0,80));try{const h=r.headers();bytes+=Number(h["content-length"]||0)}catch{}});
+            await p.addInitScript(()=>{window.__lt=[];try{new PerformanceObserver(l=>{for(const e of l.getEntries())window.__lt.push(Math.round(e.duration))}).observe({entryTypes:["longtask"]})}catch{}});
+            const t0=Date.now();await p.goto(U,{waitUntil:"domcontentloaded"});
+            await p.waitForSelector(".flight-home-row",{timeout:60000});const tRows=Date.now()-t0;
+            await p.waitForTimeout(8000);
+            const m=await p.evaluate(()=>({rows:document.querySelectorAll(".flight-home-row").length,badge:[...document.querySelectorAll("#app .flight-count-badge")].filter(e=>getComputedStyle(e).display!=="none").map(e=>e.textContent.trim()).join("/"),flights:typeof FLIGHTS!=="undefined"?FLIGHTS.length:null,heapMB:performance.memory?Math.round(performance.memory.usedJSHeapSize/1048576):null,dom:document.getElementsByTagName("*").length,lt:window.__lt,title:document.title,wx:document.querySelectorAll(".wx-i,.v2-wx,[data-wx]").length}));
+            const lt=m.lt||[];
+            console.log(`== ${name} == lignes visibles=${m.rows} compteur="${m.badge}" vols en mémoire=${m.flights} 1ère ligne après ${tRows} ms | tas JS=${m.heapMB} Mo | éléments DOM=${m.dom} | tâches longues(>50ms)=${lt.length} max=${Math.max(0,...lt)} ms | requêtes=${reqs} | titre="${m.title}"`);
+            console.log("   erreurs JS/console:",JSON.stringify(errs.slice(0,5)),"| réponses >=400:",JSON.stringify(bad.slice(0,5)));
+            // fiche
+            const s=Date.now();await p.locator(".flight-home-row").nth(3).click();await p.waitForSelector("#app .flight-head",{timeout:15000});const tf=Date.now()-s;
+            await p.waitForTimeout(1500);
+            console.log(`   ouverture fiche: ${tf} ms | scrollY=${await p.evaluate(()=>Math.round(scrollY))}`);
+            // retour
+            await p.locator(".flight-back-btn").first().click();await p.waitForTimeout(1200);
+            console.log("   retour liste:",await p.evaluate(()=>currentView),"| lignes",await p.locator(".flight-home-row").count());
+            await ctx.close();
+          }
+          await b.close();
+          J
+          node c.mjs >> ../out.txt 2>&1 || echo "playwright a échoué" >> ../out.txt
+          cd .. && cat out.txt
+          git config user.name v && git config user.email v@v
+          git checkout --orphan verify-out && git rm -rfq . 2>/dev/null; git add -f out.txt && git commit -qm result && git push -f origin verify-out
