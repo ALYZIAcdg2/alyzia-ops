@@ -50,3 +50,4 @@ jobs:
           cat out.txt | head -c 12000
           git config user.name v && git config user.email v@v
           git checkout --orphan verify-out && git rm -rfq . 2>/dev/null; git add -f out.txt && git commit -qm result && git push -f origin verify-out
+# rerun avec secret
