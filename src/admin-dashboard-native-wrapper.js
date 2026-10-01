@@ -58,6 +58,7 @@ function quotaLimit(env,key){
   if(key==="FR24DEP")return {period:"month",limit:Number(env.FR24DEP_MONTHLY_LIMIT||500),reserve:Number(env.FR24DEP_MONTHLY_RESERVE||70)};
   if(key==="FLIGHTRADAR8")return {period:"month",limit:Number(env.FLIGHTRADAR8_MONTHLY_LIMIT||500),reserve:Number(env.FLIGHTRADAR8_MONTHLY_RESERVE||70)};
   if(key==="FLIGHTRADAR1")return {period:"month",limit:Number(env.FLIGHTRADAR1_MONTHLY_LIMIT||500),reserve:Number(env.FLIGHTRADAR1_MONTHLY_RESERVE||70)};
+  if(key==="FR24API")return {period:"month",limit:Number(env.FR24API_MONTHLY_LIMIT||300),reserve:0};
   if(key==="SERPAPI")return {period:"month",limit:Number(env.SERPAPI_MONTHLY_LIMIT||250),reserve:Number(env.SERPAPI_MONTHLY_RESERVE||35)};
   if(key==="KAYAK")return {period:"month",limit:Number(env.KAYAK_MONTHLY_LIMIT||200),reserve:Number(env.KAYAK_MONTHLY_RESERVE||30)};
   if(key==="FLIGHTERA")return {period:"month",limit:Number(env.FLIGHTERA_MONTHLY_LIMIT||200),reserve:Number(env.FLIGHTERA_MONTHLY_RESERVE||30)};
@@ -75,7 +76,7 @@ async function dashboard(env){
     const month=now.date.slice(0,7),{results:q=[]}=await env.OPS_DB.prepare(`SELECT provider,period,calls,last_status,last_at FROM api_provider_usage WHERE period IN (?,?) ORDER BY provider,period`).bind(month,now.date).all();
     const map=new Map();
     for(const r of q){const k=baseProvider(r.provider);if(!map.has(k))map.set(k,{provider:k,today:0,month:0,lastStatus:null,lastAt:""});const o=map.get(k);if(r.period===now.date)o.today+=Number(r.calls||0);if(r.period===month)o.month+=Number(r.calls||0);if(!o.lastAt||clean(r.last_at)>o.lastAt){o.lastAt=clean(r.last_at);o.lastStatus=r.last_status}}
-    quotas=["AIRLABS","SKYLINK","OAG","AERODATABOX","OPENSKY","QUARK","AVIATIONDATA","FLIGHTERA","KAYAK","SERPAPI","FLIGHTRADAR1","FLIGHTRADAR8","FR24DEP"].map(k=>{const o=map.get(k)||{provider:k,today:0,month:0,lastStatus:null,lastAt:""},cfg=quotaLimit(env,k),used=cfg.period==="day"?o.today:o.month;return {...o,...cfg,remaining:cfg.limit?Math.max(0,cfg.limit-cfg.reserve-used):null}});
+    quotas=["AIRLABS","SKYLINK","OAG","AERODATABOX","OPENSKY","QUARK","AVIATIONDATA","FLIGHTERA","KAYAK","SERPAPI","FR24API","FLIGHTRADAR1","FLIGHTRADAR8","FR24DEP"].map(k=>{const o=map.get(k)||{provider:k,today:0,month:0,lastStatus:null,lastAt:""},cfg=quotaLimit(env,k),used=cfg.period==="day"?o.today:o.month;return {...o,...cfg,remaining:cfg.limit?Math.max(0,cfg.limit-cfg.reserve-used):null}});
   }catch{}
   return {ok:true,generatedAt:new Date().toISOString(),date:now.date,since,until,summary:{today:summarize(today),future:summarize(future)},flights,quotas};
 }

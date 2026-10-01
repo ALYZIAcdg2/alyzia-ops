@@ -6,6 +6,7 @@ import {runFr24DepQueue} from "./fr24dep-queue-runner.js";
 import {runFlighteraQueue} from "./flightera-queue-runner.js";
 import {runKayakQueue} from "./kayak-queue-runner.js";
 import {runSerpapiQueue} from "./serpapi-queue-runner.js";
+import {runFr24ApiQueue} from "./fr24api-queue-runner.js";
 import {runFlightradar1Queue,runFlightradar8Queue} from "./flightradar1-queue-runner.js";
 import {handleOpenSkyIngest} from "./opensky-live-wrapper.js";
 
@@ -36,7 +37,7 @@ async function adminPushNow(request,env,ctx){
   globalThis.__ALYZIA_MANUAL_PUSH=true;
   // On n'exécute PAS tout le cron (trop long pour une requête HTTP : il ne répondait pas) mais l'essentiel : mise à jour de la file
   // puis les fournisseurs qui rattrapent ATD/ATA/ETD/ETA/STA/porte/immat., dans l'ordre d'efficacité, avec un budget de 25 s.
-  const steps=[["QUEUE",refreshProviderQueue],["FR24DEP",runFr24DepQueue],["FLIGHTERA",runFlighteraQueue],["KAYAK",runKayakQueue],["SERPAPI",runSerpapiQueue],["FLIGHTRADAR8",runFlightradar8Queue],["FLIGHTRADAR1",runFlightradar1Queue]];
+  const steps=[["QUEUE",refreshProviderQueue],["FR24DEP",runFr24DepQueue],["FLIGHTERA",runFlighteraQueue],["KAYAK",runKayakQueue],["SERPAPI",runSerpapiQueue],["FR24API",runFr24ApiQueue],["FLIGHTRADAR8",runFlightradar8Queue],["FLIGHTRADAR1",runFlightradar1Queue]];
   const results={},started=Date.now();
   const work=(async()=>{for(const [name,fn] of steps){if(Date.now()-started>22000){results[name]="ignoré (temps)";continue}try{const r=await fn(env);results[name]=r?.skipped||"ok"}catch(e){results[name]="erreur: "+String(e?.message||e).slice(0,80)}}})();
   const timedOut=await Promise.race([work.then(()=>false),new Promise(r=>setTimeout(()=>r(true),26000))]);
