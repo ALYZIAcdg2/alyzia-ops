@@ -1,0 +1,22 @@
+name: tmp probe fr243
+on:
+  push:
+    paths: [".github/workflows/tmp-probe-fr243.yml"]
+permissions:
+  contents: write
+jobs:
+  v:
+    runs-on: ubuntu-latest
+    env:
+      K: ${{ secrets.RAPIDAPI_PROBE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          : > out.txt
+          if [ -z "$K" ]; then echo "SECRET ABSENT" >> out.txt; else
+            echo "=== arrivals ist limit=3" >> out.txt
+            curl -sS -m 40 -w "\nHTTP %{http_code} %{time_total}s\n" -H "x-rapidapi-key: $K" -H "x-rapidapi-host: flightradar243.p.rapidapi.com" "https://flightradar243.p.rapidapi.com/v1/airports/arrivals?limit=3&page=1&code=ist" | head -c 9000 >> out.txt
+          fi
+          cat out.txt | head -c 3000
+          git config user.name v && git config user.email v@v
+          git checkout --orphan verify-out && git rm -rfq . 2>/dev/null; git add -f out.txt && git commit -qm result && git push -f origin verify-out
