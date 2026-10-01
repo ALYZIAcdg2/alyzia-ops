@@ -1,0 +1,35 @@
+name: tmp verify fr24api
+on:
+  push:
+    paths: [".github/workflows/tmp-verify-fr24api.yml"]
+permissions:
+  contents: write
+jobs:
+  v:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - env:
+          TOK: ${{ secrets.FR24API_TOKEN }}
+        run: |
+          U=https://alyzia-ops.alyzia-cdg2.workers.dev
+          echo "MARK-FR24API-1" > out.txt
+          curl -sS -m 60 -X POST "$U/api/admin/push-now" >> out.txt; echo >> out.txt
+          sleep 3
+          curl -sS -m 60 "$U/api/admin/provider-observability" -o o.json || echo '{}' > o.json
+          python3 - >> out.txt <<'P'
+          import json
+          o=json.load(open("o.json"))
+          for r in o.get("rows",[]):
+            if r["provider"]=="FR24API": print(json.dumps(r)[:900])
+          P
+          curl -sS -m 60 "$U/api/flights" -o f.json
+          python3 - >> out.txt <<'P'
+          import json
+          for x in json.load(open("f.json")).get("flights",[]):
+            if x.get("etaSource")=="FR24API" or x.get("regSource")=="FR24API": print(x.get("flight"),x.get("eta"),x.get("reg"))
+          P
+          echo "--- usage endpoint (credits)" >> out.txt
+          curl -sS -m 30 -A "curl/8.5.0" -H "Accept: application/json" -H "Accept-Version: v1" -H "Authorization: Bearer $TOK" "https://fr24api.flightradar24.com/api/usage?period=24h" >> out.txt; echo >> out.txt
+          git config user.name v && git config user.email v@v
+          git checkout --orphan verify-out && git rm -rfq . 2>/dev/null; git add -f out.txt && git commit -qm result && git push -f origin verify-out
