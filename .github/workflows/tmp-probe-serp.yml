@@ -1,0 +1,38 @@
+name: tmp probe serpapi
+on:
+  push:
+    paths: [".github/workflows/tmp-probe-serp.yml"]
+permissions:
+  contents: write
+jobs:
+  v:
+    runs-on: ubuntu-latest
+    env:
+      K1: ${{ secrets.SERPAPI_PROBE_KEY }}
+      K2: ${{ secrets.SERPAPI_KEY }}
+      K3: ${{ secrets.SERPAPI_API_KEY }}
+      K4: ${{ secrets.SERP_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          : > out.txt
+          K="${K1:-${K2:-${K3:-$K4}}}"
+          if [ -z "$K" ]; then echo "AUCUN SECRET SERPAPI (essayés: SERPAPI_PROBE_KEY, SERPAPI_KEY, SERPAPI_API_KEY, SERP_API_KEY)" >> out.txt; else
+            for q in "TK1824 flight status" "BJ509 statut du vol" ; do
+              echo "=== q=$q" >> out.txt
+              curl -sS -m 60 -G "https://serpapi.com/search.json" --data-urlencode "engine=google" --data-urlencode "q=$q" --data-urlencode "hl=fr" --data-urlencode "gl=fr" --data-urlencode "api_key=$K" -o r.json -w "HTTP %{http_code} %{time_total}s\n" >> out.txt
+              python3 - >> out.txt <<'P'
+          import json
+          d=json.load(open("r.json"))
+          print("clés:",sorted(d.keys()))
+          if "error" in d: print("ERREUR:",d["error"])
+          for k in ("answer_box","knowledge_graph","flight","flights","sports_results"):
+            if k in d: print("--",k,":",json.dumps(d[k],ensure_ascii=False)[:2500])
+          print("organic (3):",[ (o.get("title"),o.get("link")) for o in d.get("organic_results",[])[:3]])
+          print("credits:",d.get("search_metadata",{}).get("status"),d.get("search_metadata",{}).get("total_time_taken"))
+          P
+            done
+          fi
+          cat out.txt | head -c 6000
+          git config user.name v && git config user.email v@v
+          git checkout --orphan verify-out && git rm -rfq . 2>/dev/null; git add -f out.txt && git commit -qm result && git push -f origin verify-out
