@@ -1,6 +1,7 @@
 import {queuedFieldMap} from "./provider-queue-authority.js";
 import {buildNeeds,mayWriteField,stopAll} from "./flight-enrichment-policy.js";
 import {noteAndSwitch} from "./aircraft-change.js";
+import {paceRoom} from "./budget-pace.js";
 import {flighteraKey} from "./flightera-queue-runner.js";
 
 // "Flightradar24 (things4u)" via RapidAPI : GET /airports/departures/load-earlier-flights?airport_id=CDG&page=N. Plan : 500 requêtes/mois.
@@ -107,7 +108,7 @@ export async function runFr24DepQueue(env){
     if(m)earliest=Math.min(earliest,Date.parse(`${row.flight_date}T${m[1]}:${m[2]}:00Z`)/1000);
   }
   if(!wanted.size)return {ok:true,skipped:"FR24DEP_AUCUN_VOL"};
-  const room=Math.max(0,Math.min(MAX_PAGES,DAY_CAP-u.day,MONTH_CAP-u.month));
+  const room=Math.max(0,Math.min(MAX_PAGES,DAY_CAP-u.day,MONTH_CAP-u.month,paceRoom(u.day,DAY_CAP,now.minutes)));
   const at=new Date().toISOString(),summary={pages:0,seen:0,matched:0,changedFlights:0};
   const touched=new Set();
   let coveredFrom=Infinity;   // plus ancien départ programmé effectivement lu (epoch UTC)

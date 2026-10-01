@@ -1,4 +1,5 @@
 import {queuedFieldMap} from "./provider-queue-authority.js";
+import {paceRoom} from "./budget-pace.js";
 import {buildNeeds,mayWriteField,priorityScore,stopAll} from "./flight-enrichment-policy.js";
 import {noteAndSwitch} from "./aircraft-change.js";
 import {flighteraKey} from "./flightera-queue-runner.js";
@@ -104,7 +105,7 @@ export async function runKayakQueue(env){
     candidates.push({row,x,d,allowed,prio:priorityScore(x,d)});
   }
   candidates.sort((a,b)=>a.prio-b.prio||Math.abs(a.d)-Math.abs(b.d));
-  const room=Math.max(0,Math.min(globalThis.__ALYZIA_MANUAL_PUSH?3:MAX_PER_RUN,DAY_CAP-u.day,MONTH_CAP-u.month)),items=[];
+  const room=Math.max(0,Math.min(globalThis.__ALYZIA_MANUAL_PUSH?3:MAX_PER_RUN,DAY_CAP-u.day,MONTH_CAP-u.month,paceRoom(u.day,DAY_CAP,now.minutes))),items=[];
   for(const z of candidates.slice(0,room)){
     const flight=fullFlight(z.x,z.row);if(!flight)continue;
     const origin=upper(z.x.origin||"CDG"),r=await fetchFlight(env,flight,origin),at=new Date().toISOString();

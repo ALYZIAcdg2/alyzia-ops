@@ -1,4 +1,5 @@
 import {queuedFieldMap} from "./provider-queue-authority.js";
+import {paceRoom} from "./budget-pace.js";
 import {buildNeeds,mayWriteField,priorityScore,stopAll} from "./flight-enrichment-policy.js";
 import {noteAndSwitch} from "./aircraft-change.js";
 import {flighteraKey} from "./flightera-queue-runner.js";
@@ -118,7 +119,7 @@ async function runFlightradarQueue(env,cfg){
   }
   // Vols partis le plus récemment d'abord (probablement encore en l'air).
   candidates.sort((a,b)=>Math.abs(a.d)-Math.abs(b.d));
-  const room=Math.max(0,Math.min(globalThis.__ALYZIA_MANUAL_PUSH?3:MAX_PER_RUN,DAY_CAP-u.day,MONTH_CAP-u.month)),items=[];
+  const room=Math.max(0,Math.min(globalThis.__ALYZIA_MANUAL_PUSH?3:MAX_PER_RUN,DAY_CAP-u.day,MONTH_CAP-u.month,paceRoom(u.day,DAY_CAP,now.minutes))),items=[];
   for(const z of candidates.slice(0,room)){
     const flight=fullFlight(z.x,z.row);if(!flight)continue;
     const at=new Date().toISOString(),changed=[];
