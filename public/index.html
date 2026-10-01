@@ -1532,6 +1532,19 @@ body{
   letter-spacing:-1px;
 }
 .flight-head .route{width:100%}
+.flight-head .flight-id-with-logo{flex-wrap:wrap;row-gap:8px}
+.fh-chips{display:inline-flex;flex-wrap:wrap;gap:6px;align-items:center}
+.fh-chip{display:inline-flex;align-items:baseline;gap:6px;background:#f3f6fa;border:1px solid #e1e9f2;border-radius:999px;padding:5px 12px;font-family:inherit;cursor:pointer;white-space:nowrap}
+.fh-chip-static{cursor:default}
+.fh-chip i{font-style:normal;font-size:11px;font-weight:900;color:#607590}
+.fh-chip b{font-size:18px;font-weight:950;color:#0b1830;line-height:1.1}
+.fh-chip:not(.fh-chip-static):hover{border-color:#1680ef;background:#f1f7ff}
+@media(min-width:1000px){.flight-head .fh-id{flex:2 1 400px!important}.fh-chip{padding:4px 10px}.fh-chip b{font-size:17px}}
+.cabin-actions-row{display:flex;gap:6px;margin-top:3px}
+.cabin-actions-row .cabin-plan-open-btn{margin-top:0;flex:1 1 0}
+.cabin-inop-open-btn{flex:1 1 0;border:1px solid #f0a64a;background:#fff4e2;color:#a85a00;border-radius:7px;padding:7px 8px;font-size:9px;font-weight:950;letter-spacing:.02em;cursor:pointer;white-space:nowrap}
+.cabin-inop-open-btn:hover{background:#ffe9c4}
+
 .flight-head .head-label{
   width:100%;
   text-align:center;
@@ -15767,7 +15780,7 @@ function render(){
   <div class="fh-row1">
    <div class="fh-id">
     <div class="fh-id-meta">${x.airline} · AIRLINE · ${formatDateLong(x.activeDate||HOME_DATE||selectedDate)}</div>
-    <div class="flight-id-with-logo">${airlineLogo(x.airline,'large')}<div class="flight-number">${x.flight}</div>${typeof homeFlightNoteCount==='function'&&homeFlightNoteCount(x)>0?`<button type="button" class="fh-note-bell" title="${homeFlightNoteCount(x)} note(s)" onclick="openCombinedNotes()"><span class="home-note-bell">🔔</span><span class="home-note-count">${homeFlightNoteCount(x)}</span></button>`:''}</div>
+    <div class="flight-id-with-logo">${airlineLogo(x.airline,'large')}<div class="flight-number">${x.flight}</div><span class="fh-chips"><button type="button" class="fh-chip" onclick="v5009EditHeaderField('gate')" title="Modifier la gate"><i>GATE</i><b>${x.gate||'—'}</b></button><span class="fh-chip fh-chip-static"><i>A/C</i><b>${x.aircraft||'—'}</b></span><button type="button" class="fh-chip" onclick="v5009EditHeaderField('reg')" title="Modifier l'immatriculation"><i>IMMAT</i><b>${x.reg||'—'}</b></button></span>${typeof homeFlightNoteCount==='function'&&homeFlightNoteCount(x)>0?`<button type="button" class="fh-note-bell" title="${homeFlightNoteCount(x)} note(s)" onclick="openCombinedNotes()"><span class="home-note-bell">🔔</span><span class="home-note-count">${homeFlightNoteCount(x)}</span></button>`:''}</div>
     <div class="route">${x.dep}<span class="arrow">→</span>${x.dest}${durationText(x.duration)!=='—'?`<span class="route-dur" title="Durée de vol calculée d'après les horaires">◷ ${durationText(x.duration)}</span>`:''}</div>
    </div>
    <div class="fh-stat">
@@ -15787,19 +15800,6 @@ function render(){
    <div class="fh-stat">
     <div class="head-label">TYPE A/C <button class="edit-link" onclick="openEdit('aircraft')">✎</button></div>
     ${sariaAircraftSelectHtml(x)}
-   </div>
-   <div class="fh-stat fh-gate-cell">
-    <button type="button" class="v5010-edit-field fh-gate-field" onclick="v5009EditHeaderField('gate')" title="Modifier la gate">
-      <span class="head-label">GATE <span class="v5010-pencil">✎</span></span>
-      <strong>${x.gate||'—'}</strong>
-    </button>
-    ${adbState(x)?.data?.departure?.terminal?`<span class="adb-value adb-blue v5010-terminal">TERMINAL ${adbState(x).data.departure.terminal}</span>`:''}
-   </div>
-   <div class="fh-stat v5010-reg-cell">
-    <button type="button" class="v5010-edit-field" onclick="v5009EditHeaderField('reg')" title="Modifier l'immatriculation">
-      <span class="head-label">IMMAT <span class="v5010-pencil">✎</span></span>
-      <strong>${x.reg||'—'}</strong>
-    </button>
    </div>
   </div>
   <div class="fh-row2">
@@ -21342,7 +21342,7 @@ function sariaAircraftSelectHtml(x){
  return `<div class="saria-ac-wrap">
    <button type="button" class="v5008-aircraft-button" onclick="v5008OpenAircraftChooser()"><b>${escapeHtml(cur)}</b><span>⌄</span></button>
    <div class="saria-cabin-mini ${sariaSelectedEntry(x)?'':'missing'}">${sariaSelectedEntry(x)?'✓ ':'⚠ '}${sariaCabinLabel(x)}</div>
-   <button type="button" class="cabin-plan-open-btn" onclick="openCabinPlan()">▦ PLAN CABINE</button>
+   <div class="cabin-actions-row"><button type="button" class="cabin-plan-open-btn" onclick="openCabinPlan()">▦ PLAN CABINE</button><button type="button" class="cabin-inop-open-btn" onclick="openInopSeat()">⚠ SEAT INOP${(x.inopSeats||[]).filter(r=>r.status==='NOK').length?` · ${(x.inopSeats||[]).filter(r=>r.status==='NOK').length}`:''}</button></div>
  </div>`;
 }
 
