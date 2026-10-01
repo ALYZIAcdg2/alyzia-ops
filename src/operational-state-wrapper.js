@@ -61,8 +61,6 @@ function normalizedStatus(x,now,flightDate){
 }
 async function normalizeRecent(env){
   const now=parisNow(),yesterday=parisDateAt(Date.now()-86400000),at=new Date().toISOString();
-  // ENT : type 73H -> 738 (même avion ; 738 est le type du catalogue cabines). Limité à hier et aux dates futures (index flight_date).
-  try{await env.OPS_DB.prepare(`UPDATE flights SET data_json=json_set(data_json,'$.aircraft','738','$.aircraftSource','ALYZIA_ENT_73H_738'),updated_at=CURRENT_TIMESTAMP WHERE flight_date>=? AND airline IN ('ENT','E4') AND upper(json_extract(data_json,'$.aircraft'))='73H'`).bind(yesterday).run()}catch(_){}
   const {results=[]}=await env.OPS_DB.prepare(`SELECT identity,flight_date,data_json FROM flights WHERE flight_date IN (?,?)`).bind(yesterday,now.date).all();
   let changedRows=0,repairedTimes=0,statusChanges=0;
   for(const row of results){

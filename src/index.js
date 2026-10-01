@@ -268,6 +268,7 @@ export async function applyCabinConfigForActualAircraft(env,x){
 async function applyAutoCabinConfig(env,x){
   try{
     if(!x||typeof x!=="object")return x;
+    normalizeEntAircraft(x);
     if(x.sariaConfigKey)return x; // deja choisi (manuel ou auto) : jamais ecrase
     const aircraft=String(x.aircraft||"").trim();
     if(!aircraft)return x;
@@ -285,6 +286,7 @@ async function applyAutoCabinConfig(env,x){
 function applyAutoCabinConfigFromRows(x,cabinConfigRows){
   try{
     if(!x||typeof x!=="object")return x;
+    normalizeEntAircraft(x);
     if(x.sariaConfigKey)return x;
     const aircraft=String(x.aircraft||"").trim();
     if(!aircraft)return x;
@@ -295,6 +297,32 @@ function applyAutoCabinConfigFromRows(x,cabinConfigRows){
     console.warn("AUTO CABIN CONFIG BATCH",e);
   }
   return x;
+}
+
+// ENT : l'import donne parfois 73H, qui désigne le même avion que 738 (type du catalogue cabines : ENT|738|189Y). Modifie x en place.
+function normalizeEntAircraft(x){
+  if(x&&typeof x==="object"&&["ENT","E4"].includes(String(x.airline||"").toUpperCase())&&String(x.aircraft||"").trim().toUpperCase()==="73H")x.aircraft="738";
+  return x;
+}
+// Rattrapage (cron) : vols ENT d'hier et à venir en 73H / 738 sans version cabine choisie -> 738 + configuration du catalogue (jamais d'écrasement d'une classe saisie).
+async function catchUpEntAircraft(env){
+  try{
+    const y=new Date(Date.now()-86400000).toISOString().slice(0,10);
+    const {results=[]}=await env.OPS_DB.prepare(`SELECT identity,data_json FROM flights WHERE flight_date>=? AND airline IN ('ENT','E4') AND (upper(json_extract(data_json,'$.aircraft'))='73H' OR (upper(json_extract(data_json,'$.aircraft'))='738' AND coalesce(json_extract(data_json,'$.sariaConfigKey'),'')=''))`).bind(y).all();
+    let n=0;
+    for(const row of results){
+      let x;try{x=JSON.parse(row.data_json||"{}")}catch{continue}
+      const beforeAircraft=x.aircraft,beforeKey=x.sariaConfigKey||"";
+      normalizeEntAircraft(x);
+      await applyAutoCabinConfig(env,x);
+      const keyChanged=(x.sariaConfigKey||"")!==beforeKey,aircraftChanged=x.aircraft!==beforeAircraft;
+      if(!keyChanged&&!aircraftChanged)continue;
+      if(keyChanged)await env.OPS_DB.prepare(`UPDATE flights SET data_json=json_set(data_json,'$.aircraft',?,'$.sariaConfigKey',?,'$.sariaCabinConfig',?,'$.config',json(?),'$.cabinConfigAuto',json('true')),updated_at=CURRENT_TIMESTAMP WHERE identity=?`).bind(x.aircraft,x.sariaConfigKey||"",x.sariaCabinConfig||"",JSON.stringify(x.config||{}),row.identity).run();
+      else await env.OPS_DB.prepare(`UPDATE flights SET data_json=json_set(data_json,'$.aircraft',?),updated_at=CURRENT_TIMESTAMP WHERE identity=?`).bind(x.aircraft,row.identity).run();
+      n++;
+    }
+    return n;
+  }catch(e){console.warn("ENT CATCH-UP",e);return 0}
 }
 
 async function upsertFlight(env,x){
@@ -13539,8 +13567,11 @@ export default {
 
   async scheduled(controller,env,ctx){
     ctx.waitUntil((async()=>{
+      await catchUpEntAircraft(env);
       const result=await lot5AutoPilotRun(env,{triggerType:"CRON"});
       if(!result?.ok)console.error("ALYZIA LOT5 AUTO PILOT",result?.error||result);
     })());
   }
 };
+
+export {catchUpEntAircraft,normalizeEntAircraft}; // pour les tests
