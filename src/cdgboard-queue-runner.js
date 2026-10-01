@@ -92,7 +92,8 @@ export async function runCdgBoardQueue(env){
   const maps=await Promise.all([queuedFieldMap(env,PROVIDER,now.date),queuedFieldMap(env,PROVIDER,yesterday)]),authority=new Map();
   for(const map of maps)for(const [id,fields] of map){if(!authority.has(id))authority.set(id,new Set());for(const f of fields)authority.get(id).add(f)}
   const u=await usage(env,now);
-  if(u.day>=DAY_CAP||u.month>=MONTH_CAP_TOTAL)return {ok:true,skipped:"CDGBOARD_QUOTA",day:u.day,month:u.month};
+  const dayCap=globalThis.__ALYZIA_MANUAL_PUSH?DAY_CAP+2:DAY_CAP;   // un PUSH manuel de l'admin peut dépasser de 2 appels, jamais le plafond du mois
+  if(u.day>=dayCap||u.month>=MONTH_CAP_TOTAL)return {ok:true,skipped:"CDGBOARD_QUOTA",day:u.day,month:u.month};
   if(!globalThis.__ALYZIA_MANUAL_PUSH&&Date.now()-u.lastAt<MIN_GAP_MIN*60000)return {ok:true,skipped:"CDGBOARD_INTERVALLE"};
   if(!globalThis.__ALYZIA_MANUAL_PUSH&&paceRoom(u.day,DAY_CAP,now.minutes)<1)return {ok:true,skipped:"CDGBOARD_PACE"};
   const {results=[]}=await env.OPS_DB.prepare(`SELECT identity,flight_date,airline,flight_number,std,data_json FROM flights WHERE flight_date IN (?,?)`).bind(yesterday,now.date).all();
@@ -111,7 +112,7 @@ export async function runCdgBoardQueue(env){
   }
   if(!wanted.length)return {ok:true,skipped:"CDGBOARD_RIEN_A_FAIRE"};
   const at=new Date().toISOString(),all=[];let calls=0,last=null;
-  for(let page=0;page<MAX_PAGES&&u.day+calls<DAY_CAP&&u.month+calls<MONTH_CAP_TOTAL;page++){
+  for(let page=0;page<MAX_PAGES&&u.day+calls<dayCap&&u.month+calls<MONTH_CAP_TOTAL;page++){
     const r=await fetchBoard(env,page*LIMIT);calls++;last=r;
     await bump(env,now,r.status);
     await recordProviderResult(env,"KAYAK",r.status,r.payload,kayakKey(env));
