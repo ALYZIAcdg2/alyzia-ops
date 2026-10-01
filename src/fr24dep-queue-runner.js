@@ -11,7 +11,7 @@ import {flighteraKey} from "./flightera-queue-runner.js";
 const PROVIDER="FR24DEP";
 const HOST="flightradar24-com.p.rapidapi.com";
 const AIRPORT="CDG";
-const DAY_CAP=16;
+const DAY_CAP=14;
 const MONTH_CAP=430;              // plan 500/mois, marge pour les essais
 const MIN_INTERVAL_MIN=45;        // entre deux passages complets
 const MAX_PAGES=4;                // ~8 h de programme par passage

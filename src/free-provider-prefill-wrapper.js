@@ -1,3 +1,4 @@
+import {dayBudget} from "./day-budget.js";
 import app from "./provider-safe-backend-wrapper.js";
 
 const clean=v=>String(v??"").trim();
@@ -114,6 +115,7 @@ async function runAirlabs(env,baseRows,now){
   const u=await providerUsage(env,"AIRLABS"),monthCap=Number(env.AIRLABS_MONTHLY_LIMIT||1000),reserve=Number(env.AIRLABS_MONTHLY_RESERVE||180);
   const cadence=Math.max(20,Number(env.AIRLABS_CADENCE_MINUTES||adaptiveAirlabsCadence(baseRows,now)));
   if(u.month>=Math.max(0,monthCap-reserve))return {ok:true,skipped:"AIRLABS_QUOTA_RESERVE",usage:u,cadence};
+  if((await dayBudget(env,"AIRLABS",monthCap-reserve,0.5)).left<=0)return {ok:true,skipped:"AIRLABS_PLAFOND_JOUR",usage:u,cadence};
   if(ageMs(u.lastAt)<cadence*60000)return {ok:true,skipped:"AIRLABS_CADENCE",usage:u,cadence};
   const active=baseRows.filter(z=>z.d<=720&&z.d>=-900&&!isFinal(z.x));if(!active.length)return {ok:true,skipped:"AIRLABS_AUCUN_VOL",cadence};
   const wanted=new Map(active.map(z=>[flightKey(z.x,z.row),z]));
@@ -164,6 +166,7 @@ async function refreshOneFutureRoute(env,rows){
   if(!env.AIRLABS_API_KEY)return {ok:true,skipped:"AIRLABS_API_KEY_NON_CONFIGURE"};
   const u=await providerUsage(env,"AIRLABS"),monthCap=Number(env.AIRLABS_MONTHLY_LIMIT||1000),reserve=Number(env.AIRLABS_MONTHLY_RESERVE||180);
   if(u.month>=Math.max(0,monthCap-reserve))return {ok:true,skipped:"AIRLABS_QUOTA_RESERVE"};
+  if((await dayBudget(env,"AIRLABS",monthCap-reserve,0.5)).left<=0)return {ok:true,skipped:"AIRLABS_PLAFOND_JOUR"};
   await ensureUsage(env);
   const groups=new Map();for(const z of rows){if(!missing(z.x.sta))continue;const key=routeKeyFor(z);if(!key.startsWith("|"))groups.set(key,z)}
   let target=null;

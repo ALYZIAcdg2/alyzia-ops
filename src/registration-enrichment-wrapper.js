@@ -1,3 +1,4 @@
+import {dayBudget} from "./day-budget.js";
 import app from "./ent-alias-wrapper.js";
 import {noteActualAircraft,noteAndSwitch} from "./aircraft-change.js";
 
@@ -44,6 +45,7 @@ async function enrichRegistrations(env){
   if(!env.AIRLABS_API_KEY)return {ok:true,skipped:"AIRLABS_API_KEY_NON_CONFIGURE"};
   const u=await usage(env),limit=Number(env.AIRLABS_MONTHLY_LIMIT||1000),reserve=Number(env.AIRLABS_MONTHLY_RESERVE||180),cadence=Math.max(90,Number(env.AIRLABS_REG_CADENCE_MINUTES||120));
   if(u.month>=Math.max(0,limit-reserve))return {ok:true,skipped:"AIRLABS_QUOTA_RESERVE",usage:u};
+  if((await dayBudget(env,"AIRLABS",limit-reserve,0.5)).left<=0)return {ok:true,skipped:"AIRLABS_PLAFOND_JOUR",usage:u};
   const now=parisNow(),{results=[]}=await env.OPS_DB.prepare(`SELECT identity,airline,flight_number,std,data_json FROM flights WHERE flight_date=? ORDER BY std,flight_number`).bind(now.date).all();
   const candidates=[];
   for(const row of results){let x={};try{x=JSON.parse(row.data_json||"{}")}catch{};const d=delta(x.std||row.std,now.minutes);if(d>180||d<-720||isFinal(x)||!missing(x.reg))continue;candidates.push({row,x,d,aliases:aliasesFor(row,x)})}

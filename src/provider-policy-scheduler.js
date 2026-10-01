@@ -21,16 +21,25 @@ function delta(flightDate,std,now){const h=hhmm(std),fd=dayNumber(flightDate),nd
 
 const PROVIDERS=["OAG_SCHEDULE","OAG_STATUS","AIRLABS","SKYLINK","OPENSKY","QUARK","AVIATIONDATA","FLIGHTERA","KAYAK","SERPAPI","FR24API","CDGBOARD","FLIGHTRADAR1","FLIGHTRADAR8","FR24DEP","AERODATABOX"];
 function available(env,p){if(p==="FLIGHTRADAR8")return Boolean(frKey(env,{keyEnv:"FLIGHTRADAR8_RAPIDAPI_KEY"}));if(p==="FR24DEP")return Boolean(fr24Key(env));if(p==="FLIGHTRADAR1")return Boolean(frKey(env));if(p==="FLIGHTERA")return Boolean(flighteraKey(env));if(p==="KAYAK"||p==="CDGBOARD")return Boolean(kayakKey(env));if(p==="SERPAPI")return Boolean(serpapiKey(env));if(p==="FR24API")return Boolean(fr24apiKey(env));if(p==="AVIATIONDATA")return Boolean(env.AVIATIONDATA_RAPIDAPI_KEY);if(p==="QUARK")return Boolean(env.QUARK_RAPIDAPI_KEY);if(p.startsWith("OAG_"))return Boolean(env.OAG_API_KEY);if(p==="AIRLABS")return Boolean(env.AIRLABS_API_KEY);if(p==="SKYLINK")return Boolean(env.SKYLINK_API_KEY);if(p==="OPENSKY")return Boolean(env.OPENSKY_CLIENT_ID&&env.OPENSKY_CLIENT_SECRET);if(p==="AERODATABOX")return Boolean(env.AERODATABOX);return false}
-function attempted(x,p){if(p.startsWith("OAG_"))return Boolean(clean(x.oagH2LastCheckedAt)||clean(x.oagLastCheckedAt)||clean(x.oagCoverageCheckedDate));if(p==="AIRLABS")return Boolean(clean(x.airlabsRecoveryLastCheckedAt)||clean(x.airlabsLastCheckedAt)||clean(x.airlabsRegBatchCheckedAt));if(p==="SKYLINK")return Boolean(clean(x.skylinkRecoveryLastCheckedAt)||clean(x.entAliasLastCheckedAt));if(p==="OPENSKY")return Boolean(clean(x.openSkyLastSeenAt)||clean(x.openSkyAirborneConfirmedAt));if(p==="AERODATABOX")return Boolean(clean(x.aeroDataBoxLastCheckedAt));return false}
+function attempted(x,p){if(p==="CDGBOARD")return Boolean(clean(x.cdgboardLastCheckedAt));if(p==="FR24API")return Boolean(clean(x.fr24apiLastCheckedAt)||clean(x.fr24apiAtaCheckedAt));if(p.startsWith("OAG_"))return Boolean(clean(x.oagH2LastCheckedAt)||clean(x.oagLastCheckedAt)||clean(x.oagCoverageCheckedDate));if(p==="AIRLABS")return Boolean(clean(x.airlabsRecoveryLastCheckedAt)||clean(x.airlabsLastCheckedAt)||clean(x.airlabsRegBatchCheckedAt));if(p==="SKYLINK")return Boolean(clean(x.skylinkRecoveryLastCheckedAt)||clean(x.entAliasLastCheckedAt));if(p==="OPENSKY")return Boolean(clean(x.openSkyLastSeenAt)||clean(x.openSkyAirborneConfirmedAt));if(p==="AERODATABOX")return Boolean(clean(x.aeroDataBoxLastCheckedAt));return false}
+// Les API payantes vol par vol ne passent qu'APRÈS les sources groupées (tableau CDG, FR24 en lot) : vol déjà vu par l'une d'elles sans que le champ soit rempli,
+// ou vol hors de leur portée (parti depuis plus de ~2 h, ou pas de source groupée configurée).
+const PAID_RELAY=new Set(["SERPAPI","FLIGHTRADAR1","FLIGHTRADAR8","AVIATIONDATA"]);
+function batchRelayOpen(env,x,d){
+  const batch=["CDGBOARD","FR24API"].filter(q=>available(env,q));
+  if(!batch.length)return true;
+  return batch.some(q=>attempted(x,q))||d<=-120;
+}
 function providerEligible(env,p,x,d){
   if(!available(env,p))return false;
+  if(PAID_RELAY.has(p)&&!batchRelayOpen(env,x,d))return false;
   if(p==="OAG_SCHEDULE"||p==="OAG_STATUS"||p==="AIRLABS"||p==="OPENSKY"||p==="QUARK")return true;
   if(p==="FR24DEP")return d<=30&&d>=-1800;   // rattrapage groupé : tous les départs de CDG déjà partis ou sur le point de partir
   if(p==="FLIGHTRADAR1"||p==="FLIGHTRADAR8")return d<=30&&d>=-360;   // fiche « live » : vol en l'air, immatriculation + type d'appareil réel
   if(p==="FLIGHTERA")return d<=0||(d<=1440&&!clean(x.sta));   // vol parti, ou vol du jour sans STA (aucun autre fournisseur ne la donne)   // dès l'heure de départ passée : ATD/ATA réels en un seul appel
   if(p==="SERPAPI")return d<=120&&d>=-120;   // vols proches du départ : ETD / ATD / ETA réels (Google, source Cirium)
   if(p==="FR24API")return d<=0&&d>=-1080;   // vol en l'air : ETA, immatriculation, type (appel groupé)
-  if(p==="CDGBOARD")return d<=85&&d>=-45;   // départs de CDG dans la fenêtre du tableau : ETD / ATD / ETA / ATA / porte en un appel
+  if(p==="CDGBOARD")return d<=55&&d>=-105;   // départs de CDG dans la fenêtre du tableau : ETD / ATD / ETA / ATA / porte en un appel
   if(p==="KAYAK")return d<=0;   // vol parti : ATD / ATA / ETA réels en un appel (rattrapage, comme Flightera)
   if(p==="AVIATIONDATA")return d<=0&&(attempted(x,"OAG_STATUS")||attempted(x,"AIRLABS")||attempted(x,"SKYLINK"));   // last resort, flight already scheduled to have departed
   if(p==="SKYLINK")return d<=30||attempted(x,"OAG_STATUS")||attempted(x,"OAG_SCHEDULE")||attempted(x,"AIRLABS")||attempted(x,"OPENSKY");

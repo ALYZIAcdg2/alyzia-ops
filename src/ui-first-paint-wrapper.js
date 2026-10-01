@@ -8,6 +8,7 @@ import {runKayakQueue} from "./kayak-queue-runner.js";
 import {runSerpapiQueue} from "./serpapi-queue-runner.js";
 import {runFr24ApiQueue} from "./fr24api-queue-runner.js";
 import {runCdgBoardQueue} from "./cdgboard-queue-runner.js";
+import {installCircuit} from "./provider-circuit.js";
 import {runFlightradar1Queue,runFlightradar8Queue} from "./flightradar1-queue-runner.js";
 import {handleOpenSkyIngest} from "./opensky-live-wrapper.js";
 
@@ -51,6 +52,7 @@ async function adminPushNow(request,env,ctx){
 
 export default {
   async fetch(request,env,ctx){
+    installCircuit(env);
     const denied=guardApi(request,env);
     if(denied)return denied;
     // Page finale fabriquée au déploiement (scripts/bake-html.mjs) : servie telle quelle, sans repasser par les wrappers.
@@ -84,6 +86,7 @@ export default {
     return new Response(patch(html),{status:response.status,statusText:response.statusText,headers});
   },
   scheduled(controller,env,ctx){
+    installCircuit(env);
     if(typeof providerPolicyScheduler.scheduled==='function')return providerPolicyScheduler.scheduled(controller,env,ctx);
     if(typeof app.scheduled==='function')return app.scheduled(controller,env,ctx);
   }

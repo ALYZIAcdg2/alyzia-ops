@@ -5,16 +5,17 @@ import {providerPause,recordProviderResult} from "./provider-errors.js";
 import {kayakKey,parseKayak} from "./kayak-queue-runner.js";
 
 // Tableau des départs de CDG (Kayak5 / RapidAPI) : GET /api/v1/flights/track/airport?airport=cdg&query_type=departure&datetime_str=AAAAMMJJ-HH:MM (UTC)&jitter=<minutes>&limit=100
-// UN appel renvoie tous les départs de CDG dans la fenêtre (≈ 40 vols pour ±70 min) avec heure de porte (ETD/ATD), ETA/ATA, porte et statut (S/A/L/C).
+// UN appel renvoie tous les départs de CDG dans la fenêtre (≈ 40-60 vols pour ~170 min) avec heure de porte (ETD/ATD), ETA/ATA, porte et statut (S/A/L/C).
 // Même quota RapidAPI que KAYAK (200 appels/mois) : les deux fournisseurs se partagent MONTH_CAP_TOTAL.
 const PROVIDER="CDGBOARD";
 const SHARED=["KAYAK","CDGBOARD"];
 const HOST="kayak5.p.rapidapi.com";
 const DAY_CAP=5;
-const MONTH_CAP_TOTAL=170;       // plan 200/mois, marge pour les essais manuels
-const MIN_GAP_MIN=60;
-const JITTER=70;                 // minutes de part et d'autre du centre de la fenêtre
-const CENTER_AHEAD_MIN=20;       // fenêtre = de -50 min à +90 min autour de l'heure actuelle
+const MONTH_CAP_TOTAL=155;       // plan 200/mois (Kayak vol par vol désactivé) : 5 appels/jour x 31, marge pour les essais manuels
+const MIN_GAP_MIN=165;           // 5 appels répartis de ~06 h à ~20 h : chaque départ est vu une fois, juste après son décollage
+const JITTER=85;                 // minutes de part et d'autre du centre de la fenêtre
+const CENTER_AHEAD_MIN=-25;      // fenêtre = de -110 min à +60 min autour de l'heure actuelle : surtout des ATD réels, plus les ETD imminents
+export const BOARD_WINDOW={from:CENTER_AHEAD_MIN-JITTER,to:CENTER_AHEAD_MIN+JITTER};
 const LIMIT=100;
 const MAX_PAGES=2;
 const FIELDS=["sta","atd","ata","etd","eta","gate"];
@@ -99,7 +100,7 @@ export async function runCdgBoardQueue(env){
     let x={};try{x=JSON.parse(row.data_json||"{}")}catch{}
     if(stopAll(x))continue;
     const d=delta(row.flight_date,x.std||row.std,now),needs=buildNeeds(x,d);
-    if(d>CENTER_AHEAD_MIN+JITTER-5||d<-(JITTER-CENTER_AHEAD_MIN)+5)continue;   // dans la fenêtre du tableau
+    if(d>BOARD_WINDOW.to-5||d<BOARD_WINDOW.from+5)continue;   // dans la fenêtre du tableau
     if(!FIELDS.some(f=>allowed.has(f)&&(needs[f]||(f==="ata"&&needs.ata_late))))continue;
     wanted.push({row,x,allowed,d,key:flightKey(x,row)});
   }
@@ -116,15 +117,14 @@ export async function runCdgBoardQueue(env){
   if(!all.length)return {ok:Boolean(last?.ok),status:last?.status,calls,error:last?.error};
   const board=indexBoard(all),items=[];
   for(const z of wanted){
-    const f=board.find(z.key);if(!f)continue;
-    const data=parseKayak({flights:[normalizeStatus(f)]},z.row.flight_date,"CDG",z.x.std||z.row.std);
-    if(!data)continue;
+    const f=board.find(z.key),data=f?parseKayak({flights:[normalizeStatus(f)]},z.row.flight_date,"CDG",z.x.std||z.row.std):null;
     const changed=[];
-    for(const fld of FIELDS)if(z.allowed.has(fld)&&apply(z.x,fld,data[fld],at))changed.push(fld);
-    z.x.cdgboardLastCheckedAt=at;
-    if(changed.length){
+    if(data)for(const fld of FIELDS)if(z.allowed.has(fld)&&apply(z.x,fld,data[fld],at))changed.push(fld);
+    z.x.cdgboardLastCheckedAt=at;   // vu (ou non trouvé) par le tableau : les API payantes vol par vol prennent le relais
+    if(f&&!data)z.x.cdgboardMismatchAt=at;
+    {
       await env.OPS_DB.prepare(`UPDATE flights SET data_json=?,updated_at=CURRENT_TIMESTAMP WHERE identity=?`).bind(JSON.stringify(z.x),z.row.identity).run();
-      items.push({flight:z.key,changed});
+      if(changed.length)items.push({flight:z.key,changed});
     }
   }
   return {ok:true,calls,board:all.length,wanted:wanted.length,processed:items.length,items};

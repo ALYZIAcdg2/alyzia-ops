@@ -1,3 +1,4 @@
+import {dayBudget} from "./day-budget.js";
 import openSkyLive from "./opensky-live-wrapper.js";
 import {quotaPlan} from "./oag-quota.js";
 import {queuedFieldMap} from "./provider-queue-authority.js";
@@ -43,7 +44,7 @@ async function fillToday(env){
   const airlabsAuthority=await queuedFieldMap(env,"AIRLABS",date),oagAuthority=await queuedFieldMap(env,"OAG_SCHEDULE",date);
   let calls=0,applied=0,before=await usageTotal(env);
   if(env.AIRLABS_API_KEY&&airlabsAuthority.size){
-    const limit=Number(env.AIRLABS_MONTHLY_LIMIT||1000),reserve=Number(env.AIRLABS_MONTHLY_RESERVE||180),budget=Math.max(0,limit-reserve-before),maxCalls=Math.min(10,budget);
+    const limit=Number(env.AIRLABS_MONTHLY_LIMIT||1000),reserve=Number(env.AIRLABS_MONTHLY_RESERVE||180),budget=Math.max(0,limit-reserve-before),dayLeft=(await dayBudget(env,"AIRLABS",limit-reserve,0.5)).left,maxCalls=Math.min(10,budget,dayLeft);
     const groups=new Map();for(const z of fresh){if(!airlabsAuthority.get(z.row.identity)?.has("sta"))continue;const key=routeKey(z.x,z.row);if(!key.startsWith("|"))groups.set(key,z)}
     for(const [key,z] of groups){
       if(calls>=maxCalls)break;const old=await env.OPS_DB.prepare(`SELECT sta,checked_at,status FROM flight_route_schedule_cache WHERE route_key=?`).bind(key).first();

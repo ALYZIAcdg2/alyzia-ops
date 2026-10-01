@@ -9,7 +9,7 @@ import {providerPause,recordProviderResult} from "./provider-errors.js";
 const PROVIDER="SERPAPI";
 const HOST="serpapi.com";
 const MAX_PER_RUN=1;             // cron toutes les 5 min
-const DAY_CAP=6;
+const DAY_CAP=7;
 const MONTH_CAP=215;            // 250 recherches/mois, marge pour les essais
 const COOLDOWN_MIN=45;           // par vol
 const MAX_ATTEMPTS_PER_FLIGHT=3;

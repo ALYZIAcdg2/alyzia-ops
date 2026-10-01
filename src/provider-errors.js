@@ -3,6 +3,11 @@
 const PAUSE_MS=3*3600*1000;
 const DOWN_PAUSE_MS=30*60*1000;
 const clean=v=>String(v??"").trim();
+// Un 429 « quota mensuel » ne se lève pas avant le 1er du mois (UTC) ; un autre 429 (débit) : 2 h.
+export function rateLimitUntil(now,message){
+  if(/month/i.test(String(message||"")))return Date.UTC(now.getUTCFullYear(),now.getUTCMonth()+1,1);
+  return now.getTime()+2*3600*1000;
+}
 const keyTag=key=>{const k=clean(key);return k?k.slice(-4):""};
 async function ensure(env){await env.OPS_DB.prepare(`CREATE TABLE IF NOT EXISTS ops_meta(k TEXT PRIMARY KEY,v TEXT)`).run()}
 function messageOf(payload){
@@ -26,9 +31,9 @@ export async function recordProviderResult(env,provider,status,payload,key){
   try{
     await ensure(env);const k="provider_err:"+provider;
     if(status>=200&&status<300){await env.OPS_DB.prepare(`DELETE FROM ops_meta WHERE k=?`).bind(k).run();return}
-    // 401/403 : pause de 3 h (clé ou abonnement refusé) ; 5xx : pause de 30 min (fournisseur en panne) ; 429 : message seulement.
+    // 401/403 : pause de 3 h (clé ou abonnement refusé) ; 5xx : pause de 30 min (fournisseur en panne) ; 429 : pause 2 h, ou jusqu'au 1er du mois suivant si le message parle de quota mensuel.
     if(![401,403,429].includes(status)&&!(status>=500&&status<600))return;
-    const now=new Date(),pause=status>=500?DOWN_PAUSE_MS:PAUSE_MS,v={status,message:messageOf(payload)||("HTTP "+status+" (réponse vide ou illisible)"),at:now.toISOString(),keyTag:keyTag(key),until:status===429?"":new Date(now.getTime()+pause).toISOString()};
+    const now=new Date(),pause=status>=500?DOWN_PAUSE_MS:PAUSE_MS,v={status,message:messageOf(payload)||("HTTP "+status+" (réponse vide ou illisible)"),at:now.toISOString(),keyTag:keyTag(key),until:new Date(status===429?rateLimitUntil(now,messageOf(payload)):now.getTime()+pause).toISOString()};
     await env.OPS_DB.prepare(`INSERT INTO ops_meta(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v`).bind(k,JSON.stringify(v)).run();
   }catch(_){}
 }

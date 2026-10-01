@@ -1,3 +1,4 @@
+import {dayBudget} from "./day-budget.js";
 import app from "./operational-state-wrapper.js";
 import {paceRoom} from "./budget-pace.js";
 import {recordProviderState} from "./provider-state.js";
@@ -91,6 +92,7 @@ async function airlabsRecovery(env,rows,now,yesterday){
   if(!authority.size)return {ok:true,skipped:"AIRLABS_QUEUE_VIDE"};
   const lane="AIRLABS_LIVE_RECOVERY",u=await usageLane(env,lane),total=await usageTotal(env,"AIRLABS"),limit=Number(env.AIRLABS_MONTHLY_LIMIT||1000),reserve=Number(env.AIRLABS_MONTHLY_RESERVE||180);
   if(total>=Math.max(0,limit-reserve))return {ok:true,skipped:"AIRLABS_QUOTA_RESERVE",total};
+  if((await dayBudget(env,"AIRLABS",limit-reserve)).left<=0)return {ok:true,skipped:"AIRLABS_PLAFOND_JOUR",total};
   const candidates=rows.filter(z=>authority.has(z.row.identity)&&z.d<=180&&z.d>=-1800&&!isFinal(z.x)&&liveIncomplete(z.x));
   if(!candidates.length)return {ok:true,skipped:"AIRLABS_LIVE_AUCUN_VOL_QUEUE"};
   const urgent=candidates.some(z=>z.d<=30&&z.d>=-360&&(missing(z.x.atd)||missing(z.x.etd)||missing(z.x.gate)||missing(z.x.reg)||missing(z.x.ata)));
@@ -144,16 +146,16 @@ async function skylinkRecovery(env,rows,now,yesterday){
   if(!authority.size)return {ok:true,skipped:"SKYLINK_QUEUE_VIDE"};
   const lane="SKYLINK_LIVE_RECOVERY",u=await usageLane(env,lane),total=await usageTotal(env,"SKYLINK"),limit=Number(env.SKYLINK_MONTHLY_LIMIT||1000),reserve=Number(env.SKYLINK_MONTHLY_RESERVE||220);
   if(total>=Math.max(0,limit-reserve))return {ok:true,skipped:"SKYLINK_QUOTA_RESERVE",total};
-  // Cadence 10 min, jusqu'à 3 vols par passage (avant : 1 vol / 30 min, trop lent pour rattraper les ATD manquants), plafond 40 appels/jour.
-  if(u.day>=40)return {ok:true,skipped:"SKYLINK_PLAFOND_JOUR",day:u.day};
-  const paceLeft=paceRoom(u.day,40,now.minutes);   // budget étalé sur la journée (voir budget-pace.js)
+  // Cadence 10 min, jusqu'à 3 vols par passage (avant : 1 vol / 30 min, trop lent pour rattraper les ATD manquants), plafond 32 appels/jour (1000/mois / 31).
+  if(u.day>=32)return {ok:true,skipped:"SKYLINK_PLAFOND_JOUR",day:u.day};
+  const paceLeft=paceRoom(u.day,32,now.minutes);   // budget étalé sur la journée (voir budget-pace.js)
   if(paceLeft<=0)return {ok:true,skipped:"SKYLINK_RYTHME",day:u.day};
   if(!globalThis.__ALYZIA_MANUAL_PUSH&&ageMs(u.lastAt)<10*60000)return {ok:true,skipped:"SKYLINK_LIVE_CADENCE"};
   const candidates=rows.filter(z=>authority.has(z.row.identity)&&z.d<=120&&z.d>=-1800&&!isFinal(z.x)&&liveIncomplete(z.x)&&ageMs(z.x.skylinkRecoveryLastCheckedAt)>=30*60000).sort((a,b)=>priority(a)-priority(b)||Math.abs(a.d)-Math.abs(b.d));
   if(!candidates.length)return {ok:true,skipped:"SKYLINK_LIVE_AUCUN_VOL_QUEUE"};
   const base=clean(env.SKYLINK_BASE_URL)||"https://data.skylinkapi.com/v2",headers={Accept:"application/json","x-api-key":env.SKYLINK_API_KEY};
   const results=[];
-  for(const z of candidates.slice(0,Math.min(3,40-u.day,paceLeft))){
+  for(const z of candidates.slice(0,Math.min(3,32-u.day,paceLeft))){
     const flight=flightKey(z.x,z.row);if(!flight){results.push({ok:false,error:"SKYLINK_IDENTITE_INCOMPLETE"});continue}
     let r;try{r=await fetch(`${base.replace(/\/$/,"")}/flight_status/${encodeURIComponent(flight)}`,{headers})}catch(e){await bump(env,lane,502);results.push({ok:false,status:502,error:String(e?.message||e),flight});break}
     await bump(env,lane,r.status);const payload=await r.json().catch(()=>null),at=new Date().toISOString();z.x.skylinkRecoveryLastCheckedAt=at;z.x.skylinkRecoveryLastStatus=r.status;

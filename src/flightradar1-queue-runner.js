@@ -13,7 +13,7 @@ const CONFIGS={
   FLIGHTRADAR8:{PROVIDER:"FLIGHTRADAR8",HOST:"flight-radar8.p.rapidapi.com",slot:1,fields:["reg","atd","ata","etd","eta","sta","gate"],atd:true,details:true,detailPath:"/flights/details",prefix:"flightradar8",keyEnv:"FLIGHTRADAR8_RAPIDAPI_KEY"}
 };
 const MAX_PER_RUN=1;
-const DAY_CAP=25;
+const DAY_CAP=14;
 const MONTH_CAP=430;            // plan 500/mois, marge pour les essais
 const COOLDOWN_MIN=60;          // par vol
 const MAX_ATTEMPTS_PER_FLIGHT=4;
