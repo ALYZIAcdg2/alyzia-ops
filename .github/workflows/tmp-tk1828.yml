@@ -1,0 +1,28 @@
+name: tmp tk1828
+on:
+  push:
+    paths: [".github/workflows/tmp-tk1828.yml"]
+permissions:
+  contents: write
+jobs:
+  v:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - env:
+          TOK: ${{ secrets.FR24API_TOKEN }}
+        run: |
+          U=https://alyzia-ops.alyzia-cdg2.workers.dev
+          echo MARK-TK1828-1 > out.txt
+          curl -sS -m 60 "$U/api/flights" -o f.json
+          node -e '
+          const j=require("./f.json");const t=new Date().toISOString().slice(0,10);
+          for(const x of (j.flights||[]).filter(x=>String(x.flight).toUpperCase()==="TK1828"&&x.date>=t.slice(0,8)+"01")){
+            console.log("=====",x.date,x.flight,x.std,x.origin||"",x.dest||x.destination||"");
+            for(const k of ["aircraft","aircraftImported","aircraftActual","aircraftActualSource","aircraftChange","aircraftChangeNoCabinConfig","aircraftChangeCabinApplied","sariaConfigKey","sariaCabinConfig","config","reg","regSource","cabinConfigAuto","aircraftSource"])console.log(k,"=",JSON.stringify(x[k]));
+            for(const l of (x.flightInfoLog||[]).filter(l=>/aircraft|reg|sariaConfig/i.test(l.field)).slice(0,12))console.log("LOG",JSON.stringify(l))}' >> out.txt
+          echo "--- FR24 summary" >> out.txt
+          D=$(date -u +%Y-%m-%d)
+          curl -sS -m 40 -A "curl/8.5.0" -H "Accept: application/json" -H "Accept-Version: v1" -H "Authorization: Bearer $TOK" "https://fr24api.flightradar24.com/api/flight-summary/light?flights=TK1828&flight_datetime_from=${D}T00:00:00&flight_datetime_to=${D}T23:59:59" >> out.txt; echo >> out.txt
+          git config user.name v && git config user.email v@v
+          git checkout --orphan verify-out && git rm -rfq . 2>/dev/null; git add -f out.txt && git commit -qm result && git push -f origin verify-out
