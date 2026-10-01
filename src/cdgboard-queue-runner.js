@@ -3,6 +3,8 @@ import {paceRoom} from "./budget-pace.js";
 import {buildNeeds,mayWriteField,stopAll} from "./flight-enrichment-policy.js";
 import {providerPause,recordProviderResult} from "./provider-errors.js";
 import {kayakKey,parseKayak} from "./kayak-queue-runner.js";
+import {noteAndSwitch} from "./aircraft-change.js";
+import {kayakAircraftToIata} from "./kayak-aircraft.js";
 
 // Tableau des départs de CDG (Kayak5 / RapidAPI) : GET /api/v1/flights/track/airport?airport=cdg&query_type=departure&datetime_str=AAAAMMJJ-HH:MM (UTC)&jitter=<minutes>&limit=100
 // UN appel renvoie tous les départs de CDG dans la fenêtre (≈ 40-60 vols pour ~170 min) avec heure de porte (ETD/ATD), ETA/ATA, porte et statut (S/A/L/C).
@@ -18,6 +20,7 @@ const CENTER_AHEAD_MIN=-25;      // fenêtre = de -110 min à +60 min autour de 
 export const BOARD_WINDOW={from:CENTER_AHEAD_MIN-JITTER,to:CENTER_AHEAD_MIN+JITTER};
 const LIMIT=100;
 const MAX_PAGES=2;
+const AC_RECHECK_MIN=150;       // le type d'appareil est recontrôlé à chaque passage du tableau (≥ 150 min)
 const FIELDS=["sta","atd","ata","etd","eta","gate"];
 
 const clean=v=>String(v??"").trim();
@@ -88,7 +91,6 @@ export async function runCdgBoardQueue(env){
   if(pause.paused&&!globalThis.__ALYZIA_MANUAL_PUSH)return {ok:true,skipped:"CDGBOARD_PAUSE_"+pause.status,until:pause.until,message:pause.message};
   const maps=await Promise.all([queuedFieldMap(env,PROVIDER,now.date),queuedFieldMap(env,PROVIDER,yesterday)]),authority=new Map();
   for(const map of maps)for(const [id,fields] of map){if(!authority.has(id))authority.set(id,new Set());for(const f of fields)authority.get(id).add(f)}
-  if(!authority.size)return {ok:true,skipped:"CDGBOARD_QUEUE_VIDE"};
   const u=await usage(env,now);
   if(u.day>=DAY_CAP||u.month>=MONTH_CAP_TOTAL)return {ok:true,skipped:"CDGBOARD_QUOTA",day:u.day,month:u.month};
   if(!globalThis.__ALYZIA_MANUAL_PUSH&&Date.now()-u.lastAt<MIN_GAP_MIN*60000)return {ok:true,skipped:"CDGBOARD_INTERVALLE"};
@@ -96,12 +98,15 @@ export async function runCdgBoardQueue(env){
   const {results=[]}=await env.OPS_DB.prepare(`SELECT identity,flight_date,airline,flight_number,std,data_json FROM flights WHERE flight_date IN (?,?)`).bind(yesterday,now.date).all();
   const wanted=[];
   for(const row of results){
-    const allowed=authority.get(row.identity);if(!allowed?.size)continue;
+    const allowed=authority.get(row.identity)||new Set();
     let x={};try{x=JSON.parse(row.data_json||"{}")}catch{}
     if(stopAll(x))continue;
     const d=delta(row.flight_date,x.std||row.std,now),needs=buildNeeds(x,d);
     if(d>BOARD_WINDOW.to-5||d<BOARD_WINDOW.from+5)continue;   // dans la fenêtre du tableau
-    if(!FIELDS.some(f=>allowed.has(f)&&(needs[f]||(f==="ata"&&needs.ata_late))))continue;
+    // Champs manquants, ou type d'appareil pas encore vérifié contre le tableau (le tableau donne l'appareil réel AVANT le départ).
+    const needsFields=FIELDS.some(f=>allowed.has(f)&&(needs[f]||(f==="ata"&&needs.ata_late)));
+    const needsAircraft=d>-45&&(Date.now()-(Date.parse(clean(x.cdgboardAcCheckedAt))||0))>AC_RECHECK_MIN*60000;
+    if(!needsFields&&!needsAircraft)continue;
     wanted.push({row,x,allowed,d,key:flightKey(x,row)});
   }
   if(!wanted.length)return {ok:true,skipped:"CDGBOARD_RIEN_A_FAIRE"};
@@ -122,6 +127,9 @@ export async function runCdgBoardQueue(env){
     if(data)for(const fld of FIELDS)if(z.allowed.has(fld)&&apply(z.x,fld,data[fld],at))changed.push(fld);
     z.x.cdgboardLastCheckedAt=at;   // vu (ou non trouvé) par le tableau : les API payantes vol par vol prennent le relais
     if(f&&!data)z.x.cdgboardMismatchAt=at;
+    // Appareil réel annoncé par le tableau (ex. "Airbus A330-300" -> 333) : bascule type + config si différent de l'import.
+    const acCode=f?kayakAircraftToIata(f.aircraft):"";
+    if(acCode){z.x.cdgboardAcCheckedAt=at;if(await noteAndSwitch(env,z.x,acCode,PROVIDER,at))changed.push("aircraft")}
     {
       await env.OPS_DB.prepare(`UPDATE flights SET data_json=?,updated_at=CURRENT_TIMESTAMP WHERE identity=?`).bind(JSON.stringify(z.x),z.row.identity).run();
       if(changed.length)items.push({flight:z.key,changed});
