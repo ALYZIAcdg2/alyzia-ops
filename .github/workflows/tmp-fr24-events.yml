@@ -1,0 +1,46 @@
+name: tmp fr24 events
+on:
+  push:
+    paths: [".github/workflows/tmp-fr24-events.yml"]
+permissions:
+  contents: write
+jobs:
+  v:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - env:
+          TOK: ${{ secrets.FR24API_TOKEN }}
+        run: |
+          U=https://alyzia-ops.alyzia-cdg2.workers.dev
+          echo "MARK-EVT-1" > out.txt
+          curl -sS -m 60 "$U/api/flights" -o f.json
+          python3 - <<'P' >> out.txt
+          import json,datetime,subprocess,os,time
+          t=datetime.datetime.utcnow().strftime("%Y-%m-%d")
+          fl=[x for x in json.load(open("f.json")).get("flights",[]) if x.get("date")==t and x.get("ata") and x.get("ata")!="—" and x.get("atd") and x.get("atd")!="—"]
+          names=[]
+          for x in fl:
+            n=x.get("flight","")
+            if n and n not in names: names.append(n)
+          names=[n.replace("ENT","E4") for n in names][:8]
+          print("vols testés:",names)
+          H=["-A","curl/8.5.0","-H","Accept: application/json","-H","Accept-Version: v1","-H","Authorization: Bearer "+os.environ["TOK"]]
+          def get(u):
+            r=subprocess.run(["curl","-sS","-m","40"]+H+[u],capture_output=True,text=True);return r.stdout
+          b="https://fr24api.flightradar24.com/api/"
+          s=json.loads(get(b+"flight-summary/light?flights="+",".join(names)+"&flight_datetime_from="+t+"T00:00:00&flight_datetime_to="+t+"T23:59:59") or "{}")
+          ids=[]
+          for d in s.get("data",[]):
+            if d.get("orig_icao")=="LFPG" or d.get("orig_iata")=="CDG":
+              ids.append(d["fr24_id"]);print("SUM",d.get("flight"),d["fr24_id"],"takeoff",d.get("datetime_takeoff"),"landed",d.get("datetime_landed"))
+          time.sleep(8)
+          if ids:
+            e=json.loads(get(b+"historic/flight-events/full?flight_ids="+",".join(ids[:6])+"&event_types=gate_departure,takeoff,landed,gate_arrival") or "{}")
+            for d in e.get("data",[]):
+              print("EVT",d.get("fr24_id"),[(v["type"],v["timestamp"][11:16]) for v in d.get("events",[])])
+            if not e.get("data"): print("RAW",json.dumps(e)[:400])
+          P
+          cat out.txt
+          git config user.name v && git config user.email v@v
+          git checkout --orphan verify-out && git rm -rfq . 2>/dev/null; git add -f out.txt && git commit -qm result && git push -f origin verify-out
