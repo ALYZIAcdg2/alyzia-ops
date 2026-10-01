@@ -9,13 +9,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: |
-          U=https://alyzia-ops.alyzia-cdg2.workers.dev
-          echo MARK-PTK-5 > out.txt
-          curl -sS -m 60 "$U/api/flights" -o f.json
-          node -e '
-          const j=require("./f.json");const d=new Date().toISOString().slice(0,10);
-          for(const x of (j.flights||[]).filter(x=>x.date===d&&x.flight==="TK1828")){for(const k of ["std","atd","etd","aircraft","aircraftActual","aircraftChange","cdgboardLastCheckedAt","cdgboardAcCheckedAt","cdgboardMismatchAt","fr24apiLastCheckedAt","status"])console.log(k,"=",JSON.stringify(x[k])); console.log((x.flightInfoLog||[]).slice(0,6).map(l=>JSON.stringify(l)).join("\n"))}
-          const c=(j.flights||[]).filter(x=>x.date===d&&x.cdgboardLastCheckedAt).length;console.log("vols vus par CDGBOARD:",c,"avec cdgboardAcCheckedAt:",(j.flights||[]).filter(x=>x.date===d&&x.cdgboardAcCheckedAt).length)' >> out.txt
+      - env:
+          K: ${{ secrets.RAPIDAPI_PROBE_KEY }}
+        run: |
+          echo MARK-PTK-6 > out.txt
+          NOW=$(date -u -d "-25 minutes" +%Y%m%d-%H:%M)
+          for off in 0 100; do
+            curl -sS -m 40 -H "x-rapidapi-key: $K" -H "x-rapidapi-host: kayak5.p.rapidapi.com" "https://kayak5.p.rapidapi.com/api/v1/flights/track/airport?limit=100&offset=$off&jitter=85&query_type=departure&datetime_str=$NOW&airport=cdg" -o b$off.json
+            python3 - $off >> out.txt <<'P'
+          import json,sys
+          j=json.load(open("b"+sys.argv[1]+".json"))
+          print("offset",sys.argv[1],{k:j.get(k) for k in ("count","total","hasMore")})
+          for x in j.get("flights",[]):
+            op=x.get("operatingFlight") or {}
+            if x["flightNumber"]=="1828" or op.get("flightNumber")=="1828":
+              print("ENTRY",x["airlineCode"]+x["flightNumber"],"op",op,"aircraft",repr(x.get("aircraft")),"status",x.get("statusCode"))
+          print("sans aircraft:",sum(1 for x in j.get("flights",[]) if not x.get("aircraft")),"/",len(j.get("flights",[])))
+          P
+          done
           git config user.name v && git config user.email v@v
           git checkout --orphan verify-out && git rm -rfq . 2>/dev/null; git add -f out.txt && git commit -qm result && git push -f origin verify-out
