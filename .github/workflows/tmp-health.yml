@@ -1,0 +1,31 @@
+name: tmp health
+on:
+  push:
+    paths: [".github/workflows/tmp-health.yml"]
+permissions:
+  contents: write
+jobs:
+  v:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          U=https://alyzia-ops.alyzia-cdg2.workers.dev
+          echo MARK-HEALTH-1 > out.txt
+          for p in / /api/flights /api/admin/flight-processing /api/admin/provider-observability /api/weather?ids=CDG; do curl -sS -m 40 -o /dev/null -w "$p HTTP %{http_code} %{time_total}s %{size_download}B\n" "$U$p" >> out.txt; done
+          curl -sS -m 60 "$U/api/flights" -o f.json
+          curl -sS -m 60 "$U/api/admin/provider-observability" -o o.json
+          python3 - >> out.txt <<'P'
+          import json,datetime
+          f=json.load(open("f.json")).get("flights",[]);o=json.load(open("o.json"))
+          t=(datetime.datetime.utcnow()+datetime.timedelta(hours=2)).strftime("%Y-%m-%d")
+          fl=[x for x in f if x.get("date")==t]
+          print("vols du jour",len(fl),"total",len(f))
+          for x in fl:
+            if x.get("flight")=="TK1828": print("TK1828",x.get("aircraft"),x.get("aircraftChange"),x.get("status"),x.get("atd"),x.get("etd"),x.get("sariaConfigKey"))
+          print("changements d'appareil du jour:",[(x["flight"],x["aircraft"],(x.get("aircraftChange") or {}).get("source")) for x in fl if x.get("aircraftChange")])
+          for r in o.get("rows",[]):
+            if r["provider"] in("CDGBOARD","FR24API","KAYAK","OAG"): print(r["provider"],"appels",r.get("performed"),"ok",r.get("successes"),"err",r.get("errors"),"last",r.get("lastStatus"),(r.get("state") or {}).get("label","")[:80],"ERR",r.get("lastError"))
+          P
+          git config user.name v && git config user.email v@v
+          git checkout --orphan verify-out && git rm -rfq . 2>/dev/null; git add -f out.txt && git commit -qm result && git push -f origin verify-out
