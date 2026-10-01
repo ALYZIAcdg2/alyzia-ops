@@ -13,8 +13,7 @@ function alyziaDurationCacheKey(x){
   ].join('|').toUpperCase();
 }
 // Durée théorique = STD -> STA (sans tenir compte de l'ATD/ATA). Sert à estimer l'ETA d'un vol parti : ETA = ATD + durée théorique.
-function alyziaTheoreticalDurationMinutes(x){return alyziaAutoDurationMinutes(Object.assign({},x,{atd:'',ata:''}))}
-function alyziaDurationKind(x){return x&&String(x.atd||'').trim()&&String(x.ata||'').trim()?'RÉEL':'THÉORIQUE'}
+function alyziaTheoreticalDurationMinutes(x){return alyziaAutoDurationMinutes(Object.assign({},x,{atd:'',ata:'',eta:''}))}
 function alyziaEstimatedEta(x){
   try{
     const m=String(x&&x.atd||'').trim().match(/^(\d{1,2}):(\d{2})/);if(!m)return '';
@@ -35,13 +34,17 @@ function alyziaAutoDurationMinutes(x){
   let depOff=NaN,arrOff=NaN;
   try{depOff=Number(TZ[depAirport]);arrOff=Number(TZ[arrAirport])}catch(e){}
   if(Number.isFinite(depOff)&&Number.isFinite(arrOff)){
-    for(const [d,a] of [[x&&x.atd,x&&x.ata],[x&&x.std,x&&x.sta]]){
-      const dm=hm(d),am=hm(a);
-      if(dm==null||am==null)continue;
-      let minutes=Math.round((am-arrOff*60)-(dm-depOff*60));
-      minutes=((minutes%1440)+1440)%1440;
-      if(minutes>0&&minutes<24*60){ALYZIA_DURATION_CACHE.set(key,minutes);return minutes}
+    const span=(d,a)=>{const dm=hm(d),am=hm(a);if(dm==null||am==null)return null;let m=Math.round((am-arrOff*60)-(dm-depOff*60));m=((m%1440)+1440)%1440;return m>0&&m<24*60?m:null};
+    const theo=span(x&&x.std,x&&x.sta);
+    // Meilleure durée disponible : réelle (ATD->ATA), sinon estimée (ATD->ETA), sinon théorique (STD->STA).
+    // Les écarts aberrants (> 2 h avec la durée théorique) sont ignorés : donnée fournisseur douteuse.
+    for(const [d,a,checked] of [[x&&x.atd,x&&x.ata,false],[x&&x.atd,x&&x.eta,true]]){
+      const m=span(d,a);
+      if(m==null)continue;
+      if(checked&&theo!=null&&Math.abs(m-theo)>120)continue;
+      ALYZIA_DURATION_CACHE.set(key,m);return m;
     }
+    if(theo!=null){ALYZIA_DURATION_CACHE.set(key,theo);return theo}
   }
   const existing=Number(x&&x.duration);
   if(Number.isFinite(existing)&&existing>0){const value=Math.round(existing);ALYZIA_DURATION_CACHE.set(key,value);return value}

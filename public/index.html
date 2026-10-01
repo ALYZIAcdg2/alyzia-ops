@@ -1540,7 +1540,6 @@ body{
 .flight-head .flight-id-with-logo{flex-wrap:wrap;row-gap:8px}
 .flight-head .fh-flight-time{display:flex;align-items:baseline;gap:8px;font-size:18px;line-height:1.1;color:#0b1830;white-space:nowrap}
 .flight-head .fh-flight-time b{font-weight:950;color:#000;letter-spacing:.01em}
-.flight-head .fh-ft-tag{font-style:normal;font-size:11px;font-weight:900;color:#6b7c93;background:#eef3f9;border-radius:999px;padding:2px 8px;align-self:center}
 .flight-head .fh-flight-time span{font-weight:950;color:#0b1830;font-variant-numeric:tabular-nums}
 @media(max-width:700px){.flight-head .fh-flight-time{font-size:19px}}
 @media(min-width:1000px) and (max-width:1400px){.flight-head .fh-id{flex-basis:430px!important}}
@@ -15794,7 +15793,7 @@ function render(){
     <div class="fh-id-meta">${x.airline} · AIRLINE · ${formatDateLong(x.activeDate||HOME_DATE||selectedDate)}</div>
     <div class="flight-id-with-logo">${airlineLogo(x.airline,'large')}<div class="flight-number">${x.flight}</div>${typeof homeFlightNoteCount==='function'&&homeFlightNoteCount(x)>0?`<button type="button" class="fh-note-bell" title="${homeFlightNoteCount(x)} note(s)" onclick="openCombinedNotes()"><span class="home-note-bell">🔔</span><span class="home-note-count">${homeFlightNoteCount(x)}</span></button>`:''}</div>
     <div class="route">${x.dep}<span class="arrow">→</span>${x.dest}</div>
-    ${durationText(x.duration)!=='—'?`<div class="fh-flight-time" title="Durée théorique = STA − STD ; remplacée par la durée réelle (ATA − ATD) à l'arrivée"><b>TEMPS DE VOL :</b><span>${durationText(x.duration)}</span><em class="fh-ft-tag">${typeof alyziaDurationKind==='function'?alyziaDurationKind(x):''}</em></div>`:''}
+    ${durationText(x.duration)!=='—'?`<div class="fh-flight-time" title="Durée calculée d'après les horaires : STA − STD, ajustée avec l'ATD, l'ETA puis l'ATA"><b>TEMPS DE VOL :</b><span>${durationText(x.duration)}</span></div>`:''}
     <div class="fh-chips"><button type="button" class="fh-chip" onclick="v5009EditHeaderField('gate')" title="Modifier la gate"><i>GATE</i><b>${x.gate||'—'}</b></button><span class="fh-chip fh-chip-static"><i>A/C</i><b>${x.aircraft||'—'}</b></span><button type="button" class="fh-chip" onclick="v5009EditHeaderField('reg')" title="Modifier l'immatriculation"><i>IMMAT</i><b>${x.reg||'—'}</b></button></div>
    </div>
    <div class="fh-stat">
