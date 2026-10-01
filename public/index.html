@@ -21388,7 +21388,7 @@ function sariaAircraftSelectHtml(x){
  return `<div class="saria-ac-wrap">
    <button type="button" class="v5008-aircraft-button" onclick="v5008OpenAircraftChooser()"><b>${escapeHtml(cur)}</b><span>⌄</span></button>
    ${x.aircraftChange?`<div class="ac-change-line" style="font-size:12px;font-weight:900;color:#b3261e;margin:2px 0 1px">${escapeHtml(x.aircraftChange.from)} → ${escapeHtml(x.aircraftChange.to)}</div>`:''}
-   <div class="saria-cabin-mini ${sariaSelectedEntry(x)?'':'missing'}">${sariaSelectedEntry(x)?'✓ ':'⚠ '}${sariaCabinLabel(x)}</div>
+   ${x.aircraftChange&&x.aircraftChangeNoCabinConfig&&String(x.aircraft||'').toUpperCase()!==String(x.aircraftChange.to).toUpperCase()?`<div class="saria-cabin-mini missing">⚠ AUCUN PLAN POUR ${escapeHtml(x.aircraftChange.to)} · CONFIG ${escapeHtml(x.aircraftChange.from)} AFFICHÉE</div>`:`<div class="saria-cabin-mini ${sariaSelectedEntry(x)?'':'missing'}">${sariaSelectedEntry(x)?'✓ ':'⚠ '}${sariaCabinLabel(x)}</div>`}
    <div class="cabin-actions-row"><button type="button" class="cabin-plan-open-btn cabin-seatmap-open-btn" onclick="openSeatmap()">▦ SEATMAP</button>${SHOW_PLAN_CABINE_BUTTON?`<button type="button" class="cabin-plan-open-btn" onclick="openCabinPlan()">▦ PLAN CABINE</button>`:''}<button type="button" class="cabin-inop-open-btn" onclick="openInopSeat()">⚠ SEAT INOP${(x.inopSeats||[]).filter(r=>r.status==='NOK').length?` · ${(x.inopSeats||[]).filter(r=>r.status==='NOK').length}`:''}</button></div>
  </div>`;
 }

@@ -13,7 +13,10 @@ const ICAO_TO_IATA={
   AT72:"AT7",AT75:"AT7",AT76:"AT7",DH8D:"DH4",CRJ7:"CR7",CRJ9:"CR9",CRJX:"CRK",BCS1:"221",BCS3:"223",
 };
 // Codes IATA d'équipement considérés comme le MÊME appareil (variantes winglets / sièges). 32N (A320neo) et 32Q (A321neo) restent distincts.
-const STRICT=[["738","73H","73W","73J"],["320","32A"],["321","32S"],["7M8","38M"]];
+const STRICT=[["738","73H","73W","73J","7S8"],["320","32A"],["321","32S","32B"],["7M8","38M"],["763","76W"],["32Q","N32"]];
+// Codes sous lesquels le catalogue cabines peut ranger le même appareil (ex. LY enregistre son 777-200 en « 777 » alors que le type réel remonte « 772 »).
+const CONFIG_ALIASES={"772":["777"],"777":["772"],"32Q":["N32"],"N32":["32Q"],"321":["32B","32S"],"32B":["321"],"32S":["321"],"763":["76W"],"76W":["763"],"738":["73H","7S8"],"73H":["738"],"7S8":["738"]};
+export function configCodes(code){const c=upper(code);return c?[c,...(CONFIG_ALIASES[c]||[])]:[]}
 
 export function toIata(raw){
   const v=upper(raw);if(!v)return "";

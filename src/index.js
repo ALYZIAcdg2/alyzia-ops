@@ -1,3 +1,4 @@
+import {sameAircraft,configCodes} from "./aircraft-change.js";
 // ALYZIA OPS V50.30 R22.6 — BJ/VF SHA DEDUPE + CANONICAL RELINK · based on R22.5/R3.13
 // Read-only bridge plan for one SQ flight/date. SQ/TK/BJ/VF/TW parsers unchanged.
 // V50.28 RULE: INC/INCARRIAGE = INBOUND PAX; INBOUND SUMMARY = FLIGHT METADATA; route inbound terminates at main origin (CDG).
@@ -202,7 +203,16 @@ async function findAutoCabinConfig(env,airline,aircraft,flightNumber){
   }catch(e){
     return null; // table cabine pas encore prête : pas d'auto-injection, pas d'erreur
   }
-  return pickAutoCabinConfigFromRows(results,airline,aircraft,flightNumber);
+  const direct=pickAutoCabinConfigFromRows(results,airline,aircraft,flightNumber);
+  if(direct)return direct;
+  // Aucun plan sous ce code : essaie les codes équivalents du catalogue (772 -> 777, 32Q -> N32…).
+  for(const alt of configCodes(ac).slice(1)){
+    let rows=[];
+    try{const r=await env.OPS_DB.prepare(`SELECT config_key,airline,aircraft,configuration,total,classes_json,quality FROM cabin_configs WHERE airline=? AND aircraft=?`).bind(al,alt).all();rows=r?.results||[]}catch(e){return null}
+    const hit=pickAutoCabinConfigFromRows(rows,airline,alt,flightNumber);
+    if(hit)return hit;
+  }
+  return null;
 }
 
 function normalizedAutoCabinClasses(row){
@@ -323,6 +333,25 @@ async function catchUpEntAircraft(env){
     }
     return n;
   }catch(e){console.warn("ENT CATCH-UP",e);return 0}
+}
+
+// Rattrapage (cron) : vols avec changement d'appareil dont le plan du type réel n'avait pas été trouvé (avant les équivalences 772 -> 777…) ou dont les deux types sont en fait équivalents.
+async function catchUpAircraftChanges(env){
+  try{
+    const y=new Date(Date.now()-86400000).toISOString().slice(0,10);
+    const {results=[]}=await env.OPS_DB.prepare(`SELECT identity,data_json FROM flights WHERE flight_date>=? AND json_extract(data_json,'$.aircraftChange') IS NOT NULL AND json_extract(data_json,'$.aircraftAliasRetry') IS NULL`).bind(y).all();
+    let n=0;
+    for(const row of results){
+      let x;try{x=JSON.parse(row.data_json||"{}")}catch{continue}
+      x.aircraftAliasRetry=1;
+      const actual=x.aircraftActual||x.aircraftChange?.to,src=x.aircraftActualSource||x.aircraftChange?.source||"CATCHUP",at=new Date().toISOString();
+      if(x.aircraftChange&&x.aircraftChange.from&&sameAircraft(x.aircraftChange.from,x.aircraftChange.to)){delete x.aircraftChange;delete x.aircraftChangeNoCabinConfig}
+      else if(x.aircraftChange){delete x.aircraftChangeNoCabinConfig;delete x.aircraftChangeCabinApplied;await applyCabinConfigForActualAircraft(env,x)}
+      await env.OPS_DB.prepare(`UPDATE flights SET data_json=?,updated_at=CURRENT_TIMESTAMP WHERE identity=?`).bind(JSON.stringify(x),row.identity).run();
+      n++;
+    }
+    return n;
+  }catch(e){console.warn("AIRCRAFT CATCH-UP",e);return 0}
 }
 
 async function upsertFlight(env,x){
@@ -13568,10 +13597,11 @@ export default {
   async scheduled(controller,env,ctx){
     ctx.waitUntil((async()=>{
       await catchUpEntAircraft(env);
+      await catchUpAircraftChanges(env);
       const result=await lot5AutoPilotRun(env,{triggerType:"CRON"});
       if(!result?.ok)console.error("ALYZIA LOT5 AUTO PILOT",result?.error||result);
     })());
   }
 };
 
-export {catchUpEntAircraft,normalizeEntAircraft}; // pour les tests
+export {catchUpEntAircraft,catchUpAircraftChanges,normalizeEntAircraft}; // pour les tests
