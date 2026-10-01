@@ -39,7 +39,7 @@ function providerEligible(env,p,x,d){
   if(p==="FLIGHTERA")return d<=0||(d<=1440&&!clean(x.sta));   // vol parti, ou vol du jour sans STA (aucun autre fournisseur ne la donne)   // dès l'heure de départ passée : ATD/ATA réels en un seul appel
   if(p==="SERPAPI")return d<=120&&d>=-120;   // vols proches du départ : ETD / ATD / ETA réels (Google, source Cirium)
   if(p==="FR24API")return d<=0&&d>=-1080;   // vol en l'air : ETA, immatriculation, type (appel groupé)
-  if(p==="CDGBOARD")return d<=55&&d>=-105;   // départs de CDG dans la fenêtre du tableau : ETD / ATD / ETA / ATA / porte en un appel
+  if(p==="CDGBOARD")return d<=85&&d>=-105;   // départs de CDG dans la fenêtre du tableau : ETD / ATD / ETA / ATA / porte en un appel
   if(p==="KAYAK")return d<=0;   // vol parti : ATD / ATA / ETA réels en un appel (rattrapage, comme Flightera)
   if(p==="AVIATIONDATA")return d<=0&&(attempted(x,"OAG_STATUS")||attempted(x,"AIRLABS")||attempted(x,"SKYLINK"));   // last resort, flight already scheduled to have departed
   if(p==="SKYLINK")return d<=30||attempted(x,"OAG_STATUS")||attempted(x,"OAG_SCHEDULE")||attempted(x,"AIRLABS")||attempted(x,"OPENSKY");

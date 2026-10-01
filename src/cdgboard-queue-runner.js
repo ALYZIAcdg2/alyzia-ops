@@ -15,8 +15,8 @@ const HOST="kayak5.p.rapidapi.com";
 const DAY_CAP=5;
 const MONTH_CAP_TOTAL=155;       // plan 200/mois (Kayak vol par vol désactivé) : 5 appels/jour x 31, marge pour les essais manuels
 const MIN_GAP_MIN=165;           // 5 appels répartis de ~06 h à ~20 h : chaque départ est vu une fois, juste après son décollage
-const JITTER=85;                 // minutes de part et d'autre du centre de la fenêtre
-const CENTER_AHEAD_MIN=-25;      // fenêtre = de -110 min à +60 min autour de l'heure actuelle : surtout des ATD réels, plus les ETD imminents
+const JITTER=100;                 // minutes de part et d'autre du centre de la fenêtre
+const CENTER_AHEAD_MIN=-10;      // fenêtre = de -110 min à +90 min autour de l'heure actuelle : surtout des ATD réels, plus les ETD imminents (le tableau classe selon l'heure ESTIMÉE : un vol retardé de 30 min doit rester dans la fenêtre)
 export const BOARD_WINDOW={from:CENTER_AHEAD_MIN-JITTER,to:CENTER_AHEAD_MIN+JITTER};
 const LIMIT=100;
 const MAX_PAGES=2;
@@ -102,8 +102,8 @@ export async function runCdgBoardQueue(env){
     const allowed=authority.get(row.identity)||new Set();
     let x={};try{x=JSON.parse(row.data_json||"{}")}catch{}
     if(stopAll(x))continue;
-    const d=delta(row.flight_date,x.std||row.std,now),needs=buildNeeds(x,d);
-    if(d>BOARD_WINDOW.to-5||d<BOARD_WINDOW.from+5)continue;   // dans la fenêtre du tableau
+    const d=delta(row.flight_date,x.std||row.std,now),needs=buildNeeds(x,d),dEff=delta(row.flight_date,/^\d{2}:\d{2}$/.test(clean(x.atd))?x.atd:(/^\d{2}:\d{2}$/.test(clean(x.etd))?x.etd:(x.std||row.std)),now);
+    if(dEff>BOARD_WINDOW.to-5||dEff<BOARD_WINDOW.from+5)continue;   // le tableau classe les vols par heure de porte estimée / réelle   // dans la fenêtre du tableau
     // Champs manquants, ou type d'appareil pas encore vérifié contre le tableau (le tableau donne l'appareil réel AVANT le départ).
     const needsFields=FIELDS.some(f=>allowed.has(f)&&(needs[f]||(f==="ata"&&needs.ata_late)));
     const needsAircraft=d>-45&&(Date.now()-(Date.parse(clean(x.cdgboardAcCheckedAt))||0))>AC_RECHECK_MIN*60000;

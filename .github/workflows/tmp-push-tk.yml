@@ -9,23 +9,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - env:
-          K: ${{ secrets.RAPIDAPI_PROBE_KEY }}
-        run: |
-          echo MARK-PTK-6 > out.txt
-          NOW=$(date -u -d "-25 minutes" +%Y%m%d-%H:%M)
-          for off in 0 100; do
-            curl -sS -m 40 -H "x-rapidapi-key: $K" -H "x-rapidapi-host: kayak5.p.rapidapi.com" "https://kayak5.p.rapidapi.com/api/v1/flights/track/airport?limit=100&offset=$off&jitter=85&query_type=departure&datetime_str=$NOW&airport=cdg" -o b$off.json
-            python3 - $off >> out.txt <<'P'
-          import json,sys
-          j=json.load(open("b"+sys.argv[1]+".json"))
-          print("offset",sys.argv[1],{k:j.get(k) for k in ("count","total","hasMore")})
-          for x in j.get("flights",[]):
-            op=x.get("operatingFlight") or {}
-            if x["flightNumber"]=="1828" or op.get("flightNumber")=="1828":
-              print("ENTRY",x["airlineCode"]+x["flightNumber"],"op",op,"aircraft",repr(x.get("aircraft")),"status",x.get("statusCode"))
-          print("sans aircraft:",sum(1 for x in j.get("flights",[]) if not x.get("aircraft")),"/",len(j.get("flights",[])))
-          P
-          done
+      - run: |
+          U=https://alyzia-ops.alyzia-cdg2.workers.dev
+          echo MARK-PTK-7 > out.txt
+          sleep 100
+          for i in 1 2 3 4 5 6; do R=$(curl -sS -m 60 -X POST "$U/api/admin/push-now"); echo "$R" >> out.txt; echo "$R" | grep -q TROP_RAPIDE || break; sleep 35; done
+          sleep 3
+          curl -sS -m 60 "$U/api/flights" -o f.json
+          node -e '
+          const j=require("./f.json");const d=new Date().toISOString().slice(0,10);
+          for(const x of (j.flights||[]).filter(x=>x.date===d&&(x.flight==="TK1828"||(x.aircraftChange&&x.aircraftChange.source==="CDGBOARD")))) console.log(x.flight,"aircraft",x.aircraft,"change",JSON.stringify(x.aircraftChange),"key",x.sariaConfigKey,"cfg",JSON.stringify(x.config))' >> out.txt
           git config user.name v && git config user.email v@v
           git checkout --orphan verify-out && git rm -rfq . 2>/dev/null; git add -f out.txt && git commit -qm result && git push -f origin verify-out
