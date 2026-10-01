@@ -59,3 +59,15 @@ test("ETA API peut évoluer avant ATA",()=>{
   const x={atd:"10:11",ata:"",eta:"12:00",etaSource:"OAG_STATUS"};
   assert.equal(mayWriteField(x,"eta","AIRLABS_LIVE_RECOVERY"),true);
 });
+
+test("ETD déjà connu : redemandé quand il date de plus de 30 min, pas avant",async()=>{
+  const {buildNeeds}=await import("./flight-enrichment-policy.js");
+  const recent=new Date(Date.now()-5*60000).toISOString(),old=new Date(Date.now()-40*60000).toISOString();
+  const base={std:"10:00",sta:"12:00",gate:"A1",reg:"F-ABCD"};
+  assert.equal(buildNeeds({...base},60).etd,true);                                              // ETD absent : demandé
+  assert.equal(buildNeeds({...base,etd:"10:30",etdUpdatedAt:recent},60).etd,false);           // ETD récent : pas de nouvel appel
+  assert.equal(buildNeeds({...base,etd:"10:30",etdUpdatedAt:old},60).etd,true);               // ETD périmé : rafraîchi
+  assert.equal(buildNeeds({...base,etd:"10:30"},60).etd,true);                                 // sans horodatage : rafraîchi
+  assert.equal(buildNeeds({...base,etd:"10:30",etdUpdatedAt:old},600).etd,false);             // hors fenêtre (> 4 h) : pas demandé
+  assert.equal(buildNeeds({...base,atd:"10:10",etd:"10:30",etdUpdatedAt:old},-20).etd,false); // déjà parti : plus d'ETD
+});

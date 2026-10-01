@@ -30,6 +30,7 @@ function hhmm(v){const s=clean(v);const m=s.match(/^(\d{2}:\d{2})$/)||s.match(/(
 function localTime(v){if(!v)return "";if(typeof v==="string")return hhmm(v);return hhmm(first(v.local,v.localTime,v.dateTimeLocal,v.utc,v.dateTimeUtc))}
 function safeAircraft(v){const x=upper(v);return /^[A-Z0-9]{3}$/.test(x)?x:""}
 function ageMs(v){const t=Date.parse(clean(v)||0)||0;return t?Date.now()-t:Infinity}
+const etdStale=x=>Boolean(clean(x.etd||x.edt))&&!clean(x.atd)&&ageMs(x.etdUpdatedAt)>=30*60000; // ETD connu mais vieux de 30 min : à rafraîchir (le retard évolue)
 function isFinalComplete(x){return /CANCEL/i.test(upper(x.status))||Boolean(clean(x.atd)&&clean(x.ata))}
 function arrivalDelta(x,now){
   const h=hm(x.eta||x.sta);if(h==null)return null;
@@ -143,7 +144,7 @@ function needsOag(x,d,now){
   // nothing today. Do not spend more credits retrying the same missing record.
   if(Number(x.oagLastStatus)===404&&clean(x.oagCoverageCheckedDate)===now.date)return false;
   const gap=oagGapMinutes(x,d,now);if(gap==null)return false;
-  const missingSta=!clean(x.sta),missingEstimate=!clean(x.etd)&&!clean(x.atd)||!clean(x.eta)&&!clean(x.ata);
+  const missingSta=!clean(x.sta),missingEstimate=!clean(x.etd)&&!clean(x.atd)||!clean(x.eta)&&!clean(x.ata)||etdStale(x);
   const missingActual=d<=60&&(!clean(x.atd)||d<0&&!clean(x.ata));
   const useful=missingSta||missingEstimate||missingActual;
   if(!useful)return false;

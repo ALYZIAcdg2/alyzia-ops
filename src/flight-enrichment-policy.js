@@ -37,6 +37,9 @@ export function flightComplete(x={}){
 }
 export function stopAll(x={}){return isCancelled(x)||flightComplete(x)}
 
+const ageMs=v=>{const t=Date.parse(clean(v))||0;return t?Date.now()-t:Infinity};
+// Un ETD déjà connu peut encore évoluer (le retard s'aggrave ou se résorbe) : on le re-demande quand il date de plus de 30 min.
+export const ETD_REFRESH_MIN=30;
 function inWindow(d,[min,max]){return Number.isFinite(d)&&d>=min&&d<=max}
 function minuteOfDay(v){const m=clean(v).match(/^(\d{2}):(\d{2})$/);return m?Number(m[1])*60+Number(m[2]):null}
 function minuteDelta(a,b){const x=minuteOfDay(a),y=minuteOfDay(b);if(x==null||y==null)return 0;let d=y-x;if(d<-720)d+=1440;if(d>720)d-=1440;return d}
@@ -61,7 +64,7 @@ export function buildNeeds(x={},d=99999){
   const needs={
     std:isMissing(x.std),
     sta:isMissing(x.sta),
-    etd:!departed&&isMissing(x.etd)&&inWindow(d,FIELD_MATRIX.etd.window),
+    etd:!departed&&inWindow(d,FIELD_MATRIX.etd.window)&&((isMissing(x.etd)&&isMissing(x.edt))||ageMs(x.etdUpdatedAt)>=ETD_REFRESH_MIN*60000),
     eta:departed&&!arrived&&isMissing(x.eta)&&inWindow(d,FIELD_MATRIX.eta.window),
     // A provider status is evidence, not the final timestamp: keep chasing ATD until ATD exists.
     atd:isMissing(x.atd)&&(departed||atdWindow),

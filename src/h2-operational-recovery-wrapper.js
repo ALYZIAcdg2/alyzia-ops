@@ -7,6 +7,7 @@ const upper=v=>clean(v).toUpperCase();
 const missing=v=>!clean(v)||["—","-","N/A","NULL"].includes(upper(v));
 const hhmm=v=>{const s=clean(v),m=s.match(/^(\d{2}:\d{2})$/)||s.match(/(?:T|\s)(\d{2}:\d{2})/);return m?m[1]:""};
 const ageMs=v=>{const t=Date.parse(clean(v)||0)||0;return t?Date.now()-t:Infinity};
+const etdStale=x=>Boolean(clean(x.etd||x.edt))&&!clean(x.atd)&&ageMs(x.etdUpdatedAt)>=30*60000; // ETD connu mais vieux de 30 min : à rafraîchir (le retard évolue)
 const first=(...xs)=>{for(const x of xs){const v=clean(x);if(v)return v}return ""};
 
 function parisDateAt(ms){const p=new Intl.DateTimeFormat("fr-CA",{timeZone:"Europe/Paris",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date(ms)),m=Object.fromEntries(p.map(x=>[x.type,x.value]));return `${m.year}-${m.month}-${m.day}`}
@@ -44,9 +45,9 @@ async function recoverH2(env){
     let x={};try{x=JSON.parse(row.data_json||"{}")}catch{}
     const d=delta(row.flight_date,x.std||row.std,now);if(d>120||d<-1800||isFinal(x))continue;
     const allowed=authority.get(row.identity)||new Set();
-    const departedGap=allowed.has("atd")&&missing(x.atd),arrivalGap=allowed.has("ata")&&missing(x.ata),nearGap=d>0&&((allowed.has("etd")&&missing(x.etd))||(allowed.has("gate")&&missing(x.gate)));
+    const departedGap=allowed.has("atd")&&missing(x.atd),arrivalGap=allowed.has("ata")&&missing(x.ata),nearGap=d>0&&((allowed.has("etd")&&(missing(x.etd)||etdStale(x)))||(allowed.has("gate")&&missing(x.gate)));
     if(!departedGap&&!arrivalGap&&!nearGap&&!(allowed.has("eta")&&missing(x.eta)))continue;
-    const cadence=(arrivalGap||departedGap)?15:60;if(ageMs(x.oagH2LastCheckedAt)<cadence*60000)continue;
+    const cadence=(arrivalGap||departedGap)?15:(etdStale(x)?30:60);if(ageMs(x.oagH2LastCheckedAt)<cadence*60000)continue;
     if(Number(x.oagLastStatus)===404&&Number(x.oagH2NotFoundAttempts||0)>=2)continue;
     const prio=departedGap?0:arrivalGap?1:2;candidates.push({row,x,d,prio,allowed});
   }

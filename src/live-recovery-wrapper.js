@@ -7,6 +7,7 @@ const upper=v=>clean(v).toUpperCase();
 const missing=v=>!clean(v)||["—","-","N/A","NULL"].includes(upper(v));
 const hhmm=v=>{const s=clean(v),m=s.match(/^(\d{2}:\d{2})$/)||s.match(/(?:T|\s)(\d{2}:\d{2})/);return m?m[1]:""};
 const ageMs=v=>{const t=Date.parse(clean(v)||0)||0;return t?Date.now()-t:Infinity};
+const etdStale=x=>Boolean(clean(x.etd||x.edt))&&!clean(x.atd)&&ageMs(x.etdUpdatedAt)>=30*60000; // ETD connu mais vieux de 30 min : à rafraîchir (le retard évolue)
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 
 function parisDateAt(ms){const p=new Intl.DateTimeFormat("fr-CA",{timeZone:"Europe/Paris",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date(ms)),m=Object.fromEntries(p.map(x=>[x.type,x.value]));return `${m.year}-${m.month}-${m.day}`}
@@ -21,12 +22,12 @@ function isFinal(x){const s=upper(x.status||x.opsStatus||x.flight_status);return
 function providerCarrier(v){const c=upper(v);return c==="ENT"?"E4":c}
 function flightNo(v,carrier=""){let s=upper(v),c=upper(carrier);if(c&&s.startsWith(c))s=s.slice(c.length);else s=s.replace(/^[A-Z]{2,3}/,"");const m=s.match(/(\d+[A-Z]?)$/);return m?m[1]:s}
 function flightKey(x,row){const stored=upper(x.airline||row.airline),carrier=providerCarrier(stored),n=flightNo(x.flight||row.flight_number,stored);return carrier&&n?carrier+n:""}
-function liveIncomplete(x){return missing(x.atd)||missing(x.ata)||missing(x.etd)||missing(x.eta)||missing(x.gate)||missing(x.reg)}
+function liveIncomplete(x){return etdStale(x)||missing(x.atd)||missing(x.ata)||missing(x.etd)||missing(x.eta)||missing(x.gate)||missing(x.reg)}
 function priority(z){
   if(missing(z.x.atd)&&z.d<=-30)return 0;
   if(missing(z.x.atd)&&z.d<=0)return 1;
   if(missing(z.x.ata))return 2;
-  if(z.d<=120&&missing(z.x.etd))return 3;
+  if(z.d<=120&&(missing(z.x.etd)||etdStale(z.x)))return 3;
   if(z.d<=120&&(missing(z.x.gate)||missing(z.x.reg)))return 4;
   if(missing(z.x.eta))return 5;
   return 9;
