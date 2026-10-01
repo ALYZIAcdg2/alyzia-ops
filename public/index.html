@@ -1538,6 +1538,11 @@ body{
 #app .flight-head .fh-id>.fh-chips{grid-column:2;grid-row:2 / span 3;flex-direction:column;align-items:stretch;align-self:center;justify-self:end}
 #app .flight-head .fh-id>.flight-detail-status-wrap{grid-column:1 / -1}
 .flight-head .flight-id-with-logo{flex-wrap:wrap;row-gap:8px}
+.flight-head .fh-flight-time{display:flex;align-items:baseline;gap:8px;font-size:18px;line-height:1.1;color:#0b1830;white-space:nowrap}
+.flight-head .fh-flight-time b{font-weight:950;color:#000;letter-spacing:.01em}
+.flight-head .fh-flight-time span{font-weight:950;color:#0b1830;font-variant-numeric:tabular-nums}
+@media(max-width:700px){.flight-head .fh-flight-time{font-size:19px}}
+@media(min-width:1000px) and (max-width:1400px){.flight-head .fh-id{flex-basis:430px!important}}
 .cabin-actions-row .cabin-seatmap-open-btn{flex:1 1 0}
 .fh-chips{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .fh-chip{display:inline-flex;align-items:baseline;gap:6px;background:#f3f6fa;border:1px solid #e1e9f2;border-radius:999px;padding:5px 12px;font-family:inherit;cursor:pointer;white-space:nowrap}
@@ -15787,7 +15792,8 @@ function render(){
    <div class="fh-id">
     <div class="fh-id-meta">${x.airline} · AIRLINE · ${formatDateLong(x.activeDate||HOME_DATE||selectedDate)}</div>
     <div class="flight-id-with-logo">${airlineLogo(x.airline,'large')}<div class="flight-number">${x.flight}</div>${typeof homeFlightNoteCount==='function'&&homeFlightNoteCount(x)>0?`<button type="button" class="fh-note-bell" title="${homeFlightNoteCount(x)} note(s)" onclick="openCombinedNotes()"><span class="home-note-bell">🔔</span><span class="home-note-count">${homeFlightNoteCount(x)}</span></button>`:''}</div>
-    <div class="route">${x.dep}<span class="arrow">→</span>${x.dest}${durationText(x.duration)!=='—'?`<span class="route-dur" title="Durée de vol calculée d'après les horaires">◷ ${durationText(x.duration)}</span>`:''}</div>
+    <div class="route">${x.dep}<span class="arrow">→</span>${x.dest}</div>
+    ${durationText(x.duration)!=='—'?`<div class="fh-flight-time" title="Durée de vol calculée d'après les horaires"><b>TEMPS DE VOL :</b><span>${durationText(x.duration)}</span></div>`:''}
     <div class="fh-chips"><button type="button" class="fh-chip" onclick="v5009EditHeaderField('gate')" title="Modifier la gate"><i>GATE</i><b>${x.gate||'—'}</b></button><span class="fh-chip fh-chip-static"><i>A/C</i><b>${x.aircraft||'—'}</b></span><button type="button" class="fh-chip" onclick="v5009EditHeaderField('reg')" title="Modifier l'immatriculation"><i>IMMAT</i><b>${x.reg||'—'}</b></button></div>
    </div>
    <div class="fh-stat">
@@ -30122,7 +30128,32 @@ body:not(.has-flight-sheet) .top-back-btn{display:none!important}
  }
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
 })();</script>
-<div style="text-align:center;padding:14px 10px;font-size:11px;color:#8fa0b3">Texte de test — bas de page ALYZIA OPS</div>
+<style id="alyzia-topbar-fixed-css">
+/* En-tête (ALYZIA OPS + RETOUR + horloge) toujours visible : fixe, et la page est décalée de sa hauteur (sticky ne tient pas sous iOS quand html/body ont overflow-x:hidden). */
+:root{--topbar-h:58px}
+html body .topbar{position:fixed!important;top:0!important;left:0!important;right:0!important;width:100%!important;z-index:5000!important}
+html body{padding-top:var(--topbar-h)!important}
+/* « clip » ne crée pas de conteneur de défilement (hidden en créait un, source de saccades sur iOS) */
+@supports (overflow:clip){html,body{overflow-x:clip!important}}
+@media(max-width:900px){
+ html body .mobile-bottom-nav{-webkit-backdrop-filter:none!important;backdrop-filter:none!important;background:#fff!important}
+}
+@media(max-width:700px){
+ html body .topbar{padding:0 10px!important;gap:6px!important}
+ html body .topbar .brand{font-size:16px!important;gap:6px!important;flex:0 1 auto;min-width:0;white-space:nowrap}
+ html body .topbar .brand-logo{width:30px!important;height:30px!important;font-size:15px!important}
+ html body .top-right{gap:5px!important}
+ html body .top-right .top-back-btn.flight-back-btn{padding:0 8px!important;font-size:11px!important;height:32px!important}
+ html body .top-right .clock{display:inline-flex!important;align-items:center;font-size:0!important;margin:0 2px 0 0!important}
+ html body .top-right .clock #topClock{display:inline!important;font-size:12px!important;font-weight:900;color:#075fd3;letter-spacing:-.2px;font-variant-numeric:tabular-nums}
+}
+@media(max-width:380px){
+ html body .topbar .brand-logo{display:none!important}
+}
+</style>
+<script id="alyzia-topbar-fixed-js">(()=>{const bar=()=>document.querySelector('.topbar');const set=()=>{const b=bar();if(!b)return;const h=Math.round(b.getBoundingClientRect().height);if(h>0)document.documentElement.style.setProperty('--topbar-h',h+'px')};
+set();window.addEventListener('resize',set,{passive:true});window.addEventListener('orientationchange',set,{passive:true});window.addEventListener('load',set);
+try{const b=bar();if(b&&window.ResizeObserver)new ResizeObserver(set).observe(b)}catch(e){}})();</script>
 </body></html>
 <!-- V50.03: cloud status is debounced; 3 startup retries; transient sync failures no longer force immediate local mode. -->
 <!-- V50.0: generic airline PREPA engine + airline profiles; SQ/TK/BJ parser semantics unchanged. -->
