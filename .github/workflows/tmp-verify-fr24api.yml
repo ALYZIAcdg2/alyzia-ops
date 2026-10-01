@@ -13,8 +13,8 @@ jobs:
           TOK: ${{ secrets.FR24API_TOKEN }}
         run: |
           U=https://alyzia-ops.alyzia-cdg2.workers.dev
-          echo "MARK-FR24API-1" > out.txt
-          curl -sS -m 60 -X POST "$U/api/admin/push-now" >> out.txt; echo >> out.txt
+          echo "MARK-FR24API-2" > out.txt
+          sleep 90
           sleep 3
           curl -sS -m 60 "$U/api/admin/provider-observability" -o o.json || echo '{}' > o.json
           python3 - >> out.txt <<'P'
