@@ -1532,15 +1532,22 @@ body{
   letter-spacing:-1px;
 }
 .flight-head .route{width:100%}
+#app .flight-head .fh-id{display:grid!important;grid-template-columns:minmax(0,1fr) auto;column-gap:16px;row-gap:8px;align-items:center;justify-items:start;text-align:left}
+#app .flight-head .fh-id>*{grid-column:1;min-width:0}
+#app .flight-head .fh-id>.fh-id-meta{grid-column:1 / -1}
+#app .flight-head .fh-id>.fh-chips{grid-column:2;grid-row:2 / span 3;flex-direction:column;align-items:stretch;align-self:center;justify-self:end}
+#app .flight-head .fh-id>.flight-detail-status-wrap{grid-column:1 / -1}
 .flight-head .flight-id-with-logo{flex-wrap:wrap;row-gap:8px}
-.fh-chips{display:inline-flex;flex-wrap:wrap;gap:6px;align-items:center}
+.cabin-seatmap-open-btn{flex:1 1 0;border:1px solid #0d3f86;background:#0d3f86;color:#fff;border-radius:7px;padding:7px 8px;font-size:9px;font-weight:950;letter-spacing:.02em;cursor:pointer;white-space:nowrap}
+.cabin-seatmap-open-btn:hover{background:#0a3270}
+.fh-chips{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .fh-chip{display:inline-flex;align-items:baseline;gap:6px;background:#f3f6fa;border:1px solid #e1e9f2;border-radius:999px;padding:5px 12px;font-family:inherit;cursor:pointer;white-space:nowrap}
 .fh-chip-static{cursor:default}
 .fh-chip i{font-style:normal;font-size:11px;font-weight:900;color:#607590}
 .fh-chip b{font-size:18px;font-weight:950;color:#0b1830;line-height:1.1}
 .fh-chip:not(.fh-chip-static):hover{border-color:#1680ef;background:#f1f7ff}
-@media(min-width:1000px){.flight-head .fh-id{flex:2 1 400px!important}.fh-chip{padding:4px 10px}.fh-chip b{font-size:17px}}
-.cabin-actions-row{display:flex;gap:6px;margin-top:3px}
+@media(min-width:1000px){.flight-head .fh-id{flex:2 1 400px!important}}
+.cabin-actions-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:3px}
 .cabin-actions-row .cabin-plan-open-btn{margin-top:0;flex:1 1 0}
 .cabin-inop-open-btn{flex:1 1 0;border:1px solid #f0a64a;background:#fff4e2;color:#a85a00;border-radius:7px;padding:7px 8px;font-size:9px;font-weight:950;letter-spacing:.02em;cursor:pointer;white-space:nowrap}
 .cabin-inop-open-btn:hover{background:#ffe9c4}
@@ -15780,8 +15787,9 @@ function render(){
   <div class="fh-row1">
    <div class="fh-id">
     <div class="fh-id-meta">${x.airline} · AIRLINE · ${formatDateLong(x.activeDate||HOME_DATE||selectedDate)}</div>
-    <div class="flight-id-with-logo">${airlineLogo(x.airline,'large')}<div class="flight-number">${x.flight}</div><span class="fh-chips"><button type="button" class="fh-chip" onclick="v5009EditHeaderField('gate')" title="Modifier la gate"><i>GATE</i><b>${x.gate||'—'}</b></button><span class="fh-chip fh-chip-static"><i>A/C</i><b>${x.aircraft||'—'}</b></span><button type="button" class="fh-chip" onclick="v5009EditHeaderField('reg')" title="Modifier l'immatriculation"><i>IMMAT</i><b>${x.reg||'—'}</b></button></span>${typeof homeFlightNoteCount==='function'&&homeFlightNoteCount(x)>0?`<button type="button" class="fh-note-bell" title="${homeFlightNoteCount(x)} note(s)" onclick="openCombinedNotes()"><span class="home-note-bell">🔔</span><span class="home-note-count">${homeFlightNoteCount(x)}</span></button>`:''}</div>
+    <div class="flight-id-with-logo">${airlineLogo(x.airline,'large')}<div class="flight-number">${x.flight}</div>${typeof homeFlightNoteCount==='function'&&homeFlightNoteCount(x)>0?`<button type="button" class="fh-note-bell" title="${homeFlightNoteCount(x)} note(s)" onclick="openCombinedNotes()"><span class="home-note-bell">🔔</span><span class="home-note-count">${homeFlightNoteCount(x)}</span></button>`:''}</div>
     <div class="route">${x.dep}<span class="arrow">→</span>${x.dest}${durationText(x.duration)!=='—'?`<span class="route-dur" title="Durée de vol calculée d'après les horaires">◷ ${durationText(x.duration)}</span>`:''}</div>
+    <div class="fh-chips"><button type="button" class="fh-chip" onclick="v5009EditHeaderField('gate')" title="Modifier la gate"><i>GATE</i><b>${x.gate||'—'}</b></button><span class="fh-chip fh-chip-static"><i>A/C</i><b>${x.aircraft||'—'}</b></span><button type="button" class="fh-chip" onclick="v5009EditHeaderField('reg')" title="Modifier l'immatriculation"><i>IMMAT</i><b>${x.reg||'—'}</b></button></div>
    </div>
    <div class="fh-stat">
     <div class="head-label">STD <button class="edit-link" onclick="openEdit('time')">✎</button></div>
@@ -15891,10 +15899,6 @@ function configCapacityKpi(classes,cap){
      <div class="config-cap-total"><small>CAPACITY</small><strong>${cap}</strong></div>
    </div>
    <div class="inop-wrap">
-     <div class="config-actions">
-       <button class="inop-btn" onclick="openInopSeat()">⚠ INOP SEAT</button>
-       <button class="seatmap-btn" onclick="openSeatmap()">▦ SEATMAP</button>
-     </div>
      <div class="inop-summary"><span>SIÈGES ENREGISTRÉS : ${(x.inopSeats||[]).length}</span><span class="inop-count">NOK : ${nok}</span></div>
      ${(x.inopSeats||[]).length?`<div class="inop-tags">${(x.inopSeats||[]).slice(0,5).map((r,i)=>`<span class="inop-tag ${r.status.toLowerCase()}" onclick="openInopEditor(${i})">${r.seat} · ${r.class} · ${r.status}</span>`).join('')}${x.inopSeats.length>5?`<span class="inop-tag" onclick="openInopSeat()">+${x.inopSeats.length-5}</span>`:''}</div>`:''}
    </div>
@@ -21342,7 +21346,7 @@ function sariaAircraftSelectHtml(x){
  return `<div class="saria-ac-wrap">
    <button type="button" class="v5008-aircraft-button" onclick="v5008OpenAircraftChooser()"><b>${escapeHtml(cur)}</b><span>⌄</span></button>
    <div class="saria-cabin-mini ${sariaSelectedEntry(x)?'':'missing'}">${sariaSelectedEntry(x)?'✓ ':'⚠ '}${sariaCabinLabel(x)}</div>
-   <div class="cabin-actions-row"><button type="button" class="cabin-plan-open-btn" onclick="openCabinPlan()">▦ PLAN CABINE</button><button type="button" class="cabin-inop-open-btn" onclick="openInopSeat()">⚠ SEAT INOP${(x.inopSeats||[]).filter(r=>r.status==='NOK').length?` · ${(x.inopSeats||[]).filter(r=>r.status==='NOK').length}`:''}</button></div>
+   <div class="cabin-actions-row"><button type="button" class="cabin-seatmap-open-btn" onclick="openSeatmap()">▦ SEATMAP</button><button type="button" class="cabin-plan-open-btn" onclick="openCabinPlan()">▦ PLAN CABINE</button><button type="button" class="cabin-inop-open-btn" onclick="openInopSeat()">⚠ SEAT INOP${(x.inopSeats||[]).filter(r=>r.status==='NOK').length?` · ${(x.inopSeats||[]).filter(r=>r.status==='NOK').length}`:''}</button></div>
  </div>`;
 }
 
