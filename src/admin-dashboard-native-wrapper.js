@@ -58,7 +58,7 @@ function quotaLimit(env,key){
   if(key==="FR24DEP")return {period:"month",limit:Number(env.FR24DEP_MONTHLY_LIMIT||500),reserve:Number(env.FR24DEP_MONTHLY_RESERVE||70)};
   if(key==="FLIGHTRADAR8")return {period:"month",limit:Number(env.FLIGHTRADAR8_MONTHLY_LIMIT||500),reserve:Number(env.FLIGHTRADAR8_MONTHLY_RESERVE||70)};
   if(key==="FLIGHTRADAR1")return {period:"month",limit:Number(env.FLIGHTRADAR1_MONTHLY_LIMIT||500),reserve:Number(env.FLIGHTRADAR1_MONTHLY_RESERVE||70)};
-  if(key==="KAYAK")return {period:"month",limit:Number(env.KAYAK_MONTHLY_LIMIT||150),reserve:Number(env.KAYAK_MONTHLY_RESERVE||0)};
+  if(key==="KAYAK")return {period:"month",limit:Number(env.KAYAK_MONTHLY_LIMIT||200),reserve:Number(env.KAYAK_MONTHLY_RESERVE||30)};
   if(key==="FLIGHTERA")return {period:"month",limit:Number(env.FLIGHTERA_MONTHLY_LIMIT||200),reserve:Number(env.FLIGHTERA_MONTHLY_RESERVE||30)};
   if(key==="AVIATIONDATA")return {period:"month",limit:Number(env.AVIATIONDATA_MONTHLY_LIMIT||500),reserve:Number(env.AVIATIONDATA_MONTHLY_RESERVE||100)};
   return {period:"day",limit:Number(env.OPENSKY_DAILY_LIMIT||4000),reserve:0};

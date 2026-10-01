@@ -80,7 +80,7 @@ function timing(provider,q){
     FR24DEP:{min:45,cadence:'1 PASSAGE / 45 MIN · 100 DÉPARTS CDG PAR APPEL · 16 APPELS PAR JOUR',condition:'RATTRAPAGE GROUPÉ ATD / ATA / ETD / ETA / PORTE / IMMAT. + STATUT ANNULÉ'},
     FLIGHTRADAR8:{min:5,cadence:'1 VOL PAR PASSAGE · 25 APPELS PAR JOUR',condition:'VOL EN L\'AIR : ATD / ATA / ETD / ETA / STA / PORTE / IMMAT. / APPAREIL (MOITIÉ DES VOLS)'},
     FLIGHTRADAR1:{min:5,cadence:'1 VOL PAR PASSAGE · 25 APPELS PAR JOUR',condition:'VOL EN L\'AIR : ATD / ATA / ETD / ETA / STA / PORTE / IMMAT. / APPAREIL (MOITIÉ DES VOLS)'},
-    KAYAK:{min:5,cadence:'1 VOL PAR PASSAGE · 20 APPELS PAR JOUR',condition:'DÉPART PASSÉ SANS ATD / ATA · 3 ESSAIS MAX PAR VOL'},
+    KAYAK:{min:5,cadence:'1 VOL PAR PASSAGE · 7 APPELS PAR JOUR',condition:'DÉPART PASSÉ SANS ATD / ATA · 3 ESSAIS MAX PAR VOL'},
     FLIGHTERA:{min:5,cadence:'1 VOL PAR PASSAGE · 10 APPELS PAR JOUR',condition:'DÉPART PASSÉ SANS ATD / ATA · 3 ESSAIS MAX PAR VOL'}
   }[provider]||{min:5,cadence:'SELON LOGIQUE FOURNISSEUR',condition:'SI CANDIDAT'};
   let eligible=cron;if(last&&Number.isFinite(last.getTime())){const e=new Date(last.getTime()+cfg.min*60000);eligible=ceilFive(e>now?e:now)}
