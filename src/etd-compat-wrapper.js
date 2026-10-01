@@ -107,7 +107,7 @@ const OAG_TIMES=String.raw`
       if(!Array.isArray(FLIGHTS))return;
       const x=FLIGHTS[Number(selected)];
       if(!x)return;
-      const atd=time(x,'atd'),ata=time(x,'ata'),etd=time(x,'etd')||(fromAdb(x,'etd')?'':value(x.edt)),eta0=time(x,'eta');
+      const atd=time(x,'atd'),ata=time(x,'ata'),etd=time(x,'etd')||(fromAdb(x,'etd')?'':value(x.edt)),eta0=time(x,'eta')||(atd&&!ata&&typeof alyziaEstimatedEta==='function'?alyziaEstimatedEta(x):'');
       const flown=Boolean(atd||ata);
       for(const section of document.querySelectorAll('.flight-head .fh-stat')){
         const heading=value(section.querySelector('.head-label')?.textContent).toUpperCase();

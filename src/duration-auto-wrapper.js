@@ -12,6 +12,19 @@ function alyziaDurationCacheKey(x){
     String(x&&x.dest||x&&x.destination||'')
   ].join('|').toUpperCase();
 }
+// Durée théorique = STD -> STA (sans tenir compte de l'ATD/ATA). Sert à estimer l'ETA d'un vol parti : ETA = ATD + durée théorique.
+function alyziaTheoreticalDurationMinutes(x){return alyziaAutoDurationMinutes(Object.assign({},x,{atd:'',ata:''}))}
+function alyziaDurationKind(x){return x&&String(x.atd||'').trim()&&String(x.ata||'').trim()?'RÉEL':'THÉORIQUE'}
+function alyziaEstimatedEta(x){
+  try{
+    const m=String(x&&x.atd||'').trim().match(/^(\d{1,2}):(\d{2})/);if(!m)return '';
+    const dur=alyziaTheoreticalDurationMinutes(x);if(!Number.isFinite(dur)||dur<=0)return '';
+    const depAirport=String(x&&x.dep||x&&x.origin||'CDG').trim().toUpperCase(),arrAirport=String(x&&x.dest||x&&x.destination||'').trim().toUpperCase();
+    const depOff=Number(TZ[depAirport]),arrOff=Number(TZ[arrAirport]);if(!Number.isFinite(depOff)||!Number.isFinite(arrOff))return '';
+    let t=(Number(m[1])*60+Number(m[2]))-depOff*60+dur+arrOff*60;t=((Math.round(t)%1440)+1440)%1440;
+    return String(Math.floor(t/60)).padStart(2,'0')+':'+String(t%60).padStart(2,'0');
+  }catch(e){return ''}
+}
 function alyziaAutoDurationMinutes(x){
   // Durée de vol CALCULÉE d'après les horaires : (STA - fuseau arrivée) - (STD - fuseau départ), modulo 24 h.
   // Priorité à la durée réelle (ATD -> ATA) quand les deux sont connus, sinon STD -> STA. La durée enregistrée ne sert que de secours.
