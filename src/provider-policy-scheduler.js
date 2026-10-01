@@ -4,6 +4,7 @@ import {runQuarkQueue} from "./quark-queue-runner.js";
 import {runAviationDataQueue} from "./aviationdata-queue-runner.js";
 import {runFlighteraQueue,flighteraKey} from "./flightera-queue-runner.js";
 import {runKayakQueue,kayakKey} from "./kayak-queue-runner.js";
+import {recordProviderState} from "./provider-state.js";
 import {runFlightradar1Queue,runFlightradar8Queue,frKey} from "./flightradar1-queue-runner.js";
 import {runFr24DepQueue,fr24Key} from "./fr24dep-queue-runner.js";
 import {buildNeeds,neededFields,providerNeeded,stopAll} from "./flight-enrichment-policy.js";
@@ -105,14 +106,15 @@ export default {
     ctx.waitUntil((async()=>{
       try{await refreshProviderQueue(env)}catch(_){}
       if(typeof h2Recovery.scheduled==="function")await h2Recovery.scheduled(controller,env,ctx);
-      try{await runQuarkQueue(env)}catch(_){}
-      try{await runFr24DepQueue(env)}catch(_){}
-      try{await runFlighteraQueue(env)}catch(_){}
-      try{await runKayakQueue(env)}catch(_){}
-      try{await runFlightradar1Queue(env)}catch(_){}
-      try{await runFlightradar8Queue(env)}catch(_){}
-      try{await runAviationDataQueue(env)}catch(_){}
-      try{await runAeroDataBoxQueue(env)}catch(_){}
+      const track=async(name,fn)=>{try{await recordProviderState(env,name,await fn(env))}catch(e){await recordProviderState(env,name,null,e)}};
+      await track("QUARK",runQuarkQueue);
+      await track("FR24DEP",runFr24DepQueue);
+      await track("FLIGHTERA",runFlighteraQueue);
+      await track("KAYAK",runKayakQueue);
+      await track("FLIGHTRADAR1",runFlightradar1Queue);
+      await track("FLIGHTRADAR8",runFlightradar8Queue);
+      await track("AVIATIONDATA",runAviationDataQueue);
+      await track("AERODATABOX",runAeroDataBoxQueue);
     })());
   }
 };

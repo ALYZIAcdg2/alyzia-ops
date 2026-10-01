@@ -1,5 +1,6 @@
 import app from "./operational-state-wrapper.js";
 import {paceRoom} from "./budget-pace.js";
+import {recordProviderState} from "./provider-state.js";
 import {queuedFieldMap} from "./provider-queue-authority.js";
 import {noteAndSwitch} from "./aircraft-change.js";
 
@@ -184,5 +185,5 @@ export default {
     }
     return app.fetch(request,env,ctx);
   },
-  scheduled(controller,env,ctx){ctx.waitUntil((async()=>{try{await recover(env)}catch(_){}if(typeof app.scheduled==="function")await app.scheduled(controller,env,ctx)})())}
+  scheduled(controller,env,ctx){ctx.waitUntil((async()=>{try{const r=await recover(env);await recordProviderState(env,"AIRLABS",r?.airlabs);await recordProviderState(env,"SKYLINK",r?.skylink)}catch(e){await recordProviderState(env,"AIRLABS",null,e)}if(typeof app.scheduled==="function")await app.scheduled(controller,env,ctx)})())}
 };
