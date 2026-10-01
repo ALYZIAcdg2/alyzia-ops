@@ -1,0 +1,60 @@
+name: tmp diag etd
+on:
+  push:
+    paths: [".github/workflows/tmp-diag-etd.yml"]
+permissions:
+  contents: write
+jobs:
+  v:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          U=https://alyzia-ops.alyzia-cdg2.workers.dev
+          : > out.txt
+          T=$(date -u +%F)
+          curl -sS -m 60 "$U/api/admin/provider-observability" -o o.json
+          curl -sS -m 60 --compressed "$U/api/flights?from=$T&to=$T" -o f.json
+          curl -sS -m 60 "$U/api/enrichment/status" -o e.json || true
+          python3 - >> out.txt <<'P'
+          import json,datetime
+          now=datetime.datetime.utcnow()
+          print("UTC now",now.strftime("%H:%M:%S"),"(Paris +2h)")
+          o=json.load(open("o.json"))
+          print("== FOURNISSEURS ==")
+          for r in o.get("rows",[]):
+            e=r.get("lastError")
+            print(r["provider"].ljust(13),"appels",str(r.get("performed")).rjust(3),"HTTP",str(r.get("lastStatus")).ljust(4),"dernier",(r.get("lastAt") or "")[11:19],"attente",r.get("waiting"),"| erreur",(str(e.get("status"))+" jusqu'à "+(e.get("until") or "-")[11:19]) if e else "-")
+          f=json.load(open("f.json"))["flights"]
+          fl=[x for x in f if x.get("flight") and x.get("date")]
+          print("== VOLS DU JOUR ==",len(fl))
+          keys=["oagLastCheckedAt","oagH2LastCheckedAt","airlabsLastCheckedAt","airlabsRecoveryLastCheckedAt","skylinkRecoveryLastCheckedAt","aeroDataBoxLastCheckedAt","flighteraLastCheckedAt","kayakLastCheckedAt","liveLastCheckedAt","fr24LastCheckedAt","openSkyLastSeenAt"]
+          last={}
+          for x in fl:
+            for k in keys:
+              v=x.get(k)
+              if v and (k not in last or v>last[k]): last[k]=v
+          print("dernier contrôle par type (UTC):")
+          for k,v in sorted(last.items()): print("  ",k.ljust(32),v[:19])
+          upd=max((x.get("updatedAt") or "" for x in fl),default="")
+          print("dernière mise à jour de vol:",upd[:19])
+          # ETD : vols partis avec retard >= 5 min : ont-ils un ETD / une source ?
+          def mn(h):
+            try:a,b=h.split(":");return int(a)*60+int(b)
+            except:return None
+          dep=[x for x in fl if x.get("atd") and x.get("std")]
+          late=[x for x in dep if (mn(x["atd"])-mn(x["std"])+720)%1440-720>=5]
+          withetd=[x for x in late if x.get("etd") or x.get("edt")]
+          print("vols partis:",len(dep),"| partis avec >=5 min de retard:",len(late),"| dont un ETD a été enregistré:",len(withetd))
+          print("exemples sans ETD:",[(x["flight"],x["std"],x["atd"]) for x in late if not(x.get("etd") or x.get("edt"))][:8])
+          print("exemples avec ETD:",[(x["flight"],x["std"],x.get("etd") or x.get("edt"),x["atd"],x.get("etdSource")) for x in withetd][:8])
+          print("== PROCHAINS DÉPARTS (STD dans 0-4 h Paris) ==")
+          pn=(now.hour*60+now.minute+120)%1440
+          up=[x for x in fl if not x.get("atd") and x.get("std") and 0<=(mn(x["std"])-pn)<=240]
+          print("nombre:",len(up),"| avec ETD:",len([x for x in up if x.get("etd") or x.get("edt")]))
+          for x in sorted(up,key=lambda z:z["std"])[:10]:
+            print(" ",x["flight"].ljust(8),x["std"],"etd",x.get("etd") or x.get("edt") or "-","statut",x.get("opsStatus") or x.get("status"),"| oag",(x.get("oagLastCheckedAt") or "-")[11:16],"airlabs",(x.get("airlabsLastCheckedAt") or x.get("airlabsRecoveryLastCheckedAt") or "-")[11:16],"sky",(x.get("skylinkRecoveryLastCheckedAt") or "-")[11:16])
+          P
+          cat out.txt
+          git config user.name v && git config user.email v@v
+          git checkout --orphan verify-out && git rm -rfq . 2>/dev/null; git add -f out.txt && git commit -qm result && git push -f origin verify-out
