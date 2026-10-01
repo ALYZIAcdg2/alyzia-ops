@@ -25,10 +25,21 @@ export function describe(m){
   if(/SCT|FEW/.test(cover))return {icon:"⛅",label:"NUAGEUX"};
   return {icon:"☀",label:"DÉGAGÉ"};
 }
-export async function handleWeather(request,ctx){
+// Aéroports absents de la table ICAO ci-dessus : code ICAO lu dans /airports.json (≈ 8 800 aéroports), chargé une fois par instance.
+let EXTRA=null;
+async function extraIcao(env,request,iatas){
+  if(!env?.ASSETS||!iatas.length)return {};
+  try{
+    if(!EXTRA){const r=await env.ASSETS.fetch(new Request(new URL("/airports.json",request.url)));if(!r.ok)return {};EXTRA=await r.json()}
+    const out={};for(const i of iatas){const v=EXTRA[i];if(Array.isArray(v)&&/^[A-Z0-9]{4}$/.test(v[2]||""))out[i]=v[2]}
+    return out;
+  }catch(_){return {}}
+}
+export async function handleWeather(request,ctx,env){
   const url=new URL(request.url);
   const iatas=[...new Set(clean(url.searchParams.get("iata")).toUpperCase().split(",").map(clean).filter(v=>/^[A-Z]{3}$/.test(v)))].slice(0,10);
-  const pairs=iatas.map(i=>[i,ICAO[i]]).filter(p=>p[1]);
+  const extra=await extraIcao(env,request,iatas.filter(i=>!ICAO[i]));
+  const pairs=iatas.map(i=>[i,ICAO[i]||extra[i]]).filter(p=>p[1]);
   const headers={"content-type":"application/json;charset=utf-8","cache-control":"public,max-age=300","access-control-allow-origin":"*"};
   if(!pairs.length)return new Response("{}",{headers});
   const cacheKey=new Request("https://weather.cache/"+pairs.map(p=>p[1]).sort().join(","));

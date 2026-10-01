@@ -68,7 +68,7 @@ export default {
       }
     }
     if(new URL(request.url).pathname==="/api/opensky/ingest")return handleOpenSkyIngest(request,env);
-    if(new URL(request.url).pathname==="/api/weather")return handleWeather(request,ctx);
+    if(new URL(request.url).pathname==="/api/weather")return handleWeather(request,ctx,env);
     if(new URL(request.url).pathname==="/api/admin/push-now")return adminPushNow(request,env,ctx);
     const response=await app.fetch(request,env,ctx);
     const type=String(response.headers.get('content-type')||'').toLowerCase();

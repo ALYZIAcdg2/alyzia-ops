@@ -7903,6 +7903,39 @@ function airportTzOffsetHours(iata,date=new Date()){
 // TZ conservé en compatibilité : accès par clé calcule maintenant le décalage
 // réel (heure d'été/hiver incluse) au lieu d'un nombre figé en dur.
 const TZ=new Proxy({},{get:(_,iata)=>airportTzOffsetHours(String(iata))});
+// Aéroports absents de la liste ci-dessus (ex. TRS) : ville + fuseau chargés à la demande depuis /airports.json (≈ 8 800 aéroports, OurAirports).
+// Seuls les codes réellement rencontrés sont mémorisés localement ; la liste complète n'est téléchargée qu'au premier code inconnu.
+const AIRPORT_EXTRA_KEY='alyzia_airports_seen_v1';
+let AIRPORT_EXTRA_BUSY=false,AIRPORT_EXTRA_FULL=null,AIRPORT_EXTRA_FAILED=0;
+const AIRPORT_EXTRA_MISS=new Set();
+function airportExtraApply(map){
+ let n=0;
+ for(const [code,v] of Object.entries(map||{})){
+  if(!Array.isArray(v))continue;
+  if(!CITY[code]&&v[0]){CITY[code]=String(v[0]);n++}
+  if(!AIRPORT_TZ[code]&&v[1]){AIRPORT_TZ[code]=String(v[1]);n++}
+ }
+ return n;
+}
+try{airportExtraApply(JSON.parse(localStorage.getItem(AIRPORT_EXTRA_KEY)||'{}'))}catch(e){}
+async function opsCheckUnknownAirports(){
+ if(AIRPORT_EXTRA_BUSY||typeof FLIGHTS==='undefined'||!Array.isArray(FLIGHTS))return;
+ const unknown=new Set();
+ for(const f of FLIGHTS){for(const c of [f&&f.dep,f&&f.dest]){const k=String(c||'').trim().toUpperCase();if(/^[A-Z]{3}$/.test(k)&&(!CITY[k]||!AIRPORT_TZ[k])&&!AIRPORT_EXTRA_MISS.has(k))unknown.add(k)}}
+ if(!unknown.size||Date.now()-AIRPORT_EXTRA_FAILED<60000)return;
+ AIRPORT_EXTRA_BUSY=true;
+ try{
+  if(!AIRPORT_EXTRA_FULL){const r=await fetch('/airports.json',{cache:'force-cache'});if(!r.ok)throw new Error('HTTP '+r.status);AIRPORT_EXTRA_FULL=await r.json()}
+  const found={};for(const k of unknown){if(AIRPORT_EXTRA_FULL[k])found[k]=AIRPORT_EXTRA_FULL[k];else AIRPORT_EXTRA_MISS.add(k)}
+  if(airportExtraApply(found)){
+   try{const old=JSON.parse(localStorage.getItem(AIRPORT_EXTRA_KEY)||'{}');localStorage.setItem(AIRPORT_EXTRA_KEY,JSON.stringify({...old,...found}))}catch(e){}
+   if(!modalIsOpen()&&!hasFocusedEditableInput())renderCurrentViewPreserved();
+  }
+ }catch(e){AIRPORT_EXTRA_FAILED=Date.now()}
+ finally{AIRPORT_EXTRA_BUSY=false}
+}
+setInterval(()=>{if(!document.hidden)opsCheckUnknownAirports().catch(()=>{})},5000);
+setTimeout(()=>{opsCheckUnknownAirports().catch(()=>{})},2500);
 const WX_CACHE=(()=>{try{return JSON.parse(localStorage.getItem('alyzia_wx')||'{}')||{}}catch(e){return {}}})();
 const WX_CLOUD='<path d="M7 19h10a4 4 0 0 0 .6-7.96A5.5 5.5 0 0 0 7.1 10.2 4.4 4.4 0 0 0 7 19z" fill="CLOUDCOL"/>';
 const WX_SVG={
