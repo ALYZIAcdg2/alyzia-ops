@@ -11,7 +11,7 @@ const UI=String.raw`<style id="alyzia-admin-dashboard-v5-css">
 </style><script id="alyzia-admin-dashboard-v5-js">(()=>{'use strict';
 if(window.__alyziaAdminV5)return;window.__alyziaAdminV5=true;
 let adminData=null;
-const PROVIDERS=['AIRLABS','SKYLINK','OAG','AERODATABOX','OPENSKY','QUARK','AVIATIONDATA','FLIGHTERA','KAYAK','SERPAPI','FR24API','FLIGHTRADAR1','FLIGHTRADAR8','FR24DEP'];
+const PROVIDERS=['AIRLABS','SKYLINK','OAG','AERODATABOX','OPENSKY','QUARK','AVIATIONDATA','FLIGHTERA','KAYAK','SERPAPI','FR24API','CDGBOARD','FLIGHTRADAR1','FLIGHTRADAR8','FR24DEP'];
 const esc=v=>String(v??'').replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c]));
 const missing=v=>!v||v==='—'||v==='-'||v==='N/A';
 const fmt=d=>d&&Number.isFinite(d.getTime())?d.toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';
@@ -80,6 +80,7 @@ function timing(provider,q){
     FR24DEP:{min:45,cadence:'1 PASSAGE / 45 MIN · 100 DÉPARTS CDG PAR APPEL · 16 APPELS PAR JOUR',condition:'RATTRAPAGE GROUPÉ ATD / ATA / ETD / ETA / PORTE / IMMAT. + STATUT ANNULÉ'},
     FLIGHTRADAR8:{min:5,cadence:'1 VOL PAR PASSAGE · 25 APPELS PAR JOUR',condition:'VOL EN L\'AIR : ATD / ATA / ETD / ETA / STA / PORTE / IMMAT. / APPAREIL (MOITIÉ DES VOLS)'},
     FLIGHTRADAR1:{min:5,cadence:'1 VOL PAR PASSAGE · 25 APPELS PAR JOUR',condition:'VOL EN L\'AIR : ATD / ATA / ETD / ETA / STA / PORTE / IMMAT. / APPAREIL (MOITIÉ DES VOLS)'},
+    CDGBOARD:{min:60,cadence:'1 APPEL GROUPÉ PAR HEURE · 5 PAR JOUR (QUOTA PARTAGÉ KAYAK)',condition:'DÉPARTS CDG DE -45 MIN À +85 MIN · ETD / ATD / ETA / ATA / PORTE'},
     FR24API:{min:40,cadence:'1 APPEL GROUPÉ TOUTES LES 40 MIN · 11 PAR JOUR',condition:'VOLS EN L\'AIR · ETA / IMMAT. / TYPE · ATA PORTE (6 PAR JOUR)'},
     SERPAPI:{min:5,cadence:'1 VOL PAR PASSAGE · 6 RECHERCHES PAR JOUR',condition:'VOL À MOINS DE 2 H DU DÉPART · ETD / ATD / ETA'},
     KAYAK:{min:5,cadence:'1 VOL PAR PASSAGE · 7 APPELS PAR JOUR',condition:'DÉPART PASSÉ SANS ATD / ATA · 3 ESSAIS MAX PAR VOL'},

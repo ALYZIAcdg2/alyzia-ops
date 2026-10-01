@@ -6,7 +6,7 @@ const API_SOURCES=[
   "OAG","OAG_STATUS","OAG_SCHEDULE","OAG_H2_RECOVERY",
   "AIRLABS","AIRLABS_LIVE_RECOVERY","AIRLABS_ROUTE","AIRLABS_ROUTE_TODAY",
   "SKYLINK","SKYLINK_LIVE_RECOVERY","SKYLINK_J0_BACKFILL","SKYLINK_ENT_ALIAS",
-  "AERODATABOX","AERODATABOX_REG","QUARK","AVIATIONDATA","FLIGHTERA","KAYAK","SERPAPI","FR24API","FLIGHTRADAR1","FLIGHTRADAR8","FR24DEP","OPENSKY_ADSB","ALYZIA_OPS_STATE"
+  "AERODATABOX","AERODATABOX_REG","QUARK","AVIATIONDATA","FLIGHTERA","KAYAK","SERPAPI","FR24API","CDGBOARD","FLIGHTRADAR1","FLIGHTRADAR8","FR24DEP","OPENSKY_ADSB","ALYZIA_OPS_STATE"
 ];
 const FINAL_FIELDS=new Set(["std","sta","atd","ata","gate","reg"]);
 
@@ -93,6 +93,7 @@ const PROVIDER_FIELDS={
   KAYAK:["sta","etd","eta","atd","ata","ata_late","gate"],
   SERPAPI:["sta","etd","eta","atd","ata","gate"],
   FR24API:["eta","reg","ata","ata_late"],
+  CDGBOARD:["sta","etd","eta","atd","ata","ata_late","gate"],
   FLIGHTRADAR1:["reg","atd","ata","ata_late","etd","eta","sta","gate"],
   FLIGHTRADAR8:["reg","atd","ata","ata_late","etd","eta","sta","gate"],
   FR24DEP:["etd","eta","atd","ata","ata_late","gate","reg"]

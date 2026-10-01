@@ -4,7 +4,7 @@ const clean=v=>String(v??"").trim();
 const upper=v=>clean(v).toUpperCase();
 function parisDate(){const p=new Intl.DateTimeFormat("fr-CA",{timeZone:"Europe/Paris",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date()),m=Object.fromEntries(p.map(x=>[x.type,x.value]));return `${m.year}-${m.month}-${m.day}`}
 const DISPLAY={OAG_SCHEDULE:"OAG",OAG_STATUS:"OAG",AIRLABS:"AIRLABS",SKYLINK:"SKYLINK",OPENSKY:"OPENSKY",AERODATABOX:"AERODATABOX"};
-const PROVIDER_RAW={OAG:["OAG_SCHEDULE","OAG_STATUS"],AIRLABS:["AIRLABS"],SKYLINK:["SKYLINK"],OPENSKY:["OPENSKY"],AERODATABOX:["AERODATABOX"],QUARK:["QUARK"],AVIATIONDATA:["AVIATIONDATA"],FLIGHTERA:["FLIGHTERA"],KAYAK:["KAYAK"],SERPAPI:["SERPAPI"],FR24API:["FR24API"],FLIGHTRADAR1:["FLIGHTRADAR1"],FLIGHTRADAR8:["FLIGHTRADAR8"],FR24DEP:["FR24DEP"]};
+const PROVIDER_RAW={OAG:["OAG_SCHEDULE","OAG_STATUS"],AIRLABS:["AIRLABS"],SKYLINK:["SKYLINK"],OPENSKY:["OPENSKY"],AERODATABOX:["AERODATABOX"],QUARK:["QUARK"],AVIATIONDATA:["AVIATIONDATA"],FLIGHTERA:["FLIGHTERA"],KAYAK:["KAYAK"],SERPAPI:["SERPAPI"],FR24API:["FR24API"],CDGBOARD:["CDGBOARD"],FLIGHTRADAR1:["FLIGHTRADAR1"],FLIGHTRADAR8:["FLIGHTRADAR8"],FR24DEP:["FR24DEP"]};
 function parseFields(v){try{const a=JSON.parse(v||"[]");return Array.isArray(a)?a:[]}catch{return []}}
 function reason(provider,fields,d,x={}){
   const f=fields.map(upper);

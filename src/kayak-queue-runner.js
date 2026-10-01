@@ -10,8 +10,8 @@ import {providerPause,recordProviderResult} from "./provider-errors.js";
 const PROVIDER="KAYAK";
 const HOST="kayak5.p.rapidapi.com";
 const MAX_PER_RUN=1;             // cron toutes les 5 min
-const DAY_CAP=7;
-const MONTH_CAP=170;            // plan 200/mois, marge pour les essais manuels
+const DAY_CAP=2;   // le tableau des départs CDG (CDGBOARD) prend le relais ; quota partagé 200/mois
+const MONTH_CAP=60;            // plan 200/mois, marge pour les essais manuels
 const COOLDOWN_MIN=90;           // par vol
 const MAX_ATTEMPTS_PER_FLIGHT=3;
 const MAX_NOT_FOUND=2;
