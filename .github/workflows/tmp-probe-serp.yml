@@ -26,8 +26,8 @@ jobs:
           d=json.load(open("r.json"))
           print("clés:",sorted(d.keys()))
           if "error" in d: print("ERREUR:",d["error"])
-          for k in ("answer_box","knowledge_graph","flight","flights","sports_results"):
-            if k in d: print("--",k,":",json.dumps(d[k],ensure_ascii=False)[:2500])
+          for k in ("flight_result",):
+            if k in d: print("--",k,":",json.dumps(d[k],ensure_ascii=False)[:4500])
           print("organic (3):",[ (o.get("title"),o.get("link")) for o in d.get("organic_results",[])[:3]])
           print("credits:",d.get("search_metadata",{}).get("status"),d.get("search_metadata",{}).get("total_time_taken"))
           P
@@ -36,3 +36,4 @@ jobs:
           cat out.txt | head -c 6000
           git config user.name v && git config user.email v@v
           git checkout --orphan verify-out && git rm -rfq . 2>/dev/null; git add -f out.txt && git commit -qm result && git push -f origin verify-out
+# rerun flight_result
