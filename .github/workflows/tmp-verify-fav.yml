@@ -1,0 +1,33 @@
+name: tmp verify favicon
+on:
+  push:
+    paths: [".github/workflows/tmp-verify-fav.yml"]
+permissions:
+  contents: write
+jobs:
+  v:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          U=https://alyzia-ops.alyzia-cdg2.workers.dev/
+          : > out.txt
+          for i in $(seq 1 20); do curl -sS -m 40 "$U" -o p.html; grep -q 'rel="icon"' p.html && break; sleep 20; done
+          echo "page contient rel=icon: $(grep -c 'rel="icon"' p.html)" >> out.txt
+          echo "favicon.ico direct: $(curl -s -o /dev/null -w '%{http_code}' ${U}favicon.ico)" >> out.txt
+          mkdir t && cd t && npm init -y >/dev/null && npm i playwright >/dev/null 2>&1 && npx playwright install --with-deps chromium >/dev/null 2>&1
+          cat > f.mjs <<'J'
+          import {chromium} from "playwright";
+          const b=await chromium.launch();const p=await b.newPage();const bad=[],reqs=[],logs=[];
+          p.on("response",r=>{if(r.status()>=400)bad.push(r.status()+" "+r.url().replace(/^https?:\/\/[^/]+/,""))});
+          p.on("request",r=>{if(/favicon/.test(r.url()))reqs.push(r.url().slice(0,40))});
+          p.on("console",m=>{const t=m.text();if(/ALYZIA OPS V|BUILD14|BUILD13/.test(t))logs.push(t.slice(0,60))});
+          await p.goto("https://alyzia-ops.alyzia-cdg2.workers.dev/",{waitUntil:"load"});await p.waitForTimeout(8000);
+          const link=await p.evaluate(()=>{const l=document.querySelector('link[rel="icon"]');return l?l.href.slice(0,40):null});
+          console.log("réponses >=400:",JSON.stringify(bad));console.log("requêtes favicon:",JSON.stringify(reqs));console.log("lien icon:",link);console.log("messages build restants:",logs.length);
+          await b.close();
+          J
+          node f.mjs >> ../out.txt 2>&1 || true
+          cd .. && cat out.txt
+          git config user.name v && git config user.email v@v
+          git checkout --orphan verify-out && git rm -rfq . 2>/dev/null; git add -f out.txt && git commit -qm result && git push -f origin verify-out
