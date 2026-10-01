@@ -3,6 +3,7 @@ import providerPolicyScheduler from "./provider-policy-scheduler.js";
 
 const UI=String.raw`<style id="alyzia-flight-status-authoritative-css">
 #app .v2-status{font-size:14px!important;padding:8px 13px!important}
+.ops-warn{color:#e07b00!important}.ops-late{color:#df2438!important}.ops-ok{color:#14804a!important}.ops-neutral{color:#078d96!important}
 #app .v2-status.ops-time-alert,
 .flight-detail-status-wrap .v2-status.ops-time-alert{background:#fee8ec!important;color:#d91f34!important}
 .flight-head .duration{font-size:21px!important;font-weight:950!important}
@@ -81,6 +82,8 @@ const UI=String.raw`<style id="alyzia-flight-status-authoritative-css">
     if(s.includes('EMBAR'))return 'embarquement';
     if(s.includes('DÉCOLL')||s.includes('DECOLL'))return 'decolle';
     if(s.includes('CONFIRM'))return 'aconfirmer';
+    if(s.includes('PRÉVU')||s.includes('PREVU'))return 'prevu';
+    if(s.includes('HEURE'))return 'alheure';
     return 'programme';
   };
   const setBadge=(badge,label,timeAlert=false)=>{
@@ -95,12 +98,13 @@ const UI=String.raw`<style id="alyzia-flight-status-authoritative-css">
     try{if(Array.isArray(window.FLIGHTS)&&Number.isInteger(window.selected)&&window.FLIGHTS[window.selected])return window.FLIGHTS[window.selected]}catch{}
     return null;
   };
+  const OPS_TOL=5;
   const flightHasRedOperationalTime=x=>{
     if(!x)return false;
-    const std=txt(x.std),sta=txt(x.sta),atd=txt(x.atd||x.actualDeparture||x.actual_departure),etd=txt(x.etd||x.edt||x.estimatedDeparture||x.estimated_departure),ata=txt(x.ata||x.actualArrival||x.actual_arrival),eta=txt(x.eta||x.estimatedArrival||x.estimated_arrival);
-    const dep=atd||etd,arr=ata||eta;
-    const depDelay=dep?minuteDelta(std,dep):null,arrDelay=arr?minuteDelta(sta,arr):null;
-    return (depDelay!=null&&depDelay>0)||(arrDelay!=null&&arrDelay>1);
+    const sta=txt(x.sta),atd=txt(x.atd||x.actualDeparture||x.actual_departure),ata=txt(x.ata||x.actualArrival||x.actual_arrival),eta=txt(x.eta||x.estimatedArrival||x.estimated_arrival);
+    if(!atd&&!ata)return false;
+    const arr=ata||eta,arrDelay=arr?minuteDelta(sta,arr):null;
+    return arrDelay!=null&&arrDelay>=OPS_TOL;
   };
   const statusFromFlight=x=>{
     if(!x)return '';
@@ -119,8 +123,10 @@ const UI=String.raw`<style id="alyzia-flight-status-authoritative-css">
     if(/BOARD|EMBAR/.test(raw))return 'EMBARQUEMENT';
     if(/DELAY|RETARD/.test(raw))return 'RETARDÉ';
     if(/DEPART|DÉCOLL|DECOLL|AIRBORNE|IN FLIGHT|EN ROUTE/.test(raw))return 'DÉCOLLÉ';
+    const etd=txt(x.etd||x.edt||x.estimatedDeparture||x.estimated_departure),etdDelay=etd?minuteDelta(txt(x.std),etd):null;
+    if(etdDelay!=null&&etdDelay>=OPS_TOL)return 'PRÉVU';
     if(/CONFIRM/.test(raw))return 'À CONFIRMER';
-    return 'PROGRAMMÉ';
+    return "À L'HEURE";
   };
 
   function fixCard(card){
@@ -150,7 +156,32 @@ const UI=String.raw`<style id="alyzia-flight-status-authoritative-css">
     {const term=(x&&typeof window.__alyziaTerminalOf==='function')?window.__alyziaTerminalOf(x):'';let chip=wrap.querySelector('.flight-detail-terminal');if(term){if(!chip){chip=document.createElement('span');chip.className='flight-detail-terminal';wrap.insertBefore(chip,badge)}const t='TERM '+term,cls='flight-detail-terminal term-'+term.toLowerCase();if(chip.textContent!==t)chip.textContent=t;if(chip.className!==cls)chip.className=cls}else chip?.remove()}
     const label=statusFromFlight(x);
     if(label)setBadge(badge,label,flightHasRedOperationalTime(x));
+    paintDetailTimes(head,x);
   }
+  // Fiche : ETD / ETA colorés selon la même logique que les cartes (vert = dans les temps, orange = retard annoncé, rouge = arrivée en retard d'un vol parti)
+  const paintDetailTimes=(head,x)=>{
+    if(!x)return;
+    const std=txt(x.std),sta=txt(x.sta),atd=txt(x.atd||x.actualDeparture||x.actual_departure),ata=txt(x.ata||x.actualArrival||x.actual_arrival);
+    const etd=txt(x.etd||x.edt||x.estimatedDeparture||x.estimated_departure),eta=txt(x.eta||x.estimatedArrival||x.estimated_arrival);
+    const flown=Boolean(atd||ata);
+    const dep=atd||etd,depDelay=dep?minuteDelta(std,dep):null,arr=ata||eta,arrDelay=arr?minuteDelta(sta,arr):null;
+    const depCls=depDelay!=null&&depDelay>=OPS_TOL?'ops-warn':(atd?'ops-ok':'ops-neutral');
+    const arrCls=arrDelay!=null&&arrDelay>=OPS_TOL?(flown?'ops-late':'ops-warn'):(flown?'ops-ok':'ops-neutral');
+    for(const stat of head.querySelectorAll('.fh-stat')){
+      const lab=up(stat.querySelector('.head-label')?.textContent).replace(/[^A-Z]/g,'');
+      let cls=lab.startsWith('STD')?depCls:(lab.startsWith('STA')?arrCls:'');
+      if(!cls)continue;
+      // L'ETA affichée sur la fiche est calculée (ETD + durée) : on juge l'heure réellement affichée
+      const shown=(stat.querySelector('.time-secondary span.red,.time-secondary span[class^="ops-"]')?.textContent||'').match(/\d{1,2}:\d{2}/);
+      if(shown&&lab.startsWith('STA')&&!ata&&sta){const dl=minuteDelta(sta,shown[0]);if(dl!=null)cls=dl>=OPS_TOL?(flown?'ops-late':'ops-warn'):(flown?'ops-ok':'ops-neutral')}
+      if(shown&&lab.startsWith('STD')&&!atd&&std){const dl=minuteDelta(std,shown[0]);if(dl!=null)cls=dl>=OPS_TOL?'ops-warn':'ops-neutral'}
+      for(const sp of stat.querySelectorAll('.time-secondary span.red,.time-secondary span.ops-warn,.time-secondary span.ops-late,.time-secondary span.ops-ok,.time-secondary span.ops-neutral')){
+        if(sp.classList.contains('delay'))continue;
+        for(const c of ['red','ops-warn','ops-late','ops-ok','ops-neutral'])sp.classList.remove(c);
+        sp.classList.add(cls);
+      }
+    }
+  };
   const run=()=>{document.querySelectorAll('#app .v2-card').forEach(fixCard);fixDetail()};
   const start=()=>{
     run();
