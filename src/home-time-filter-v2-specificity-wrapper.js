@@ -1,7 +1,8 @@
 import app from "./detail-sync-stability-wrapper.js";
 
 const FIX=String.raw`<style id="alyzia-time-filter-v2-specificity">
-#app .flight-home-row.v2-ready.alyzia-final-time-hidden{display:none!important}
+#app .flight-home-row.v2-ready.alyzia-final-time-hidden,
+#app .flight-home-row.v2-ready.alyzia-auto-past-hidden{display:none!important}
 </style>`;
 
 function patch(html){
