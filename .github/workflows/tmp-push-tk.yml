@@ -11,9 +11,9 @@ jobs:
       - uses: actions/checkout@v4
       - run: |
           U=https://alyzia-ops.alyzia-cdg2.workers.dev
-          echo MARK-PTK-2 > out.txt
-          sleep 75
-          curl -sS -m 60 -X POST "$U/api/admin/push-now" >> out.txt; echo >> out.txt
+          echo MARK-PTK-3 > out.txt
+          sleep 20
+          for i in 1 2 3 4 5 6; do R=$(curl -sS -m 60 -X POST "$U/api/admin/push-now"); echo "$R" >> out.txt; echo "$R" | grep -q TROP_RAPIDE || break; sleep 35; done
           sleep 5
           curl -sS -m 60 "$U/api/flights" -o f.json
           node -e '
