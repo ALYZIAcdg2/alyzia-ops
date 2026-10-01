@@ -14,12 +14,13 @@ jobs:
       - run: |
           : > out.txt
           if [ -z "$K" ]; then echo "SECRET RAPIDAPI_PROBE_KEY ABSENT" >> out.txt; else
-            for q in "flight_id=tk1828&search_id=cdg" "flight_id=tk1828"; do
-              echo "=== GET /api/v1/flights/details?$q" >> out.txt
-              curl -sS -m 40 -w "\nHTTP %{http_code} %{time_total}s\n" -H "x-rapidapi-key: $K" -H "x-rapidapi-host: kayak5.p.rapidapi.com" "https://kayak5.p.rapidapi.com/api/v1/flights/details?$q" | head -c 6000 >> out.txt
-              echo >> out.txt
-            done
+            D=$(date -u +%F)
+            probe(){ echo "=== GET $2" >> out.txt; curl -sS -m 40 -w "\nHTTP %{http_code} %{time_total}s\n" -H "x-rapidapi-key: $K" -H "x-rapidapi-host: $1" "https://$1$2" | head -c 5000 >> out.txt; echo >> out.txt; }
+            probe kayak5.p.rapidapi.com "/api/v1/flights/details?flight_id=tk1828&search_id=cdg"
+            probe flight-info2.p.rapidapi.com "/CDG/$D"
+            probe flight-info2.p.rapidapi.com "/paris/$D"
           fi
           cat out.txt
           git config user.name v && git config user.email v@v
           git checkout --orphan verify-out && git rm -rfq . 2>/dev/null; git add -f out.txt && git commit -qm result && git push -f origin verify-out
+# rerun 2
