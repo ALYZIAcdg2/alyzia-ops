@@ -19521,7 +19521,6 @@ function openFlightInfo(){
 }
 
 
-console.info('ALYZIA OPS V49.91 · IMPORTS GROUPÉS PAR VOL');
 let SARIA_CATALOG=[];
 let SARIA_CATALOG_LOADED=false;
 const SARIA_LAYOUT_CACHE={};
@@ -24489,7 +24488,6 @@ try{
   /* Les modales éventuellement déjà ouvertes. */
   setTimeout(decorate,100);
 
-  console.log('ALYZIA OPS '+VERSION+' BUILD '+BUILD+' — SAFE MODAL DECORATOR LOADED');
 })();
 </script>
 
@@ -24689,7 +24687,6 @@ try{
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',v5023Start);
   else v5023Start();
 
-  console.log('ALYZIA OPS V50.23 BUILD '+V5023_BUILD+' — EXISTING SSR CARDS ONLY LOADED');
 })();
 </script>
 
@@ -24770,7 +24767,6 @@ try{
   }
   setTimeout(removeImportedBlock,200);
 
-  console.log('ALYZIA OPS V50.24 BUILD '+V5024_BUILD+' — TOOLS SAFE + FQTV CATEGORIES LOADED');
 })();
 </script>
 
@@ -24916,7 +24912,6 @@ try{
      La surcharge OUTILS de ce même bloc (déjà inerte car interceptée par le
      listener de clic V50.28, cf. plus bas) est retirée par cohérence. */
 
-  console.log('ALYZIA OPS V50.25 BUILD '+V5025_BUILD+' — ALG TZ + DOSSIER UI LOADED');
 })();
 </script>
 
@@ -25132,7 +25127,6 @@ try{
 
   window.v5026ApplyImports=applyImports;
   setTimeout(()=>{try{const x=typeof f==='function'?f():null;if(x)applyImports(x)}catch(e){}},300);
-  console.log('ALYZIA OPS V50.26 BUILD '+BUILD+' — CLEAN GENERIC DOSSIERS LOADED');
 })();
 </script>
 
@@ -25296,7 +25290,6 @@ try{
     window.render.__v5027=true;
   }
   setTimeout(()=>{try{applyClean(typeof f==='function'?f():null)}catch(e){}},250);
-  console.log('ALYZIA OPS V50.28 BUILD 130 — GENERIC PAX + TOOLS FIXED LOADED');
 })();
 </script>
 
@@ -26024,7 +26017,6 @@ try{
   try{ v5006AutoRecoverNamedGeneric=async()=>false; }catch(e){}
 
   try{ document.title='ALYZIA OPS - V50.28 · BUILD138 · LOT5 UI SAFE'; }catch(e){}
-  console.log('ALYZIA OPS BUILD138 — LOT 5 UI SAFE LOADED');
 })();
 </script>
 
@@ -26124,7 +26116,6 @@ openImportsCompany=function(c){
   const rows=flights.map(row=>{const st=impRowState(row),idx=findImpFlightIndex(row),processed=String(row.status||'').toUpperCase()==='PROCESSED',canOpen=idx>=0&&processed;return `<div class="import139-flight-row"><div class="import139-flight-id"><b>${airlineLogo(c)} ${escapeHtml(row.flightNumber)}</b><span>${escapeHtml(impDate(row.flightDate))}</span></div><button class="import139-pill" onclick="openImportFlightFiles('${c}','${row.key}')">${row.files} FICHIER${row.files>1?'S':''}</button><button class="import139-pill imports-flight-status ${st.cls}" onclick="openImportFlightDiagnostics('${c}','${row.key}')">${st.label}</button><div class="import139-actions"><button class="primary" ${canOpen?'':'disabled'} onclick="openImpFlight('${c}','${row.key}')">FICHE VOL</button><button onclick="openImport139Advanced('${c}','${row.key}')">GESTION</button></div></div>`}).join('');
   showModal(`IMPORTS ${c}`,`${s.flights} VOLS · ${s.files} DOCUMENTS`,`<div class="import139-toolbar"><span class="import139-note">FICHIERS · STATUT · FICHE VOL · GESTION</span></div><div class="imports-flight-list">${rows||`<div class="import-status">AUCUN VOL IMPORTÉ POUR ${c}.</div>`}</div>`);
 };
-console.log('ALYZIA OPS BUILD139 FIXED — IMPORT GMAIL CLEAR UI LOADED');
 })();
 </script>
 
@@ -26400,7 +26391,6 @@ window.closeAllModals=function(){
   return import140CloseAllBase();
 };
 
-console.log('ALYZIA OPS BUILD140 — IMPORT GMAIL HISTORY SYNC LOADED');
 })();
 </script>
 
@@ -26728,7 +26718,6 @@ function import141StartTimer(){
 }
 window.import141StartTimer=import141StartTimer;
 
-console.log('ALYZIA OPS BUILD141 — IMPORT PIPELINE SYNC LOADED');
 })();
 </script>
 
@@ -27002,11 +26991,6 @@ window.openImportsDashboard=function(){
   return p;
 };
 
-console.log(BUILD143);
-console.log('BUILD143 R5: modal persistence + PROCESSED specific recovery + TK/TW base64 payload active');
-console.log('BUILD143 R5: IMPORT GMAIL modal state/scroll preserved during background specific parser injection');
-console.log('BUILD143 R6: IMPORT GMAIL stays visible during specific parser D1 persistence (no modal flash)');
-console.log('BUILD143 R7: ZERO FLICKER sandbox modal + strict specific confirmation active');
 
 window.import143RecoverOneSpecificFlight = import143RecoverOneSpecificFlight;
 
@@ -27082,7 +27066,6 @@ window.runSqControlledInjectionR313 = async function(
     postflight:post
   };
 };
-console.log('BUILD143 R9 — R3.13 SQ CONTROLLED BRIDGE READY');
 </script>
 
 
@@ -27426,7 +27409,6 @@ console.log('BUILD143 R9 — R3.13 SQ CONTROLLED BRIDGE READY');
   }
 
   window.sqApplyCorrectionsR10=sqApplyCorrectionsR10;
-  console.log('BUILD143 R10 — SQ POST-INJECTION CONSOLIDATION READY');
 })();
 </script>
 
@@ -27577,7 +27559,6 @@ console.log('BUILD143 R9 — R3.13 SQ CONTROLLED BRIDGE READY');
     return {ok:true,flightNumber:fnum,flightDate:fdate,before,after};
   };
 
-  console.log('BUILD143 R11 — FORCE SQ POST-CONSOLIDATION READY');
 })();
 </script>
 
@@ -28028,7 +28009,6 @@ console.log('BUILD143 R9 — R3.13 SQ CONTROLLED BRIDGE READY');
   };
 
   window.r15EnsureSqLiveDerived=r15EnsureLive;
-  console.log('BUILD143 R15 — SQ INF / HCIP LIVE + GROUPTYPE READY');
 })();
 </script>
 
@@ -28273,7 +28253,6 @@ console.log('BUILD143 R9 — R3.13 SQ CONTROLLED BRIDGE READY');
       </div>`);
   };
 
-  console.log('BUILD143 R16 — SQ GROUPTYPE BACKWARD ASSOCIATION READY');
 })();
 </script>
 
@@ -28375,7 +28354,6 @@ console.log('BUILD143 R9 — R3.13 SQ CONTROLLED BRIDGE READY');
     `);
   };
 
-  console.log('BUILD143 R17 — SQ GROUP CATEGORIES LIKE FQTV READY');
 })();
 </script>
 
@@ -28721,7 +28699,6 @@ console.log('BUILD143 R9 — R3.13 SQ CONTROLLED BRIDGE READY');
     `);
   };
 
-  console.log('BUILD143 R18 — SQ VIP CATEGORIES + GROUP INLINE BLOCK READY');
 })();
 </script>
 
@@ -29014,8 +28991,6 @@ console.log('BUILD143 R9 — R3.13 SQ CONTROLLED BRIDGE READY');
     return report;
   };
 
-  console.log('BUILD143 R20 — SQ AUTOMATIC BATCH READY');
-  console.log('BUILD143 R20.1 — SQ AUTO D1 LOAD + NON-TERMINAL RETRY READY');
 })();
 </script>
 
@@ -29424,10 +29399,6 @@ console.log('BUILD143 R9 — R3.13 SQ CONTROLLED BRIDGE READY');
     return out;
   };
 
-  console.log('BUILD143 R21 — TK AUTOMATIC BATCH READY · SQ R20.1 UNCHANGED');
-  console.log('BUILD143 R21.1 — TK SOURCE AUTO-REFRESH + D1 BOOKED SUMMARY READY');
-  console.log('BUILD143 R21.2 — TK CDG ALL PAX BOOKED REFERENCE READY');
-  console.log('BUILD143 R21.3 — TK BOOKED TOTAL SYNC READY');
 })();
 </script>
 
@@ -29696,7 +29667,6 @@ console.log('BUILD143 R9 — R3.13 SQ CONTROLLED BRIDGE READY');
     return out;
   };
 
-  console.log('BUILD143 R22 — BJ + VF AUTOMATIC BATCH READY · SQ/TK UNCHANGED');
 })();
 </script>
 
@@ -29958,7 +29928,6 @@ console.log('BUILD143 R9 — R3.13 SQ CONTROLLED BRIDGE READY');
     console.info('R22.1 BJ+VF FINISHED',out);return out;
   };
 
-  console.log('BUILD143 R22.1 — BJ/VF PDF_ DISCOVERY READY · PARSERS UNCHANGED');
 })();
 </script>
 
@@ -30117,7 +30086,6 @@ console.log('BUILD143 R9 — R3.13 SQ CONTROLLED BRIDGE READY');
 
   window.checkBjVfPrepaR222=prepaCheckR222;
 
-  console.log('BUILD143 R22.2 — BJ/VF GMAIL BOOTSTRAP READY · PARSERS UNCHANGED');
 })();
 </script>
 
