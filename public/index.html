@@ -19542,7 +19542,7 @@ function openFlightInfo(){
     <div class="flight-info-item"><small>DURÉE</small><b>${durationText(x.duration)}</b></div>
     <div class="flight-info-item"><small>GATE</small><b>${x.gate||'—'}</b>${sourceBadgeHtml(x,'gate')}</div>
 
-    <div class="flight-info-item"><small>TYPE APPAREIL</small><b>${x.aircraft}</b>${sourceBadgeHtml(x,'aircraft')}${x.aircraftChange?`<div style="margin-top:4px;color:#b3261e;font-weight:900;font-size:11px">⚠ APPAREIL RÉEL : ${x.aircraftChange.to} (import ${x.aircraftChange.from}) · ${x.aircraftChange.source}</div>`:''}</div>
+    <div class="flight-info-item"><small>TYPE APPAREIL</small><b>${x.aircraftChange?x.aircraftChange.to:x.aircraft}</b>${sourceBadgeHtml(x,'aircraft')}${x.aircraftChange?`<div style="margin-top:4px;color:#b3261e;font-weight:900;font-size:12px">${x.aircraftChange.from} → ${x.aircraftChange.to} <span style="font-weight:700;color:#6d7f92">· ${x.aircraftChange.source}</span></div>`:''}</div>
     <div class="flight-info-item"><small>IMMATRICULATION</small><b>${x.reg}</b>${sourceBadgeHtml(x,'reg')}</div>
     <div class="flight-info-item"><small>CONFIGURATION</small><b>${Object.entries(x.config).map(([k,v])=>k+' '+v).join(' · ')}</b>${sourceBadgeHtml(x,'config')}</div>
     <div class="flight-info-item"><small>CAPACITY / BOOKED / AVAILABLE</small><b>${cap} / ${booked} / ${avail}</b>${sourceBadgeHtml(x,'booked')}</div>
@@ -21384,9 +21384,10 @@ document.addEventListener('click',e=>{
 // Le bouton PLAN CABINE est masqué (SEATMAP suffit) ; passer à true pour le remettre.
 const SHOW_PLAN_CABINE_BUTTON=false;
 function sariaAircraftSelectHtml(x){
- const cur=sariaNorm(x.aircraft)||'—';
+ const cur=sariaNorm((x.aircraftChange&&x.aircraftChange.to)||x.aircraft)||'—';
  return `<div class="saria-ac-wrap">
    <button type="button" class="v5008-aircraft-button" onclick="v5008OpenAircraftChooser()"><b>${escapeHtml(cur)}</b><span>⌄</span></button>
+   ${x.aircraftChange?`<div class="ac-change-line" style="font-size:12px;font-weight:900;color:#b3261e;margin:2px 0 1px">${escapeHtml(x.aircraftChange.from)} → ${escapeHtml(x.aircraftChange.to)}</div>`:''}
    <div class="saria-cabin-mini ${sariaSelectedEntry(x)?'':'missing'}">${sariaSelectedEntry(x)?'✓ ':'⚠ '}${sariaCabinLabel(x)}</div>
    <div class="cabin-actions-row"><button type="button" class="cabin-plan-open-btn cabin-seatmap-open-btn" onclick="openSeatmap()">▦ SEATMAP</button>${SHOW_PLAN_CABINE_BUTTON?`<button type="button" class="cabin-plan-open-btn" onclick="openCabinPlan()">▦ PLAN CABINE</button>`:''}<button type="button" class="cabin-inop-open-btn" onclick="openInopSeat()">⚠ SEAT INOP${(x.inopSeats||[]).filter(r=>r.status==='NOK').length?` · ${(x.inopSeats||[]).filter(r=>r.status==='NOK').length}`:''}</button></div>
  </div>`;
