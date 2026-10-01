@@ -1,0 +1,32 @@
+name: tmp kayak airport
+on:
+  push:
+    paths: [".github/workflows/tmp-kayak-airport.yml"]
+permissions:
+  contents: write
+jobs:
+  v:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - env:
+          K: ${{ secrets.RAPIDAPI_PROBE_KEY }}
+        run: |
+          echo MARK-KA-1 > out.txt
+          NOW=$(TZ=Europe/Paris date +%Y%m%d-%H:%M)
+          echo "now paris $NOW" >> out.txt
+          call(){ curl -sS -m 40 -o r.json -w "HTTP %{http_code}\n" -H "x-rapidapi-key: $K" -H "x-rapidapi-host: kayak5.p.rapidapi.com" -D h.txt "https://kayak5.p.rapidapi.com/api/v1/flights/track/airport?$1" ; grep -i "x-ratelimit" h.txt >> out.txt; }
+          for q in "limit=100&offset=0&jitter=61&query_type=departure&datetime_str=$NOW&airport=cdg" "limit=20&offset=0&jitter=30&query_type=departure&datetime_str=$NOW&airport=cdg"; do
+            echo "== $q" >> out.txt; call "$q" >> out.txt
+            python3 - >> out.txt <<'P'
+          import json,datetime
+          try: j=json.load(open("r.json"))
+          except Exception as e: print("ERR",open("r.json").read()[:300]);raise SystemExit
+          print({k:j.get(k) for k in ("success","count","total","hasMore","limit","message","error")})
+          for f in j.get("flights",[])[:100]:
+            d=f["departureTimes"];t=lambda ms: datetime.datetime.utcfromtimestamp(ms/1000).strftime("%H:%M") if ms else "-"
+            print(f["airlineCode"]+f["flightNumber"],f["statusCode"],"sched",t(d.get("scheduledGateTimestampMs")),"gate",t(d.get("gateTimestampMs")),"rwy",t(d.get("runwayTimestampMs")),"delay",d.get("delayMinutes"),"op",(f.get("operatingFlight") or {}).get("airlineCode","")+(f.get("operatingFlight") or {}).get("flightNumber",""))
+          P
+          done
+          git config user.name v && git config user.email v@v
+          git checkout --orphan verify-out && git rm -rfq . 2>/dev/null; git add -f out.txt && git commit -qm result && git push -f origin verify-out
