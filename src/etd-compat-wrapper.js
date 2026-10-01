@@ -61,8 +61,15 @@ const COMPAT=String.raw`
 
 const OAG_TIMES=String.raw`
 <style id="alyzia-oag-times-style">
-.flight-head .ops-oag-time{display:block;margin-top:3px;font-size:13px;font-weight:900;color:#087b91}
-.flight-head .ops-oag-actual{color:#078447}
+.flight-head .time-secondary{display:none!important}
+.flight-head .ops-oag-time{display:flex;align-items:baseline;justify-content:center;flex-wrap:wrap;gap:3px 8px;margin-top:6px;font-size:22px;line-height:1.1;font-weight:950}
+.flight-head .ops-t-lab{font-size:15px;font-weight:900;color:#52657a}
+.flight-head .ops-t-delta{font-size:14px;font-weight:950}
+.flight-head .ops-warn{color:#e07b00!important}.flight-head .ops-late{color:#df2438!important}.flight-head .ops-ok{color:#14804a!important}.flight-head .ops-neutral{color:#078d96!important}
+.flight-head .wx-line{font-size:18px!important;font-weight:850!important;min-height:0!important;display:flex;align-items:center;justify-content:center;gap:6px}
+.flight-head .wx-line .wx-i{gap:7px}.flight-head .wx-line .wx-svg{width:28px!important;height:28px!important}.flight-head .wx-line b{font-size:22px}.flight-head .wx-line small{font-size:14px!important;display:inline!important}
+.flight-head .route-dur{margin-left:12px;font-size:15px;font-weight:900;color:#52657a;background:#eef3f9;border-radius:999px;padding:4px 11px;white-space:nowrap;vertical-align:middle;letter-spacing:0}
+@media(max-width:700px){.flight-head .ops-oag-time{font-size:19px}.flight-head .ops-t-lab{font-size:13px}.flight-head .ops-t-delta{font-size:12px}.flight-head .wx-line .wx-svg{width:24px!important;height:24px!important}.flight-head .wx-line b{font-size:19px}.flight-head .wx-line small{display:none!important}}
 .live-strip .live-refresh{display:none}
 </style>
 <script id="alyzia-oag-times-js">
@@ -88,35 +95,48 @@ const OAG_TIMES=String.raw`
     const label=checked?'OAG · MIS À JOUR':'OAG · EN ATTENTE';
     return '<div class="live-strip"><span class="live-badge schedule">'+label+'</span></div>';
   };
+  const minOf=v=>{const m=value(v).match(/(\d{1,2}):(\d{2})/);return m?Number(m[1])*60+Number(m[2]):null};
+  const delta=(a,b)=>{const p=minOf(a),q=minOf(b);if(p==null||q==null)return null;let d=q-p;if(d<-720)d+=1440;if(d>720)d-=1440;return d};
+  const TOL=5; // minutes : un écart < 5 min est « dans les temps »
+  const deltaText=d=>d==null||d===0?'':(d>0?'+':'\u2212')+Math.abs(d)+' MIN';
+  // Fiche : UNE seule ligne par heure réelle/estimée (ATD sinon ETD ; ATA sinon ETA), avec l'écart et la couleur de la logique des cartes.
   function renderTimes(){
     try{
       if(!Array.isArray(FLIGHTS))return;
       const x=FLIGHTS[Number(selected)];
       if(!x)return;
-      const sections=[...document.querySelectorAll('.flight-head .fh-stat')];
-      for(const section of sections){
+      const atd=time(x,'atd'),ata=time(x,'ata'),etd=time(x,'etd')||(fromAdb(x,'etd')?'':value(x.edt)),eta0=time(x,'eta');
+      const flown=Boolean(atd||ata);
+      for(const section of document.querySelectorAll('.flight-head .fh-stat')){
         const heading=value(section.querySelector('.head-label')?.textContent).toUpperCase();
         const label=heading.startsWith('STD')?'STD':heading.startsWith('STA')?'STA':'';
         if(!label)continue;
-        const sig=[time(x,'etd'),time(x,'atd'),time(x,'eta'),time(x,'ata')].join('|');
+        const big=section.querySelector('.time-big');
+        const bigTime=value(big?.textContent).match(/\d{1,2}:\d{2}/);
+        const sched=label==='STD'?(value(x.std)||(bigTime?bigTime[0]:'')):(value(x.sta)||(bigTime?bigTime[0]:''));
+        const legacy=value(section.querySelector('.time-secondary')?.textContent).match(/\d{1,2}:\d{2}/);
+        const eta=eta0||(label==='STA'&&legacy?legacy[0]:'');
+        const sig=[sched,atd,etd,eta,ata,flown].join('|');
         if(section.dataset.oagTimes===sig)continue;
         section.dataset.oagTimes=sig;
         section.querySelectorAll('.ops-oag-time').forEach(el=>el.remove());
-        const legacy=section.querySelector('.time-secondary');
-        if(legacy)legacy.style.display='none';
-        const values=label==='STD'?
-          [['ETD',time(x,'etd')],['ATD',time(x,'atd')]]:
-          [['ETA',time(x,'eta')],['ATA',time(x,'ata')]];
-        const anchor=section.querySelector('.time-big');
-        let after=anchor;
-        for(const [name,v] of values){
-          if(!v||!after)continue;
-          const span=document.createElement('span');
-          span.className='ops-oag-time'+(/^(ATD|ATA)$/.test(name)?' ops-oag-actual':'');
-          span.textContent=name+' '+v;
-          after.insertAdjacentElement('afterend',span);
-          after=span;
+        let name='',v='',cls='';
+        if(label==='STD'){
+          if(atd){name='ATD';v=atd}else if(etd){name='ETD';v=etd}
+        }else{
+          if(ata){name='ATA';v=ata}else if(eta){name='ETA';v=eta}
         }
+        if(!v||!big)continue;
+        const d=delta(sched,v);
+        if(label==='STD')cls=d!=null&&d>=TOL?'ops-warn':(name==='ATD'?'ops-ok':'ops-neutral');
+        else cls=d!=null&&d>=TOL?(flown?'ops-late':'ops-warn'):(flown?'ops-ok':'ops-neutral');
+        const line=document.createElement('span');line.className='ops-oag-time';
+        const lab=document.createElement('b');lab.className='ops-t-lab';lab.textContent=name;
+        const val=document.createElement('span');val.className=cls;val.textContent=v;
+        line.append(lab,val);
+        const dt=deltaText(d);
+        if(dt){const sm=document.createElement('small');sm.className='ops-t-delta '+cls;sm.textContent=dt;line.appendChild(sm)}
+        big.insertAdjacentElement('afterend',line);
       }
     }catch(_){}
   }

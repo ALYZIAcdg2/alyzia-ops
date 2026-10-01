@@ -13,33 +13,25 @@ function alyziaDurationCacheKey(x){
   ].join('|').toUpperCase();
 }
 function alyziaAutoDurationMinutes(x){
+  // Durée de vol CALCULÉE d'après les horaires : (STA - fuseau arrivée) - (STD - fuseau départ), modulo 24 h.
+  // Priorité à la durée réelle (ATD -> ATA) quand les deux sont connus, sinon STD -> STA. La durée enregistrée ne sert que de secours.
   const key=alyziaDurationCacheKey(x);
-  const existing=Number(x&&x.duration);
-  if(Number.isFinite(existing)&&existing>0){
-    const value=Math.round(existing);
-    ALYZIA_DURATION_CACHE.set(key,value);
-    return value;
-  }
-
-  const std=String(x&&x.std||'').trim();
-  const sta=String(x&&x.sta||'').trim();
-  const depDate=String(x&&x.date||x&&x.flight_date||x&&x.flightDate||'').trim();
-  const arrDate=String(x&&x.staArrivalDate||'').trim();
-  if(/^\d{2}:\d{2}$/.test(std)&&/^\d{2}:\d{2}$/.test(sta)&&/^20\d{2}-\d{2}-\d{2}$/.test(depDate)&&/^20\d{2}-\d{2}-\d{2}$/.test(arrDate)){
-    const depAirport=String(x&&x.dep||x&&x.origin||'CDG').trim().toUpperCase();
-    const arrAirport=String(x&&x.dest||x&&x.destination||'').trim().toUpperCase();
-    const depOff=Number((typeof TZ==='object'&&TZ&&TZ[depAirport]!=null)?TZ[depAirport]:2);
-    const arrOff=Number((typeof TZ==='object'&&TZ&&TZ[arrAirport]!=null)?TZ[arrAirport]:2);
-
-    const depMs=Date.parse(depDate+'T'+std+':00Z')-depOff*60*60*1000;
-    const arrMs=Date.parse(arrDate+'T'+sta+':00Z')-arrOff*60*60*1000;
-    const minutes=Math.round((arrMs-depMs)/60000);
-    if(Number.isFinite(minutes)&&minutes>0&&minutes<24*60){
-      ALYZIA_DURATION_CACHE.set(key,minutes);
-      return minutes;
+  const hm=v=>{const m=String(v==null?'':v).trim().match(/^(\d{1,2}):(\d{2})/);return m?Number(m[1])*60+Number(m[2]):null};
+  const depAirport=String(x&&x.dep||x&&x.origin||'CDG').trim().toUpperCase();
+  const arrAirport=String(x&&x.dest||x&&x.destination||'').trim().toUpperCase();
+  let depOff=NaN,arrOff=NaN;
+  try{depOff=Number(TZ[depAirport]);arrOff=Number(TZ[arrAirport])}catch(e){}
+  if(Number.isFinite(depOff)&&Number.isFinite(arrOff)){
+    for(const [d,a] of [[x&&x.atd,x&&x.ata],[x&&x.std,x&&x.sta]]){
+      const dm=hm(d),am=hm(a);
+      if(dm==null||am==null)continue;
+      let minutes=Math.round((am-arrOff*60)-(dm-depOff*60));
+      minutes=((minutes%1440)+1440)%1440;
+      if(minutes>0&&minutes<24*60){ALYZIA_DURATION_CACHE.set(key,minutes);return minutes}
     }
   }
-
+  const existing=Number(x&&x.duration);
+  if(Number.isFinite(existing)&&existing>0){const value=Math.round(existing);ALYZIA_DURATION_CACHE.set(key,value);return value}
   return ALYZIA_DURATION_CACHE.has(key)?ALYZIA_DURATION_CACHE.get(key):existing;
 }
 </script>`;
