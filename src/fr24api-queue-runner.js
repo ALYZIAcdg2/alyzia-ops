@@ -10,8 +10,8 @@ import {AIRPORT_TZ} from "./airport-tz.js";
 // Le WAF de FR24 refuse les User-Agent de bibliothèques (Python-urllib) : on envoie un UA de type curl.
 const PROVIDER="FR24API";
 const HOST="fr24api.flightradar24.com";
-const DAY_CAP=16;                // appels groupés par jour (chaque appel coûte des crédits proportionnels au nombre de vols renvoyés)
-const MONTH_CAP=400;
+const DAY_CAP=11;                // appels groupés par jour (chaque appel coûte des crédits proportionnels au nombre de vols renvoyés)
+const MONTH_CAP=330;
 const MIN_GAP_MIN=40;            // écart minimal entre deux appels
 const LIMIT=20;                  // plan Explorer : 20 résultats max par réponse, 10 requêtes/min, 60 000 crédits/mois
 const MAX_FLIGHTS=15;            // paramètre flights= : 15 numéros de vol max par appel
