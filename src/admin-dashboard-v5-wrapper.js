@@ -11,7 +11,7 @@ const UI=String.raw`<style id="alyzia-admin-dashboard-v5-css">
 </style><script id="alyzia-admin-dashboard-v5-js">(()=>{'use strict';
 if(window.__alyziaAdminV5)return;window.__alyziaAdminV5=true;
 let adminData=null;
-const PROVIDERS=['AIRLABS','SKYLINK','OAG','AERODATABOX','OPENSKY','QUARK','AVIATIONDATA','FLIGHTERA','FLIGHTRADAR1','FLIGHTRADAR8','FR24DEP'];
+const PROVIDERS=['AIRLABS','SKYLINK','OAG','AERODATABOX','OPENSKY','QUARK','AVIATIONDATA','FLIGHTERA','KAYAK','FLIGHTRADAR1','FLIGHTRADAR8','FR24DEP'];
 const esc=v=>String(v??'').replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c]));
 const missing=v=>!v||v==='—'||v==='-'||v==='N/A';
 const fmt=d=>d&&Number.isFinite(d.getTime())?d.toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';
@@ -80,6 +80,7 @@ function timing(provider,q){
     FR24DEP:{min:45,cadence:'1 PASSAGE / 45 MIN · 100 DÉPARTS CDG PAR APPEL · 16 APPELS PAR JOUR',condition:'RATTRAPAGE GROUPÉ ATD / ATA / ETD / ETA / PORTE / IMMAT. + STATUT ANNULÉ'},
     FLIGHTRADAR8:{min:5,cadence:'1 VOL PAR PASSAGE · 25 APPELS PAR JOUR',condition:'VOL EN L\'AIR : ATD / ATA / ETD / ETA / STA / PORTE / IMMAT. / APPAREIL (MOITIÉ DES VOLS)'},
     FLIGHTRADAR1:{min:5,cadence:'1 VOL PAR PASSAGE · 25 APPELS PAR JOUR',condition:'VOL EN L\'AIR : ATD / ATA / ETD / ETA / STA / PORTE / IMMAT. / APPAREIL (MOITIÉ DES VOLS)'},
+    KAYAK:{min:5,cadence:'1 VOL PAR PASSAGE · 20 APPELS PAR JOUR',condition:'DÉPART PASSÉ SANS ATD / ATA · 3 ESSAIS MAX PAR VOL'},
     FLIGHTERA:{min:5,cadence:'1 VOL PAR PASSAGE · 10 APPELS PAR JOUR',condition:'DÉPART PASSÉ SANS ATD / ATA · 3 ESSAIS MAX PAR VOL'}
   }[provider]||{min:5,cadence:'SELON LOGIQUE FOURNISSEUR',condition:'SI CANDIDAT'};
   let eligible=cron;if(last&&Number.isFinite(last.getTime())){const e=new Date(last.getTime()+cfg.min*60000);eligible=ceilFive(e>now?e:now)}
