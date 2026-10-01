@@ -28,7 +28,7 @@ export async function recordProviderResult(env,provider,status,payload,key){
     if(status>=200&&status<300){await env.OPS_DB.prepare(`DELETE FROM ops_meta WHERE k=?`).bind(k).run();return}
     // 401/403 : pause de 3 h (clé ou abonnement refusé) ; 5xx : pause de 30 min (fournisseur en panne) ; 429 : message seulement.
     if(![401,403,429].includes(status)&&!(status>=500&&status<600))return;
-    const now=new Date(),pause=status>=500?DOWN_PAUSE_MS:PAUSE_MS,v={status,message:messageOf(payload),at:now.toISOString(),keyTag:keyTag(key),until:status===429?"":new Date(now.getTime()+pause).toISOString()};
+    const now=new Date(),pause=status>=500?DOWN_PAUSE_MS:PAUSE_MS,v={status,message:messageOf(payload)||("HTTP "+status+" (réponse vide ou illisible)"),at:now.toISOString(),keyTag:keyTag(key),until:status===429?"":new Date(now.getTime()+pause).toISOString()};
     await env.OPS_DB.prepare(`INSERT INTO ops_meta(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v`).bind(k,JSON.stringify(v)).run();
   }catch(_){}
 }
