@@ -1,6 +1,7 @@
 // Mémorise le dernier refus d'un fournisseur (401/403/429) avec le message renvoyé par l'API, et met le fournisseur en pause
 // après un 401/403 pour ne pas gaspiller un appel toutes les 5 minutes. Stockage : table ops_meta (clé "provider_err:<FOURNISSEUR>").
 const PAUSE_MS=3*3600*1000;
+const DOWN_PAUSE_MS=30*60*1000;
 const clean=v=>String(v??"").trim();
 const keyTag=key=>{const k=clean(key);return k?k.slice(-4):""};
 async function ensure(env){await env.OPS_DB.prepare(`CREATE TABLE IF NOT EXISTS ops_meta(k TEXT PRIMARY KEY,v TEXT)`).run()}
@@ -25,8 +26,9 @@ export async function recordProviderResult(env,provider,status,payload,key){
   try{
     await ensure(env);const k="provider_err:"+provider;
     if(status>=200&&status<300){await env.OPS_DB.prepare(`DELETE FROM ops_meta WHERE k=?`).bind(k).run();return}
-    if(![401,403,429].includes(status))return;
-    const now=new Date(),v={status,message:messageOf(payload),at:now.toISOString(),keyTag:keyTag(key),until:status===429?"":new Date(now.getTime()+PAUSE_MS).toISOString()};
+    // 401/403 : pause de 3 h (clé ou abonnement refusé) ; 5xx : pause de 30 min (fournisseur en panne) ; 429 : message seulement.
+    if(![401,403,429].includes(status)&&!(status>=500&&status<600))return;
+    const now=new Date(),pause=status>=500?DOWN_PAUSE_MS:PAUSE_MS,v={status,message:messageOf(payload),at:now.toISOString(),keyTag:keyTag(key),until:status===429?"":new Date(now.getTime()+pause).toISOString()};
     await env.OPS_DB.prepare(`INSERT INTO ops_meta(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v`).bind(k,JSON.stringify(v)).run();
   }catch(_){}
 }
