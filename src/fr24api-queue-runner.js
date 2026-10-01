@@ -5,15 +5,16 @@ import {noteAndSwitch} from "./aircraft-change.js";
 import {providerPause,recordProviderResult} from "./provider-errors.js";
 import {AIRPORT_TZ} from "./airport-tz.js";
 
-// API officielle Flightradar24 (plan Explorer) : GET https://fr24api.flightradar24.com/api/live/flight-positions/full?airports=outbound:CDG&limit=N
-// Un seul appel groupé renvoie tous les vols en l'air partis de CDG : ETA (UTC), immatriculation, type ICAO. Pas d'ETD ni de porte.
+// API officielle Flightradar24 (plan Explorer) : GET https://fr24api.flightradar24.com/api/live/flight-positions/full?flights=...&airports=outbound:CDG&limit=20
+// Un appel groupé (15 numéros de vol max) renvoie les vols en l'air demandés partis de CDG : ETA (UTC), immatriculation, type ICAO. Pas d'ETD ni de porte.
 // Le WAF de FR24 refuse les User-Agent de bibliothèques (Python-urllib) : on envoie un UA de type curl.
 const PROVIDER="FR24API";
 const HOST="fr24api.flightradar24.com";
-const DAY_CAP=12;                // appels groupés par jour (chaque appel coûte des crédits proportionnels au nombre de vols renvoyés)
-const MONTH_CAP=300;
+const DAY_CAP=16;                // appels groupés par jour (chaque appel coûte des crédits proportionnels au nombre de vols renvoyés)
+const MONTH_CAP=400;
 const MIN_GAP_MIN=40;            // écart minimal entre deux appels
-const LIMIT=60;                  // plafonne les crédits par appel
+const LIMIT=20;                  // plan Explorer : 20 résultats max par réponse, 10 requêtes/min, 60 000 crédits/mois
+const MAX_FLIGHTS=15;            // paramètre flights= : 15 numéros de vol max par appel
 const FIELDS=["eta","reg"];
 
 const clean=v=>String(v??"").trim();
@@ -62,8 +63,8 @@ async function bump(env,now,status){
     for(const period of [now.date.slice(0,7),now.date])await env.OPS_DB.prepare(`INSERT INTO api_provider_usage(provider,period,calls,successes,errors,last_status,last_at) VALUES(?,?,1,?,?,?,?) ON CONFLICT(provider,period) DO UPDATE SET calls=calls+1,successes=successes+excluded.successes,errors=errors+excluded.errors,last_status=excluded.last_status,last_at=excluded.last_at`).bind(PROVIDER,period,ok,ok?0:1,status,at).run();
   }catch(_){}
 }
-async function fetchLive(env){
-  const url=`https://${HOST}/api/live/flight-positions/full?airports=${encodeURIComponent("outbound:CDG")}&limit=${LIMIT}`;
+async function fetchLive(env,flights){
+  const url=`https://${HOST}/api/live/flight-positions/full?flights=${encodeURIComponent(flights.join(","))}&airports=${encodeURIComponent("outbound:CDG")}&limit=${LIMIT}`;
   try{
     const r=await fetch(url,{headers:{Accept:"application/json","Accept-Version":"v1",Authorization:"Bearer "+fr24apiKey(env),"User-Agent":"curl/8.5.0"},signal:AbortSignal.timeout(25000)});
     const payload=await r.json().catch(()=>null);
@@ -99,10 +100,12 @@ export async function runFr24ApiQueue(env){
     const d=delta(row.flight_date,x.std||row.std,now),needs=buildNeeds(x,d);
     if(d>0||d<-720)continue;   // seulement les vols déjà partis (en l'air)
     if(!FIELDS.some(f=>allowed.has(f)&&needs[f]))continue;
-    wanted.push({row,x,allowed,key:fullFlightKey(x,row)});
+    wanted.push({row,x,d,allowed,key:fullFlightKey(x,row)});
   }
   if(!wanted.length)return {ok:true,skipped:"FR24API_RIEN_A_FAIRE"};
-  const r=await fetchLive(env),at=new Date().toISOString();
+  wanted.sort((a,b)=>b.d-a.d);   // les vols partis le plus récemment d'abord
+  const keys=[...new Set(wanted.map(z=>z.key).filter(Boolean))].slice(0,MAX_FLIGHTS);
+  const r=await fetchLive(env,keys),at=new Date().toISOString();
   await bump(env,now,r.status);
   await recordProviderResult(env,PROVIDER,r.status,r.payload,fr24apiKey(env));
   if(!r.ok)return {ok:false,status:r.status,error:r.error||"HTTP "+r.status};

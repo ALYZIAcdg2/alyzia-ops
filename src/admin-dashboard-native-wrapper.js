@@ -58,7 +58,7 @@ function quotaLimit(env,key){
   if(key==="FR24DEP")return {period:"month",limit:Number(env.FR24DEP_MONTHLY_LIMIT||500),reserve:Number(env.FR24DEP_MONTHLY_RESERVE||70)};
   if(key==="FLIGHTRADAR8")return {period:"month",limit:Number(env.FLIGHTRADAR8_MONTHLY_LIMIT||500),reserve:Number(env.FLIGHTRADAR8_MONTHLY_RESERVE||70)};
   if(key==="FLIGHTRADAR1")return {period:"month",limit:Number(env.FLIGHTRADAR1_MONTHLY_LIMIT||500),reserve:Number(env.FLIGHTRADAR1_MONTHLY_RESERVE||70)};
-  if(key==="FR24API")return {period:"month",limit:Number(env.FR24API_MONTHLY_LIMIT||300),reserve:0};
+  if(key==="FR24API")return {period:"month",limit:Number(env.FR24API_MONTHLY_LIMIT||400),reserve:0};
   if(key==="SERPAPI")return {period:"month",limit:Number(env.SERPAPI_MONTHLY_LIMIT||250),reserve:Number(env.SERPAPI_MONTHLY_RESERVE||35)};
   if(key==="KAYAK")return {period:"month",limit:Number(env.KAYAK_MONTHLY_LIMIT||200),reserve:Number(env.KAYAK_MONTHLY_RESERVE||30)};
   if(key==="FLIGHTERA")return {period:"month",limit:Number(env.FLIGHTERA_MONTHLY_LIMIT||200),reserve:Number(env.FLIGHTERA_MONTHLY_RESERVE||30)};
