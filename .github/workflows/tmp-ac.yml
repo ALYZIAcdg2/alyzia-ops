@@ -1,0 +1,21 @@
+name: tmp ac
+on:
+  push:
+    paths: [".github/workflows/tmp-ac.yml"]
+permissions:
+  contents: write
+jobs:
+  v:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          U=https://alyzia-ops.alyzia-cdg2.workers.dev
+          echo MARK-AC-1 > out.txt
+          curl -sS -m 60 "$U/api/flights" -o f.json
+          node -e '
+          const j=require("./f.json");
+          for(const x of j.flights||[]){ if(!x.aircraftChange) continue;
+            console.log(x.date,x.flight,"aircraft=",x.aircraft,"imported=",x.aircraftImported,"change=",JSON.stringify(x.aircraftChange),"key=",x.sariaConfigKey,"cab=",x.sariaCabinConfig,"cfg=",JSON.stringify(x.config),"noCfg=",x.aircraftChangeNoCabinConfig,"applied=",x.aircraftChangeCabinApplied,"auto=",x.cabinConfigAuto)}' >> out.txt
+          git config user.name v && git config user.email v@v
+          git checkout --orphan verify-out && git rm -rfq . 2>/dev/null; git add -f out.txt && git commit -qm result && git push -f origin verify-out
