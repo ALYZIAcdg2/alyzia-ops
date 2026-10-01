@@ -92,7 +92,7 @@ const PROVIDER_FIELDS={
   FLIGHTERA:["sta","etd","eta","atd","ata","ata_late","gate","reg"],
   KAYAK:["sta","etd","eta","atd","ata","ata_late","gate"],
   SERPAPI:["sta","etd","eta","atd","ata","gate"],
-  FR24API:["eta","reg"],
+  FR24API:["eta","reg","ata","ata_late"],
   FLIGHTRADAR1:["reg","atd","ata","ata_late","etd","eta","sta","gate"],
   FLIGHTRADAR8:["reg","atd","ata","ata_late","etd","eta","sta","gate"],
   FR24DEP:["etd","eta","atd","ata","ata_late","gate","reg"]

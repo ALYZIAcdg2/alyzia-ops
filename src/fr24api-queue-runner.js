@@ -16,6 +16,14 @@ const MIN_GAP_MIN=40;            // écart minimal entre deux appels
 const LIMIT=20;                  // plan Explorer : 20 résultats max par réponse, 10 requêtes/min, 60 000 crédits/mois
 const MAX_FLIGHTS=15;            // paramètre flights= : 15 numéros de vol max par appel
 const FIELDS=["eta","reg"];
+// ATA via gate_arrival (heure d'arrivée à la porte) : 1 appel flight-summary/light + 1 appel historic/flight-events par passage, plafonné à part.
+const ATA_PROVIDER="FR24API_ATA";
+const ATA_DAY_CAP=6;
+const ATA_MONTH_CAP=150;
+const ATA_MIN_GAP_MIN=60;
+const ATA_MAX_FLIGHTS=6;
+const ATA_COOLDOWN_MIN=90;
+const ATA_MAX_ATTEMPTS=4;
 
 const clean=v=>String(v??"").trim();
 const upper=v=>clean(v).toUpperCase();
@@ -51,16 +59,16 @@ export function parseLive(payload){
 }
 
 async function ensureUsage(env){await env.OPS_DB.prepare(`CREATE TABLE IF NOT EXISTS api_provider_usage(provider TEXT NOT NULL,period TEXT NOT NULL,calls INTEGER NOT NULL DEFAULT 0,successes INTEGER NOT NULL DEFAULT 0,errors INTEGER NOT NULL DEFAULT 0,last_status INTEGER,last_at TEXT,PRIMARY KEY(provider,period))`).run()}
-async function usage(env,now){
+async function usage(env,now,provider=PROVIDER){
   await ensureUsage(env);
-  const month=now.date.slice(0,7),{results=[]}=await env.OPS_DB.prepare(`SELECT period,calls,last_at FROM api_provider_usage WHERE provider=? AND period IN (?,?)`).bind(PROVIDER,month,now.date).all();
+  const month=now.date.slice(0,7),{results=[]}=await env.OPS_DB.prepare(`SELECT period,calls,last_at FROM api_provider_usage WHERE provider=? AND period IN (?,?)`).bind(provider,month,now.date).all();
   const d=results.find(r=>r.period===now.date);
   return {day:Number(d?.calls||0),month:Number(results.find(r=>r.period===month)?.calls||0),lastAt:Date.parse(d?.last_at||"")||0};
 }
-async function bump(env,now,status){
+async function bump(env,now,status,provider=PROVIDER){
   try{
     await ensureUsage(env);const at=new Date().toISOString(),ok=status>=200&&status<300?1:0;
-    for(const period of [now.date.slice(0,7),now.date])await env.OPS_DB.prepare(`INSERT INTO api_provider_usage(provider,period,calls,successes,errors,last_status,last_at) VALUES(?,?,1,?,?,?,?) ON CONFLICT(provider,period) DO UPDATE SET calls=calls+1,successes=successes+excluded.successes,errors=errors+excluded.errors,last_status=excluded.last_status,last_at=excluded.last_at`).bind(PROVIDER,period,ok,ok?0:1,status,at).run();
+    for(const period of [now.date.slice(0,7),now.date])await env.OPS_DB.prepare(`INSERT INTO api_provider_usage(provider,period,calls,successes,errors,last_status,last_at) VALUES(?,?,1,?,?,?,?) ON CONFLICT(provider,period) DO UPDATE SET calls=calls+1,successes=successes+excluded.successes,errors=errors+excluded.errors,last_status=excluded.last_status,last_at=excluded.last_at`).bind(provider,period,ok,ok?0:1,status,at).run();
   }catch(_){}
 }
 async function fetchLive(env,flights){
@@ -71,6 +79,31 @@ async function fetchLive(env,flights){
     return {ok:r.ok,status:r.status,payload};
   }catch(e){return {ok:false,status:502,error:String(e?.message||e)}}
 }
+async function fr24Get(env,path){
+  try{
+    const r=await fetch(`https://${HOST}/api/${path}`,{headers:{Accept:"application/json","Accept-Version":"v1",Authorization:"Bearer "+fr24apiKey(env),"User-Agent":"curl/8.5.0"},signal:AbortSignal.timeout(25000)});
+    const payload=await r.json().catch(()=>null);
+    return {ok:r.ok,status:r.status,payload};
+  }catch(e){return {ok:false,status:502,error:String(e?.message||e)}}
+}
+// flight-summary/light -> Map "TK1824" -> {id,dest,landed} (dernier tronçon parti de CDG à la date demandée)
+export function parseSummary(payload,date){
+  const out=new Map(),list=Array.isArray(payload?.data)?payload.data:[];
+  for(const d of list){
+    const flight=upper(d?.flight),id=clean(d?.fr24_id);if(!flight||!id)continue;
+    if(upper(d.orig_iata)!=="CDG"&&upper(d.orig_icao)!=="LFPG")continue;
+    const takeoff=clean(d.datetime_takeoff);if(date&&takeoff&&Math.abs(Date.parse(takeoff)-Date.parse(date+"T12:00:00Z"))>40*3600000)continue;
+    const prev=out.get(flight);if(prev&&Date.parse(prev.takeoff)>=Date.parse(takeoff))continue;
+    out.set(flight,{id,dest:upper(d.dest_iata),landed:Boolean(clean(d.datetime_landed)),takeoff});
+  }
+  return out;
+}
+// historic/flight-events -> Map fr24_id -> timestamp ISO du gate_arrival
+export function parseGateArrivals(payload){
+  const out=new Map(),list=Array.isArray(payload?.data)?payload.data:[];
+  for(const d of list){const e=(d?.events||[]).find(v=>v?.type==="gate_arrival"&&v.timestamp);if(e&&d.fr24_id)out.set(clean(d.fr24_id),clean(e.timestamp))}
+  return out;
+}
 function apply(x,field,value,at){
   const next=clean(value),from=clean(x[field]);
   if(!next||next===from||!mayWriteField(x,field,PROVIDER))return false;
@@ -79,7 +112,7 @@ function apply(x,field,value,at){
   return true;
 }
 
-export async function runFr24ApiQueue(env){
+async function runFr24ApiLive(env){
   if(!fr24apiKey(env)||!env?.OPS_DB)return {ok:true,skipped:"FR24API_NON_CONFIGURE"};
   const now=parisNow(),yesterday=parisDateAt(Date.now()-86400000);
   const pause=await providerPause(env,PROVIDER,fr24apiKey(env));
@@ -123,4 +156,67 @@ export async function runFr24ApiQueue(env){
     }
   }
   return {ok:true,seen:live.size,wanted:wanted.length,processed:items.length,items};
+}
+
+async function runFr24ApiAta(env){
+  const now=parisNow(),yesterday=parisDateAt(Date.now()-86400000);
+  const pause=await providerPause(env,PROVIDER,fr24apiKey(env));
+  if(pause.paused&&!globalThis.__ALYZIA_MANUAL_PUSH)return {ok:true,skipped:"FR24API_PAUSE_"+pause.status};
+  const maps=await Promise.all([queuedFieldMap(env,PROVIDER,now.date),queuedFieldMap(env,PROVIDER,yesterday)]),authority=new Map();
+  for(const map of maps)for(const [id,fields] of map){if(!authority.has(id))authority.set(id,new Set());for(const f of fields)authority.get(id).add(f)}
+  if(!authority.size)return {ok:true,skipped:"FR24API_ATA_QUEUE_VIDE"};
+  const u=await usage(env,now,ATA_PROVIDER);
+  if(u.day>=ATA_DAY_CAP||u.month>=ATA_MONTH_CAP)return {ok:true,skipped:"FR24API_ATA_QUOTA",day:u.day,month:u.month};
+  if(!globalThis.__ALYZIA_MANUAL_PUSH&&Date.now()-u.lastAt<ATA_MIN_GAP_MIN*60000)return {ok:true,skipped:"FR24API_ATA_INTERVALLE"};
+  if(!globalThis.__ALYZIA_MANUAL_PUSH&&paceRoom(u.day,ATA_DAY_CAP,now.minutes)<1)return {ok:true,skipped:"FR24API_ATA_PACE"};
+  const {results=[]}=await env.OPS_DB.prepare(`SELECT identity,flight_date,airline,flight_number,std,data_json FROM flights WHERE flight_date IN (?,?)`).bind(yesterday,now.date).all();
+  const wanted=[];
+  for(const row of results){
+    const allowed=authority.get(row.identity);if(!allowed?.has("ata"))continue;
+    let x={};try{x=JSON.parse(row.data_json||"{}")}catch{}
+    if(stopAll(x))continue;
+    const d=delta(row.flight_date,x.std||row.std,now),needs=buildNeeds(x,d);
+    if(!needs.ata&&!needs.ata_late)continue;
+    if(d>-60)continue;   // départ prévu depuis plus d'1 h : le vol a pu atterrir
+    if(!globalThis.__ALYZIA_MANUAL_PUSH&&Date.now()-(Date.parse(clean(x.fr24apiAtaCheckedAt))||0)<ATA_COOLDOWN_MIN*60000)continue;
+    if(Number(x.fr24apiAtaAttempts||0)>=ATA_MAX_ATTEMPTS)continue;
+    wanted.push({row,x,d,key:fullFlightKey(x,row)});
+  }
+  if(!wanted.length)return {ok:true,skipped:"FR24API_ATA_RIEN_A_FAIRE"};
+  wanted.sort((a,b)=>b.d-a.d);   // départs les plus récents d'abord
+  const batch=wanted.filter(z=>z.key).slice(0,ATA_MAX_FLIGHTS),at=new Date().toISOString();
+  const date=batch[0].row.flight_date,dates=[...new Set(batch.map(z=>z.row.flight_date))].sort();
+  const r1=await fr24Get(env,`flight-summary/light?flights=${encodeURIComponent([...new Set(batch.map(z=>z.key))].join(","))}&flight_datetime_from=${dates[0]}T00:00:00&flight_datetime_to=${dates[dates.length-1]}T23:59:59`);
+  await bump(env,now,r1.status,ATA_PROVIDER);
+  await recordProviderResult(env,PROVIDER,r1.status,r1.payload,fr24apiKey(env));
+  if(!r1.ok)return {ok:false,status:r1.status,error:r1.error||"HTTP "+r1.status};
+  const found=new Map();
+  for(const z of batch){const m=parseSummary(r1.payload,z.row.flight_date).get(z.key);if(m)found.set(z.key+"|"+z.row.flight_date,m)}
+  const landed=batch.filter(z=>found.get(z.key+"|"+z.row.flight_date)?.landed);
+  let arrivals=new Map();
+  if(landed.length){
+    const ids=[...new Set(landed.map(z=>found.get(z.key+"|"+z.row.flight_date).id))];
+    const r2=await fr24Get(env,`historic/flight-events/full?flight_ids=${ids.join(",")}&event_types=gate_arrival`);
+    await bump(env,now,r2.status,ATA_PROVIDER);
+    await recordProviderResult(env,PROVIDER,r2.status,r2.payload,fr24apiKey(env));
+    if(r2.ok)arrivals=parseGateArrivals(r2.payload);
+  }
+  const items=[];
+  for(const z of batch){
+    const m=found.get(z.key+"|"+z.row.flight_date),changed=[];
+    z.x.fr24apiAtaCheckedAt=at;z.x.fr24apiAtaAttempts=Number(z.x.fr24apiAtaAttempts||0)+1;
+    const ts=m&&arrivals.get(m.id);
+    if(ts){const zone=await zoneOf(env,m.dest||upper(z.x.destination||z.x.dest)),hm=localHm(ts,zone);if(hm&&apply(z.x,"ata",hm,at))changed.push("ata")}
+    await env.OPS_DB.prepare(`UPDATE flights SET data_json=?,updated_at=CURRENT_TIMESTAMP WHERE identity=?`).bind(JSON.stringify(z.x),z.row.identity).run();
+    if(changed.length)items.push({flight:z.key,changed});
+  }
+  return {ok:true,asked:batch.length,landed:landed.length,processed:items.length,items};
+}
+
+export async function runFr24ApiQueue(env){
+  if(!fr24apiKey(env)||!env?.OPS_DB)return {ok:true,skipped:"FR24API_NON_CONFIGURE"};
+  const live=await runFr24ApiLive(env);
+  let ata;try{ata=await runFr24ApiAta(env)}catch(e){ata={ok:false,error:String(e?.message||e).slice(0,80)}}
+  if(live.skipped&&ata?.skipped)return live.skipped==="FR24API_RIEN_A_FAIRE"?ata:live;
+  return {...live,ata};
 }
