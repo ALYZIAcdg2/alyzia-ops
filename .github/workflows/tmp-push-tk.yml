@@ -11,13 +11,11 @@ jobs:
       - uses: actions/checkout@v4
       - run: |
           U=https://alyzia-ops.alyzia-cdg2.workers.dev
-          echo MARK-PTK-4 > out.txt
-          sleep 100
-          for i in 1 2 3 4 5 6; do R=$(curl -sS -m 60 -X POST "$U/api/admin/push-now"); echo "$R" >> out.txt; echo "$R" | grep -q TROP_RAPIDE || break; sleep 35; done
-          sleep 5
+          echo MARK-PTK-5 > out.txt
           curl -sS -m 60 "$U/api/flights" -o f.json
           node -e '
           const j=require("./f.json");const d=new Date().toISOString().slice(0,10);
-          for(const x of (j.flights||[]).filter(x=>x.date===d)){ if(x.aircraftChange||x.flight==="TK1828") console.log(x.flight,"aircraft",x.aircraft,"change",JSON.stringify(x.aircraftChange),"key",x.sariaConfigKey,"cfg",JSON.stringify(x.config),"noCfg",x.aircraftChangeNoCabinConfig)}' >> out.txt
+          for(const x of (j.flights||[]).filter(x=>x.date===d&&x.flight==="TK1828")){for(const k of ["std","atd","etd","aircraft","aircraftActual","aircraftChange","cdgboardLastCheckedAt","cdgboardAcCheckedAt","cdgboardMismatchAt","fr24apiLastCheckedAt","status"])console.log(k,"=",JSON.stringify(x[k])); console.log((x.flightInfoLog||[]).slice(0,6).map(l=>JSON.stringify(l)).join("\n"))}
+          const c=(j.flights||[]).filter(x=>x.date===d&&x.cdgboardLastCheckedAt).length;console.log("vols vus par CDGBOARD:",c,"avec cdgboardAcCheckedAt:",(j.flights||[]).filter(x=>x.date===d&&x.cdgboardAcCheckedAt).length)' >> out.txt
           git config user.name v && git config user.email v@v
           git checkout --orphan verify-out && git rm -rfq . 2>/dev/null; git add -f out.txt && git commit -qm result && git push -f origin verify-out
