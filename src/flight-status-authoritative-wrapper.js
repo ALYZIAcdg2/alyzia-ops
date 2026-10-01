@@ -128,6 +128,8 @@ const UI=String.raw`<style id="alyzia-flight-status-authoritative-css">
     return "À L'HEURE";
   };
 
+  // Vol considéré arrivé sans ATA (ETA dépassée de 15 min) : l'heure ETA est alors présentée comme ATA, sans être modifiée.
+  window.__alyziaIsArrived=x=>{try{return statusFromFlight(x)==='ARRIVÉ'}catch(e){return false}};
   function fixCard(card){
     const badge=card.querySelector('.v2-status');if(!badge)return;
     const timeAlert=cardHasRedOperationalTime(card);

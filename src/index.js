@@ -299,6 +299,8 @@ function applyAutoCabinConfigFromRows(x,cabinConfigRows){
 
 async function upsertFlight(env,x){
   if(!validFlight(x))return false;
+  // ENT : l'import donne parfois 73H, qui désigne le même avion que 738 (c'est le type du catalogue cabines).
+  if(["ENT","E4"].includes(String(x.airline||"").toUpperCase())&&String(x.aircraft||"").trim().toUpperCase()==="73H")x={...x,aircraft:"738"};
 
   x=await applyAutoCabinConfig(env,x);
   // Import/sync : si le type réel est déjà connu et diffère de l'appareil importé, bascule la cabine (ex. import 320/180Y, réel 32N/186Y).

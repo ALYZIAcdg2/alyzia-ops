@@ -118,7 +118,8 @@ const OAG_TIMES=String.raw`
         const sched=label==='STD'?(value(x.std)||(bigTime?bigTime[0]:'')):(value(x.sta)||(bigTime?bigTime[0]:''));
         const legacy=value(section.querySelector('.time-secondary')?.textContent).match(/\d{1,2}:\d{2}/);
         const eta=eta0||(label==='STA'&&legacy?legacy[0]:'');
-        const sig=[sched,atd,etd,eta,ata,flown].join('|');
+        const arrivedByEta=label==='STA'&&!ata&&Boolean(eta)&&typeof window.__alyziaIsArrived==='function'&&window.__alyziaIsArrived(x);
+        const sig=[sched,atd,etd,eta,ata,flown,arrivedByEta].join('|');
         if(section.dataset.oagTimes===sig)continue;
         section.dataset.oagTimes=sig;
         section.querySelectorAll('.ops-oag-time').forEach(el=>el.remove());
@@ -126,7 +127,7 @@ const OAG_TIMES=String.raw`
         if(label==='STD'){
           if(atd){name='ATD';v=atd}else if(etd){name='ETD';v=etd}
         }else{
-          if(ata){name='ATA';v=ata}else if(eta){name='ETA';v=eta}
+          if(ata){name='ATA';v=ata}else if(eta){name=arrivedByEta?'ATA':'ETA';v=eta}
         }
         if(!v&&big){ // pas d'heure estimée/réelle : ligne vide de même hauteur, pour que l'horloge locale et la météo restent alignées entre les cartes STD et STA
           const ph=document.createElement('span');ph.className='ops-oag-time ops-t-empty';ph.setAttribute('aria-hidden','true');ph.textContent='00:00';big.insertAdjacentElement('afterend',ph);continue}

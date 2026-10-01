@@ -92,11 +92,12 @@ const UI=String.raw`
     const logo=[...row.querySelectorAll('img')].find(img=>!img.closest('.v2-card'))?.src||'';
     const old=action(row),star=String(old.fav?.textContent||'').includes('★')?'★':'☆';
     const cfg=config(x,airline),book=booking(x,airline),avail=available(x,airline);
-    const term=terminalOf(x),sig=[flight,statusLabel,std,etd,atd,sta,eta,ata,gate,term,aircraft,(x.aircraftChange&&x.aircraftChange.to)||'',cfg,book,avail,logo,star].join('|');
+    const arrivedByEta=!ata&&Boolean(eta)&&typeof window.__alyziaIsArrived==='function'&&window.__alyziaIsArrived(x);
+    const term=terminalOf(x),sig=[flight,statusLabel,arrivedByEta,std,etd,atd,sta,eta,ata,gate,term,aircraft,(x.aircraftChange&&x.aircraftChange.to)||'',cfg,book,avail,logo,star].join('|');
     let card=row.querySelector('.v2-card');if(card&&card.dataset.sig===sig)return;
     if(!card){card=document.createElement('div');card.className='v2-card';row.appendChild(card)}
     card.dataset.sig=sig;row.classList.add('v2-ready');
-    const depLabel=atd?'ATD':'ETD',depValue=atd||etd||'—',arrLabel=ata?'ATA':'ETA',arrValue=ata||eta||'—';
+    const depLabel=atd?'ATD':'ETD',depValue=atd||etd||'—',arrLabel=(ata||arrivedByEta)?'ATA':'ETA',arrValue=ata||eta||'—';
     const depDelta=depValue!=='—'?minuteDelta(std,depValue):null;
     const arrDelta=arrValue!=='—'?minuteDelta(sta,arrValue):null;
     // Teintes : vert = dans les temps · orange = retard annoncé / vol parti en retard · rouge = arrivée après la STA (vol parti ou arrivé)
