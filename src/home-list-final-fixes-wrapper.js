@@ -39,7 +39,7 @@ function updateVisibleFlightCount(){
  const visible=rows.filter(row=>getComputedStyle(row).display!=='none'&&!row.hidden&&row.getAttribute('aria-hidden')!=='true').length;
  const candidates=[...document.querySelectorAll('#app *')].filter(el=>el.children.length===0&&/^\s*\d+\s+VOLS?\s*$/i.test(String(el.textContent||'')));
  const badge=candidates.find(el=>/badge|count|pill|chip/i.test(String(el.className||'')))||candidates[0];
- if(badge)badge.textContent=visible+' VOL'+(visible>1?'S':'');
+ if(badge){const t=visible+' VOL'+(visible>1?'S':'');if(badge.textContent!==t)badge.textContent=t}
 }
 function scheduleVisibleFlightCount(){[0,40,120,300,700].forEach(ms=>setTimeout(updateVisibleFlightCount,ms))}
 function applyFinalTimeFilter(){const r=RANGES[activeRange]||null;document.querySelectorAll('#app .flight-home-row').forEach(row=>{if(!r){row.classList.remove('alyzia-final-time-hidden');return}const t=stdFromRow(row);row.classList.toggle('alyzia-final-time-hidden',t===null||t<r.start||t>=r.end)});syncTimeUi();scheduleVisibleFlightCount()}

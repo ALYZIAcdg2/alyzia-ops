@@ -63,6 +63,8 @@ const OAG_TIMES=String.raw`
 <style id="alyzia-oag-times-style">
 .flight-head .time-secondary{display:none!important}
 .flight-head .ops-oag-time{display:flex;align-items:baseline;justify-content:center;flex-wrap:wrap;gap:3px 8px;margin-top:6px;font-size:22px;line-height:1.1;font-weight:950}
+.flight-head .ops-t-empty{visibility:hidden}
+.flight-head .fh-stat .wx-line{margin-top:auto!important}
 .flight-head .ops-t-lab{font-size:15px;font-weight:900;color:#52657a}
 .flight-head .ops-t-delta{font-size:14px;font-weight:950}
 .flight-head .ops-warn{color:#e07b00!important}.flight-head .ops-late{color:#df2438!important}.flight-head .ops-ok{color:#14804a!important}.flight-head .ops-neutral{color:#078d96!important}
@@ -126,6 +128,8 @@ const OAG_TIMES=String.raw`
         }else{
           if(ata){name='ATA';v=ata}else if(eta){name='ETA';v=eta}
         }
+        if(!v&&big){ // pas d'heure estimée/réelle : ligne vide de même hauteur, pour que l'horloge locale et la météo restent alignées entre les cartes STD et STA
+          const ph=document.createElement('span');ph.className='ops-oag-time ops-t-empty';ph.setAttribute('aria-hidden','true');ph.textContent='00:00';big.insertAdjacentElement('afterend',ph);continue}
         if(!v||!big)continue;
         const d=delta(sched,v);
         if(label==='STD')cls=d!=null&&d>=TOL?'ops-warn':(name==='ATD'?'ops-ok':'ops-neutral');

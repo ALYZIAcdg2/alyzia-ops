@@ -1538,8 +1538,7 @@ body{
 #app .flight-head .fh-id>.fh-chips{grid-column:2;grid-row:2 / span 3;flex-direction:column;align-items:stretch;align-self:center;justify-self:end}
 #app .flight-head .fh-id>.flight-detail-status-wrap{grid-column:1 / -1}
 .flight-head .flight-id-with-logo{flex-wrap:wrap;row-gap:8px}
-.cabin-seatmap-open-btn{flex:1 1 0;border:1px solid #0d3f86;background:#0d3f86;color:#fff;border-radius:7px;padding:7px 8px;font-size:9px;font-weight:950;letter-spacing:.02em;cursor:pointer;white-space:nowrap}
-.cabin-seatmap-open-btn:hover{background:#0a3270}
+.cabin-actions-row .cabin-seatmap-open-btn{flex:1 1 0}
 .fh-chips{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .fh-chip{display:inline-flex;align-items:baseline;gap:6px;background:#f3f6fa;border:1px solid #e1e9f2;border-radius:999px;padding:5px 12px;font-family:inherit;cursor:pointer;white-space:nowrap}
 .fh-chip-static{cursor:default}
@@ -15812,7 +15811,7 @@ function render(){
   </div>
   <div class="fh-row2">
    <div class="fh-row2-spacer"></div>
-   <div class="detail-prepa-actions"><button class="detail-prepa-btn ${getPrepaInfo(x,currentFlightDate())?.state?.ok?'done':'nok'}" onclick="openDetailPrepa()"><span class="sheet">▤</span><span>PREPA</span></button><button class="print-icon-btn" title="Imprimer la prépa" onclick="printCurrentFlightPrepa()">🖨</button><button class="clear-flight-btn" title="Vider la fiche du vol" onclick="openClearCurrentFlight()">⌫</button><button class="v5011-flight-info-action" title="Informations du vol" onclick="openFlightInfo()">ⓘ INFOS VOL ${passengerNotesForCurrentFlight().length?`<span class="note-bell active">🔔</span>`:""}</button></div>
+   <div class="detail-prepa-actions"><button class="detail-prepa-btn ${getPrepaInfo(x,currentFlightDate())?.state?.ok?'done':'nok'}" onclick="openDetailPrepa()"><span class="sheet">▤</span><span>PREPA</span></button><button class="clear-flight-btn" title="Vider la fiche du vol" onclick="openClearCurrentFlight()">⌫</button><button class="v5011-flight-info-action" title="Informations du vol" onclick="openFlightInfo()">ⓘ INFOS VOL ${passengerNotesForCurrentFlight().length?`<span class="note-bell active">🔔</span>`:""}</button></div>
    <button type="button" class="flight-back-btn" title="Retour à la liste des vols" onclick="backToFlightListSamePosition()">‹ RETOUR LISTE</button>
   </div>
  </section>`:''}
@@ -20126,9 +20125,11 @@ function updateMobileNav(){
  if(btn)btn.classList.add('active');
 }
 
+// Met à jour le texte d'une horloge SANS remplacer son nœud texte (une mutation « caractères » ne réveille pas les observateurs du DOM : avant, chaque seconde déclenchait plusieurs balayages complets de la page).
+function setClockText(el,t){if(!el)return;const n=el.firstChild;if(n&&n.nodeType===3&&el.childNodes.length===1){if(n.data!==t)n.data=t}else if(el.textContent!==t)el.textContent=t}
 function updateClocks(){
- const d=new Date();document.getElementById('topClock').textContent=d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
- const dc=document.getElementById('depClock'),ac=document.getElementById('arrClock');if(dc)dc.textContent=liveFor(f().dep);if(ac)ac.textContent=liveFor(f().dest)
+ const d=new Date();setClockText(document.getElementById('topClock'),d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit',second:'2-digit'}));
+ const dc=document.getElementById('depClock'),ac=document.getElementById('arrClock');if(dc)setClockText(dc,liveFor(f().dep));if(ac)setClockText(ac,liveFor(f().dest))
 }
 
 
@@ -21341,12 +21342,14 @@ document.addEventListener('click',e=>{
 /* ---------- TYPE A/C: custom chooser instead of native select ----------
    Fixes the video issue where the browser select opens then disappears.
 */
+// Le bouton PLAN CABINE est masqué (SEATMAP suffit) ; passer à true pour le remettre.
+const SHOW_PLAN_CABINE_BUTTON=false;
 function sariaAircraftSelectHtml(x){
  const cur=sariaNorm(x.aircraft)||'—';
  return `<div class="saria-ac-wrap">
    <button type="button" class="v5008-aircraft-button" onclick="v5008OpenAircraftChooser()"><b>${escapeHtml(cur)}</b><span>⌄</span></button>
    <div class="saria-cabin-mini ${sariaSelectedEntry(x)?'':'missing'}">${sariaSelectedEntry(x)?'✓ ':'⚠ '}${sariaCabinLabel(x)}</div>
-   <div class="cabin-actions-row"><button type="button" class="cabin-seatmap-open-btn" onclick="openSeatmap()">▦ SEATMAP</button><button type="button" class="cabin-plan-open-btn" onclick="openCabinPlan()">▦ PLAN CABINE</button><button type="button" class="cabin-inop-open-btn" onclick="openInopSeat()">⚠ SEAT INOP${(x.inopSeats||[]).filter(r=>r.status==='NOK').length?` · ${(x.inopSeats||[]).filter(r=>r.status==='NOK').length}`:''}</button></div>
+   <div class="cabin-actions-row"><button type="button" class="cabin-plan-open-btn cabin-seatmap-open-btn" onclick="openSeatmap()">▦ SEATMAP</button>${SHOW_PLAN_CABINE_BUTTON?`<button type="button" class="cabin-plan-open-btn" onclick="openCabinPlan()">▦ PLAN CABINE</button>`:''}<button type="button" class="cabin-inop-open-btn" onclick="openInopSeat()">⚠ SEAT INOP${(x.inopSeats||[]).filter(r=>r.status==='NOK').length?` · ${(x.inopSeats||[]).filter(r=>r.status==='NOK').length}`:''}</button></div>
  </div>`;
 }
 

@@ -93,8 +93,9 @@ const FAVORITES_FILTER_SCRIPT = String.raw`
       });
       all.insertAdjacentElement('afterend',button);
     }
-    button.classList.toggle('active',favoritesOnly);
-    button.setAttribute('aria-pressed',favoritesOnly?'true':'false');
+    if(button.classList.contains('active')!==favoritesOnly)button.classList.toggle('active',favoritesOnly);
+    const pressed=favoritesOnly?'true':'false';
+    if(button.getAttribute('aria-pressed')!==pressed)button.setAttribute('aria-pressed',pressed);
     return button;
   }
 
@@ -123,7 +124,9 @@ const FAVORITES_FILTER_SCRIPT = String.raw`
       if(ok)visible++;
     });
     const badge=document.getElementById('homeVisibleFlightCount');
-    if(badge)badge.textContent=visible+' VOL'+(visible>1?'S':'');
+    // N'écrire que si le texte change : réécrire le même texte déclenchait l'observateur ci-dessous en boucle (une passe par image, ~90 % du processeur au repos).
+    const label=visible+' VOL'+(visible>1?'S':'');
+    if(badge&&badge.textContent!==label)badge.textContent=label;
   }
 
   function scheduleApply(){
