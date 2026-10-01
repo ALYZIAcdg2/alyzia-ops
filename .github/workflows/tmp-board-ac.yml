@@ -1,0 +1,35 @@
+name: tmp board ac
+on:
+  push:
+    paths: [".github/workflows/tmp-board-ac.yml"]
+permissions:
+  contents: write
+jobs:
+  v:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - env:
+          K: ${{ secrets.RAPIDAPI_PROBE_KEY }}
+        run: |
+          U=https://alyzia-ops.alyzia-cdg2.workers.dev
+          echo MARK-BAC-1 > out.txt
+          curl -sS -m 60 "$U/api/flights" -o f.json
+          NOW=$(date -u -d "+30 minutes" +%Y%m%d-%H:%M)
+          curl -sS -m 40 -H "x-rapidapi-key: $K" -H "x-rapidapi-host: kayak5.p.rapidapi.com" "https://kayak5.p.rapidapi.com/api/v1/flights/track/airport?limit=100&offset=0&jitter=120&query_type=departure&datetime_str=$NOW&airport=cdg" -o b.json
+          python3 - >> out.txt <<'P'
+          import json,datetime
+          b=json.load(open("b.json")).get("flights",[]);f=json.load(open("f.json")).get("flights",[])
+          t=datetime.datetime.utcnow().strftime("%Y-%m-%d")
+          app={x["flight"].upper():x for x in f if x.get("date")==t}
+          print("board",len(b),"app",len(app))
+          for x in b:
+            keys=[(x["airlineCode"]+x["flightNumber"]).upper()]
+            if x.get("operatingFlight"): keys.append((x["operatingFlight"]["airlineCode"]+x["operatingFlight"]["flightNumber"]).upper())
+            for k in keys:
+              if k in app:
+                a=app[k]
+                print(k,"| app aircraft",a.get("aircraft"),"change",a.get("aircraftChange") and a["aircraftChange"].get("to"),"| kayak:",x.get("aircraft"),"| reg",a.get("reg"))
+          P
+          git config user.name v && git config user.email v@v
+          git checkout --orphan verify-out && git rm -rfq . 2>/dev/null; git add -f out.txt && git commit -qm result && git push -f origin verify-out
