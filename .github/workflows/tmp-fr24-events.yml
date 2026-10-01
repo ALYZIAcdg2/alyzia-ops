@@ -13,17 +13,17 @@ jobs:
           TOK: ${{ secrets.FR24API_TOKEN }}
         run: |
           U=https://alyzia-ops.alyzia-cdg2.workers.dev
-          echo "MARK-EVT-1" > out.txt
+          echo "MARK-EVT-2" > out.txt
           curl -sS -m 60 "$U/api/flights" -o f.json
           python3 - <<'P' >> out.txt
           import json,datetime,subprocess,os,time
           t=datetime.datetime.utcnow().strftime("%Y-%m-%d")
-          fl=[x for x in json.load(open("f.json")).get("flights",[]) if x.get("date")==t and x.get("ata") and x.get("ata")!="—" and x.get("atd") and x.get("atd")!="—"]
+          fl=[x for x in json.load(open("f.json")).get("flights",[]) if x.get("date")==t and x.get("atd") and x.get("atd")!="—"]
           names=[]
           for x in fl:
             n=x.get("flight","")
             if n and n not in names: names.append(n)
-          names=[n.replace("ENT","E4") for n in names][:8]
+          names=[n.replace("ENT","E4") for n in names][:12]
           print("vols testés:",names)
           H=["-A","curl/8.5.0","-H","Accept: application/json","-H","Accept-Version: v1","-H","Authorization: Bearer "+os.environ["TOK"]]
           def get(u):
