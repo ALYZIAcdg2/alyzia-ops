@@ -1,0 +1,39 @@
+name: tmp bilan
+on:
+  push:
+    paths: [".github/workflows/tmp-bilan.yml"]
+permissions:
+  contents: write
+jobs:
+  v:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          U=https://alyzia-ops.alyzia-cdg2.workers.dev
+          echo MARK-BILAN-1 > out.txt
+          curl -sS -m 90 "$U/api/flights" -o f.json
+          curl -sS -m 60 "$U/api/admin/provider-observability" -o o.json
+          curl -sS -m 60 "$U/api/admin/flight-processing" -o a.json
+          python3 - >> out.txt <<'P'
+          import json,collections,datetime
+          f=json.load(open("f.json")).get("flights",[]);o=json.load(open("o.json"));a=json.load(open("a.json"))
+          t=(datetime.datetime.utcnow()+datetime.timedelta(hours=2)).strftime("%Y-%m-%d")
+          fl=[x for x in f if x.get("date")==t]
+          has=lambda v:v is not None and str(v).strip() not in("","—","-")
+          dep=[x for x in fl if has(x.get("atd"))]
+          print("DATE",t,"vols",len(fl),"partis(ATD)",len(dep))
+          for fld in("atd","eta","ata","gate","reg","etd","sta"):
+            c=collections.Counter((x.get(fld+"Source") or "?") for x in fl if has(x.get(fld)))
+            print(fld.ljust(5),sum(c.values()),"/",len(fl),"=",round(100*sum(c.values())/max(1,len(fl))),"%",dict(c.most_common(6)))
+          print("ATA sur partis:",sum(1 for x in dep if has(x.get("ata"))),"/",len(dep))
+          print("changements appareil:",[(x["flight"],x.get("aircraftChange",{}).get("source")) for x in fl if x.get("aircraftChange")])
+          print("== fournisseurs")
+          for r in o.get("rows",[]):
+            e=r.get("lastError")
+            print(r["provider"].ljust(13),"appels",r.get("performed"),"ok",r.get("successes"),"err",r.get("errors"),"last",r.get("lastStatus"),"|",(r.get("state") or {}).get("label","")[:60],"| ERR",(str(e.get("status"))+" "+(e.get("message") or "")[:40]) if e else "-")
+          print("== quotas")
+          for q in a.get("quotas",[]): print(q.get("provider"),"jour",q.get("today"),"mois",q.get("month"),"limite",q.get("limit"),q.get("lastStatus"))
+          P
+          git config user.name v && git config user.email v@v
+          git checkout --orphan verify-out && git rm -rfq . 2>/dev/null; git add -f out.txt && git commit -qm result && git push -f origin verify-out
