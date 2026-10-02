@@ -11,7 +11,7 @@ jobs:
       - uses: actions/checkout@v4
       - run: |
           U=https://alyzia-ops.alyzia-cdg2.workers.dev
-          echo MARK-BILAN-1 > out.txt
+          echo MARK-BILAN-2 > out.txt
           curl -sS -m 90 "$U/api/flights" -o f.json
           curl -sS -m 60 "$U/api/admin/provider-observability" -o o.json
           curl -sS -m 60 "$U/api/admin/flight-processing" -o a.json
@@ -34,6 +34,18 @@ jobs:
             print(r["provider"].ljust(13),"appels",r.get("performed"),"ok",r.get("successes"),"err",r.get("errors"),"last",r.get("lastStatus"),"|",(r.get("state") or {}).get("label","")[:60],"| ERR",(str(e.get("status"))+" "+(e.get("message") or "")[:40]) if e else "-")
           print("== quotas")
           for q in a.get("quotas",[]): print(q.get("provider"),"jour",q.get("today"),"mois",q.get("month"),"limite",q.get("limit"),q.get("lastStatus"))
+          print("== ATA manquants")
+          now=datetime.datetime.utcnow()+datetime.timedelta(hours=2)
+          nm=now.hour*60+now.minute
+          miss=[x for x in dep if not has(x.get("ata"))]
+          def mins(h):
+            try:
+              a,b=h.split(":");return int(a)*60+int(b)
+            except Exception: return None
+          old=[x for x in miss if (mins(x.get("atd") or "") is not None and nm-mins(x["atd"])>=240)]
+          print("partis sans ATA:",len(miss),"dont partis depuis >=4h:",len(old))
+          print("FR24 ATA: verifies",sum(1 for x in miss if x.get("fr24apiAtaCheckedAt")),"tentatives:",dict(collections.Counter(x.get("fr24apiAtaAttempts",0) for x in miss)))
+          print("exemples >=4h:",[(x["flight"],x.get("atd"),x.get("fr24apiAtaAttempts"),x.get("status")) for x in old[:12]])
           P
           git config user.name v && git config user.email v@v
           git checkout --orphan verify-out && git rm -rfq . 2>/dev/null; git add -f out.txt && git commit -qm result && git push -f origin verify-out
